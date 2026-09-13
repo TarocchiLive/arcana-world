@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: make check
+      - run: make build
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build Linux archive
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p dist
+          go build -trimpath -buildvcs=false -ldflags="-s -w -buildid= -X main.version=${RELEASE_TAG#v}" -o dist/arcana-world ./cmd/arcana-world
+          cp LICENSE dist/
+          cd dist
+          archive="arcana-world-${RELEASE_TAG}-linux-amd64.tar.gz"
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf - arcana-world LICENSE | gzip -n > "$archive"
+          sha256sum "$archive" > checksums.txt
+      - name: Publish release
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$RELEASE_TAG" --verify-tag --generate-notes "arcana-world-${RELEASE_TAG}-linux-amd64.tar.gz" checksums.txt
