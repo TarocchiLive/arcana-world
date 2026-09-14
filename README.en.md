@@ -13,11 +13,16 @@
 
 Arcana World is a Go-based TUI alternative to bilibili LiveHime. It offers a way to go live on platforms where LiveHime cannot run directly, such as Linux, or when you encounter difficulties using the official client. Sign in and configure your broadcast from the terminal, then stream directly with OBS.
 
+## Preview
+
+![Main menu](assets/arcana-world-1-en.png)
+![Cover preview](assets/arcana-world-2-en.png)
+
 ## Feature details
 
 - QR login and saved accounts you can switch between.
 - Start and stop broadcasts; edit the title, category, announcement, and cover.
-- Crop and preview covers before uploading.
+- Automatically crop covers and preview them in the terminal before uploading (requires a compatible terminal emulator; kitty or ghostty is recommended).
 - Send stream settings to OBS and optionally start and stop streaming together.
 - RTMP / SRT, Chinese and English interfaces, and proxy support.
 - Cross-platform: available on macOS, Windows, and Linux.
@@ -81,6 +86,12 @@ arcana-world --help                     # Show help
 ```
 
 Default data directory: `~/.arcana/world`.
+
+## TODO
+- [ ] Fetch direct Bilibili stream URLs, connect to OBS automatically, and start broadcasting automatically.
+- [ ] Receive Bilibili live chat messages and provide gift and chat history views in the TUI.
+- [ ] Add a Bilibili live chat overlay.
+- [ ] Add LiveHime support, TTS chat readouts, and gift announcements.
 
 ## Development
 
