@@ -110,7 +110,7 @@ func (m *Model) content() string {
 	}
 	var b strings.Builder
 	switch m.page {
-	case 0:
+	case livePage:
 		if m.chat != nil {
 			fmt.Fprintf(&b, i18n.T(i18n.DanmakuSummary), m.chatStatus())
 		}
@@ -137,15 +137,15 @@ func (m *Model) content() string {
 		} else {
 			b.WriteString(i18n.T(i18n.TUILiveConfigureHint))
 		}
-	case 1:
+	case accountsPage:
 		b.WriteString(accent.Render(i18n.T(i18n.TUIAccountsTitle)) + i18n.T(i18n.TUIAccountsDescription))
-	case 2:
+	case roomPage:
 		b.WriteString(accent.Render(i18n.T(i18n.TUIRoomTitle)) + "\n\n")
 		if m.room != nil {
 			fmt.Fprintf(&b, i18n.T(i18n.TUIRoomDetails), clean(m.room.Title), clean(m.room.Announcement), clean(m.room.CoverURL), clean(m.room.CoverStatus))
 		}
 		b.WriteString(i18n.T(i18n.TUIRoomCoverHint))
-	case 3:
+	case obsPage:
 		b.WriteString(accent.Render("OBS STUDIO · WEBSOCKET V5") + "\n\n")
 		fmt.Fprintf(&b, i18n.T(i18n.TUIOBSURLDetails), clean(m.config.OBSURL))
 		state := i18n.T(i18n.TUIOBSDisconnectedState)
@@ -166,7 +166,7 @@ func (m *Model) content() string {
 			fmt.Fprintf(&b, i18n.T(i18n.TUIOBSStreamDetails), streaming)
 		}
 		b.WriteString(i18n.T(i18n.TUIOBSDescription))
-	case 4:
+	case settingsPage:
 		proxy := m.config.Proxy
 		if proxy == "" {
 			proxy = i18n.T(i18n.TUISettingsSystemProxy)
@@ -174,8 +174,8 @@ func (m *Model) content() string {
 			u.User = url.User("***")
 			proxy = u.String()
 		}
-		fmt.Fprintf(&b, i18n.T(i18n.TUISettingsDetails), accent.Render(i18n.T(i18n.TUISettingsTitle)), clean(proxy), m.config.Protocol, clean(m.config.OBSURL))
-	case 5:
+		fmt.Fprintf(&b, i18n.T(i18n.TUISettingsDetails), accent.Render(i18n.T(i18n.TUISettingsTitle)), clean(proxy), m.config.Protocol)
+	case logsPage:
 		b.WriteString(accent.Render(i18n.T(i18n.TUILogsTitle)) + "\n" + muted.Render(clean(m.journal.Path())) + "\n\n")
 		if len(m.logs) == 0 {
 			b.WriteString(i18n.T(i18n.TUILogsEmpty))
@@ -183,7 +183,7 @@ func (m *Model) content() string {
 		for _, line := range m.logs {
 			b.WriteString(line + "\n")
 		}
-	case 6:
+	case helpPage:
 		b.WriteString(lipgloss.NewStyle().Width(m.view.Width).Render(helpText()))
 	case chatPage:
 		return m.chatView()

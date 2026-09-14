@@ -19,6 +19,13 @@ type Event struct {
 	Amount                                int64
 	Time                                  time.Time
 	Deleted                               bool
+	Title                                 string       `json:",omitempty"`
+	Fields                                []EventField `json:",omitempty"`
+}
+
+// EventField retains a named, decoded protocol value without selecting a UI language.
+type EventField struct {
+	Name, Value string
 }
 
 type projection struct {
@@ -76,7 +83,7 @@ func project(room int64, raw []byte) projection {
 	switch cmd {
 	case "SEND_GIFT_V2":
 		p.batch = projectGiftV2(p.event, stringValue(data["pb"]))
-	case "DANMU_MSG":
+	case "DANMU_MSG", "DANMU_MSG_MIRROR":
 		info := root["info"]
 		text, ok := at(info, 1).(string)
 		if !ok {
@@ -110,7 +117,7 @@ func project(room int64, raw []byte) projection {
 			batch := object(data["batch_combo_send"])
 			p.identity = identity("gift", tid, stringValue(data["rnd"]), p.event.UID, stringValue(data["giftId"]), stringValue(data["timestamp"]), stringValue(data["num"]), stringValue(data["total_coin"]), stringValue(data["combo_num"]), stringValue(batch["batch_combo_num"]), stringValue(batch["combo_num"]), stringValue(batch["total_num"]))
 		}
-	case "SUPER_CHAT_MESSAGE":
+	case "SUPER_CHAT_MESSAGE", "SUPER_CHAT_MESSAGE_JPN":
 		if _, ok := data["message"].(string); !ok {
 			return p
 		}
@@ -149,6 +156,20 @@ func project(room int64, raw []byte) projection {
 		p.event.Kind, p.event.User, p.event.UID = "guard", stringValue(object(sender["base"])["name"]), stringValue(sender["uid"])
 		p.event.Count, p.event.Text = number(pay["num"]), stringValue(data["toast_msg"])
 		p.event.Gift = guardName(number(guard["guard_level"]))
+	default:
+		p = projectRoomEvent(p, cmd, root)
+		if p.event.Kind == "unknown" {
+			p = projectInteractionEvent(p, cmd, root)
+		}
+		if p.event.Kind == "unknown" {
+			p = projectAdditionalCoreEvent(p, cmd, root)
+		}
+		if p.event.Kind == "unknown" {
+			p = projectRankEvent(p, cmd, root)
+		}
+		if p.event.Kind == "unknown" {
+			p = projectCatalogEvent(p, cmd, root)
+		}
 	}
 	return p
 }

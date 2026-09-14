@@ -22,8 +22,29 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func pageNames() []string {
-	return []string{i18n.T(i18n.TUIPageLive), i18n.T(i18n.TUIPageAccounts), i18n.T(i18n.TUIPageRoom), "OBS", i18n.T(i18n.TUIPageSettings), i18n.T(i18n.TUIPageLogs), i18n.T(i18n.TUIPageHelp), i18n.T(i18n.DanmakuPage)}
+const (
+	livePage = iota
+	chatPage
+	accountsPage
+	roomPage
+	obsPage
+	settingsPage
+	logsPage
+	helpPage
+	pageCount
+)
+
+func pageNames() [pageCount]string {
+	return [pageCount]string{
+		livePage:     i18n.T(i18n.TUIPageLive),
+		chatPage:     i18n.T(i18n.DanmakuPage),
+		accountsPage: i18n.T(i18n.TUIPageAccounts),
+		roomPage:     i18n.T(i18n.TUIPageRoom),
+		obsPage:      "OBS",
+		settingsPage: i18n.T(i18n.TUIPageSettings),
+		logsPage:     i18n.T(i18n.TUIPageLogs),
+		helpPage:     i18n.T(i18n.TUIPageHelp),
+	}
 }
 
 type resultMsg struct {
@@ -61,7 +82,7 @@ type Model struct {
 	cover                  *coverimage.Prepared
 	previewing             bool
 	page                   int
-	cursors                [8]int
+	cursors                [pageCount]int
 	width, height          int
 	mode, editKind, prompt string
 	input                  textinput.Model

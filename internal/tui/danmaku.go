@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const chatPage = 7
 const chatPageSize = 100
 
 type danmakuUI struct {
@@ -223,17 +222,6 @@ func (m *Model) chatKey(key string) (bool, tea.Cmd) {
 		c.before, c.newer, c.entries = 0, nil, nil
 		m.view.GotoTop()
 		return true, m.readChat()
-	case "pgup", "pgdown", "ctrl+u", "ctrl+d", "up", "down", "k", "j":
-		// Scrolling freezes display only. It must never pause network reception.
-		if c.follow {
-			c.follow = false
-			c.before = 1
-			if len(c.entries) > 0 {
-				c.before = c.entries[0].Sequence + 1
-			}
-		}
-		m.view.SetContent(m.content())
-		return false, nil
 	}
 	return false, nil
 }
@@ -279,7 +267,6 @@ func (m *Model) chatView() string {
 		b.WriteString(warning.Render(m.safe(c.state.Err.Error())) + "\n")
 	}
 	b.WriteString(toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled) + "\n")
-	b.WriteString(muted.Render(i18n.T(i18n.DanmakuCoverage)) + "\n")
 	if c.err != nil {
 		fmt.Fprintf(&b, i18n.T(i18n.DanmakuHistoryError), m.safe(c.err.Error()))
 		b.WriteByte('\n')
@@ -297,14 +284,16 @@ func (m *Model) chatView() string {
 	// Newest first keeps the live tail visible at the top; [] pages are stable
 	// sequence cursors, independent of incoming traffic.
 	for _, e := range c.entries {
-		if e.Kind == "unknown" && !c.showOther {
-			continue
+		switch e.Kind {
+		case "unknown", "detail", "notice", "recommendation", "watched", "rank_count", "stop_rooms", "likes":
+			if !c.showOther {
+				continue
+			}
 		}
 		line := chatEventText(e)
 		fmt.Fprintf(&b, "%s  %s\n", e.Time.Local().Format("01-02 15:04:05"), line)
 	}
 	b.WriteString("\n" + toggleLabel(i18n.T(i18n.DanmakuOther), c.showOther))
-	b.WriteString("\n" + muted.Render(i18n.T(i18n.DanmakuPrivacy)))
 	return lipgloss.NewStyle().Width(max(12, m.view.Width)).Render(b.String())
 }
 func chatEventText(e danmaku.Event) string {
@@ -321,8 +310,61 @@ func chatEventText(e danmaku.Event) string {
 		return fmt.Sprintf(i18n.T(i18n.DanmakuSC), e.Amount, user, text)
 	case "guard":
 		return fmt.Sprintf(i18n.T(i18n.DanmakuGuard), user, chatText(e.Gift, 128), e.Count)
+	case "enter":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuEnter), user)
+	case "follow":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuFollow), user)
+	case "share":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuShare), user)
+	case "special_follow":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuSpecialFollow), user)
+	case "mutual_follow":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuMutualFollow), user)
+	case "like":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuLike), user)
+	case "likes":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuLikes), e.Count)
+	case "watched":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuWatched), e.Count)
+	case "rank_count":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuRankCount), e.Count)
+	case "notice":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuNotice), text)
+	case "recommendation":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuRecommendation), user, e.Count, text)
+	case "stop_rooms":
+		if e.Amount == 1 {
+			return i18n.T(i18n.DanmakuPreparing)
+		}
+		return fmt.Sprintf(i18n.T(i18n.DanmakuStopRooms), e.Count)
+	case "live":
+		return i18n.T(i18n.DanmakuLive)
+	case "preparing":
+		return i18n.T(i18n.DanmakuPreparing)
+	case "room_change":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuRoomChange), text)
+	case "room_block":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuRoomBlock), user)
+	case "cut_off":
+		return fmt.Sprintf(i18n.T(i18n.DanmakuCutOff), text)
 	case "delete":
 		return i18n.T(i18n.DanmakuDelete)
+	case "detail":
+		var b strings.Builder
+		b.WriteByte('[')
+		b.WriteString(chatText(i18n.T(i18n.Key(e.Title)), 128))
+		b.WriteByte(']')
+		for _, field := range e.Fields {
+			if b.Len() >= 4096 {
+				b.WriteString(i18n.T(i18n.DanmakuTruncated))
+				break
+			}
+			b.WriteByte(' ')
+			b.WriteString(chatText(field.Name, 64))
+			b.WriteByte('=')
+			b.WriteString(chatEnumText(e.Text, field))
+		}
+		return b.String()
 	case "gap":
 		switch e.Text {
 		case "session_start":

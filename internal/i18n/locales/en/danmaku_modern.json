@@ -1,0 +1,22 @@
+{
+  "danmaku.modern.entry_effect": "Entry effect",
+  "danmaku.modern.virtual_mvp": "Virtual MVP unlocked",
+  "danmaku.modern.red_pocket_start": "Red packet started",
+  "danmaku.modern.red_pocket_v2_start": "Red packet started (v2)",
+  "danmaku.modern.red_pocket_winners": "Red packet winners",
+  "danmaku.modern.red_pocket_v2_winners": "Red packet winners (v2)",
+  "danmaku.modern.lottery_start": "Anchor lottery started",
+  "danmaku.modern.lottery_award": "Anchor lottery results",
+  "danmaku.modern.common_notice": "General notice",
+  "danmaku.modern.effect_message": "Effect danmaku",
+  "danmaku.modern.activity_config": "Danmaku activity effect configuration",
+  "danmaku.modern.silent_on": "Room mute enabled",
+  "danmaku.modern.silent_off": "Room mute disabled",
+  "danmaku.modern.online_rank": "Top supporters",
+  "danmaku.modern.room_stats": "Room follower statistics updated",
+  "danmaku.modern.room_stats_v2": "Room follower statistics updated (v2)",
+  "danmaku.modern.warning": "Live content warning",
+  "danmaku.modern.room_admins": "Room moderators",
+  "danmaku.modern.admin_added": "Moderator appointed",
+  "danmaku.modern.admin_revoked": "Moderator revoked"
+}

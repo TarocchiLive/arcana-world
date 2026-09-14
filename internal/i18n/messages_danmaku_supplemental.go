@@ -1,0 +1,25 @@
+package i18n
+
+const (
+	DanmakuSupplementalDmInteraction            Key = "danmaku.supplemental.dm_interaction"
+	DanmakuSupplementalGiftStarProcess          Key = "danmaku.supplemental.gift_star_process"
+	DanmakuSupplementalOnlineRankTop3           Key = "danmaku.supplemental.online_rank_top3"
+	DanmakuSupplementalPopularRankChanged       Key = "danmaku.supplemental.popular_rank_changed"
+	DanmakuSupplementalHotRankChanged           Key = "danmaku.supplemental.hot_rank_changed"
+	DanmakuSupplementalHotRankChangedV2         Key = "danmaku.supplemental.hot_rank_changed_v2"
+	DanmakuSupplementalHotRankSettlement        Key = "danmaku.supplemental.hot_rank_settlement"
+	DanmakuSupplementalHotRankSettlementV2      Key = "danmaku.supplemental.hot_rank_settlement_v2"
+	DanmakuSupplementalPopularityRedPocketNew   Key = "danmaku.supplemental.popularity_red_pocket_new"
+	DanmakuSupplementalFullScreenSpecialEffect  Key = "danmaku.supplemental.full_screen_special_effect"
+	DanmakuSupplementalAreaRankChanged          Key = "danmaku.supplemental.area_rank_changed"
+	DanmakuSupplementalSuperChatEntrance        Key = "danmaku.supplemental.super_chat_entrance"
+	DanmakuSupplementalWidgetBanner             Key = "danmaku.supplemental.widget_banner"
+	DanmakuSupplementalWidgetWishList           Key = "danmaku.supplemental.widget_wish_list"
+	DanmakuSupplementalAnchorLotCheckstatus     Key = "danmaku.supplemental.anchor_lot_checkstatus"
+	DanmakuSupplementalAnchorLotEnd             Key = "danmaku.supplemental.anchor_lot_end"
+	DanmakuSupplementalVideoConnectionJoinStart Key = "danmaku.supplemental.video_connection_join_start"
+	DanmakuSupplementalVideoConnectionMsg       Key = "danmaku.supplemental.video_connection_msg"
+	DanmakuSupplementalVideoConnectionJoinEnd   Key = "danmaku.supplemental.video_connection_join_end"
+	DanmakuSupplementalReenterLiveRoom          Key = "danmaku.supplemental.reenter_live_room"
+	DanmakuSupplementalPlayTogether             Key = "danmaku.supplemental.play_together"
+)

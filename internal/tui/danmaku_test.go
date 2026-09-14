@@ -191,16 +191,39 @@ func TestChatPauseRejectsAnInflightLivePage(t *testing.T) {
 	}
 }
 
-func TestChatScrollingFreezesAnInflightLivePage(t *testing.T) {
+func TestChatScrollingDoesNotHideIncomingMessages(t *testing.T) {
 	m := chatTestModel(t)
-	appendChat(t, m, "already displayed")
 	runChatCommand(m, m.readChat())
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	appendChat(t, m, "arrived after scrolling")
+	runChatCommand(m, m.readChat())
+	if !strings.Contains(m.chatView(), "arrived after scrolling") {
+		t.Fatal("scrolling an empty page hid incoming chat")
+	}
 	appendChat(t, m, "arrived during refresh")
 	pending := m.readChat()
 	queued := pending().(chatPageMsg)
-	m.chatKey("pgdown")
+	m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
 	runChatCommand(m, m.applyChatPage(queued))
-	if m.chat.follow || len(m.chat.entries) != 1 || m.chat.entries[0].Text != "already displayed" {
-		t.Fatal("in-flight history refresh moved the page while the user was scrolling")
+	if !strings.Contains(m.chatView(), "arrived during refresh") {
+		t.Fatal("scrolling discarded an incoming chat refresh")
+	}
+}
+
+func TestChatDetailFieldsCannotInjectTerminalControlsOrUnboundedText(t *testing.T) {
+	m := chatTestModel(t)
+	value := "\x1b]52;c;payload\a\n" + strings.Repeat("x", 20000)
+	encoded, _ := json.Marshal(value)
+	raw := fmt.Sprintf(`{"cmd":"ROOM_SILENT_ON","data":{"type":%s,"second":-1}}`, encoded)
+	if _, err := m.chat.history.Append(1, json.RawMessage(raw)); err != nil {
+		t.Fatal(err)
+	}
+	runChatCommand(m, m.readChat())
+	line := chatEventText(m.chat.entries[0])
+	if strings.ContainsAny(line, "\x1b\a\r\n") || len(line) > 4096 {
+		t.Fatal("protocol detail escaped the bounded single-line renderer")
+	}
+	if !strings.Contains(line, "second=-1") {
+		t.Fatal("long future enum hid the following semantic field")
 	}
 }

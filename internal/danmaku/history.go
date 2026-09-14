@@ -19,6 +19,7 @@ type History struct {
 	mu       sync.RWMutex
 	db       *bolt.DB
 	closeErr error
+	stop     chan struct{}
 }
 
 var roomsBucket = []byte("rooms")
@@ -87,13 +88,19 @@ func Open(dir string) (*History, error) {
 			}
 		}
 	}
-	return &History{db: db}, nil
+	h := &History{db: db, stop: make(chan struct{})}
+	if err := h.prune(time.Now()); err != nil {
+		return nil, errors.Join(err, db.Close())
+	}
+	go h.retain()
+	return h, nil
 }
 func (h *History) Close() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.db != nil {
-		h.closeErr = h.db.Close()
+		close(h.stop)
+		h.closeErr = errors.Join(h.closeErr, h.db.Close())
 		h.db = nil
 	}
 	return h.closeErr
@@ -130,8 +137,12 @@ func (h *History) append(roomID int64, raw []byte, projections ...projection) (b
 			if p.identity != "" && ids.Get([]byte(p.identity)) != nil {
 				continue
 			}
+			seq, err := events.NextSequence()
+			if err != nil {
+				return err
+			}
 			for _, id := range p.deletes {
-				if err := tombstones.Put([]byte(id), []byte{1}); err != nil {
+				if err := tombstones.Put([]byte(id), key(seq)); err != nil {
 					return err
 				}
 				if seq := sc.Get([]byte(id)); seq != nil {
@@ -148,10 +159,6 @@ func (h *History) append(roomID int64, raw []byte, projections ...projection) (b
 						return err
 					}
 				}
-			}
-			seq, err := events.NextSequence()
-			if err != nil {
-				return err
 			}
 			p.event.Sequence = seq
 			if p.scID != "" && tombstones.Get([]byte(p.scID)) != nil {
@@ -220,6 +227,15 @@ func (h *History) Page(roomID int64, before uint64, limit int) ([]Event, error) 
 			if err := json.Unmarshal(v, &event); err != nil {
 				return err
 			}
+			// Reinterpret old unknown records without changing their receive time,
+			// stable pagination cursor, or the retained raw payload.
+			if event.Kind == "unknown" && !event.Deleted {
+				p := project(roomID, room.Bucket(rawBucket).Get(k))
+				if p.event.Kind != "unknown" && len(p.batch) == 0 && p.scID == "" && len(p.deletes) == 0 {
+					p.event.Sequence, p.event.Time = event.Sequence, event.Time
+					event = p.event
+				}
+			}
 			result = append(result, event)
 		}
 		return nil
@@ -254,4 +270,89 @@ func (h *History) Rooms() ([]int64, error) {
 		})
 	})
 	return rooms, err
+}
+
+const retention = 7 * 24 * time.Hour
+const retentionInterval = 15 * time.Minute
+
+func (h *History) retain() {
+	ticker := time.NewTicker(retentionInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case now := <-ticker.C:
+			if err := h.prune(now); err != nil && !errors.Is(err, os.ErrClosed) {
+				h.mu.Lock()
+				h.closeErr = errors.Join(h.closeErr, err)
+				h.mu.Unlock()
+			}
+		case <-h.stop:
+			return
+		}
+	}
+}
+
+// prune removes raw payloads and their projections in one transaction. Bolt
+// reuses the freed pages; no live database is replaced or rewritten in place.
+func (h *History) prune(now time.Time) error {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if h.db == nil {
+		return os.ErrClosed
+	}
+	cutoff := now.Add(-retention)
+	return h.db.Update(func(tx *bolt.Tx) error {
+		rooms := tx.Bucket(roomsBucket)
+		return rooms.ForEach(func(roomKey, value []byte) error {
+			if value != nil {
+				return nil
+			}
+			room := rooms.Bucket(roomKey)
+			events, raw := room.Bucket(eventsBucket), room.Bucket(rawBucket)
+			tombstones := room.Bucket(tombstonesBucket)
+			// Older databases stored a one-byte flag instead of a deletion
+			// sequence. Recover those references from retained business bytes.
+			legacy := false
+			if err := tombstones.ForEach(func(_, v []byte) error {
+				legacy = legacy || len(v) != 8
+				return nil
+			}); err != nil {
+				return err
+			}
+			c := events.Cursor()
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				var event Event
+				if err := json.Unmarshal(v, &event); err != nil {
+					return err
+				}
+				if event.Time.Before(cutoff) {
+					if err := raw.Delete(k); err != nil {
+						return err
+					}
+					if err := c.Delete(); err != nil {
+						return err
+					}
+				} else if legacy {
+					for _, p := range projectMany(event.RoomID, raw.Get(k)) {
+						for _, id := range p.deletes {
+							if err := tombstones.Put([]byte(id), k); err != nil {
+								return err
+							}
+						}
+					}
+				}
+			}
+			for _, name := range [][]byte{idsBucket, scBucket, tombstonesBucket} {
+				c := room.Bucket(name).Cursor()
+				for k, seq := c.First(); k != nil; k, seq = c.Next() {
+					if len(seq) != 8 || events.Get(seq) == nil {
+						if err := c.Delete(); err != nil {
+							return err
+						}
+					}
+				}
+			}
+			return nil
+		})
+	})
 }

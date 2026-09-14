@@ -1,0 +1,23 @@
+{
+  "danmaku.supplemental.dm_interaction": "Repeated danmaku",
+  "danmaku.supplemental.gift_star_process": "Gift star illuminated",
+  "danmaku.supplemental.online_rank_top3": "Top-three supporter notice",
+  "danmaku.supplemental.popular_rank_changed": "Popularity rank changed",
+  "danmaku.supplemental.hot_rank_changed": "Hot rank changed",
+  "danmaku.supplemental.hot_rank_changed_v2": "Hot rank changed (v2)",
+  "danmaku.supplemental.hot_rank_settlement": "Hot rank result",
+  "danmaku.supplemental.hot_rank_settlement_v2": "Hot rank result (v2)",
+  "danmaku.supplemental.popularity_red_pocket_new": "Red packet gift",
+  "danmaku.supplemental.full_screen_special_effect": "Full-screen effect",
+  "danmaku.supplemental.area_rank_changed": "Area rank changed",
+  "danmaku.supplemental.super_chat_entrance": "Super Chat button",
+  "danmaku.supplemental.widget_banner": "Room banner",
+  "danmaku.supplemental.widget_wish_list": "Gift wish list progress",
+  "danmaku.supplemental.anchor_lot_checkstatus": "Anchor lottery review",
+  "danmaku.supplemental.anchor_lot_end": "Anchor lottery ended",
+  "danmaku.supplemental.video_connection_join_start": "Video connection invitation",
+  "danmaku.supplemental.video_connection_msg": "Video connection message",
+  "danmaku.supplemental.video_connection_join_end": "Video connection ended",
+  "danmaku.supplemental.reenter_live_room": "REENTER_LIVE_ROOM",
+  "danmaku.supplemental.play_together": "PLAY_TOGETHER"
+}

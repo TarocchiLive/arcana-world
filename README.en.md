@@ -55,8 +55,8 @@ Account credentials are saved in your system keyring. Linux users need an availa
 2. Set your title, category, and cover on the **Room** page.
 3. In OBS Studio's top menu, choose **Tools → WebSocket Server Settings → Enable WebSocket server** (check it) **→ Show Connect Info →** copy the server password **→ OK** ([official setup guide](https://obsproject.com/kb/remote-control-guide)).
    OBS 28 and later include this feature—no plugin installation is needed. For older versions, install an [obs-websocket 5.x plugin](https://github.com/obsproject/obs-websocket/releases) compatible with your OBS version.
-4. In Arcana World's **Settings**, enter the server address (for example `ws://127.0.0.1:4455`) and the password you just copied.
-5. Connect on the **OBS** page and enable **Auto-stream**.
+4. On Arcana World's **OBS** (`5`) page, enter the server address (for example `ws://127.0.0.1:4455`) and the password you just copied.
+5. Connect on the same page and enable **Auto-stream**. Adjust proxy and streaming protocol options on **Settings** (`6`).
 6. Return to **Live** and start your broadcast.
 
 Choose **Stop Bilibili live** when you are finished. With Auto-stream disabled, start and stop streaming in OBS manually.
@@ -75,9 +75,11 @@ If Bilibili asks for identity verification, follow the prompt and retry afterwar
 | `Esc` | Back or cancel |
 | `q` | Quit |
 
+Page order: `1` Live, `2` Chat, `3` Accounts, `4` Room, `5` OBS, `6` Settings, `7` Logs, `8` Help.
+
 ### Chat and history
 
-Signing in or restoring a saved account automatically connects to that account's room. No manual Cookie, streamer identity code, or OBS connection is required. Press `8` for Chat; listening continues on other tabs.
+Signing in or restoring a saved account automatically connects to that account's room. No manual Cookie, streamer identity code, or OBS connection is required. Press `2` for Chat; listening continues on other tabs.
 
 | Key | Action |
 | --- | --- |
@@ -86,15 +88,19 @@ Signing in or restoring a saved account automatically connects to that account's
 | `[` / `]` | Older / newer history page, up to 100 records per page |
 | `End` | Return to the active listener's latest records |
 | `o` | Cycle rooms with local history, including while signed out |
-| `f` | Show / hide other events; they are always stored and included in page counts |
+| `f` | Show / hide other events |
 | `r` | Refresh history and retry failures without interrupting a healthy connection |
-| `PgUp` / `PgDn` | Scroll and pause following so new messages do not move the page |
+| `PgUp` / `PgDn` | Scroll without pausing incoming messages; press `Space` to pause for reading |
 
-History lives in `danmaku/history.db` under the data directory, separated by room. Messages commit in synchronous database transactions before display. Reliable event IDs deduplicate replays across restarts; identical text without a reliable ID is retained to avoid losing legitimate repeated messages. Both legacy and protobuf gifts are supported. Unknown or malformed business payloads are retained raw. Oversized text is shortened only for display; the full content stays in local history.
+History lives in `danmaku/history.db` under the data directory, separated by room. Chat history (including chat, gifts, and raw business events) and operation logs are retained for seven days; expired records are automatically cleaned at startup and while running, even with listening disabled. Messages commit in synchronous database transactions before display. Reliable event IDs deduplicate replays across restarts within the retention window; identical text without a reliable ID is retained to avoid losing legitimate repeated messages. Both legacy and protobuf gifts are supported. Unknown or malformed business payloads are retained raw. Oversized text is shortened only for display; the full content remains available locally during the retention window.
+
+Supported interaction actions are 1–5: joins, follows, shares, special follows, and mutual follows. Other decoded families include gifts, SC, moderation, red envelopes, lotteries, PK, rankings, voice connections, and activities. JSON and newer protobuf gift, interaction, and ranking messages are decoded. Open-platform event formats are also supported, while the listener still connects through the webpage protocol. Press `f` for translated event titles and structured fields. Documented enum meanings accompany their wire values; unknown values remain intact, without guessing monetary units or counting gift combo summaries as additional purchases.
+
+Previously unparsed ordinary history events are decoded on read without changing timestamps or pagination. Name-only commands with no field definitions, future interaction types, and malformed payloads remain unparsed and retain their original business bytes. An upstream list of command names is not a complete parser.
+
+Retention uses local receive / write times and runs every 15 minutes while the app is open. Legacy log lines without parseable timestamps are preserved. Freed database pages are reused by subsequent writes, so the database file does not necessarily shrink immediately.
 
 **Reliability limits:** the webpage API does not guarantee delivery or provide a reliable offline replay cursor. Network loss, app shutdown, disabling listening, platform restrictions, or messages the server never sends can leave gaps. This is not a zero-loss archive or a complete financial ledger. Session boundaries are recorded. Storage failures show a warning and retain pending messages for retry before switching accounts. Shutdown reports writes that still fail; forced termination, power loss, or damaged storage can lose uncommitted events.
-
-**Local privacy:** chat, gifts, and raw business events are not automatically pruned; monitor disk usage. Deleted Super Chats are hidden in the UI, but raw content remains on disk. Restrictive permissions (Unix directories `0700`, database `0600`) are not encryption; do not share the database. Cookies and connection authentication packets are never written to history. Only one history writer can use a data directory at a time. A lock or storage error appears on Chat without disabling other live controls.
 
 ### Options
 
@@ -137,4 +143,5 @@ Licensed under [GPL-3.0-only](LICENSE).
 
 - [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive): the source of this project's protocol implementations.
 - [xfgryujk/blivedm](https://github.com/xfgryujk/blivedm): reference for webpage chat protocol, WBI signing, and event structures (MIT).
+- [bilive_client](https://github.com/ShmilyChen/bilive_client), [bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect), [BilibiliTool](https://github.com/EricEcho/BilibiliTool), and [blivemsg](https://github.com/urlynn/blivemsg): legacy commands, actual business payload samples, and ranking fields.
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea): the terminal UI framework.

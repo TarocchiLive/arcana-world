@@ -18,17 +18,17 @@ type menuItem struct{ label, action string }
 
 func (m *Model) menu() []menuItem {
 	switch m.page {
-	case 0:
+	case livePage:
 		return []menuItem{{i18n.T(i18n.TUIMenuRefreshRoom), "refresh"}, {i18n.T(i18n.TUIMenuStartLive), "start-confirm"}, {i18n.T(i18n.TUIMenuStopLive), "stop-confirm"}, {i18n.T(i18n.TUIMenuRevealStreamKey), "reveal"}}
-	case 1:
+	case accountsPage:
 		items := []menuItem{{i18n.T(i18n.TUIMenuAddAccount), "login"}}
 		for _, a := range m.store.Accounts() {
 			items = append(items, menuItem{clean(a.Name) + " · " + a.UID, "account:" + a.UID})
 		}
 		return append(items, menuItem{i18n.T(i18n.TUIMenuRemoveAccount), "delete-pick"})
-	case 2:
+	case roomPage:
 		return []menuItem{{i18n.T(i18n.TUIMenuEditTitle), "title"}, {i18n.T(i18n.TUIMenuSelectCategory), "areas"}, {i18n.T(i18n.TUIMenuEditAnnouncement), "announcement"}, {i18n.T(i18n.TUIMenuManageCover), "cover"}, {i18n.T(i18n.TUIMenuManageDelay), "delay"}}
-	case 3:
+	case obsPage:
 		label := i18n.T(i18n.TUIOBSConnect)
 		action := "obs-connect"
 		if m.obsBusy || m.obsState.Connecting {
@@ -38,9 +38,18 @@ func (m *Model) menu() []menuItem {
 			label = i18n.T(i18n.TUIOBSDisconnect)
 			action = "obs-disconnect-confirm"
 		}
-		return []menuItem{{label, action}, {toggleLabel(i18n.T(i18n.TUIOBSAutoConnect), m.config.OBSAutoConnect), "obs-auto-connect"}, {toggleLabel(i18n.T(i18n.TUIOBSAutoStream), m.config.OBSAutoStream), "obs-auto-stream"}}
-	case 4:
-		return []menuItem{{i18n.T(i18n.TUIMenuSetProxy), "proxy"}, {i18n.T(i18n.TUIMenuSetProtocol), "protocol"}, {i18n.T(i18n.TUISettingsOBSURL), "obs-url"}, {i18n.T(i18n.TUIMenuOBSPassword), "obs-password"}}
+		return []menuItem{
+			{label, action},
+			{toggleLabel(i18n.T(i18n.TUIOBSAutoConnect), m.config.OBSAutoConnect), "obs-auto-connect"},
+			{toggleLabel(i18n.T(i18n.TUIOBSAutoStream), m.config.OBSAutoStream), "obs-auto-stream"},
+			{i18n.T(i18n.TUISettingsOBSURL), "obs-url"},
+			{i18n.T(i18n.TUIMenuOBSPassword), "obs-password"},
+		}
+	case settingsPage:
+		return []menuItem{
+			{i18n.T(i18n.TUIMenuSetProxy), "proxy"},
+			{i18n.T(i18n.TUIMenuSetProtocol), "protocol"},
+		}
 	case chatPage:
 		return []menuItem{{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"}}
 	}
