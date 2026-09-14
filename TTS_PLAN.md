@@ -1,18 +1,18 @@
-# 可选 TTS 功能：上下文、实测与接入建议
+# 可选 TTS 功能：Go Edge TTS 主方案与 Kokoro 离线备选
 
 本文归档本次 TTS 调研和本地实验，供后续开发接续使用。它是规划记录，不代表 Arcana World 已实现语音播报、模型下载或弹幕接收。
 
 ## 需求与当前决策
 
-用户希望在 Linux 上获得可接受的中文弹幕播报效果，试听 eSpeak 后明确认为音质不可接受。随后讨论并实际测试了本地 Kokoro，由 Go API 调用，关注延迟、CPU、内存及 GPU 占用。最终关心的问题是：能否将其作为当前 Go TUI 项目的可选功能，由用户在 TUI 内下载模型并启用。
+用户希望获得可接受的中文直播间留言/弹幕播报效果。此前已否定 eSpeak 音质，并测试了本地 Kokoro 的 Go API、CPU、内存和 CoreML。随后实际测试了 Python edge-tts 与 Go 社区客户端。按用户最新决定，**Go Edge TTS 作为主要方案，原 Kokoro + sherpa-onnx 方案作为离线备选**。
 
-结论：可以实现。推荐主 TUI 保持现有构建方式，按需安装独立语音组件和模型，由 TUI 管理组件生命周期。用户不必安装 Python、手动运行 API 或配置后台服务。
+主方案直接从 Go 调用微软 Edge 在线语音服务，无需本地模型或 Python 子进程。原有独立语音组件、模型下载及 TUI 安装流程仅适用于 Kokoro 备选，不是主方案的前置要求；备选不代表在线失败时自动切换。
 
 截至本记录：
 
 - 尚未决定正式实现，也未修改项目运行代码或加入推理依赖。
-- 推荐独立子进程方案，但这仍是设计建议，不是用户已确认的最终接口合同。
-- 当前 M2 Pro 上推荐优先考虑 FP32 模型 + CPU 双线程；不能直接将该选择推广到 Linux。
+- 主方案已通过项目外的 Go 合成冒烟测试，但尚未实现 TUI、播放或弹幕接收集成。
+- Kokoro 备选推荐独立子进程；具体接口仍是设计建议。其在当前 M2 Pro 上优先考虑 FP32 模型 + CPU 双线程，不能直接推广到 Linux。
 - CoreML 已实际尝试，没有得到加速收益，不能宣称 GPU 加速成功。
 - 本分支只归档规划。创建分支时已有的 README 修改和四张截图不是本次 TTS 工作，未纳入本次提交。
 
@@ -22,15 +22,97 @@
 
 用户已经试听并否定音质，不再作为中文弹幕播报的推荐方案。部分神经语音模型使用 `espeak-ng-data` 进行发音处理，不等于最终输出仍是 eSpeak 的合成声音。
 
-### edge-tts
+### 主方案：Go Edge TTS
 
-第三方 Python 客户端，访问微软 Edge 在线语音服务；不需要安装 Edge 浏览器。可使用中文声音，例如 `zh-CN-XiaoxiaoNeural`、`zh-CN-YunxiNeural`，当前可用列表应以服务实际返回为准。
+使用社区库 [`github.com/wujunwei928/edge-tts-go/edge_tts`](https://github.com/wujunwei928/edge-tts-go)，不是微软官方 SDK。它直接访问微软 Edge 在线语音服务，不需要安装 Edge、Windows 或 Python，也不需要提供 API Key。已实测音色为 `zh-CN-XiaoxiaoNeural`（晓晓，女声）、`zh-CN-YunxiNeural`（云希，男声）；其他可用音色以服务返回为准。
 
-优点：无需本地模型，本机推理负担小。限制：必须联网，文本发送至微软；不是具有可用性承诺的正式云 API，存在接口变化和服务限制风险。Linux 上其 `edge-playback` 命令需要 mpv。
+免费边界：开源客户端不收取使用费，当前合成路径无需开通 Azure 付费账户；这不等于微软承诺永久免费、无限调用、SLA 或无条件商用。Go 客户端仓库标注 MIT，但代码许可不能代替微软服务和生成音频的适用条款，正式商用应另行审核。
 
-本次没有对 edge-tts 做本机性能测试，也没有将其集成到项目。它可以作为后续在线方案候选，不应因为本次做了 Kokoro 实验就自动扩大实现范围。
+优点：无需下载本地模型或在本机执行神经网络推理。限制：必须联网，文本发送至微软；存在接口变更、服务限制和网络延迟风险。未测本机 CPU/RSS，不能据此宣称资源占用为零。不能将付费 Azure 的音色、情绪控制或 SSML 能力直接套用到 Edge；Python 上游明确不支持任意自定义 SSML。
 
-### Kokoro + sherpa-onnx
+#### Go 版本验证：不要直接使用 @latest
+
+2026-09-14 在本机 macOS / Apple M2 Pro、项目外独立 Go 模块中实测：
+
+- `go get github.com/wujunwei928/edge-tts-go/edge_tts@latest` 解析为 `v0.0.2`。首条合成约 0.62 秒后返回 `EOF`，没有成功生成音频。未定位根因，不将其归结为所有环境都不可用。
+- 切换 `@main` 后解析为 `v0.0.3-0.20260613042911-e8c68c41cd80`，同一程序连续四条全部成功。
+- 接入时固定已验证版本，不依赖移动的 `main`，也不误以为 `@latest` 一定包含最新协议修复：
+
+```bash
+go get github.com/wujunwei928/edge-tts-go/edge_tts@v0.0.3-0.20260613042911-e8c68c41cd80
+```
+
+实测调用路径如下；示例生成完整 MP3，不包含播放：
+
+```go
+package main
+
+import (
+	"log"
+	"os"
+
+	"github.com/wujunwei928/edge-tts-go/edge_tts"
+)
+
+func main() {
+	c, err := edge_tts.NewCommunicate(
+		"主播晚上好！第一次来直播间，这个游戏看起来好有意思啊。",
+		edge_tts.SetVoice("zh-CN-XiaoxiaoNeural"),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	audio, err := c.Stream()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := os.WriteFile("comment.mp3", audio, 0644); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+`Stream()` 在这条调用路径中返回完整音频字节；名字不能证明调用者能够逐块消费音频。本次只测整句完成时间，没有测首音频延迟，也没有验证边生成边播放。
+
+#### Python 与 Go 的留言合成实测
+
+统一默认语速、音高，逐条串行调用，每种实现每条计时一次；不是并发、压力或长期稳定性测试。
+
+| 文件 / 音色 | 留言原文 | Python 耗时 | Go 耗时 | 音频时长 |
+| --- | --- | ---: | ---: | ---: |
+| `01-xiaoxiao-greeting.mp3` / 晓晓 | 主播晚上好！第一次来直播间，这个游戏看起来好有意思啊。 | 1.80 秒 | 1.73 秒 | 5.904 秒 |
+| `02-yunxi-excited.mp3` / 云希 | 太强了吧！这波居然还能反杀？兄弟们，把666打在公屏上！ | 1.95 秒 | 1.95 秒 | 7.224 秒 |
+| `03-xiaoxiao-question.mp3` / 晓晓 | 主播，这套装备新手能用吗？预算只有两千金币，应该先买哪一件呀？ | 1.99 秒 | 2.96 秒 | 7.128 秒 |
+| `04-yunxi-joking.mp3` / 云希 | 哈哈哈，刚说完这把稳了，转头就掉坑里了。没事没事，节目效果拉满！ | 1.89 秒 | 1.65 秒 | 7.368 秒 |
+
+- 平均 Python 1.91 秒/条，Go 2.07 秒/条，处于同一量级；样本少且非同时测量，不足以判断语言性能优劣。
+- Python 计时包含 `uvx --from edge-tts edge-tts` 命令启动、网络请求和完整 MP3 写入，依赖已缓存，不含首次安装；未记录 Python 包的具体版本，不能视为精确版本基准。
+- Go 计时从创建 `Communicate` 到完整 MP3 写入，不包含依赖下载、编译及进程启动；因此与 Python 的计时边界不同。
+- Go 四个文件分别为 35424、43344、42768、44208 字节。`afinfo` 识别为 24 kHz 单声道 MP3，四条都用 `afconvert` 成功解码为 PCM；Python 四条也通过 `afinfo` 检查。
+- 验证证明音频格式及 Go 文件可解码，不代表主观音质、数字“666”的读法或情绪表现已获用户认可。未实测播放器出声延迟、Linux、跨平台发行或高并发。
+- 不能将这些数字与下文不同文本、不同计时方式的 Kokoro 实验当作严格性能排名。
+
+本机试听与复现文件：
+
+- Python 样音：`/tmp/edge-tts-live-comments.pnmucz/`。
+- Go 样音及 `main.go`、`go.mod`、`go.sum`：`/tmp/edge-tts-go-preview.zz9HEH/`；进入该目录执行 `go run .` 可重新生成。
+- macOS 用 `open /tmp/edge-tts-go-preview.zz9HEH` 打开目录，或 `afplay` 播放其中一个 MP3。Python 自带 `edge-playback` 在 macOS/Linux 需要额外安装 mpv。
+- 临时目录可能被系统清理；音频、实验依赖和程序未加入项目，不能作为长期部署路径。上文保留可重建的核心调用与版本。
+
+#### 主方案接入建议与未验证边界
+
+以下是后续实现建议，不代表现有代码已具备这些能力：
+
+1. 优先直接使用 Go 库，不为在线主方案引入 Python、Kokoro 原生库、模型下载或独立 HTTP 服务。另一个候选 `jing332/tts-server-go` 已归档，最后推送在 2023 年，不作为新接入首选。
+2. TTS 为可选功能，启用时明确告知文本发送到微软；无需安装模型。合成异步执行，不阻塞 TUI 和直播/OBS 操作，沿用项目既有事件处理模式。
+3. 将“合成”和“播放”分开验证。库返回 MP3 不等于项目已能播音；跨平台播放器、设备错误、停止播放、退出释放资源仍需实现和实测。不要把 macOS 的 `afplay` 当成 Linux 方案。
+4. 实施前检查固定版本的超时、取消和错误传播能力，并验证断网/服务拒绝时能结束任务；本次未核实其 `context.Context` 支持、并发安全或连接复用。
+5. 如需流式低延迟，先核实分块接口并实测首段可播放时间，不承诺“立刻出声”。本次整句合成约 2 秒只是网络条件下的样本，不是延迟保证。
+6. 弹幕排队、过期、队列满和用户停止策略必须明确；不能因为短句生成比播放快就无限积压，也不擅自增加自动重试或并发。
+7. 在实际 `CGO_ENABLED=0` 发布矩阵及 Linux/Nix 环境验证合成与播放；本机 `go run` 成功不等于所有发行目标通过。OBS 是否能收到声音需单独验证音频路由。
+8. Kokoro 保留为用户选择的离线备选，不因网络失败自动下载模型或切换后端。仅当决定提供离线能力时实施后文组件分发和安装流程。
+
+### 备选方案：Kokoro + sherpa-onnx
 
 Kokoro 是约 8200 万参数的神经语音模型。sherpa-onnx 提供 Go 绑定，实际调用原生推理库及 ONNX Runtime，不是纯 Go 推理。
 
@@ -44,7 +126,7 @@ Kokoro 是约 8200 万参数的神经语音模型。sherpa-onnx 提供 Go 绑定
 
 不要误将 `sid=0` 当作该版本的默认中文女声。不同模型版本的编号也不能混用。
 
-## 实验环境与方法
+## Kokoro 备选：实验环境与方法
 
 ### 环境
 
@@ -92,7 +174,7 @@ CPU 测量采用 `getrusage` 进程累计 user + system CPU 时间差除以墙�
 
 这些临时文件和模型未纳入仓库，可能被系统清理；本文保留关键方法和结果。上述路径、PID、运行端口不构成长期部署保证。额外 CoreML/FP32 实验进程已停止，最后检查时原 CPU 接口仍可用。
 
-## CPU 双线程 INT8 实测
+## Kokoro 备选：CPU 双线程 INT8 实测
 
 模型及配套文件解压后的总大小约 205.35 MiB，压缩包约 140.22 MiB。模型本体约 109 MB，音色文件约 51.3 MB，另有词典、规则和发音数据；安装容量不能只算 ONNX 文件。
 
@@ -127,7 +209,7 @@ CPU 测量采用 `getrusage` 进程累计 user + system CPU 时间差除以墙�
 
 未定位根因，不能断定是 Kokoro 普遍缺陷，也不能用静音输出时间作为有效性能数据。本次没有验证 FP32 单线程。
 
-## GPU 与 CoreML 实验
+## Kokoro 备选：GPU 与 CoreML 实验
 
 ### 原 CPU 模式的 GPU 观察
 
@@ -176,7 +258,7 @@ FP32 CPU 的 13 字句子“欢迎来到直播间，感谢关注。”预热后�
 4. 当前机器优先考虑 FP32 + CPU 双线程，代价是生成时接近两个核、约 0.8 GiB RSS。
 5. Linux 的 NVIDIA CUDA、AMD/Intel 后端未测，不应套用 Mac 结论。CUDA 需要匹配的 GPU 推理运行库；本次没有验证对应发布包。
 
-## 当前项目的接入成本
+## Kokoro 备选：当前项目的接入成本
 
 ### 已核实的工程约束
 
@@ -195,7 +277,7 @@ FP32 CPU 的 13 字句子“欢迎来到直播间，感谢关注。”预热后�
 
 不推荐为了一个可选功能直接改变现有主程序的发行方式。
 
-### 推荐：TUI 管理可选语音子进程
+### 备选推荐：TUI 管理可选语音子进程
 
 主 TUI 保持当前构建方式；另发布包含 Go worker、sherpa-onnx、ONNX Runtime 及所需音频组件的语音包。用户选择启用时按需安装并启动。
 
@@ -212,7 +294,7 @@ FP32 CPU 的 13 字句子“欢迎来到直播间，感谢关注。”预热后�
 
 该方案属于中等规模的可选功能，而不是添加一个 import 和开关。复杂度主要在多平台分发、音频输出及下载/进程生命周期管理。
 
-## TUI 内安装与启用的建议流程
+## Kokoro 备选：TUI 内安装与启用的建议流程
 
 界面流程：设置 → 语音播报 → 未安装 → 下载并安装 → 校验 → 安装完成 → 选择音色 → 试听 → 启用。
 
@@ -229,7 +311,7 @@ FP32 CPU 的 13 字句子“欢迎来到直播间，感谢关注。”预热后�
 9. 模型删除、版本更换和组件更新不能与正在运行的 worker 争用文件；原子切换和停止顺序必须明确。
 10. 用户可以卸载模型/组件以释放空间。更新、自动重试、复杂后端抽象不应在没有需求时顺带扩张。
 
-## 音频与 Linux/Nix 注意事项
+## Kokoro 备选：音频与 Linux/Nix 注意事项
 
 本次验证的是文本到 WAV。macOS 播放示例用了 `afplay`，这不是跨平台播放实现。若要做到下载后直接可用，不能默认 Linux 用户安装了 mpv/ffplay；组件需提供经验证的音频输出方式，处理设备不可用和停止播放。
 
@@ -239,7 +321,7 @@ NixOS 不能假设下载一个普通 Linux 动态链接二进制就能运行。�
 
 若以后需要让 OBS 捕获播报声音，应单独明确音频路由需求；播放到系统默认设备不等于已正确混入直播音轨。
 
-## 后续实施前需要验证的事项
+## Kokoro 备选：后续实施前需要验证的事项
 
 - 在真实目标 Linux CPU 上比较 INT8 和 FP32，不能以 M2 Pro 数据决定默认值。
 - 确认要做的是通用 TTS/试听，还是完整弹幕接收与自动播报。
@@ -253,6 +335,11 @@ NixOS 不能假设下载一个普通 Linux 动态链接二进制就能运行。�
 ## 来源
 
 - edge-tts：https://github.com/rany2/edge-tts
+- Go Edge TTS 客户端：https://github.com/wujunwei928/edge-tts-go
+- Go 实测固定提交：https://github.com/wujunwei928/edge-tts-go/tree/e8c68c41cd80
+- edge-tts 使用与 SSML 限制：https://github.com/rany2/edge-tts#usage
+- Python 上游推荐的静态样音库：https://github.com/yaph/tts-samples/tree/main/mp3
+- 已归档的 HTTP 服务候选：https://github.com/jing332/tts-server-go
 - Kokoro v1.1 中文模型：https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh
 - sherpa-onnx Kokoro 模型说明：https://k2-fsa.github.io/sherpa/onnx/tts/pretrained_models/kokoro.html
 - v1.1 音色编号与试听：https://k2-fsa.github.io/sherpa/onnx/tts/all/Chinese-English/kokoro-multi-lang-v1_1.html
