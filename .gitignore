@@ -2,6 +2,8 @@
 *.test
 coverage.out
 /dist/
+/result
+/result-*
 *.log
 config.json
 /logs/
