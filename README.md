@@ -17,8 +17,10 @@ Arcana World 是基于 Go 的 bilibili 直播姬 TUI 替代。方便用于无法
 
 ## 预览
 
-![主菜单](assets/arcana-world-1-cn.png)
-![封面图预览](assets/arcana-world-2-cn.png)
+<p align="center">
+  <img src="assets/arcana-world-1-cn.png" alt="主菜单" width="48%">
+  <img src="assets/arcana-world-2-cn.png" alt="封面图预览" width="48%">
+</p>
 
 ## 功能详情
 
