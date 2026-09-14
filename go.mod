@@ -3,6 +3,7 @@ module arcana-world
 go 1.26
 
 require (
+	github.com/andybalholm/brotli v1.2.0
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
@@ -11,8 +12,10 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/zalando/go-keyring v0.2.6
+	go.etcd.io/bbolt v1.4.3
 	golang.org/x/image v0.28.0
 	golang.org/x/sys v0.36.0
+	google.golang.org/protobuf v1.36.11
 )
 
 require (

@@ -33,7 +33,7 @@
   "tui.error.obs_stop_stream": "Failed to stop OBS streaming; the live room has not been closed: %w",
   "tui.footer.busy": "Esc Cancel operation · Ctrl+C Quit (does not stop live)",
   "tui.footer.modal": "Esc Back / Cancel · Enter Confirm · PgUp/PgDn Scroll · Ctrl+C Quit",
-  "tui.footer.navigation": "↑↓ / j k Select · Enter Run · Tab / 1–7 Pages · PgUp/PgDn Scroll · r Refresh · q Quit",
+  "tui.footer.navigation": "↑↓ / j k Select · Enter Run · Tab / 1–8 Pages · PgUp/PgDn Scroll · r Refresh · q Quit",
   "tui.footer.obs_busy": "OBS is busy; do not reconnect · Esc Cancel · Other pages remain available",
   "tui.form.announcement": "Room announcement",
   "tui.form.controls": "Enter Submit · Esc Discard; network operations run in the background",

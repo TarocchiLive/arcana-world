@@ -41,6 +41,8 @@ func (m *Model) menu() []menuItem {
 		return []menuItem{{label, action}, {toggleLabel(i18n.T(i18n.TUIOBSAutoConnect), m.config.OBSAutoConnect), "obs-auto-connect"}, {toggleLabel(i18n.T(i18n.TUIOBSAutoStream), m.config.OBSAutoStream), "obs-auto-stream"}}
 	case 4:
 		return []menuItem{{i18n.T(i18n.TUIMenuSetProxy), "proxy"}, {i18n.T(i18n.TUIMenuSetProtocol), "protocol"}, {i18n.T(i18n.TUISettingsOBSURL), "obs-url"}, {i18n.T(i18n.TUIMenuOBSPassword), "obs-password"}}
+	case chatPage:
+		return []menuItem{{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"}}
 	}
 	return nil
 }
@@ -75,6 +77,17 @@ func (m *Model) perform(action string) tea.Cmd {
 		return m.work("delete", func(context.Context) (any, error) { return uid, m.store.Delete(uid) })
 	}
 	switch action {
+	case "chat-toggle":
+		if !m.config.DanmakuDisabled {
+			return m.confirm(i18n.T(i18n.DanmakuToggleConfirm), "chat-disable")
+		}
+		cfg := m.config
+		cfg.DanmakuDisabled = false
+		return m.saveConfig(cfg, false)
+	case "chat-disable":
+		cfg := m.config
+		cfg.DanmakuDisabled = true
+		return m.saveConfig(cfg, false)
 	case "login":
 		return m.work("qr", func(ctx context.Context) (any, error) { return m.client.GenerateQR(ctx) })
 	case "refresh":
