@@ -1,0 +1,11 @@
+{
+  "cli.config_dir_usage": "数据目录（默认：~/.arcana/world）",
+  "cli.help": "Arcana World — B 站直播控制台 / Bubble Tea\n\n用法: arcana-world [选项]\n\n账号 cookies 与 OBS 密码使用系统密钥环，不写入明文配置。\nLinux 需要已解锁的 Secret Service；OBS 需要 WebSocket v5。\n\n",
+  "cli.help_usage": "显示帮助",
+  "cli.invalid_arguments": "参数解析失败；使用 --help 查看用法",
+  "cli.language_usage": "界面语言：auto、zh-CN、en",
+  "cli.license": "GPL-3.0-only · 基于 Radekyspec/StartLive",
+  "cli.positional_arguments_unsupported": "不支持的位置参数；使用 --help 查看用法",
+  "cli.version_usage": "显示版本与许可证",
+  "language.unsupported": "不支持的语言 %q；请选择 auto、zh-CN 或 en"
+}

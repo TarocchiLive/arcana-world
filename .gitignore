@@ -1,0 +1,10 @@
+/bin/
+*.test
+coverage.out
+/dist/
+*.log
+config.json
+/logs/
+/data/
+.env
+.env.*
