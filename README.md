@@ -9,7 +9,7 @@
 [![CI](https://github.com/TarocchiLive/arcana-world/actions/workflows/ci.yml/badge.svg)](https://github.com/TarocchiLive/arcana-world/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/TarocchiLive/arcana-world)](https://github.com/TarocchiLive/arcana-world/releases)
+[![Release](https://img.shields.io/github/v/release/TarocchiLive/arcana-world?sort=semver)](https://github.com/TarocchiLive/arcana-world/releases/latest)
 
 **中文** · [English](README.en.md)
 
@@ -26,7 +26,15 @@ Arcana World 是基于 Go 的 bilibili 直播姬 TUI 替代。方便用于无法
 
 ## 安装
 
-从 [Releases](https://github.com/TarocchiLive/arcana-world/releases) 下载，或使用 Go 1.26+ 从源码构建：
+从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载，解压后运行：
+
+| 平台 | x64 | ARM64 |
+| --- | --- | --- |
+| macOS | [Intel](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-darwin-amd64.tar.gz) | [Apple Silicon](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-darwin-arm64.tar.gz) |
+| Windows | [下载](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-windows-amd64.zip) | [下载](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-windows-arm64.zip) |
+| Linux | [下载](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-linux-amd64.tar.gz) | [下载](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-linux-arm64.tar.gz) |
+
+也可以使用 Go 1.26+ 从源码构建：
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git

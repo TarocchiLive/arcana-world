@@ -7,7 +7,7 @@
 [![CI](https://github.com/TarocchiLive/arcana-world/actions/workflows/ci.yml/badge.svg)](https://github.com/TarocchiLive/arcana-world/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/TarocchiLive/arcana-world)](https://github.com/TarocchiLive/arcana-world/releases)
+[![Release](https://img.shields.io/github/v/release/TarocchiLive/arcana-world?sort=semver)](https://github.com/TarocchiLive/arcana-world/releases/latest)
 
 [中文](README.md) · **English**
 
@@ -24,7 +24,15 @@ Arcana World is a Go-based TUI alternative to bilibili LiveHime. It offers a way
 
 ## Install
 
-Download from [Releases](https://github.com/TarocchiLive/arcana-world/releases), or build from source with Go 1.26+:
+Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest), extract it, and run:
+
+| Platform | x64 | ARM64 |
+| --- | --- | --- |
+| macOS | [Intel](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-darwin-amd64.tar.gz) | [Apple Silicon](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-darwin-arm64.tar.gz) |
+| Windows | [Download](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-windows-amd64.zip) | [Download](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-windows-arm64.zip) |
+| Linux | [Download](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-linux-amd64.tar.gz) | [Download](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-linux-arm64.tar.gz) |
+
+Or build from source with Go 1.26+:
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git

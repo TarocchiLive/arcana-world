@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check version tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+            echo 'Expected a version tag such as v0.1.4 or v0.1.4-rc.1' >&2
+            exit 1
+          fi
+      - run: make check
+
+  build:
+    needs: checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [darwin, windows, linux]
+        goarch: [amd64, arm64]
+    env:
+      CGO_ENABLED: '0'
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build and package
+        shell: bash
+        run: |
+          mkdir -p package dist
+          binary=arcana-world
+          if [[ "$GOOS" == windows ]]; then
+            binary+=.exe
+          fi
+          go build -trimpath -buildvcs=false \
+            -ldflags="-s -w -buildid= -X main.version=${RELEASE_TAG#v}" \
+            -o "package/$binary" ./cmd/arcana-world
+          cp LICENSE package/
+          archive="arcana-world-${GOOS}-${GOARCH}"
+          if [[ "$GOOS" == windows ]]; then
+            (cd package && zip -X "../dist/${archive}.zip" "$binary" LICENSE)
+          else
+            tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+              -C package -cf - "$binary" LICENSE | gzip -n > "dist/${archive}.tar.gz"
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum *.tar.gz *.zip > checksums.txt
+      - name: Publish GitHub Release
+        shell: bash
+        run: |
+          flags=(--latest)
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            flags=(--prerelease --latest=false)
+          fi
+          gh release create "$RELEASE_TAG" --verify-tag --generate-notes \
+            --title "$RELEASE_TAG" --draft dist/*
+          gh release edit "$RELEASE_TAG" --draft=false "${flags[@]}"
