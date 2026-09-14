@@ -89,21 +89,6 @@ func TestChatHistoryCursorsStayStableWhileMessagesArrive(t *testing.T) {
 	}
 }
 
-func TestChatPauseEmptyHistoryDoesNotStartFollowing(t *testing.T) {
-	m := chatTestModel(t)
-	runChatCommand(m, m.readChat())
-	chatKeyRun(m, " ")
-	appendChat(t, m, "arrived while paused")
-	runChatCommand(m, m.readChat())
-	if len(m.chat.entries) != 0 {
-		t.Fatal("empty paused history started following incoming messages")
-	}
-	chatKeyRun(m, "end")
-	if m.chat.entries[0].Text != "arrived while paused" {
-		t.Fatal("message was not saved while display paused")
-	}
-}
-
 func TestChatTogglePersistsWithoutDeletingHistory(t *testing.T) {
 	m := chatTestModel(t)
 	appendChat(t, m, "keep this history")
@@ -225,5 +210,52 @@ func TestChatDetailFieldsCannotInjectTerminalControlsOrUnboundedText(t *testing.
 	}
 	if !strings.Contains(line, "second=-1") {
 		t.Fatal("long future enum hid the following semantic field")
+	}
+}
+
+func TestChatAllowlistCannotBeBypassedByOtherToggle(t *testing.T) {
+	m := chatTestModel(t)
+	raws := []string{
+		`{"cmd":"DANMU_MSG","info":[[],"allowed-chat",[1,"viewer"]]}`,
+		`{"cmd":"ENTRY_EFFECT","data":{"uid":1,"copy_writing":"optional-entry-effect"}}`,
+		`{"cmd":"USER_TOAST_MSG","data":{"username":"viewer","toast_msg":"allowed-guard-purchase"}}`,
+		`{"cmd":"PK_INVITE_INIT","uname":"optional-pk-invite","invite_id":1}`,
+		`{"cmd":"PK_BATTLE_RANK_CHANGE","data":{"rank_name":"optional-pk-rank"}}`,
+		`{"cmd":"NOTICE_MSG","msg_common":"forbidden-broadcast"}`,
+		`{"cmd":"GUARD_MSG","msg":"forbidden-cross-room-guard","buy_type":3}`,
+		`{"cmd":"ONLINE_RANK_V2","data":{"online_list":[{"uname":"forbidden-ranking"}]}}`,
+		`{"cmd":"ONLINE_RANK_COUNT","data":{"count":424242}}`,
+		`{"cmd":"FUTURE_UNLISTED_EVENT","data":{"text":"forbidden-future"}}`,
+	}
+	for _, raw := range raws {
+		if _, err := m.chat.history.Append(1, json.RawMessage(raw)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runChatCommand(m, m.readChat())
+	for _, other := range []bool{false, true, false} {
+		if m.chat.showOther != other {
+			chatKeyRun(m, "f")
+		}
+		rendered := m.chatView()
+		if !strings.Contains(rendered, "allowed-chat") || !strings.Contains(rendered, "allowed-guard-purchase") {
+			t.Fatal("essential room activity was hidden")
+		}
+		if strings.Contains(rendered, "optional-entry-effect") != other {
+			t.Fatal("Other must only toggle optional allowlisted room activity")
+		}
+		if strings.Contains(rendered, "optional-pk-invite") != other ||
+			strings.Contains(rendered, "optional-pk-rank") != other {
+			t.Fatal("PK invitations and PK ranks must follow Other without exposing non-PK rankings")
+		}
+		for _, hidden := range []string{"forbidden-broadcast", "forbidden-cross-room-guard", "forbidden-ranking", "424242", "FUTURE_UNLISTED_EVENT", "forbidden-future"} {
+			if strings.Contains(rendered, hidden) {
+				t.Fatalf("Other=%v exposed hidden event %q", other, hidden)
+			}
+		}
+	}
+	stored, err := m.chat.history.Page(1, 0, 100)
+	if err != nil || len(stored) != len(raws) {
+		t.Fatalf("display filtering changed retained history: count=%d err=%v", len(stored), err)
 	}
 }

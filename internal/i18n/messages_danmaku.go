@@ -11,6 +11,7 @@ const (
 	DanmakuNoRoom         Key = "danmaku.no_room"
 	DanmakuFollowing      Key = "danmaku.following"
 	DanmakuPaused         Key = "danmaku.paused"
+	DanmakuNewMessages    Key = "danmaku.new_messages"
 	DanmakuWaiting        Key = "danmaku.waiting"
 	DanmakuDisabled       Key = "danmaku.disabled"
 	DanmakuConnecting     Key = "danmaku.connecting"

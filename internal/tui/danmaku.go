@@ -2,45 +2,57 @@ package tui
 
 import (
 	"errors"
-	"fmt"
-	"strings"
 	"time"
-	"unicode"
 
 	"arcana-world/internal/danmaku"
 	"arcana-world/internal/i18n"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 const chatPageSize = 100
 
 type danmakuUI struct {
-	history    *danmaku.History
-	listener   *danmaku.Listener
-	err        error
-	state      danmaku.Snapshot
-	entries    []danmaku.Event
-	rooms      []int64
-	room       int64
-	manualRoom bool
-	before     uint64
-	newer      []uint64
-	follow     bool
-	showOther  bool
-	loading    bool
-	loaded     bool
-	request    uint64
-	revision   uint64
+	history        *danmaku.History
+	listener       *danmaku.Listener
+	err            error
+	state          danmaku.Snapshot
+	entries        []danmaku.Event
+	rooms          []int64
+	room           int64
+	manualRoom     bool
+	before         uint64
+	newer          []uint64
+	follow         bool
+	showOther      bool
+	loading        bool
+	loaded         bool
+	request        uint64
+	revision       uint64
+	seen, checked  uint64
+	newMessages    bool
+	scrollToLatest bool
+	shown          bool
 }
 type chatTick struct{}
 type chatPageMsg struct {
-	request          uint64
-	room             int64
-	before, revision uint64
-	entries          []danmaku.Event
-	rooms            []int64
-	err              error
+	request                uint64
+	room                   int64
+	before, revision       uint64
+	entries                []danmaku.Event
+	rooms                  []int64
+	err                    error
+	latest                 uint64
+	newMessages, showOther bool
+}
+
+// Room changes discard read positions and unread state together. Keep any
+// in-flight request: applyChatPage rejects its old room and starts a fresh read.
+func (c *danmakuUI) resetRoom(room int64) {
+	c.room = room
+	c.before, c.newer, c.entries = 0, nil, nil
+	c.follow, c.loaded = true, false
+	c.seen, c.checked, c.newMessages = 0, 0, false
+	c.scrollToLatest = false
 }
 
 func (m *Model) openChat() {
@@ -77,10 +89,7 @@ func (m *Model) updateChat() tea.Cmd {
 	if c.listener != nil {
 		c.state = c.listener.Snapshot()
 		if !c.manualRoom && c.state.RoomID > 0 && c.room != c.state.RoomID {
-			c.room = c.state.RoomID
-			c.before, c.newer, c.entries = 0, nil, nil
-			c.follow, c.loaded = true, false
-			// An in-flight result is rejected by room; its completion schedules the new page.
+			c.resetRoom(c.state.RoomID)
 		}
 	}
 	var read tea.Cmd
@@ -97,10 +106,11 @@ func (m *Model) readChat() tea.Cmd {
 	c.loading = true
 	c.request++
 	request, room, before, revision, h := c.request, c.room, c.before, c.state.Revision, c.history
+	checked, newMessages, showOther := c.checked, c.newMessages, c.showOther
 	return func() tea.Msg {
 		rooms, err := h.Rooms()
 		if err != nil {
-			return chatPageMsg{request: request, room: room, before: before, err: err}
+			return chatPageMsg{request: request, room: room, before: before, showOther: showOther, err: err}
 		}
 		if room == 0 && len(rooms) > 0 {
 			room = rooms[0]
@@ -109,16 +119,58 @@ func (m *Model) readChat() tea.Cmd {
 		if room > 0 {
 			entries, err = h.Page(room, before, chatPageSize)
 		}
-		return chatPageMsg{request: request, room: room, before: before, revision: revision, entries: entries, rooms: rooms, err: err}
+		var latest uint64
+		if room > 0 && err == nil {
+			if before == 0 {
+				newMessages = false
+				if len(entries) > 0 {
+					latest = entries[0].Sequence
+				}
+			} else if !newMessages {
+				latest, newMessages, err = newerChatEvents(h, room, checked, showOther)
+			}
+		}
+		return chatPageMsg{request: request, room: room, before: before, revision: revision,
+			entries: entries, rooms: rooms, err: err, latest: latest, newMessages: newMessages, showOther: showOther}
 	}
 }
+
+// Check only arrivals not previously inspected. Hidden broadcasts cannot create
+// the banner, and already-read newer pages are not mistaken for new arrivals.
+func newerChatEvents(h *danmaku.History, room int64, after uint64, showOther bool) (uint64, bool, error) {
+	var before, latest uint64
+	limit := 1
+	for {
+		events, err := h.Page(room, before, limit)
+		if err != nil {
+			return 0, false, err
+		}
+		if len(events) == 0 {
+			return latest, false, nil
+		}
+		if before == 0 {
+			latest = events[0].Sequence
+		}
+		for _, event := range events {
+			if event.Sequence <= after {
+				return latest, false, nil
+			}
+			if chatEventVisible(event, showOther) {
+				return latest, true, nil
+			}
+		}
+		before = events[len(events)-1].Sequence
+		limit = chatPageSize
+	}
+}
+
 func (m *Model) applyChatPage(msg chatPageMsg) tea.Cmd {
 	c := m.chat
 	if c == nil || msg.request != c.request {
 		return nil
 	}
 	c.loading = false
-	if c.room != 0 && c.room != msg.room || c.before != msg.before {
+	if c.room != 0 && c.room != msg.room || c.before != msg.before || c.showOther != msg.showOther {
 		return m.readChat()
 	}
 	c.err = msg.err
@@ -136,6 +188,13 @@ func (m *Model) applyChatPage(msg chatPageMsg) tea.Cmd {
 		return m.readChat()
 	}
 	c.entries = msg.entries
+	if c.follow {
+		c.seen, c.checked, c.newMessages = msg.latest, msg.latest, false
+		c.scrollToLatest = true
+	} else {
+		c.checked = max(c.checked, msg.latest)
+		c.newMessages = msg.newMessages
+	}
 	m.view.SetContent(m.content())
 	return nil
 }
@@ -148,7 +207,8 @@ func (m *Model) chatKey(key string) (bool, tea.Cmd) {
 	switch key {
 	case "f":
 		c.showOther = !c.showOther
-		return true, nil
+		c.checked, c.newMessages = c.seen, false
+		return true, m.readChat()
 	case "s":
 		return true, m.perform("chat-toggle")
 	case "r":
@@ -166,6 +226,7 @@ func (m *Model) chatKey(key string) (bool, tea.Cmd) {
 		return true, m.readChat()
 	case " ", "space":
 		c.follow = !c.follow
+		c.scrollToLatest = false
 		if c.follow {
 			c.before, c.newer = 0, nil
 			m.view.GotoTop()
@@ -185,6 +246,7 @@ func (m *Model) chatKey(key string) (bool, tea.Cmd) {
 			c.before = c.entries[0].Sequence + 1
 		}
 		c.follow = false
+		c.scrollToLatest = false
 		c.newer = append(c.newer, c.before)
 		c.before = c.entries[len(c.entries)-1].Sequence
 		m.view.GotoTop()
@@ -202,8 +264,8 @@ func (m *Model) chatKey(key string) (bool, tea.Cmd) {
 			return true, nil
 		}
 		c.follow, c.manualRoom, c.before, c.newer = true, false, 0, nil
-		if c.state.RoomID > 0 {
-			c.room = c.state.RoomID
+		if c.state.RoomID > 0 && c.room != c.state.RoomID {
+			c.resetRoom(c.state.RoomID)
 		}
 		m.view.GotoTop()
 		return true, m.readChat()
@@ -218,187 +280,10 @@ func (m *Model) chatKey(key string) (bool, tea.Cmd) {
 				break
 			}
 		}
-		c.room, c.manualRoom, c.follow = c.rooms[index], true, true
-		c.before, c.newer, c.entries = 0, nil, nil
+		c.resetRoom(c.rooms[index])
+		c.manualRoom = true
 		m.view.GotoTop()
 		return true, m.readChat()
 	}
 	return false, nil
-}
-
-func (m *Model) chatStatus() string {
-	if m.chat == nil {
-		return i18n.T(i18n.DanmakuWaiting)
-	}
-	c := m.chat
-	if c.history == nil {
-		return i18n.T(i18n.DanmakuError)
-	}
-	key := i18n.DanmakuWaiting
-	switch c.state.Phase {
-	case "disabled":
-		key = i18n.DanmakuDisabled
-	case "connecting":
-		key = i18n.DanmakuConnecting
-	case "connected":
-		key = i18n.DanmakuConnected
-	case "reconnecting":
-		key = i18n.DanmakuReconnecting
-	case "storage_error":
-		key = i18n.DanmakuStorageError
-	case "error":
-		key = i18n.DanmakuError
-	}
-	return i18n.T(key)
-}
-func (m *Model) chatView() string {
-	if m.chat == nil {
-		return i18n.T(i18n.DanmakuNoRoom)
-	}
-	c := m.chat
-	var b strings.Builder
-	b.WriteString(accent.Render(i18n.T(i18n.DanmakuPage)) + "\n")
-	follow := i18n.T(i18n.DanmakuPaused)
-	if c.follow {
-		follow = i18n.T(i18n.DanmakuFollowing)
-	}
-	fmt.Fprintf(&b, i18n.T(i18n.DanmakuDetails), m.chatStatus(), c.room, follow, len(c.entries))
-	if c.state.Err != nil {
-		b.WriteString(warning.Render(m.safe(c.state.Err.Error())) + "\n")
-	}
-	b.WriteString(toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled) + "\n")
-	if c.err != nil {
-		fmt.Fprintf(&b, i18n.T(i18n.DanmakuHistoryError), m.safe(c.err.Error()))
-		b.WriteByte('\n')
-	}
-	if c.loading {
-		b.WriteString(i18n.T(i18n.DanmakuLoading) + "\n")
-	}
-	if c.room == 0 {
-		b.WriteString(i18n.T(i18n.DanmakuNoRoom) + "\n")
-	}
-	if len(c.entries) == 0 {
-		b.WriteString(i18n.T(i18n.DanmakuEmpty) + "\n")
-	}
-	b.WriteByte('\n')
-	// Newest first keeps the live tail visible at the top; [] pages are stable
-	// sequence cursors, independent of incoming traffic.
-	for _, e := range c.entries {
-		switch e.Kind {
-		case "unknown", "detail", "notice", "recommendation", "watched", "rank_count", "stop_rooms", "likes":
-			if !c.showOther {
-				continue
-			}
-		}
-		line := chatEventText(e)
-		fmt.Fprintf(&b, "%s  %s\n", e.Time.Local().Format("01-02 15:04:05"), line)
-	}
-	b.WriteString("\n" + toggleLabel(i18n.T(i18n.DanmakuOther), c.showOther))
-	return lipgloss.NewStyle().Width(max(12, m.view.Width)).Render(b.String())
-}
-func chatEventText(e danmaku.Event) string {
-	user, text := chatText(e.User, 128), chatText(e.Text, 2048)
-	if e.Deleted {
-		text = i18n.T(i18n.DanmakuDeleted)
-	}
-	switch e.Kind {
-	case "chat":
-		return user + "：" + text
-	case "gift":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuGift), user, chatText(e.Gift, 128), e.Count, e.Amount, chatText(e.CoinType, 32))
-	case "sc":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuSC), e.Amount, user, text)
-	case "guard":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuGuard), user, chatText(e.Gift, 128), e.Count)
-	case "enter":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuEnter), user)
-	case "follow":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuFollow), user)
-	case "share":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuShare), user)
-	case "special_follow":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuSpecialFollow), user)
-	case "mutual_follow":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuMutualFollow), user)
-	case "like":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuLike), user)
-	case "likes":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuLikes), e.Count)
-	case "watched":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuWatched), e.Count)
-	case "rank_count":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuRankCount), e.Count)
-	case "notice":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuNotice), text)
-	case "recommendation":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuRecommendation), user, e.Count, text)
-	case "stop_rooms":
-		if e.Amount == 1 {
-			return i18n.T(i18n.DanmakuPreparing)
-		}
-		return fmt.Sprintf(i18n.T(i18n.DanmakuStopRooms), e.Count)
-	case "live":
-		return i18n.T(i18n.DanmakuLive)
-	case "preparing":
-		return i18n.T(i18n.DanmakuPreparing)
-	case "room_change":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuRoomChange), text)
-	case "room_block":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuRoomBlock), user)
-	case "cut_off":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuCutOff), text)
-	case "delete":
-		return i18n.T(i18n.DanmakuDelete)
-	case "detail":
-		var b strings.Builder
-		b.WriteByte('[')
-		b.WriteString(chatText(i18n.T(i18n.Key(e.Title)), 128))
-		b.WriteByte(']')
-		for _, field := range e.Fields {
-			if b.Len() >= 4096 {
-				b.WriteString(i18n.T(i18n.DanmakuTruncated))
-				break
-			}
-			b.WriteByte(' ')
-			b.WriteString(chatText(field.Name, 64))
-			b.WriteByte('=')
-			b.WriteString(chatEnumText(e.Text, field))
-		}
-		return b.String()
-	case "gap":
-		switch e.Text {
-		case "session_start":
-			return i18n.T(i18n.DanmakuSessionStart)
-		case "session_end":
-			return i18n.T(i18n.DanmakuSessionEnd)
-		case "connection_lost":
-			return i18n.T(i18n.DanmakuConnectionLost)
-		}
-		return text
-	default:
-		return fmt.Sprintf(i18n.T(i18n.DanmakuUnknown), text)
-	}
-}
-
-// Bound rendering work without changing the durable event. Control characters
-// cannot inject terminal commands or forge a second timestamped record.
-func chatText(value string, limit int) string {
-	var b strings.Builder
-	b.Grow(min(len(value), limit*3))
-	count := 0
-	for index, r := range value {
-		if count == limit || index >= limit*4 {
-			b.WriteString(i18n.T(i18n.DanmakuTruncated))
-			break
-		}
-		if unicode.IsControl(r) {
-			if r != '\n' && r != '\r' && r != '\t' {
-				continue
-			}
-			r = ' '
-		}
-		b.WriteRune(r)
-		count++
-	}
-	return b.String()
 }

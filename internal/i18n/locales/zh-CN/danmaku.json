@@ -9,6 +9,7 @@
  "danmaku.no_room": "登录后自动监听直播间",
  "danmaku.following": "跟随最新",
  "danmaku.paused": "已暂停",
+ "danmaku.new_messages": "—— 有新消息 · Space / End 回到最新 ——",
  "danmaku.waiting": "等待登录",
  "danmaku.disabled": "已关闭",
  "danmaku.connecting": "连接中",

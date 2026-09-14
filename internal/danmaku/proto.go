@@ -15,7 +15,7 @@ import (
 func wireFields(raw []byte, field func(protowire.Number, protowire.Type, []byte, uint64) bool) bool {
 	for len(raw) != 0 {
 		num, typ, n := protowire.ConsumeTag(raw)
-		if n < 0 {
+		if n < 0 || !num.IsValid() {
 			return false
 		}
 		raw = raw[n:]

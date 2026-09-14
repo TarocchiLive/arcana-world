@@ -87,8 +87,3 @@ var modernCommandSpecs = map[string]commandSpec{
 		{"uid", 'i'}, {"msg", 's'},
 	}},
 }
-
-func modernCommandSpec(cmd string) (commandSpec, bool) {
-	spec, ok := modernCommandSpecs[cmd]
-	return spec, ok
-}

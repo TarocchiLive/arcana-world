@@ -22,12 +22,12 @@ type commandSpec struct {
 }
 
 func projectCatalogEvent(p projection, cmd string, root map[string]any) projection {
-	spec, ok := modernCommandSpec(cmd)
+	spec, ok := modernCommandSpecs[cmd]
 	if !ok {
-		spec, ok = legacyCommandSpec(cmd)
+		spec, ok = legacyCommandSpecs[cmd]
 	}
 	if !ok {
-		spec, ok = supplementalCommandSpec(cmd)
+		spec, ok = supplementalCommandSpecs[cmd]
 	}
 	if !ok {
 		return p

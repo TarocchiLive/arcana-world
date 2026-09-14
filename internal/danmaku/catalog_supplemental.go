@@ -189,8 +189,3 @@ var supplementalCommandSpecs = map[string]commandSpec{
 		{"data.max_fleet_num", 'n'},
 	}},
 }
-
-func supplementalCommandSpec(cmd string) (commandSpec, bool) {
-	spec, ok := supplementalCommandSpecs[cmd]
-	return spec, ok
-}

@@ -34,7 +34,28 @@ func (m *Model) View() string {
 		}
 		tabs = append(tabs, label)
 	}
+	chatHeader := ""
+	if m.chat != nil {
+		if m.page == chatPage && m.mode == "" {
+			if !m.chat.shown && m.chat.follow {
+				m.chat.scrollToLatest = true
+			}
+			m.chat.shown = true
+			chatHeader = m.chatHeader()
+		} else {
+			m.chat.shown = false
+		}
+	}
+	m.view.Height = max(3, m.height-10)
+	if chatHeader != "" {
+		m.view.Height = max(1, m.view.Height-lipgloss.Height(chatHeader))
+		chatHeader += "\n"
+	}
 	m.view.SetContent(m.content())
+	if m.page == chatPage && m.mode == "" && m.chat != nil && m.chat.scrollToLatest {
+		m.view.GotoBottom()
+		m.chat.scrollToLatest = false
+	}
 	status := m.status
 	if m.busy || m.obsBusy {
 		status = i18n.T(i18n.TUIStatusWorkingPrefix) + status
@@ -55,7 +76,7 @@ func (m *Model) View() string {
 	return lipgloss.NewStyle().Padding(1, 2).Render(
 		lipgloss.NewStyle().MaxWidth(width).Render(header) + "\n" +
 			muted.Render(i18n.T(i18n.TUIViewAccountLabel)+account) + "\n" + strings.Join(tabs, "") + "\n\n" +
-			m.view.View() + "\n" +
+			chatHeader + m.view.View() + "\n" +
 			lipgloss.NewStyle().MaxWidth(width).Render(warning.Render(clean(status))) + "\n" +
 			lipgloss.NewStyle().MaxWidth(width).Render(muted.Render(footer)))
 }

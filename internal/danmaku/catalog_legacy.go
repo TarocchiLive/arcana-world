@@ -10,11 +10,6 @@ import "arcana-world/internal/i18n"
 // Base interfaces are not commands. Arrays retain their decoded contents; enum
 // numbers and strings remain uninterpreted. Combo summaries and welcome notices
 // are details, never additional paid gifts or guard purchases.
-func legacyCommandSpec(cmd string) (commandSpec, bool) {
-	spec, ok := legacyCommandSpecs[cmd]
-	return spec, ok
-}
-
 var legacyCommandSpecs = map[string]commandSpec{
 	"ACTIVITY_BANNER_CLOSE": {
 		title: i18n.DanmakuLegacyActivityBannerClose,

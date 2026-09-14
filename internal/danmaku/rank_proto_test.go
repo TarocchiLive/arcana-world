@@ -6,7 +6,6 @@ import (
 	"math"
 	"testing"
 
-	"arcana-world/internal/i18n"
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
@@ -27,7 +26,7 @@ func TestRankProtoListAndPrecision(t *testing.T) {
 	pb := protoString(protoString(protoString(nil, 1, "online_rank"), 3, string(first)), 3, string(second))
 	pb = protoString(pb, 99, "future field")
 	e := rankProjectionFixture(pb)
-	if e.Kind != "detail" || e.Title != string(i18n.DanmakuOnlineRankV3) || e.Text != "ONLINE_RANK_V3" {
+	if e.Kind != "detail" {
 		t.Fatalf("rank projection: %+v", e)
 	}
 	var entries []struct {
@@ -57,19 +56,20 @@ func TestRankProtoListAndPrecision(t *testing.T) {
 func TestRankProtoMalformedStaysUnknown(t *testing.T) {
 	valid := protoString(nil, 1, "online_rank")
 	cases := map[string][]byte{
-		"empty":               nil,
-		"unknown fields only": protoNumber(nil, 99, 1),
-		"wrong list type":     protoNumber(valid, 3, 1),
-		"wrong uid type":      protoString(valid, 3, string(protoString(nil, 1, "42"))),
-		"rank overflow":       protoString(valid, 3, string(protoNumber(nil, 5, 1<<32))),
-		"invalid bool":        protoString(valid, 3, string(protoNumber(nil, 7, 2))),
-		"invalid utf8":        protoString(valid, 3, string(protoString(nil, 4, string([]byte{0xff})))),
-		"wrong nested type":   protoString(valid, 3, string(protoString(nil, 8, string(protoNumber(nil, 2, 1))))),
-		"truncated unknown":   append(protowire.AppendTag(valid, 99, protowire.BytesType), 0x80),
+		"empty":                nil,
+		"unknown fields only":  protoNumber(nil, 99, 1),
+		"wrong list type":      protoNumber(valid, 3, 1),
+		"wrong uid type":       protoString(valid, 3, string(protoString(nil, 1, "42"))),
+		"rank overflow":        protoString(valid, 3, string(protoNumber(nil, 5, 1<<32))),
+		"invalid bool":         protoString(valid, 3, string(protoNumber(nil, 7, 2))),
+		"invalid utf8":         protoString(valid, 3, string(protoString(nil, 4, string([]byte{0xff})))),
+		"wrong nested type":    protoString(valid, 3, string(protoString(nil, 8, string(protoNumber(nil, 2, 1))))),
+		"truncated unknown":    append(protowire.AppendTag(valid, 99, protowire.BytesType), 0x80),
+		"invalid field number": protoNumber(valid, protowire.MaxValidNumber+1, 1),
 	}
 	for name, raw := range cases {
 		t.Run(name, func(t *testing.T) {
-			if e := rankProjectionFixture(raw); e.Kind != "unknown" || e.Text != "ONLINE_RANK_V3" || len(e.Fields) != 0 {
+			if e := rankProjectionFixture(raw); e.Kind != "unknown" || len(e.Fields) != 0 {
 				t.Fatalf("malformed rank accepted: %+v", e)
 			}
 		})

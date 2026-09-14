@@ -24,7 +24,7 @@ Arcana World is a Go-based TUI alternative to bilibili LiveHime. It offers a way
 - Start and stop broadcasts; edit the title, category, announcement, and cover.
 - Automatically crop covers and preview them in the terminal before uploading (requires a compatible terminal emulator; kitty or ghostty is recommended).
 - Send stream settings to OBS and optionally start and stop streaming together.
-- Automatically listen to your room after sign-in: chat, gifts, Super Chats, and guard purchases, with a toggle and local history.
+- Automatically listen to your room after sign-in and display chat, gifts, Super Chats, and guard events.
 - RTMP / SRT, Chinese and English interfaces, and proxy support.
 - Cross-platform: available on macOS, Windows, and Linux.
 
@@ -79,28 +79,17 @@ Page order: `1` Live, `2` Chat, `3` Accounts, `4` Room, `5` OBS, `6` Settings, `
 
 ### Chat and history
 
-Signing in or restoring a saved account automatically connects to that account's room. No manual Cookie, streamer identity code, or OBS connection is required. Press `2` for Chat; listening continues on other tabs.
+Signing in automatically starts listening to your room. Press `2` to browse chat and history; listening continues on other pages.
 
-| Key | Action |
-| --- | --- |
-| `s` / `Enter` | Toggle listening; disabling requires confirmation, persists across restarts, and keeps history |
-| `Space` | Pause display / follow latest; pausing display does not stop an enabled listener |
-| `[` / `]` | Older / newer history page, up to 100 records per page |
-| `End` | Return to the active listener's latest records |
-| `o` | Cycle rooms with local history, including while signed out |
-| `f` | Show / hide other events |
-| `r` | Refresh history and retry failures without interrupting a healthy connection |
-| `PgUp` / `PgDn` | Scroll without pausing incoming messages; press `Space` to pause for reading |
+- `s`: toggle listening; `Space`: pause display / follow latest.
+- `[` / `]`: page history; `End`: return to latest; `o`: switch history rooms.
+- `f`: toggle optional allowlisted events; `r`: refresh / retry; `PgUp` / `PgDn`: scroll.
 
-History lives in `danmaku/history.db` under the data directory, separated by room. Chat history (including chat, gifts, and raw business events) and operation logs are retained for seven days; expired records are automatically cleaned at startup and while running, even with listening disabled. Messages commit in synchronous database transactions before display. Reliable event IDs deduplicate replays across restarts within the retention window; identical text without a reliable ID is retained to avoid losing legitimate repeated messages. Both legacy and protobuf gifts are supported. Unknown or malformed business payloads are retained raw. Oversized text is shortened only for display; the full content remains available locally during the retention window.
+See the [chat display allowlist](docs/danmaku-whitelist.md) for the message types shown by default. Unlisted messages stay hidden even with `f` enabled, but their original data is still saved.
 
-Supported interaction actions are 1–5: joins, follows, shares, special follows, and mutual follows. Other decoded families include gifts, SC, moderation, red envelopes, lotteries, PK, rankings, voice connections, and activities. JSON and newer protobuf gift, interaction, and ranking messages are decoded. Open-platform event formats are also supported, while the listener still connects through the webpage protocol. Press `f` for translated event titles and structured fields. Documented enum meanings accompany their wire values; unknown values remain intact, without guessing monetary units or counting gift combo summaries as additional purchases.
+History is stored per room in `danmaku/history.db` under the data directory. History and operation logs are retained for seven days and cleaned automatically.
 
-Previously unparsed ordinary history events are decoded on read without changing timestamps or pagination. Name-only commands with no field definitions, future interaction types, and malformed payloads remain unparsed and retain their original business bytes. An upstream list of command names is not a complete parser.
-
-Retention uses local receive / write times and runs every 15 minutes while the app is open. Legacy log lines without parseable timestamps are preserved. Freed database pages are reused by subsequent writes, so the database file does not necessarily shrink immediately.
-
-**Reliability limits:** the webpage API does not guarantee delivery or provide a reliable offline replay cursor. Network loss, app shutdown, disabling listening, platform restrictions, or messages the server never sends can leave gaps. This is not a zero-loss archive or a complete financial ledger. Session boundaries are recorded. Storage failures show a warning and retain pending messages for retry before switching accounts. Shutdown reports writes that still fail; forced termination, power loss, or damaged storage can lose uncommitted events.
+Messages sent while disconnected are not fetched later to fill in the database.
 
 ### Options
 
@@ -141,7 +130,6 @@ Licensed under [GPL-3.0-only](LICENSE).
 
 ## Acknowledgments
 
-- [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive): the source of this project's protocol implementations.
-- [xfgryujk/blivedm](https://github.com/xfgryujk/blivedm): reference for webpage chat protocol, WBI signing, and event structures (MIT).
-- [bilive_client](https://github.com/ShmilyChen/bilive_client), [bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect), [BilibiliTool](https://github.com/EricEcho/BilibiliTool), and [blivemsg](https://github.com/urlynn/blivemsg): legacy commands, actual business payload samples, and ranking fields.
+- Everyone in the community who generously shared explanations and implementation references.
+- [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive): the source of this project's streaming protocol implementation.
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea): the terminal UI framework.
