@@ -40,6 +40,9 @@ func (m *Model) View() string {
 		status = i18n.T(i18n.TUIStatusWorkingPrefix) + status
 	}
 	footer := i18n.T(i18n.TUIFooterNavigation)
+	if m.page == chatPage {
+		footer = i18n.T(i18n.DanmakuControls)
+	}
 	if m.mode != "" {
 		footer = i18n.T(i18n.TUIFooterModal)
 	}
@@ -108,6 +111,9 @@ func (m *Model) content() string {
 	var b strings.Builder
 	switch m.page {
 	case 0:
+		if m.chat != nil {
+			fmt.Fprintf(&b, i18n.T(i18n.DanmakuSummary), m.chatStatus())
+		}
 		b.WriteString(accent.Render(i18n.T(i18n.TUILiveTitle)) + "\n\n")
 		if m.room == nil {
 			b.WriteString(i18n.T(i18n.TUILiveRoomMissing))
@@ -179,6 +185,8 @@ func (m *Model) content() string {
 		}
 	case 6:
 		b.WriteString(lipgloss.NewStyle().Width(m.view.Width).Render(helpText()))
+	case chatPage:
+		return m.chatView()
 	}
 	items := m.menu()
 	if len(items) > 0 {

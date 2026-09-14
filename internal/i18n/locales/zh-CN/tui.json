@@ -33,7 +33,7 @@
   "tui.error.obs_stop_stream": "OBS 停止推流失败，尚未关闭直播间：%w",
   "tui.footer.busy": "Esc 取消当前操作 · Ctrl+C 退出（退出不会自动关播）",
   "tui.footer.modal": "Esc 返回 / 取消 · Enter 确认 · PgUp/PgDn 滚动 · Ctrl+C 退出",
-  "tui.footer.navigation": "↑↓ / j k 选择 · Enter 执行 · Tab / 1–7 切页 · PgUp/PgDn 滚动 · r 刷新 · q 退出",
+  "tui.footer.navigation": "↑↓ / j k 选择 · Enter 执行 · Tab / 1–8 切页 · PgUp/PgDn 滚动 · r 刷新 · q 退出",
   "tui.footer.obs_busy": "OBS 操作中，请勿重复连接 · Esc 取消 · 可切换其他页面",
   "tui.form.announcement": "直播间公告",
   "tui.form.controls": "Enter 提交 · Esc 放弃；网络操作在后台执行",
