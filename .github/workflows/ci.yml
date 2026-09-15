@@ -20,3 +20,47 @@ jobs:
           cache: true
       - run: make check
       - run: make build
+
+  overlay:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            cgo: '1'
+            tags: wayland
+            binary: arcana-overlay
+          - os: macos-latest
+            cgo: '1'
+            tags: ''
+            binary: arcana-overlay
+          - os: windows-latest
+            cgo: '0'
+            tags: ''
+            binary: arcana-overlay.exe
+    runs-on: ${{ matrix.os }}
+    env:
+      CGO_ENABLED: ${{ matrix.cgo }}
+      OVERLAY_TAGS: ${{ matrix.tags }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install Wayland drawing dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libpango1.0-dev libcairo2-dev pkg-config
+      - name: Build native overlay
+        shell: bash
+        run: go build -tags "$OVERLAY_TAGS" -trimpath -buildvcs=false -o "bin/${{ matrix.binary }}" ./cmd/arcana-overlay
+      - name: Check overlay package
+        shell: bash
+        run: go test -tags "$OVERLAY_TAGS" ./internal/overlay/...
+      - name: Check command help
+        shell: bash
+        run: "./bin/${{ matrix.binary }} -help"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: overlay-${{ runner.os }}-${{ runner.arch }}
+          path: bin/${{ matrix.binary }}

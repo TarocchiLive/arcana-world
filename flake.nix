@@ -20,6 +20,7 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
+          vendorHash = "sha256-Rmwrc2K3C0lqF4f27y7Mwq3Am7w5n7opi+bdWPZihKA=";
         in
         rec {
           default = arcana-world;
@@ -38,7 +39,7 @@
               ];
             };
 
-            vendorHash = "sha256-Rmwrc2K3C0lqF4f27y7Mwq3Am7w5n7opi+bdWPZihKA=";
+            inherit vendorHash;
             subPackages = [ "cmd/arcana-world" ];
             env.CGO_ENABLED = "0";
             ldflags = [
@@ -65,6 +66,31 @@
               platforms = systems;
             };
           };
+          arcana-overlay = pkgs.buildGoModule {
+            pname = "arcana-overlay";
+            inherit (arcana-world) version src;
+            inherit vendorHash;
+            subPackages = [ "cmd/arcana-overlay" ];
+            env.CGO_ENABLED = "1";
+            tags = pkgs.lib.optionals pkgs.stdenv.isLinux [ "wayland" ];
+            nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [
+              pkgs.wayland
+              pkgs.pango
+              pkgs.cairo
+            ];
+            ldflags = [ "-s" "-w" ];
+            postInstall = ''
+              install -Dm644 LICENSE "$out/share/licenses/arcana-overlay/LICENSE"
+            '';
+            meta = {
+              description = "Native click-through desktop text overlay";
+              homepage = "https://github.com/TarocchiLive/arcana-world";
+              license = pkgs.lib.licenses.gpl3Only;
+              mainProgram = "arcana-overlay";
+              platforms = systems;
+            };
+          };
         }
       );
 
@@ -74,10 +100,15 @@
           program = "${self.packages.${system}.default}/bin/arcana-world";
           meta.description = self.packages.${system}.default.meta.description;
         };
+        arcana-overlay = {
+          type = "app";
+          program = "${self.packages.${system}.arcana-overlay}/bin/arcana-overlay";
+          meta.description = self.packages.${system}.arcana-overlay.meta.description;
+        };
       });
 
       checks = forAllSystems (system: {
-        inherit (self.packages.${system}) arcana-world;
+        inherit (self.packages.${system}) arcana-world arcana-overlay;
       });
     };
 }
