@@ -34,12 +34,36 @@ func (m *Model) View() string {
 		}
 		tabs = append(tabs, label)
 	}
+	chatHeader := ""
+	if m.chat != nil {
+		if m.page == chatPage && m.mode == "" {
+			if !m.chat.shown && m.chat.follow {
+				m.chat.scrollToLatest = true
+			}
+			m.chat.shown = true
+			chatHeader = m.chatHeader()
+		} else {
+			m.chat.shown = false
+		}
+	}
+	m.view.Height = max(3, m.height-10)
+	if chatHeader != "" {
+		m.view.Height = max(1, m.view.Height-lipgloss.Height(chatHeader))
+		chatHeader += "\n"
+	}
 	m.view.SetContent(m.content())
+	if m.page == chatPage && m.mode == "" && m.chat != nil && m.chat.scrollToLatest {
+		m.view.GotoBottom()
+		m.chat.scrollToLatest = false
+	}
 	status := m.status
 	if m.busy || m.obsBusy {
 		status = i18n.T(i18n.TUIStatusWorkingPrefix) + status
 	}
 	footer := i18n.T(i18n.TUIFooterNavigation)
+	if m.page == chatPage {
+		footer = i18n.T(i18n.DanmakuControls)
+	}
 	if m.mode != "" {
 		footer = i18n.T(i18n.TUIFooterModal)
 	}
@@ -52,7 +76,7 @@ func (m *Model) View() string {
 	return lipgloss.NewStyle().Padding(1, 2).Render(
 		lipgloss.NewStyle().MaxWidth(width).Render(header) + "\n" +
 			muted.Render(i18n.T(i18n.TUIViewAccountLabel)+account) + "\n" + strings.Join(tabs, "") + "\n\n" +
-			m.view.View() + "\n" +
+			chatHeader + m.view.View() + "\n" +
 			lipgloss.NewStyle().MaxWidth(width).Render(warning.Render(clean(status))) + "\n" +
 			lipgloss.NewStyle().MaxWidth(width).Render(muted.Render(footer)))
 }
@@ -107,7 +131,10 @@ func (m *Model) content() string {
 	}
 	var b strings.Builder
 	switch m.page {
-	case 0:
+	case livePage:
+		if m.chat != nil {
+			fmt.Fprintf(&b, i18n.T(i18n.DanmakuSummary), m.chatStatus())
+		}
 		b.WriteString(accent.Render(i18n.T(i18n.TUILiveTitle)) + "\n\n")
 		if m.room == nil {
 			b.WriteString(i18n.T(i18n.TUILiveRoomMissing))
@@ -131,15 +158,15 @@ func (m *Model) content() string {
 		} else {
 			b.WriteString(i18n.T(i18n.TUILiveConfigureHint))
 		}
-	case 1:
+	case accountsPage:
 		b.WriteString(accent.Render(i18n.T(i18n.TUIAccountsTitle)) + i18n.T(i18n.TUIAccountsDescription))
-	case 2:
+	case roomPage:
 		b.WriteString(accent.Render(i18n.T(i18n.TUIRoomTitle)) + "\n\n")
 		if m.room != nil {
 			fmt.Fprintf(&b, i18n.T(i18n.TUIRoomDetails), clean(m.room.Title), clean(m.room.Announcement), clean(m.room.CoverURL), clean(m.room.CoverStatus))
 		}
 		b.WriteString(i18n.T(i18n.TUIRoomCoverHint))
-	case 3:
+	case obsPage:
 		b.WriteString(accent.Render("OBS STUDIO · WEBSOCKET V5") + "\n\n")
 		fmt.Fprintf(&b, i18n.T(i18n.TUIOBSURLDetails), clean(m.config.OBSURL))
 		state := i18n.T(i18n.TUIOBSDisconnectedState)
@@ -160,7 +187,7 @@ func (m *Model) content() string {
 			fmt.Fprintf(&b, i18n.T(i18n.TUIOBSStreamDetails), streaming)
 		}
 		b.WriteString(i18n.T(i18n.TUIOBSDescription))
-	case 4:
+	case settingsPage:
 		proxy := m.config.Proxy
 		if proxy == "" {
 			proxy = i18n.T(i18n.TUISettingsSystemProxy)
@@ -168,8 +195,8 @@ func (m *Model) content() string {
 			u.User = url.User("***")
 			proxy = u.String()
 		}
-		fmt.Fprintf(&b, i18n.T(i18n.TUISettingsDetails), accent.Render(i18n.T(i18n.TUISettingsTitle)), clean(proxy), m.config.Protocol, clean(m.config.OBSURL))
-	case 5:
+		fmt.Fprintf(&b, i18n.T(i18n.TUISettingsDetails), accent.Render(i18n.T(i18n.TUISettingsTitle)), clean(proxy), m.config.Protocol)
+	case logsPage:
 		b.WriteString(accent.Render(i18n.T(i18n.TUILogsTitle)) + "\n" + muted.Render(clean(m.journal.Path())) + "\n\n")
 		if len(m.logs) == 0 {
 			b.WriteString(i18n.T(i18n.TUILogsEmpty))
@@ -177,8 +204,10 @@ func (m *Model) content() string {
 		for _, line := range m.logs {
 			b.WriteString(line + "\n")
 		}
-	case 6:
+	case helpPage:
 		b.WriteString(lipgloss.NewStyle().Width(m.view.Width).Render(helpText()))
+	case chatPage:
+		return m.chatView()
 	}
 	items := m.menu()
 	if len(items) > 0 {

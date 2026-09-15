@@ -1,0 +1,23 @@
+{
+  "danmaku.supplemental.dm_interaction": "连续弹幕消息",
+  "danmaku.supplemental.gift_star_process": "礼物星球点亮",
+  "danmaku.supplemental.online_rank_top3": "用户到达直播间高能榜前三名的消息",
+  "danmaku.supplemental.popular_rank_changed": "直播间在人气榜的排名改变",
+  "danmaku.supplemental.hot_rank_changed": "直播间限时热门榜排名改变",
+  "danmaku.supplemental.hot_rank_changed_v2": "当前直播间限时热门榜排名改变V2",
+  "danmaku.supplemental.hot_rank_settlement": "限时热门榜上榜信息",
+  "danmaku.supplemental.hot_rank_settlement_v2": "限时热门榜上榜信息V2",
+  "danmaku.supplemental.popularity_red_pocket_new": "直播间红包",
+  "danmaku.supplemental.full_screen_special_effect": "全屏特效",
+  "danmaku.supplemental.area_rank_changed": "直播间在所属分区的排名改变",
+  "danmaku.supplemental.super_chat_entrance": "醒目留言按钮",
+  "danmaku.supplemental.widget_banner": "顶部横幅",
+  "danmaku.supplemental.widget_wish_list": "礼物心愿单进度",
+  "danmaku.supplemental.anchor_lot_checkstatus": "天选时刻合法检查",
+  "danmaku.supplemental.anchor_lot_end": "天选时刻结束",
+  "danmaku.supplemental.video_connection_join_start": "邀请视频连线",
+  "danmaku.supplemental.video_connection_msg": "视频连线信息",
+  "danmaku.supplemental.video_connection_join_end": "结束视频连线",
+  "danmaku.supplemental.reenter_live_room": "REENTER_LIVE_ROOM",
+  "danmaku.supplemental.play_together": "PLAY_TOGETHER"
+}

@@ -1,0 +1,22 @@
+{
+  "danmaku.modern.entry_effect": "入场特效",
+  "danmaku.modern.virtual_mvp": "虚拟 MVP 解锁",
+  "danmaku.modern.red_pocket_start": "红包开始",
+  "danmaku.modern.red_pocket_v2_start": "红包开始（新版）",
+  "danmaku.modern.red_pocket_winners": "红包中奖名单",
+  "danmaku.modern.red_pocket_v2_winners": "红包中奖名单（新版）",
+  "danmaku.modern.lottery_start": "天选时刻开始",
+  "danmaku.modern.lottery_award": "天选时刻中奖结果",
+  "danmaku.modern.common_notice": "通用通知",
+  "danmaku.modern.effect_message": "特效弹幕",
+  "danmaku.modern.activity_config": "弹幕活动特效配置",
+  "danmaku.modern.silent_on": "开启房间禁言",
+  "danmaku.modern.silent_off": "关闭房间禁言",
+  "danmaku.modern.online_rank": "高能用户榜",
+  "danmaku.modern.room_stats": "房间粉丝统计更新",
+  "danmaku.modern.room_stats_v2": "房间粉丝统计更新（新版）",
+  "danmaku.modern.warning": "直播违规警告",
+  "danmaku.modern.room_admins": "房管名单",
+  "danmaku.modern.admin_added": "新增房管",
+  "danmaku.modern.admin_revoked": "撤销房管"
+}
