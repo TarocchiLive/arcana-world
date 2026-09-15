@@ -13,6 +13,7 @@ Notable changes are listed by version, newest first. v0.1.5 is reserved for the 
 - **Display allowlist:** separate always-visible, `f`-only, and always-hidden messages. See the [chat display allowlist](docs/danmaku-whitelist.md) for individual rules.
 - **New-message banner:** show a notification at the top while paused or browsing history. Press `Space` or `End` to return to the latest messages.
 - **Nix support:** add Flake build, application, and check outputs with pinned build dependencies.
+- **Nix development shells:** use `nix develop` (or `nix develop .#arcana-world`) for the independent TUI environment, and `nix develop .#arcana-overlay` for overlay dependencies with the Wayland build tag enabled on Linux. Development uses Go modules without generating `vendor/`.
 
 ### Changed
 

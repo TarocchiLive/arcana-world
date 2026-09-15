@@ -38,7 +38,7 @@
               ];
             };
 
-            vendorHash = "sha256-Rmwrc2K3C0lqF4f27y7Mwq3Am7w5n7opi+bdWPZihKA=";
+            vendorHash = "sha256-WU7NRrYE8n8zjAL9TRBUsUfCknHDJdWMVHRN9hW/hkI=";
             subPackages = [ "cmd/arcana-world" ];
             env.CGO_ENABLED = "0";
             ldflags = [
@@ -64,6 +64,31 @@
               mainProgram = "arcana-world";
               platforms = systems;
             };
+          };
+        }
+      );
+
+      devShells = forAllSystems (
+        system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+        in
+        rec {
+          default = arcana-world;
+          arcana-world = pkgs.mkShell {
+            packages = [ pkgs.go ];
+            CGO_ENABLED = "0";
+            GOFLAGS = "-mod=readonly";
+          };
+          arcana-overlay = pkgs.mkShell {
+            packages = [ pkgs.go ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [
+              pkgs.wayland
+              pkgs.pango
+              pkgs.cairo
+            ];
+            CGO_ENABLED = "1";
+            GOFLAGS = "-mod=readonly" + pkgs.lib.optionalString pkgs.stdenv.isLinux " -tags=wayland";
           };
         }
       );
