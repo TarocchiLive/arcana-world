@@ -94,6 +94,31 @@
         }
       );
 
+      devShells = forAllSystems (
+        system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+        in
+        rec {
+          default = arcana-world;
+          arcana-world = pkgs.mkShell {
+            packages = [ pkgs.go ];
+            CGO_ENABLED = "0";
+            GOFLAGS = "-mod=readonly";
+          };
+          arcana-overlay = pkgs.mkShell {
+            packages = [ pkgs.go ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [
+              pkgs.wayland
+              pkgs.pango
+              pkgs.cairo
+            ];
+            CGO_ENABLED = "1";
+            GOFLAGS = "-mod=readonly" + pkgs.lib.optionalString pkgs.stdenv.isLinux " -tags=wayland";
+          };
+        }
+      );
+
       apps = forAllSystems (system: {
         default = {
           type = "app";

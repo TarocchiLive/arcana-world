@@ -13,6 +13,7 @@
 - **显示白名单**：区分常态显示、开启 `f` 后显示和始终隐藏的消息，完整清单见[弹幕显示白名单](docs/danmaku-whitelist.md)。
 - **新消息提醒**：暂停或翻阅历史时，在顶部提示有新消息；按 `Space` 或 `End` 返回最新。
 - **Nix 支持**：增加 Flake 构建、运行入口与检查任务，锁定构建依赖。
+- **Nix 开发环境**：`nix develop`（或 `nix develop .#arcana-world`）进入独立的 TUI 开发环境；`nix develop .#arcana-overlay` 提供浮层开发依赖，Linux 下自动启用 Wayland 构建标签。开发使用 Go 模块模式，无需生成 `vendor/`。
 
 ### 改进
 
