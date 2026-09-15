@@ -1,0 +1,8 @@
+{
+  "overlay.cli.enable": "启用受核心管理的原生浮层，显示房间标题与开播状态",
+  "overlay.cli.executable": "浮层可执行文件路径（默认使用主程序同目录的 arcana-overlay）",
+  "overlay.log.started": "原生浮层已就绪",
+  "overlay.log.startup_failed": "浮层启动失败：%s",
+  "overlay.log.stopped": "浮层已退出：%s",
+  "overlay.log.update_failed": "浮层更新失败：%s"
+}

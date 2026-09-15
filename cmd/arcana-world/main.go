@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/overlay"
 	"arcana-world/internal/store"
 	"arcana-world/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,6 +30,8 @@ func runArgs(args []string) (err error) {
 	dir := flags.String("config-dir", "", "")
 	showVersion := flags.Bool("version", false, "")
 	language := flags.String("lang", "auto", "")
+	enableOverlay := flags.Bool("overlay", false, "")
+	overlayExecutable := flags.String("overlay-executable", "", "")
 	help := flags.Bool("help", false, "")
 	shortHelp := flags.Bool("h", false, "")
 	parseErr := flags.Parse(args)
@@ -39,6 +42,8 @@ func runArgs(args []string) (err error) {
 	flags.Lookup("config-dir").Usage = i18n.T(i18n.CLIConfigDirUsage)
 	flags.Lookup("version").Usage = i18n.T(i18n.CLIVersionUsage)
 	flags.Lookup("lang").Usage = i18n.T(i18n.CLILanguageUsage)
+	flags.Lookup("overlay").Usage = i18n.T(i18n.CLIOverlayUsage)
+	flags.Lookup("overlay-executable").Usage = i18n.T(i18n.CLIOverlayExecutableUsage)
 	flags.Lookup("help").Usage = i18n.T(i18n.CLIHelpUsage)
 	flags.Lookup("h").Usage = flags.Lookup("help").Usage
 	flags.Usage = func() {
@@ -70,6 +75,11 @@ func runArgs(args []string) (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, model.Close()) }()
+	if *enableOverlay {
+		if err := model.EnableOverlay(overlay.Options{Executable: *overlayExecutable, Config: overlay.DefaultConfig()}); err != nil {
+			return err
+		}
+	}
 	_, err = tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(ctx)).Run()
 	if ctx.Err() != nil {
 		return nil

@@ -57,6 +57,7 @@ type Model struct {
 	obsCancel              context.CancelFunc
 	obsOperation           int
 	initialized            bool
+	overlay                *overlayRuntime
 	selection              *roomSelection
 	cover                  *coverimage.Prepared
 	previewing             bool
@@ -110,6 +111,9 @@ func (m *Model) Init() tea.Cmd {
 	}
 	m.initialized = true
 	cmds := []tea.Cmd{m.watchOBS()}
+	if m.overlay != nil {
+		cmds = append(cmds, m.startOverlay())
+	}
 	if m.config.OBSAutoConnect {
 		cmds = append(cmds, m.connectOBS())
 	}
@@ -219,7 +223,13 @@ func (m *Model) safe(s string) string {
 	return clean(s)
 }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	defer m.publishOverlay()
 	switch msg := msg.(type) {
+	case overlayStartedMsg:
+		return m, m.handleOverlayStarted(msg)
+	case overlayStoppedMsg:
+		m.handleOverlayStopped(msg)
+		return m, nil
 	case coverPreviewFinished:
 		m.previewing = false
 		if msg.err != nil {

@@ -35,7 +35,7 @@ func toggleLabel(label string, enabled bool) string {
 	return i18n.T(i18n.TUIToggleOff) + label
 }
 
-// Close 仅释放一次 OBS 会话并刷新会话日志。
+// Close 仅释放一次 OBS 与浮层会话，并刷新会话日志。
 func (m *Model) Close() error {
 	m.closeOnce.Do(func() {
 		if m.cancel != nil {
@@ -44,7 +44,7 @@ func (m *Model) Close() error {
 		if m.obsCancel != nil {
 			m.obsCancel()
 		}
-		m.closeErr = errors.Join(m.obsClient.Close(), m.journal.Write(i18n.T(i18n.TUILogApplicationExited)), m.journal.Close())
+		m.closeErr = errors.Join(m.closeOverlay(), m.obsClient.Close(), m.journal.Write(i18n.T(i18n.TUILogApplicationExited)), m.journal.Close())
 	})
 	return m.closeErr
 }
