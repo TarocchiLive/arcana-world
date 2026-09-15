@@ -10,3 +10,5 @@ config.json
 /data/
 .env
 .env.*
+
+.idea
