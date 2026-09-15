@@ -233,3 +233,82 @@ func TestRejectsUnsafeTargets(t *testing.T) {
 		})
 	}
 }
+
+func TestRetentionBoundaryAndContinuedWrites(t *testing.T) {
+	dir := t.TempDir()
+	log, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = log.Close() })
+	now := time.Now().UTC().Truncate(time.Second)
+	cutoff := now.Add(-retention)
+	line := func(at time.Time, message string) string {
+		return at.Format(time.RFC3339) + " " + message + "\n"
+	}
+	kept := line(cutoff, "boundary") + line(now, "new")
+	// Expired records need not form a prefix after a clock adjustment.
+	input := line(cutoff, "boundary") + line(cutoff.Add(-time.Second), "expired-private") + line(now, "new")
+	if _, err := log.file.WriteString(input); err != nil {
+		t.Fatal(err)
+	}
+	log.mu.Lock()
+	err = log.prune(now)
+	log.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(log.Path())
+	if err != nil || string(data) != kept {
+		t.Fatalf("retained log=%q err=%v", data, err)
+	}
+	if err := log.Write("after cleanup"); err != nil {
+		t.Fatal(err)
+	}
+	events := readEvents(t, log.Path())
+	if len(events) != 3 || events[2] != "after cleanup" {
+		t.Fatalf("write targeted replaced inode: %q", events)
+	}
+	if info, err := os.Stat(log.Path()); err != nil || info.Mode().Perm() != 0600 {
+		t.Fatalf("replacement permissions: %v %v", info, err)
+	}
+}
+
+func TestRetentionStartupAndExclusiveWriter(t *testing.T) {
+	dir := t.TempDir()
+	log, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := log.Path()
+	if _, err := Open(dir); err == nil {
+		t.Fatal("second writer could race log replacement")
+	}
+	if err := log.Close(); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-retention-time.Hour).Format(time.RFC3339) + " expired-private\n"
+	newLine := time.Now().Format(time.RFC3339) + " retained\n"
+	// Preserve unrecognized or partial records instead of silently discarding
+	// data for which no trustworthy expiration timestamp is available.
+	input := old + newLine + "legacy unknown timestamp\npartial"
+	if err := os.WriteFile(path, []byte(input), 0600); err != nil {
+		t.Fatal(err)
+	}
+	abandoned := filepath.Join(filepath.Dir(path), ".journal-interrupted")
+	if err := os.WriteFile(abandoned, []byte(old), 0600); err != nil {
+		t.Fatal(err)
+	}
+	log, err = Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = log.Close() })
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != newLine+"legacy unknown timestamp\npartial" {
+		t.Fatalf("startup retention=%q err=%v", data, err)
+	}
+	if _, err := os.Stat(abandoned); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("abandoned private copy survived: %v", err)
+	}
+}

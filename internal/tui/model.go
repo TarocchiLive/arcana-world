@@ -22,8 +22,29 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func pageNames() []string {
-	return []string{i18n.T(i18n.TUIPageLive), i18n.T(i18n.TUIPageAccounts), i18n.T(i18n.TUIPageRoom), "OBS", i18n.T(i18n.TUIPageSettings), i18n.T(i18n.TUIPageLogs), i18n.T(i18n.TUIPageHelp)}
+const (
+	livePage = iota
+	chatPage
+	accountsPage
+	roomPage
+	obsPage
+	settingsPage
+	logsPage
+	helpPage
+	pageCount
+)
+
+func pageNames() [pageCount]string {
+	return [pageCount]string{
+		livePage:     i18n.T(i18n.TUIPageLive),
+		chatPage:     i18n.T(i18n.DanmakuPage),
+		accountsPage: i18n.T(i18n.TUIPageAccounts),
+		roomPage:     i18n.T(i18n.TUIPageRoom),
+		obsPage:      "OBS",
+		settingsPage: i18n.T(i18n.TUIPageSettings),
+		logsPage:     i18n.T(i18n.TUIPageLogs),
+		helpPage:     i18n.T(i18n.TUIPageHelp),
+	}
 }
 
 type resultMsg struct {
@@ -62,7 +83,7 @@ type Model struct {
 	cover                  *coverimage.Prepared
 	previewing             bool
 	page                   int
-	cursors                [7]int
+	cursors                [pageCount]int
 	width, height          int
 	mode, editKind, prompt string
 	input                  textinput.Model
@@ -85,6 +106,7 @@ type Model struct {
 	closeErr               error
 	reveal                 bool
 	view                   viewport.Model
+	chat                   *danmakuUI
 }
 
 func New(ctx context.Context, s *store.Store) (*Model, error) {
@@ -103,6 +125,7 @@ func New(ctx context.Context, s *store.Store) (*Model, error) {
 	in := textinput.New()
 	in.CharLimit = 4096
 	m := &Model{ctx: ctx, store: s, config: cfg, client: c, journal: disk, obsClient: obs.NewClient(), width: 100, height: 32, input: in, status: i18n.T(i18n.TUIStatusReady), view: viewport.New(96, 24)}
+	m.openChat()
 	return m, nil
 }
 func (m *Model) Init() tea.Cmd {
@@ -110,7 +133,7 @@ func (m *Model) Init() tea.Cmd {
 		return nil
 	}
 	m.initialized = true
-	cmds := []tea.Cmd{m.watchOBS()}
+	cmds := []tea.Cmd{m.watchOBS(), chatTickCmd()}
 	if m.overlay != nil {
 		cmds = append(cmds, m.startOverlay())
 	}
@@ -230,6 +253,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case overlayStoppedMsg:
 		m.handleOverlayStopped(msg)
 		return m, nil
+	case chatTick:
+		return m, m.updateChat()
+	case chatPageMsg:
+		return m, m.applyChatPage(msg)
 	case coverPreviewFinished:
 		m.previewing = false
 		if msg.err != nil {
@@ -297,6 +324,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode != "" {
 			return m, m.modalKey(msg)
 		}
+		if m.page == chatPage {
+			if handled, cmd := m.chatKey(key); handled {
+				return m, cmd
+			}
+		}
 		switch key {
 		case "tab", "right":
 			m.page = (m.page + 1) % len(m.cursors)
@@ -304,7 +336,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "shift+tab", "left":
 			m.page = (m.page + len(m.cursors) - 1) % len(m.cursors)
 			m.view.GotoTop()
-		case "1", "2", "3", "4", "5", "6", "7":
+		case "1", "2", "3", "4", "5", "6", "7", "8":
 			m.page = int(key[0] - '1')
 			m.view.GotoTop()
 		case "up", "k":
@@ -488,6 +520,7 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 		a := r.value.(accountResult)
 		m.account = &a.account
 		m.client = a.client
+		m.syncChat()
 		m.room = nil
 		m.stream = nil
 		m.reveal = false
@@ -608,6 +641,7 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 			m.stream = nil
 			m.reveal = false
 			m.client, _ = bili.New(m.config.Proxy)
+			m.syncChat()
 		}
 		m.log(i18n.T(i18n.TUILogAccountRemoved))
 	case "config":
@@ -615,6 +649,7 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 			m.client = c
 		}
 		m.log(i18n.T(i18n.TUILogSettingsSaved))
+		m.syncChat()
 	default:
 		m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationSucceeded), operationName(r.kind)))
 	}
