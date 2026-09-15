@@ -91,6 +91,12 @@ arcana-world --help                     # 查看帮助
 
 默认数据目录：`~/.arcana/world`。
 
+### 桌面浮层（弹幕姬）
+
+支持无焦点，鼠标穿透，半透明实时显示弹幕列表，支持跨平台。
+
+详见 [Arcana Overlay](cmd/arcana-overlay/README.md)。
+
 ## TODO
 - [ ] 支持获取b站推流直链，自动连接 OBS，自动开播。
 - [ ] 支持b站直播间弹幕抓取，提供 TUI 内礼物，聊天记录浏览。

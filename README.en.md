@@ -87,6 +87,12 @@ arcana-world --help                     # Show help
 
 Default data directory: `~/.arcana/world`.
 
+### Desktop overlay (live chat overlay)
+
+Supports focus-free, click-through, semi-transparent real-time display of a live chat list across platforms.
+
+See [Arcana Overlay](cmd/arcana-overlay/README.en.md) for details.
+
 ## TODO
 - [ ] Fetch direct Bilibili stream URLs, connect to OBS automatically, and start broadcasting automatically.
 - [ ] Receive Bilibili live chat messages and provide gift and chat history views in the TUI.
