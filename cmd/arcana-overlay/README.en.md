@@ -2,19 +2,17 @@
 
 [中文](README.md) · **English**
 
-Arcana World's cross-platform desktop text overlay. It displays text in a fixed screen area without taking focus, passes mouse input through, and leaves other interactions unaffected.
-
-Use it independently for notices, a clock, or continuously updated text, or launch it with Arcana World to display the room title and live status. **Bilibili live chat is not connected yet.**
+Arcana World's cross-platform desktop text overlay displays text in a fixed screen area without taking focus or capturing mouse input. Use it independently for notices, a clock, or continuously updated text, or launch it with Arcana World to display the room title and live status. Bilibili live chat is not connected yet.
 
 [Back to Arcana World](../../README.en.md)
 
 ## Features
 
-- Live text updates, Chinese text support, and automatic wrapping.
-- Nine-position placement with adjustable offsets, size, and padding on each side.
-- Font family, size, weight, and italic style selection.
-- Separate text and background opacity; optionally show text without a background.
-- Monitor selection; switching foreground applications does not move the overlay.
+- Live text updates with Chinese text and automatic wrapping.
+- Place the overlay in nine positions with adjustable offsets, size, and padding on each side.
+- Choose the font family, size, weight, and italic style.
+- Set text and background opacity separately, or show text without a background.
+- Select a monitor; switching foreground applications does not move the overlay.
 
 ## Supported platforms
 
@@ -32,7 +30,7 @@ Visibility over lock screens, secure system surfaces, or exclusive fullscreen ga
 
 ### Position and appearance
 
-By default, the overlay is vertically centered on the left side of the screen, inset 32 units from the left edge, with a size of 420 × 180.
+By default, the overlay is vertically centered on the left side of the screen, 32 units from the left edge, and 420 × 180 units in size.
 
 ```sh
 ./bin/arcana-overlay -text 'Welcome to the stream' -anchor bottom-left -x 24 -y 24 -width 480 -height 200 -padding 20 -font-size 28 -background-alpha 0.25
@@ -59,7 +57,7 @@ Position names:
 | `left` | `center` | `right` |
 | `bottom-left` | `bottom` | `bottom-right` |
 
-Position, size, and padding use logical units that follow display scaling. Text wraps within the overlay; content exceeding its height may be clipped. Increase the height or reduce the font size if needed.
+Position, size, and padding use logical units that follow display scaling. Text wraps within the overlay, and content exceeding its height may be clipped. Increase the height or reduce the font size if needed.
 
 ### Live updates
 
@@ -95,15 +93,13 @@ Place the overlay executable beside the main executable, then enable it:
 ./bin/arcana-world -overlay
 ```
 
-The overlay displays the room title and live status and closes when the main program exits. Overlay startup failures do not block other features; check the Logs page for details.
+The overlay displays the room title and live status and closes when the main program exits. Startup failures do not block other features; check the Logs page for details.
 
-If the executables are in different directories, specify the overlay path with `-overlay-executable`. In this mode, the main program manages position and appearance; the appearance options above apply to standalone use.
+In this mode, the main program manages position and appearance; the options above apply only to standalone use.
 
 ## Build and launch
 
-**The following is developer help. arcana-overlay is already integrated into arcana-world by default and provides native binaries, with no additional dependencies required.**
-
-The overlay requires a separate build and is not currently included in the main program's release packages. Run all commands from the **project root**, with the project's required Go version installed.
+`arcana-overlay` is a standalone native program. The source tree includes it, but the main program's release packages do not; build it separately. Run the commands from the **project root** with the project's required Go version installed.
 
 macOS also requires Xcode Command Line Tools. Linux requires the Wayland and Pango/Cairo development libraries and `pkg-config`. On Debian/Ubuntu:
 
@@ -125,7 +121,7 @@ go build -o bin/arcana-overlay.exe ./cmd/arcana-overlay
 .\bin\arcana-overlay.exe -text 'Welcome to the stream'
 ```
 
-Press `Ctrl+C` in the launching terminal to close the overlay, or add `-duration 30s` to close it automatically after 30 seconds. The examples below use macOS / Linux command paths; on Windows, use `.\bin\arcana-overlay.exe` instead.
+Press `Ctrl+C` in the launching terminal to close the overlay, or add `-duration 30s` to close it automatically after 30 seconds. The commands above use macOS / Linux paths; on Windows, use `.\bin\arcana-overlay.exe` instead.
 
 ## More options
 

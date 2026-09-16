@@ -2,9 +2,7 @@
 
 **中文** · [English](README.en.md)
 
-Arcana World 的跨平台桌面文字浮层。可在屏幕固定区域显示文字，无焦点，支持鼠标穿透，不影响其他交互。
-
-可以独立显示提示、时钟或持续更新的文字，也可以随 Arcana World 启动，显示直播间标题和开播状态。**目前尚未接入 B 站弹幕。**
+Arcana World 的跨平台桌面文字浮层会在固定屏幕区域显示文字，不抢焦点，也支持鼠标穿透。它可以独立显示提示、时钟或持续更新的文字，也可以随 Arcana World 启动，显示直播间标题和开播状态。目前尚未接入 B 站弹幕。
 
 [返回 Arcana World](../../README.md)
 
@@ -32,7 +30,7 @@ Arcana World 的跨平台桌面文字浮层。可在屏幕固定区域显示文�
 
 ### 调整位置和外观
 
-默认显示在屏幕左侧、垂直居中，距左侧 32，大小为 420 × 180。
+默认显示在屏幕左侧、垂直居中，距左边缘 32，大小为 420 × 180。
 
 ```sh
 ./bin/arcana-overlay -text '欢迎来到直播间' -anchor bottom-left -x 24 -y 24 -width 480 -height 200 -padding 20 -font-size 28 -background-alpha 0.25
@@ -59,9 +57,9 @@ Arcana World 的跨平台桌面文字浮层。可在屏幕固定区域显示文�
 | `left` | `center` | `right` |
 | `bottom-left` | `bottom` | `bottom-right` |
 
-位置、大小和留白使用随屏幕缩放的逻辑单位。文字在浮层范围内换行，超出高度的内容可能被裁掉；可以增加高度或减小字号。
+位置、大小和留白使用随屏幕缩放的逻辑单位。文字会在浮层内换行，超出高度的部分可能被裁掉；需要时增加高度或减小字号。
 
-### 查看动态更新
+### 动态更新
 
 显示每秒更新的时钟：
 
@@ -79,7 +77,7 @@ printf '%s\n' '新的提示内容' | ./bin/arcana-overlay -stdin
 
 ### 选择显示器
 
-默认使用程序启动时选中的显示器，也可手动指定：
+程序默认使用启动时选中的显示器，也可手动指定：
 
 - macOS：`-display <显示器 ID>`。
 - Windows：`-display 2` 选择第二个显示器，或用 `-output <设备名>`。
@@ -95,15 +93,13 @@ printf '%s\n' '新的提示内容' | ./bin/arcana-overlay -stdin
 ./bin/arcana-world -overlay
 ```
 
-此时显示直播间标题和开播状态，并随主程序退出而关闭。浮层启动失败不影响主程序的其他功能，可在日志页查看原因。
+此时浮层显示直播间标题和开播状态，并在主程序退出时关闭。浮层启动失败不会影响主程序的其他功能，可在日志页查看原因。
 
-如果两个程序不在同一目录，用 `-overlay-executable` 指定浮层路径。此模式下位置和外观由主程序管理；上面的外观参数用于独立运行。
+在这种模式下，主程序管理位置和外观；上面的外观参数仅用于独立运行。
 
 ## 构建与启动
 
-**以下为开发者帮助，arcana-overlay默认已集成于arcana-world并提供原生二进制，无需额外依赖。**
-
-浮层需单独构建，当前不包含在主程序的发布包中。以下命令均在**项目根目录**执行，需先安装项目要求版本的 Go。
+`arcana-overlay` 是独立的原生程序。源码仓库包含它，但当前主程序发布包不附带该二进制，需要单独构建。命令均在**项目根目录**执行，并先安装项目要求版本的 Go。
 
 macOS 还需安装 Xcode Command Line Tools；Linux 需安装 Wayland、Pango/Cairo 开发库和 `pkg-config`。Debian/Ubuntu 可使用：
 
@@ -125,7 +121,7 @@ go build -o bin/arcana-overlay.exe ./cmd/arcana-overlay
 .\bin\arcana-overlay.exe -text '欢迎来到直播间'
 ```
 
-在启动它的终端按 `Ctrl+C` 关闭。也可以加上 `-duration 30s`，在 30 秒后自动关闭。下方示例使用 macOS / Linux 的命令写法，Windows 请替换为 `.\bin\arcana-overlay.exe`。
+在启动它的终端按 `Ctrl+C` 关闭。加上 `-duration 30s` 可在 30 秒后自动关闭。上面的命令使用 macOS / Linux 写法，Windows 请替换为 `.\bin\arcana-overlay.exe`。
 
 ## 更多选项
 
