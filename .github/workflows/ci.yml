@@ -21,7 +21,7 @@ jobs:
       - run: make check
       - run: make build
 
-  overlay:
+  desktop:
     strategy:
       fail-fast: false
       matrix:
@@ -29,15 +29,15 @@ jobs:
           - os: ubuntu-latest
             cgo: '1'
             tags: wayland
-            binary: arcana-overlay
+            suffix: ''
           - os: macos-latest
             cgo: '1'
             tags: ''
-            binary: arcana-overlay
+            suffix: ''
           - os: windows-latest
             cgo: '0'
             tags: ''
-            binary: arcana-overlay.exe
+            suffix: .exe
     runs-on: ${{ matrix.os }}
     env:
       CGO_ENABLED: ${{ matrix.cgo }}
@@ -51,16 +51,22 @@ jobs:
       - name: Install Wayland drawing dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwayland-dev libpango1.0-dev libcairo2-dev pkg-config
+      - name: Build TUI
+        shell: bash
+        run: CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "bin/arcana-world${{ matrix.suffix }}" ./cmd/arcana-world
       - name: Build native overlay
         shell: bash
-        run: go build -tags "$OVERLAY_TAGS" -trimpath -buildvcs=false -o "bin/${{ matrix.binary }}" ./cmd/arcana-overlay
+        run: go build -tags "$OVERLAY_TAGS" -trimpath -buildvcs=false -o "bin/libexec/arcana-overlay${{ matrix.suffix }}" ./cmd/arcana-overlay
       - name: Check overlay package
         shell: bash
         run: go test -tags "$OVERLAY_TAGS" ./internal/overlay/...
       - name: Check command help
         shell: bash
-        run: "./bin/${{ matrix.binary }} -help"
+        run: "./bin/arcana-world${{ matrix.suffix }} -help"
+      - name: Check overlay help
+        shell: bash
+        run: "./bin/libexec/arcana-overlay${{ matrix.suffix }} -help"
       - uses: actions/upload-artifact@v7
         with:
-          name: overlay-${{ runner.os }}-${{ runner.arch }}
-          path: bin/${{ matrix.binary }}
+          name: desktop-${{ runner.os }}-${{ runner.arch }}
+          path: bin/

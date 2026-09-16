@@ -23,7 +23,7 @@
           vendorHash = "sha256-WU7NRrYE8n8zjAL9TRBUsUfCknHDJdWMVHRN9hW/hkI=";
         in
         rec {
-          default = arcana-world;
+          default = arcana-world-desktop;
           arcana-world = pkgs.buildGoModule rec {
             pname = "arcana-world";
             version = "unstable-${self.shortRev or "local"}";
@@ -91,6 +91,16 @@
               platforms = systems;
             };
           };
+          arcana-world-desktop = pkgs.runCommand "arcana-world-desktop-${arcana-world.version}" {
+            meta = arcana-world.meta // {
+              description = "Arcana World with the optional native desktop overlay";
+            };
+          } ''
+            install -Dm755 ${arcana-world}/bin/arcana-world "$out/bin/arcana-world"
+            install -Dm755 ${arcana-overlay}/bin/arcana-overlay "$out/bin/libexec/arcana-overlay"
+            install -Dm644 ${arcana-world}/share/licenses/arcana-world/LICENSE \
+              "$out/share/licenses/arcana-world/LICENSE"
+          '';
         }
       );
 
@@ -130,10 +140,15 @@
           program = "${self.packages.${system}.arcana-overlay}/bin/arcana-overlay";
           meta.description = self.packages.${system}.arcana-overlay.meta.description;
         };
+        arcana-world-desktop = {
+          type = "app";
+          program = "${self.packages.${system}.arcana-world-desktop}/bin/arcana-world";
+          meta.description = self.packages.${system}.arcana-world-desktop.meta.description;
+        };
       });
 
       checks = forAllSystems (system: {
-        inherit (self.packages.${system}) arcana-world arcana-overlay;
+        inherit (self.packages.${system}) arcana-world arcana-overlay arcana-world-desktop;
       });
     };
 }

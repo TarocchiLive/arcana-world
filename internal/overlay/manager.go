@@ -38,6 +38,30 @@ type Manager struct {
 	cancel context.CancelFunc
 }
 
+// Resolve the real installation directory, not the working directory or a launcher symlink.
+func bundledExecutable(executable string) (string, error) {
+	executable, err := filepath.EvalSymlinks(executable)
+	if err != nil {
+		return "", fmt.Errorf("overlay: resolving application path: %w", err)
+	}
+	name := "arcana-overlay"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	path := filepath.Join(filepath.Dir(executable), "libexec", name)
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("overlay: bundled executable %q is missing; extract the complete portable package again: %w", path, err)
+	}
+	if err != nil {
+		return "", fmt.Errorf("overlay: accessing bundled executable: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("overlay: bundled executable %q is not a regular file; extract the complete portable package again", path)
+	}
+	return path, nil
+}
+
 // Start 仅在认证完成且原生窗口首次绘制后返回。
 func Start(ctx context.Context, options Options) (*Manager, error) {
 	if err := ctx.Err(); err != nil {
@@ -64,11 +88,10 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 		if e != nil {
 			return nil, e
 		}
-		name := "arcana-overlay"
-		if runtime.GOOS == "windows" {
-			name += ".exe"
+		options.Executable, e = bundledExecutable(executable)
+		if e != nil {
+			return nil, e
 		}
-		options.Executable = filepath.Join(filepath.Dir(executable), name)
 	}
 	directory, err := privateSocketDir(options.RuntimeDir)
 	if err != nil {
