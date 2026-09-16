@@ -2,9 +2,9 @@
 
 **中文** · [English](CHANGELOG.en.md)
 
-版本按时间倒序记录。v0.1.5 作为下一版本暂存，尚未发布；发布时补充日期，再创建下一版本条目。
+版本按时间倒序记录。
 
-## [v0.1.5]：未发布
+## [v0.2.0-alpha]：2026-09-16（预发布）
 
 ### 新增
 
@@ -75,6 +75,6 @@
 - 提供持久化配置、操作日志，以及 `--config-dir`、`--version` 等命令行选项。
 - 建立基础测试和 CI，提供 Linux x64 发布包及校验文件。
 
-[v0.1.5]: https://github.com/TarocchiLive/arcana-world/tree/dev
+[v0.2.0-alpha]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-alpha
 [v0.1.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.1.4
 [v0.1.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.1.3

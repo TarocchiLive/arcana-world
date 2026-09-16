@@ -2,9 +2,9 @@
 
 [中文](CHANGELOG.md) · **English**
 
-Versions are listed newest first. v0.1.5 is reserved for the next release and has not been published. Add its release date when publishing, then create the next version entry.
+Versions are listed newest first.
 
-## [v0.1.5]: Unreleased
+## [v0.2.0-alpha]: 2026-09-16 (prerelease)
 
 ### Added
 
@@ -75,6 +75,6 @@ Versions are listed newest first. v0.1.5 is reserved for the next release and ha
 - Provide persistent configuration, operation logs, and command-line options including `--config-dir` and `--version`.
 - Establish basic tests and CI, with a Linux x64 release archive and checksums.
 
-[v0.1.5]: https://github.com/TarocchiLive/arcana-world/tree/dev
+[v0.2.0-alpha]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-alpha
 [v0.1.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.1.4
 [v0.1.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.1.3
