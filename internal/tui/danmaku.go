@@ -194,6 +194,10 @@ func (m *Model) applyChatPage(msg chatPageMsg) tea.Cmd {
 	} else {
 		c.checked = max(c.checked, msg.latest)
 		c.newMessages = msg.newMessages
+		if msg.before == 0 {
+			c.before, c.seen = msg.latest+1, msg.latest
+			c.scrollToLatest = true
+		}
 	}
 	m.view.SetContent(m.content())
 	return nil
@@ -205,6 +209,21 @@ func (m *Model) chatKey(key string) (bool, tea.Cmd) {
 		return false, nil
 	}
 	switch key {
+	case "down", "j", "pgdown":
+		if !m.view.AtBottom() {
+			return false, nil
+		}
+		if c.loading {
+			return true, nil
+		}
+		if len(c.newer) > 0 {
+			return m.chatKey("]")
+		}
+		if c.newMessages {
+			c.before = 0
+			return true, m.readChat()
+		}
+		return false, nil
 	case "f":
 		c.showOther = !c.showOther
 		c.checked, c.newMessages = c.seen, false

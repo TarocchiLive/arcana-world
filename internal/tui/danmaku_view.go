@@ -8,6 +8,7 @@ import (
 	"arcana-world/internal/danmaku"
 	"arcana-world/internal/i18n"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func (m *Model) chatStatus() string {
@@ -35,26 +36,36 @@ func (m *Model) chatStatus() string {
 	}
 	return i18n.T(key)
 }
-func (m *Model) chatHeader() string {
+func (m *Model) chatHeader(more bool) string {
 	if m.chat == nil {
 		return i18n.T(i18n.DanmakuNoRoom)
 	}
 	c := m.chat
 	var b strings.Builder
-	b.WriteString(accent.Render(i18n.T(i18n.DanmakuPage)) + "\n")
-	b.WriteString(toggleLabel(i18n.T(i18n.DanmakuOther), c.showOther) + "\n")
-	if !c.follow && c.newMessages {
-		b.WriteString(warning.Render(i18n.T(i18n.DanmakuNewMessages)) + "\n")
+	toggle := func(key i18n.Key, enabled bool) string {
+		state := i18n.T(i18n.TUIToggleOff)
+		if enabled {
+			state = i18n.T(i18n.TUIToggleOn)
+		}
+		return i18n.T(key) + strings.TrimSpace(state)
 	}
-	follow := i18n.T(i18n.DanmakuPaused)
-	if c.follow {
-		follow = i18n.T(i18n.DanmakuFollowing)
+	b.WriteString(strings.Join([]string{
+		toggle(i18n.DanmakuListening, c.state.Phase == "connected"),
+		toggle(i18n.DanmakuOther, c.showOther),
+		toggle(i18n.DanmakuFollowing, c.follow),
+		toggle(i18n.DanmakuToggle, !m.config.DanmakuDisabled),
+	}, " ") + "\n")
+	room := fmt.Sprintf(i18n.T(i18n.DanmakuDetails), c.room)
+	if more {
+		room += " " + i18n.T(i18n.DanmakuNewMessages)
 	}
-	fmt.Fprintf(&b, i18n.T(i18n.DanmakuDetails), m.chatStatus(), c.room, follow, len(c.entries))
+	b.WriteString(ansi.Truncate(room, max(12, m.view.Width), "…") + "\n")
+	if c.state.Phase != "connected" && c.state.Phase != "disabled" && c.state.Phase != "" {
+		b.WriteString(m.chatStatus() + "\n")
+	}
 	if c.state.Err != nil {
 		b.WriteString(warning.Render(m.safe(c.state.Err.Error())) + "\n")
 	}
-	b.WriteString(toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled) + "\n")
 	if c.err != nil {
 		fmt.Fprintf(&b, i18n.T(i18n.DanmakuHistoryError), m.safe(c.err.Error()))
 		b.WriteByte('\n')
@@ -86,7 +97,7 @@ func (m *Model) chatView() string {
 	if b.Len() == 0 {
 		b.WriteString(i18n.T(i18n.DanmakuEmpty))
 	}
-	return lipgloss.NewStyle().Width(max(12, m.view.Width)).Render(b.String())
+	return lipgloss.NewStyle().Width(max(12, m.view.Width)).Render(strings.TrimSuffix(b.String(), "\n"))
 }
 
 // This is a display allowlist, not an ingestion filter. Unknown/new event kinds
@@ -95,9 +106,9 @@ func chatEventVisible(e danmaku.Event, showOther bool) bool {
 	switch e.Kind {
 	case "chat", "gift", "sc", "guard", "enter", "follow",
 		"like", "live", "preparing",
-		"room_change", "room_block", "cut_off", "delete", "gap":
+		"room_change", "room_block", "cut_off", "delete":
 		return true
-	case "watched", "likes", "share", "special_follow":
+	case "gap", "watched", "likes", "share", "special_follow":
 		return showOther
 	case "detail":
 		switch e.Text {

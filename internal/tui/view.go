@@ -41,7 +41,7 @@ func (m *Model) View() string {
 				m.chat.scrollToLatest = true
 			}
 			m.chat.shown = true
-			chatHeader = m.chatHeader()
+			chatHeader = m.chatHeader(false)
 		} else {
 			m.chat.shown = false
 		}
@@ -55,6 +55,10 @@ func (m *Model) View() string {
 	if m.page == chatPage && m.mode == "" && m.chat != nil && m.chat.scrollToLatest {
 		m.view.GotoBottom()
 		m.chat.scrollToLatest = false
+	}
+	if chatHeader != "" {
+		more := !m.view.AtBottom() || len(m.chat.newer) > 0 || m.chat.newMessages
+		chatHeader = m.chatHeader(more) + "\n"
 	}
 	status := m.status
 	if m.busy || m.obsBusy {
