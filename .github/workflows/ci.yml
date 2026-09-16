@@ -28,14 +28,17 @@ jobs:
         include:
           - os: ubuntu-latest
             cgo: '1'
+            audio_cgo: '1'
             tags: wayland
             suffix: ''
           - os: macos-latest
             cgo: '1'
+            audio_cgo: '0'
             tags: ''
             suffix: ''
           - os: windows-latest
             cgo: '0'
+            audio_cgo: '0'
             tags: ''
             suffix: .exe
     runs-on: ${{ matrix.os }}
@@ -50,13 +53,21 @@ jobs:
           cache: true
       - name: Install Wayland drawing dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libpango1.0-dev libcairo2-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libpango1.0-dev libcairo2-dev libasound2-dev pkg-config
       - name: Build TUI
         shell: bash
         run: CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "bin/arcana-world${{ matrix.suffix }}" ./cmd/arcana-world
       - name: Build native overlay
         shell: bash
         run: go build -tags "$OVERLAY_TAGS" -trimpath -buildvcs=false -o "bin/libexec/arcana-overlay${{ matrix.suffix }}" ./cmd/arcana-overlay
+      - name: Build speech helpers
+        shell: bash
+        run: |
+          CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "bin/libexec/arcana-tts${{ matrix.suffix }}" ./cmd/arcana-tts
+          CGO_ENABLED=${{ matrix.audio_cgo }} go build -tags tts_audio -trimpath -buildvcs=false -o "bin/libexec/arcana-audio${{ matrix.suffix }}" ./cmd/arcana-audio
+      - name: Check audio package without device access
+        shell: bash
+        run: CGO_ENABLED=${{ matrix.audio_cgo }} go test -tags tts_audio ./internal/tts/audio ./cmd/arcana-audio
       - name: Check overlay package
         shell: bash
         run: go test -tags "$OVERLAY_TAGS" ./internal/overlay/...
@@ -66,6 +77,11 @@ jobs:
       - name: Check overlay help
         shell: bash
         run: "./bin/libexec/arcana-overlay${{ matrix.suffix }} -help"
+      - name: Check speech helper help
+        shell: bash
+        run: |
+          "./bin/libexec/arcana-tts${{ matrix.suffix }}" -help
+          "./bin/libexec/arcana-audio${{ matrix.suffix }}" -help
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ runner.os }}-${{ runner.arch }}

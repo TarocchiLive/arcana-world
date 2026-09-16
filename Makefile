@@ -1,8 +1,9 @@
-.PHONY: build overlay desktop run check clean
+.PHONY: build overlay tts-synth tts-audio tts desktop run check clean
 
 OVERLAY_GOOS := $(shell go env GOOS)
 OVERLAY_CGO := 1
 OVERLAY_TAGS :=
+AUDIO_CGO := 0
 EXE_SUFFIX :=
 ifeq ($(OVERLAY_GOOS),windows)
 OVERLAY_CGO := 0
@@ -10,6 +11,7 @@ EXE_SUFFIX := .exe
 endif
 ifeq ($(OVERLAY_GOOS),linux)
 OVERLAY_TAGS := -tags wayland
+AUDIO_CGO := 1
 endif
 
 build:
@@ -19,8 +21,16 @@ build:
 overlay:
 	CGO_ENABLED=$(OVERLAY_CGO) go build $(OVERLAY_TAGS) -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o bin/libexec/arcana-overlay$(EXE_SUFFIX) ./cmd/arcana-overlay
 
+tts-synth:
+	CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o bin/libexec/arcana-tts$(EXE_SUFFIX) ./cmd/arcana-tts
+
+tts-audio:
+	CGO_ENABLED=$(AUDIO_CGO) go build -tags tts_audio -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o bin/libexec/arcana-audio$(EXE_SUFFIX) ./cmd/arcana-audio
+
+tts: tts-synth tts-audio
+
 # 配套构建；默认 build 仍只构建不依赖图形运行时的 TUI。
-desktop: build overlay
+desktop: build overlay tts
 
 run:
 	go run ./cmd/arcana-world
@@ -30,4 +40,4 @@ check:
 	go vet ./...
 
 clean:
-	rm -f bin/arcana-world bin/arcana-world.exe bin/libexec/arcana-overlay bin/libexec/arcana-overlay.exe bin/arcana-overlay bin/arcana-overlay.exe
+	rm -f bin/arcana-world bin/arcana-world.exe bin/libexec/arcana-overlay bin/libexec/arcana-overlay.exe bin/arcana-overlay bin/arcana-overlay.exe bin/libexec/arcana-tts bin/libexec/arcana-tts.exe bin/libexec/arcana-audio bin/libexec/arcana-audio.exe

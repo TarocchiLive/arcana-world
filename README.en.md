@@ -40,7 +40,7 @@ Download the [latest release](https://github.com/TarocchiLive/arcana-world/relea
 
 The download includes the main program and native overlay. Extract the entire archive and keep the `libexec` directory alongside the main executable. Move the whole folder when relocating the application. Start only `arcana-world`, then enable Native overlay in Settings; you do not need to run the overlay separately.
 
-Building from source requires Go 1.26+ and the platform's [overlay build dependencies](cmd/arcana-overlay/README.en.md#build-and-launch):
+Building from source requires Go 1.26+ and the platform's [overlay build dependencies](cmd/arcana-overlay/README.en.md#build-and-launch). On Linux, the bundled audio helper also requires ALSA development libraries and `pkg-config` (`libasound2-dev pkg-config` on Debian/Ubuntu):
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git

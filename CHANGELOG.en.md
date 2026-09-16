@@ -8,6 +8,10 @@ Versions are listed newest first. v0.1.5 is reserved for the next release and ha
 
 ### Added
 
+- Add Edge TTS synthesis and MP3 playback with separate `arcana-tts` and `arcana-audio` helpers. TUI controls and automatic chat reading are not connected yet.
+- Synthesize and play messages serially, with five waiting slots by default and new messages dropped when full. Support cancelling playback, clearing the queue, and submitting new messages after stopping.
+- Add `make tts`, a Nix speech development shell, and helper packages. Include the helpers in `make desktop` and release bundles while keeping the standalone TUI independent of audio runtimes.
+
 - Listen to your room automatically after sign-in. The TUI supports chat, gifts, Super Chats (SC), and guard events, plus local history browsing, pause/follow controls, paging, and room switching.
 - Decode 177 registered commands, including newer protobuf gift, interaction, and high-energy ranking messages.
 - Separate always-visible, `f`-only, and always-hidden messages in the display allowlist. See the [chat display allowlist](docs/danmaku-whitelist.md) for the full list.

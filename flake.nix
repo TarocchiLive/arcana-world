@@ -20,7 +20,7 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          vendorHash = "sha256-WU7NRrYE8n8zjAL9TRBUsUfCknHDJdWMVHRN9hW/hkI=";
+          vendorHash = "sha256-bvZzhgRceIq/YNgDwX7FNNE+tdI6BG/cwrNmzqBLFKk=";
         in
         rec {
           default = arcana-world-desktop;
@@ -91,13 +91,47 @@
               platforms = systems;
             };
           };
+          arcana-tts = pkgs.buildGoModule {
+            pname = "arcana-tts";
+            inherit (arcana-world) version src;
+            inherit vendorHash;
+            subPackages = [ "cmd/arcana-tts" ];
+            env.CGO_ENABLED = "0";
+            ldflags = [ "-s" "-w" ];
+            meta = arcana-world.meta // {
+              description = "One-shot Edge speech synthesis helper";
+              mainProgram = "arcana-tts";
+            };
+          };
+          arcana-audio = pkgs.buildGoModule {
+            pname = "arcana-audio";
+            inherit (arcana-world) version src;
+            inherit vendorHash;
+            subPackages = [ "cmd/arcana-audio" ];
+            env.CGO_ENABLED = if pkgs.stdenv.isLinux then "1" else "0";
+            tags = [ "tts_audio" ];
+            nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.alsa-lib ];
+            ldflags = [ "-s" "-w" ];
+            checkPhase = ''
+              runHook preCheck
+              go test -tags tts_audio ./internal/tts/audio ./cmd/arcana-audio
+              runHook postCheck
+            '';
+            meta = arcana-world.meta // {
+              description = "One-shot native MP3 speech playback helper";
+              mainProgram = "arcana-audio";
+            };
+          };
           arcana-world-desktop = pkgs.runCommand "arcana-world-desktop-${arcana-world.version}" {
             meta = arcana-world.meta // {
-              description = "Arcana World with the optional native desktop overlay";
+              description = "Arcana World with optional desktop overlay and speech helpers";
             };
           } ''
             install -Dm755 ${arcana-world}/bin/arcana-world "$out/bin/arcana-world"
             install -Dm755 ${arcana-overlay}/bin/arcana-overlay "$out/bin/libexec/arcana-overlay"
+            install -Dm755 ${arcana-tts}/bin/arcana-tts "$out/bin/libexec/arcana-tts"
+            install -Dm755 ${arcana-audio}/bin/arcana-audio "$out/bin/libexec/arcana-audio"
             install -Dm644 ${arcana-world}/share/licenses/arcana-world/LICENSE \
               "$out/share/licenses/arcana-world/LICENSE"
           '';
@@ -126,6 +160,12 @@
             CGO_ENABLED = "1";
             GOFLAGS = "-mod=readonly" + pkgs.lib.optionalString pkgs.stdenv.isLinux " -tags=wayland";
           };
+          arcana-tts = pkgs.mkShell {
+            packages = [ pkgs.go ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.alsa-lib ];
+            CGO_ENABLED = if pkgs.stdenv.isLinux then "1" else "0";
+            GOFLAGS = "-mod=readonly";
+          };
         }
       );
 
@@ -148,7 +188,7 @@
       });
 
       checks = forAllSystems (system: {
-        inherit (self.packages.${system}) arcana-world arcana-overlay arcana-world-desktop;
+        inherit (self.packages.${system}) arcana-world arcana-overlay arcana-tts arcana-audio arcana-world-desktop;
       });
     };
 }
