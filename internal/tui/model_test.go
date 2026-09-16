@@ -39,6 +39,11 @@ func TestDiskJournalRedactsAccountAndStreamSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cfg := s.Config()
+	cfg.ExitLiveStopDisabled = true
+	if err := s.SaveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
 	m, err := New(context.Background(), s)
 	if err != nil {
 		t.Fatal(err)
@@ -72,6 +77,11 @@ func TestEnglishUIKeepsCredentialsHiddenAndUserTitlesIntact(t *testing.T) {
 	t.Cleanup(func() { _ = i18n.SetLanguage("zh-CN") })
 	s, err := store.Open(t.TempDir())
 	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := s.Config()
+	cfg.ExitLiveStopDisabled = true
+	if err := s.SaveConfig(cfg); err != nil {
 		t.Fatal(err)
 	}
 	m, err := New(context.Background(), s)

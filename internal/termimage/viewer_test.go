@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"arcana-world/internal/i18n"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -124,6 +125,29 @@ func TestNonTTYFallbackRendersPixelsWithoutReading(t *testing.T) {
 	for _, line := range strings.Split(text, "\r\n") {
 		if ansi.StringWidth(line) > 79 {
 			t.Fatal("preview overflowed width")
+		}
+	}
+}
+
+func TestFallbackWarningStaysInsideNarrowViewport(t *testing.T) {
+	if err := i18n.SetLanguage("zh-CN"); err != nil {
+		t.Fatal(err)
+	}
+	for _, size := range []dimensions{{cols: 2, rows: 6}, {cols: 20, rows: 6}} {
+		var output bytes.Buffer
+		viewer := New(context.Background(), image.NewNRGBA(image.Rect(0, 0, 1, 1)), "封面")
+		viewer.SetStdout(&output)
+		if err := viewer.frame(size, false, 0, nil); err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.Split(output.String(), "\r\n")
+		if len(lines) > size.rows {
+			t.Fatalf("%dx%d: preview scrolled outside viewport", size.cols, size.rows)
+		}
+		for _, line := range lines {
+			if ansi.StringWidth(line) > size.cols-1 {
+				t.Fatalf("%dx%d: preview wrapped into reserved column: %q", size.cols, size.rows, line)
+			}
 		}
 	}
 }

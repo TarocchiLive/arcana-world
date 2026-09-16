@@ -1,15 +1,15 @@
 {
  "danmaku.truncated": "…",
- "danmaku.other": "Show other events",
+ "danmaku.other": "Other events",
  "danmaku.page": "Chat",
- "danmaku.toggle": "Auto-listen",
+ "danmaku.toggle": "Auto-start",
+ "danmaku.listening": "Listening",
  "danmaku.controls": "s Toggle · Space Follow · [ ] Pages · End Latest · o Room · f Other · r Retry · PgUp/Dn Scroll",
- "danmaku.details": "Listener: %s\nHistory room: %d · %s · %d records on this page\n",
+ "danmaku.details": "Current room: %d",
  "danmaku.empty": "No messages yet",
  "danmaku.no_room": "Sign in to listen to your room",
- "danmaku.following": "Following latest",
- "danmaku.paused": "Paused",
- "danmaku.new_messages": "—— New messages · Space / End for latest ——",
+ "danmaku.following": "Follow messages",
+ "danmaku.new_messages": "(Scroll down for more messages)",
  "danmaku.waiting": "Waiting for sign-in",
  "danmaku.disabled": "Disabled",
  "danmaku.connecting": "Connecting",
@@ -45,6 +45,5 @@
  "danmaku.preparing": "[Offline]",
  "danmaku.room_change": "[Room updated] %s",
  "danmaku.room_block": "[Muted] %s",
- "danmaku.cut_off": "[Stream cut off] %s",
- "danmaku.summary": "Chat: %s · press 2 to browse\n"
+ "danmaku.cut_off": "[Stream cut off] %s"
 }

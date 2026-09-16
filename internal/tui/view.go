@@ -7,6 +7,7 @@ import (
 
 	"arcana-world/internal/i18n"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/skip2/go-qrcode"
 )
 
@@ -15,6 +16,7 @@ var (
 	muted         = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("232")).Background(lipgloss.Color("81")).Bold(true)
 	warning       = lipgloss.NewStyle().Foreground(lipgloss.Color("215"))
+	danger        = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
 )
 
 func (m *Model) View() string {
@@ -23,7 +25,17 @@ func (m *Model) View() string {
 	if m.account != nil {
 		account = clean(m.account.Name) + " / " + m.account.UID
 	}
-	header := accent.Render("ARCANA WORLD") + "  " + muted.Render("BILIBILI LIVE CONTROL")
+	liveState := i18n.T(i18n.TUILiveUnknown)
+	liveStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("232")).Background(lipgloss.Color("220"))
+	if m.room != nil {
+		liveState = i18n.T(i18n.TUILiveOffline)
+		liveStyle = liveStyle.Foreground(lipgloss.Color("255")).Background(lipgloss.Color("240"))
+		if m.room.Live {
+			liveState = i18n.T(i18n.TUILiveOnline)
+			liveStyle = liveStyle.Background(lipgloss.Color("160"))
+		}
+	}
+	header := liveStyle.Render("[ "+liveState+" ]") + "  " + accent.Render("ARCANA WORLD") + "  " + muted.Render("BILIBILI LIVE CONTROL")
 	var tabs []string
 	for i, p := range pageNames() {
 		label := fmt.Sprintf(" %d %s ", i+1, p)
@@ -41,20 +53,10 @@ func (m *Model) View() string {
 				m.chat.scrollToLatest = true
 			}
 			m.chat.shown = true
-			chatHeader = m.chatHeader()
+			chatHeader = m.chatHeader(false)
 		} else {
 			m.chat.shown = false
 		}
-	}
-	m.view.Height = max(3, m.height-10)
-	if chatHeader != "" {
-		m.view.Height = max(1, m.view.Height-lipgloss.Height(chatHeader))
-		chatHeader += "\n"
-	}
-	m.view.SetContent(m.content())
-	if m.page == chatPage && m.mode == "" && m.chat != nil && m.chat.scrollToLatest {
-		m.view.GotoBottom()
-		m.chat.scrollToLatest = false
 	}
 	status := m.status
 	if m.busy || m.obsBusy {
@@ -73,11 +75,26 @@ func (m *Model) View() string {
 	if m.obsBusy && !m.busy {
 		footer = i18n.T(i18n.TUIFooterOBSBusy)
 	}
+	status = warning.Render(ansi.Wrap(clean(status), width, ""))
+	m.view.Height = max(1, m.height-10-(lipgloss.Height(status)-1))
+	if chatHeader != "" {
+		m.view.Height = max(1, m.view.Height-lipgloss.Height(chatHeader))
+		chatHeader += "\n"
+	}
+	m.view.SetContent(m.content())
+	if m.page == chatPage && m.mode == "" && m.chat != nil && m.chat.scrollToLatest {
+		m.view.GotoBottom()
+		m.chat.scrollToLatest = false
+	}
+	if chatHeader != "" {
+		more := !m.view.AtBottom() || len(m.chat.newer) > 0 || m.chat.newMessages
+		chatHeader = m.chatHeader(more) + "\n"
+	}
 	return lipgloss.NewStyle().Padding(1, 2).Render(
-		lipgloss.NewStyle().MaxWidth(width).Render(header) + "\n" +
+		ansi.Truncate(header, width, "") + "\n" +
 			muted.Render(i18n.T(i18n.TUIViewAccountLabel)+account) + "\n" + strings.Join(tabs, "") + "\n\n" +
 			chatHeader + m.view.View() + "\n" +
-			lipgloss.NewStyle().MaxWidth(width).Render(warning.Render(clean(status))) + "\n" +
+			status + "\n" +
 			lipgloss.NewStyle().MaxWidth(width).Render(muted.Render(footer)))
 }
 func (m *Model) content() string {
@@ -90,7 +107,11 @@ func (m *Model) content() string {
 		if m.editKind == "cover-path" {
 			return accent.Render(m.prompt) + "\n\n" + m.input.View() + i18n.T(i18n.TUIFormCoverControls)
 		}
-		return accent.Render(m.prompt) + "\n\n" + m.input.View() + "\n\n" + muted.Render(i18n.T(i18n.TUIFormControls))
+		promptStyle := accent
+		if m.editKind == "clear-data" {
+			promptStyle = danger
+		}
+		return promptStyle.Render(ansi.Wrap(clean(m.prompt), m.view.Width, "")) + "\n\n" + m.input.View() + "\n\n" + muted.Render(i18n.T(i18n.TUIFormControls))
 	case "confirm":
 		no, yes := i18n.T(i18n.TUIConfirmCancelLabel), i18n.T(i18n.TUIConfirmExecuteLabel)
 		if m.selected == 0 {
@@ -98,7 +119,7 @@ func (m *Model) content() string {
 		} else {
 			yes = selectedStyle.Render(yes)
 		}
-		return warning.Render(clean(m.prompt)) + "\n\n" + no + "    " + yes + "\n\n" + muted.Render(i18n.T(i18n.TUIConfirmControls))
+		return warning.Render(ansi.Wrap(clean(m.prompt), m.view.Width, "")) + "\n\n" + no + "    " + yes + "\n\n" + muted.Render(i18n.T(i18n.TUIConfirmControls))
 	case "pick":
 		var b strings.Builder
 		b.WriteString(accent.Render(m.prompt) + "\n\n")
@@ -132,30 +153,19 @@ func (m *Model) content() string {
 	var b strings.Builder
 	switch m.page {
 	case livePage:
-		if m.chat != nil {
-			fmt.Fprintf(&b, i18n.T(i18n.DanmakuSummary), m.chatStatus())
-		}
 		b.WriteString(accent.Render(i18n.T(i18n.TUILiveTitle)) + "\n\n")
 		if m.room == nil {
 			b.WriteString(i18n.T(i18n.TUILiveRoomMissing))
 		} else {
-			state := i18n.T(i18n.TUILiveOffline)
-			if m.room.Live {
-				state = i18n.T(i18n.TUILiveOnline)
-			}
-			fmt.Fprintf(&b, i18n.T(i18n.TUILiveRoomDetails), state, m.room.ID, clean(m.room.Title), clean(m.room.ParentName), clean(m.room.AreaName), m.room.AreaID)
+			fmt.Fprintf(&b, i18n.T(i18n.TUILiveRoomDetails), m.room.ID, clean(m.room.Title), clean(m.room.ParentName), clean(m.room.AreaName), m.room.AreaID)
 		}
 		if m.stream != nil {
 			fmt.Fprintf(&b, i18n.T(i18n.TUILiveProtocol), m.stream.Protocol)
 			if m.reveal {
 				fmt.Fprintf(&b, i18n.T(i18n.TUILiveStreamCredentials), clean(m.stream.Address), clean(m.stream.Key))
-			} else {
-				b.WriteString(i18n.T(i18n.TUILiveCredentialsHidden))
 			}
 		}
-		if m.config.OBSAutoStream {
-			b.WriteString(i18n.T(i18n.TUILiveAutoStreamHint))
-		} else {
+		if !m.config.OBSAutoStream {
 			b.WriteString(i18n.T(i18n.TUILiveConfigureHint))
 		}
 	case accountsPage:
@@ -196,6 +206,7 @@ func (m *Model) content() string {
 			proxy = u.String()
 		}
 		fmt.Fprintf(&b, i18n.T(i18n.TUISettingsDetails), accent.Render(i18n.T(i18n.TUISettingsTitle)), clean(proxy), m.config.Protocol)
+		b.WriteString(m.overlayStateText())
 	case logsPage:
 		b.WriteString(accent.Render(i18n.T(i18n.TUILogsTitle)) + "\n" + muted.Render(clean(m.journal.Path())) + "\n\n")
 		if len(m.logs) == 0 {

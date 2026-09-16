@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"arcana-world/internal/i18n"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestChatChronologyAndPinnedControlsFollowTheBottom(t *testing.T) {
@@ -47,8 +48,8 @@ func TestChatPausedAndPagedReadersSeeNewMessageBanner(t *testing.T) {
 			m.view.SetYOffset(3)
 			offset, frozen := m.view.YOffset, m.chatView()
 			banner := i18n.T(i18n.DanmakuNewMessages)
-			if strings.Contains(m.View(), banner) {
-				t.Fatal("already-read newer history was mistaken for new arrivals")
+			if !strings.Contains(m.View(), banner) {
+				t.Fatal("messages below the viewport need a scroll hint")
 			}
 			appendChat(t, m, "unseen-arrival")
 			runChatCommand(m, m.readChat())
@@ -165,5 +166,89 @@ func TestChatHistoryErrorWithOtherEnabledDoesNotLoop(t *testing.T) {
 	msg := m.readChat()().(chatPageMsg)
 	if next := m.applyChatPage(msg); next != nil || m.chat.err == nil || m.chat.loading {
 		t.Fatal("history failure must surface instead of being retried as a stale filter result")
+	}
+}
+
+func TestChatShortViewportShowsMoreUntilBottom(t *testing.T) {
+	m := chatTestModel(t)
+	for n := range 20 {
+		appendChat(t, m, fmt.Sprintf("short-message-%02d", n))
+	}
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 13})
+	runChatCommand(m, m.readChat())
+	hint := i18n.T(i18n.DanmakuNewMessages)
+	screen := m.View()
+	if !strings.Contains(screen, "short-message-19") || strings.Contains(screen, hint) {
+		t.Fatal("one-line viewport must show the latest message without a false scroll hint")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	screen = m.View()
+	if !strings.Contains(screen, hint) || strings.Contains(screen, "short-message-19") {
+		t.Fatal("scrolling above the latest message must reveal the scroll hint immediately")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if screen = m.View(); strings.Contains(screen, hint) || !strings.Contains(screen, "short-message-19") {
+		t.Fatal("scrolling back to the bottom must clear the hint immediately")
+	}
+}
+
+func TestChatScrollToUnreadKeepsFollowingPaused(t *testing.T) {
+	m := chatTestModel(t)
+	appendChat(t, m, "already-read")
+	runChatCommand(m, m.readChat())
+	m.View()
+	chatKeyRun(m, " ")
+	appendChat(t, m, "unread-arrival")
+	runChatCommand(m, m.readChat())
+	hint := i18n.T(i18n.DanmakuNewMessages)
+	if !strings.Contains(m.View(), hint) {
+		t.Fatal("paused arrivals must expose the scroll hint")
+	}
+	chatKeyRun(m, "down")
+	screen := m.View()
+	if !strings.Contains(screen, "unread-arrival") || strings.Contains(screen, hint) || m.chat.follow {
+		t.Fatal("scrolling to unread messages must clear the hint without enabling follow")
+	}
+	appendChat(t, m, "next-unread")
+	runChatCommand(m, m.readChat())
+	screen = m.View()
+	if !strings.Contains(screen, hint) || strings.Contains(screen, "next-unread") {
+		t.Fatal("reading unread messages must preserve the paused history boundary")
+	}
+}
+
+func TestChatListenerEventsFollowOtherFilterAndUnreadState(t *testing.T) {
+	m := chatTestModel(t)
+	runChatCommand(m, m.readChat())
+	chatKeyRun(m, " ")
+	for _, event := range []string{"session_start", "session_end", "connection_lost"} {
+		if err := m.chat.history.RecordGap(1, event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runChatCommand(m, m.readChat())
+	hint := i18n.T(i18n.DanmakuNewMessages)
+	if strings.Contains(m.View(), hint) {
+		t.Fatal("hidden listener events must not create an unread notification")
+	}
+	chatKeyRun(m, "f")
+	if !strings.Contains(m.View(), hint) {
+		t.Fatal("enabling other events must expose unread listener events")
+	}
+	chatKeyRun(m, "end")
+	for _, key := range []i18n.Key{i18n.DanmakuSessionStart, i18n.DanmakuSessionEnd, i18n.DanmakuConnectionLost} {
+		if !strings.Contains(m.chatView(), i18n.T(key)) {
+			t.Fatal("enabled listener event is missing from history")
+		}
+	}
+	chatKeyRun(m, "f")
+	for _, key := range []i18n.Key{i18n.DanmakuSessionStart, i18n.DanmakuSessionEnd, i18n.DanmakuConnectionLost} {
+		if strings.Contains(m.chatView(), i18n.T(key)) {
+			t.Fatal("disabled listener event leaked into chat")
+		}
+	}
+	events, err := m.chat.history.Page(1, 0, chatPageSize)
+	if err != nil || len(events) != 3 {
+		t.Fatalf("display filter changed saved listener history: events=%d err=%v", len(events), err)
 	}
 }

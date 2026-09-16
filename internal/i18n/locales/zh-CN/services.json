@@ -124,7 +124,7 @@
   "obs.stream_event_invalid": "OBS 发送了无效的推流事件",
   "obs.stream_server_invalid": "推流服务器地址必须是有效的 RTMP、RTMPS 或 SRT URL",
   "obs.stream_status_invalid": "OBS 发送了无效的推流状态",
-  "obs.transport_failed": "OBS %s失败；请检查连接、WebSocket v5 设置和密码",
+  "obs.transport_failed": "OBS %s失败；请在 OBS 中打开「工具」→「WebSocket 服务器设置」（如无此选项，请更新 OBS），确认已勾选「开启 WebSocket 服务器」，并核对密码是否一致",
   "store.account_credentials_encode_failed": "无法编码账号凭据",
   "store.account_credentials_invalid": "已保存的账号凭据无效",
   "store.account_credentials_required": "必须提供账号 ID 和 Cookie",
@@ -165,7 +165,11 @@
   "termimage.raw_input_failed": "图片预览：设置原始输入模式失败：%w",
   "termimage.response_too_large": "图片预览：终端图形响应超出大小限制",
   "termimage.return_hint": "Esc / q / Enter：返回",
+  "termimage.fallback_hint": "当前终端环境无法使用图形预览，封面已切换为字符预览。建议使用支持 Kitty 图形协议的终端模拟器。",
   "termimage.terminal_input_required": "图片预览：交互输入必须是终端文件",
   "termimage.terminal_size_failed": "图片预览：获取终端尺寸失败：%w",
-  "termimage.terminal_size_unsupported": "图片预览：此平台不支持获取终端尺寸"
+  "termimage.terminal_size_unsupported": "图片预览：此平台不支持获取终端尺寸",
+  "store.cleared": "应用数据已进入清除流程，请重新启动应用",
+  "store.clear_data_failed": "清除应用数据失败：%w",
+  "store.delete_obs_password": "删除 OBS 密码"
 }

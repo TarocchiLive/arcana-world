@@ -19,7 +19,11 @@ type menuItem struct{ label, action string }
 func (m *Model) menu() []menuItem {
 	switch m.page {
 	case livePage:
-		return []menuItem{{i18n.T(i18n.TUIMenuRefreshRoom), "refresh"}, {i18n.T(i18n.TUIMenuStartLive), "start-confirm"}, {i18n.T(i18n.TUIMenuStopLive), "stop-confirm"}, {i18n.T(i18n.TUIMenuRevealStreamKey), "reveal"}}
+		liveAction := menuItem{i18n.T(i18n.TUIMenuStartLive), "start-confirm"}
+		if m.room != nil && m.room.Live {
+			liveAction = menuItem{i18n.T(i18n.TUIMenuStopLive), "stop-confirm"}
+		}
+		return []menuItem{{i18n.T(i18n.TUIMenuRefreshRoom), "refresh"}, liveAction, {i18n.T(i18n.TUIMenuRevealStreamKey), "reveal"}}
 	case accountsPage:
 		items := []menuItem{{i18n.T(i18n.TUIMenuAddAccount), "login"}}
 		for _, a := range m.store.Accounts() {
@@ -49,6 +53,12 @@ func (m *Model) menu() []menuItem {
 		return []menuItem{
 			{i18n.T(i18n.TUIMenuSetProxy), "proxy"},
 			{i18n.T(i18n.TUIMenuSetProtocol), "protocol"},
+			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
+			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
+			{toggleLabel(i18n.T(i18n.TUIOverlayEnabled), m.overlayEnabled), "overlay-toggle"},
+			{i18n.T(i18n.TUIOverlaySettings), "overlay-settings"},
+			{i18n.T(i18n.TUISettingsReset), "settings-reset-confirm"},
+			{i18n.T(i18n.TUISettingsClearData), "clear-data"},
 		}
 	case chatPage:
 		return []menuItem{{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"}}
@@ -78,14 +88,37 @@ func (m *Model) perform(action string) tea.Cmd {
 	if m.busy {
 		return nil
 	}
+	if strings.HasPrefix(action, "overlay-") {
+		return m.performOverlay(action)
+	}
 	if strings.HasPrefix(action, "account:") {
 		return m.loadAccount(strings.TrimPrefix(action, "account:"))
 	}
 	if strings.HasPrefix(action, "delete:") {
 		uid := strings.TrimPrefix(action, "delete:")
-		return m.work("delete", func(context.Context) (any, error) { return uid, m.store.Delete(uid) })
+		return m.work("delete", func(ctx context.Context) (any, error) {
+			if err := m.acquireOBS(ctx); err != nil {
+				return nil, err
+			}
+			defer func() { <-m.obsLifecycle }()
+			return uid, m.store.Delete(uid)
+		})
 	}
 	switch action {
+	case "settings-reset-confirm":
+		return m.confirm(i18n.T(i18n.TUISettingsResetConfirm), "settings-reset")
+	case "settings-reset":
+		return m.resetSettings()
+	case "clear-data":
+		return m.form("clear-data", i18n.T(i18n.TUISettingsClearDataConfirm), "", false)
+	case "exit-obs-stop":
+		cfg := m.config
+		cfg.ExitOBSStopDisabled = !cfg.ExitOBSStopDisabled
+		return m.saveConfig(cfg, false)
+	case "exit-live-stop":
+		cfg := m.config
+		cfg.ExitLiveStopDisabled = !cfg.ExitLiveStopDisabled
+		return m.saveConfig(cfg, false)
 	case "chat-toggle":
 		if !m.config.DanmakuDisabled {
 			return m.confirm(i18n.T(i18n.DanmakuToggleConfirm), "chat-disable")
@@ -233,6 +266,10 @@ func (m *Model) refresh() tea.Cmd {
 func (m *Model) loadAccount(uid string) tea.Cmd {
 	proxy := m.config.Proxy
 	return m.work("account", func(ctx context.Context) (any, error) {
+		if err := m.acquireOBS(ctx); err != nil {
+			return nil, err
+		}
+		defer func() { <-m.obsLifecycle }()
 		a, err := m.store.Load(uid)
 		if err != nil {
 			return nil, err
@@ -261,6 +298,10 @@ func (m *Model) loadAccount(uid string) tea.Cmd {
 func (m *Model) saveLogin(a domain.Account) tea.Cmd {
 	proxy := m.config.Proxy
 	return m.work("login-save", func(ctx context.Context) (any, error) {
+		if err := m.acquireOBS(ctx); err != nil {
+			return nil, err
+		}
+		defer func() { <-m.obsLifecycle }()
 		c, err := bili.New(proxy)
 		if err != nil {
 			return nil, err
@@ -313,6 +354,7 @@ func (m *Model) confirm(prompt, action string) tea.Cmd {
 	m.prompt = prompt
 	m.confirmAction = action
 	m.selected = 0
+	m.view.GotoTop()
 	return nil
 }
 func (m *Model) choose() tea.Cmd {
@@ -321,6 +363,9 @@ func (m *Model) choose() tea.Cmd {
 	}
 	ch := m.choices[m.selected]
 	m.mode = ""
+	if strings.HasPrefix(m.editKind, "overlay-") {
+		return m.chooseOverlay(ch.value)
+	}
 	switch m.editKind {
 	case "delete":
 		return m.confirm(fmt.Sprintf(i18n.T(i18n.TUIConfirmRemoveAccount), ch.label), "delete:"+ch.value)
@@ -351,6 +396,24 @@ func (m *Model) setArea(a domain.Area) tea.Cmd {
 func (m *Model) submitForm() tea.Cmd {
 	value := strings.TrimSpace(m.input.Value())
 	kind := m.editKind
+	if kind == "clear-data" {
+		if m.input.Value() != "arcanaworldclear" {
+			m.mode = ""
+			m.input.SetValue("")
+			m.input.Blur()
+			m.view.GotoTop()
+			m.log(i18n.T(i18n.TUISettingsClearDataMismatch))
+			return nil
+		}
+		m.clearDataOnExit = true
+		m.obsClosing.Store(true)
+		m.input.SetValue("")
+		m.input.Blur()
+		return tea.Quit
+	}
+	if strings.HasPrefix(kind, "overlay-") {
+		return m.submitOverlay(kind, value)
+	}
 	// 密码保留原始字节，不去除首尾空白。
 	if kind == "obs-password" {
 		value = m.input.Value()
@@ -397,7 +460,11 @@ func (m *Model) submitForm() tea.Cmd {
 		n, _ := strconv.Atoi(value)
 		return m.work("delay-set", func(ctx context.Context) (any, error) { return nil, m.client.SetTimeShift(ctx, n) })
 	case "obs-password":
-		return m.work("obs-password", func(context.Context) (any, error) {
+		return m.work("obs-password", func(ctx context.Context) (any, error) {
+			if err := m.acquireOBS(ctx); err != nil {
+				return nil, err
+			}
+			defer func() { <-m.obsLifecycle }()
 			if err := m.store.SetOBSSecret(value); err != nil {
 				return nil, err
 			}
@@ -406,7 +473,11 @@ func (m *Model) submitForm() tea.Cmd {
 	case "obs-url":
 		cfg := m.config
 		cfg.OBSURL = value
-		return m.work("obs-url", func(context.Context) (any, error) {
+		return m.work("obs-url", func(ctx context.Context) (any, error) {
+			if err := m.acquireOBS(ctx); err != nil {
+				return nil, err
+			}
+			defer func() { <-m.obsLifecycle }()
 			if err := m.store.SaveConfig(cfg); err != nil {
 				return nil, err
 			}
@@ -421,7 +492,11 @@ func (m *Model) submitForm() tea.Cmd {
 }
 func (m *Model) saveConfig(cfg domain.Config, replaceClient bool) tea.Cmd {
 	account := m.account
-	return m.work("config", func(context.Context) (any, error) {
+	return m.work("config", func(ctx context.Context) (any, error) {
+		if err := m.acquireOBS(ctx); err != nil {
+			return nil, err
+		}
+		defer func() { <-m.obsLifecycle }()
 		var c *bili.Client
 		if replaceClient {
 			var err error

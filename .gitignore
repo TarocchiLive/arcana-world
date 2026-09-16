@@ -12,3 +12,34 @@ config.json
 .env.*
 
 .idea
+
+# Local engineering notes, TODOs, and disposable verification artifacts.
+/.local/
+
+# Operating system metadata
+.DS_Store
+.ds_store
+._*
+.AppleDouble/
+.LSOverride
+Icon?
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editor and merge temporary files
+*.swp
+*.swo
+*~
+*.orig
+*.rej
+
+# Go test and profiling output
+*.test.exe
+/coverage/
+coverage.txt
+coverage.html
+*.prof
+*.pprof

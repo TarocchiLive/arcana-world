@@ -20,9 +20,10 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
+          vendorHash = "sha256-WU7NRrYE8n8zjAL9TRBUsUfCknHDJdWMVHRN9hW/hkI=";
         in
         rec {
-          default = arcana-world;
+          default = arcana-world-desktop;
           arcana-world = pkgs.buildGoModule rec {
             pname = "arcana-world";
             version = "unstable-${self.shortRev or "local"}";
@@ -38,7 +39,7 @@
               ];
             };
 
-            vendorHash = "sha256-WU7NRrYE8n8zjAL9TRBUsUfCknHDJdWMVHRN9hW/hkI=";
+            inherit vendorHash;
             subPackages = [ "cmd/arcana-world" ];
             env.CGO_ENABLED = "0";
             ldflags = [
@@ -65,6 +66,41 @@
               platforms = systems;
             };
           };
+          arcana-overlay = pkgs.buildGoModule {
+            pname = "arcana-overlay";
+            inherit (arcana-world) version src;
+            inherit vendorHash;
+            subPackages = [ "cmd/arcana-overlay" ];
+            env.CGO_ENABLED = "1";
+            tags = pkgs.lib.optionals pkgs.stdenv.isLinux [ "wayland" ];
+            nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [
+              pkgs.wayland
+              pkgs.pango
+              pkgs.cairo
+            ];
+            ldflags = [ "-s" "-w" ];
+            postInstall = ''
+              install -Dm644 LICENSE "$out/share/licenses/arcana-overlay/LICENSE"
+            '';
+            meta = {
+              description = "Native click-through desktop text overlay";
+              homepage = "https://github.com/TarocchiLive/arcana-world";
+              license = pkgs.lib.licenses.gpl3Only;
+              mainProgram = "arcana-overlay";
+              platforms = systems;
+            };
+          };
+          arcana-world-desktop = pkgs.runCommand "arcana-world-desktop-${arcana-world.version}" {
+            meta = arcana-world.meta // {
+              description = "Arcana World with the optional native desktop overlay";
+            };
+          } ''
+            install -Dm755 ${arcana-world}/bin/arcana-world "$out/bin/arcana-world"
+            install -Dm755 ${arcana-overlay}/bin/arcana-overlay "$out/bin/libexec/arcana-overlay"
+            install -Dm644 ${arcana-world}/share/licenses/arcana-world/LICENSE \
+              "$out/share/licenses/arcana-world/LICENSE"
+          '';
         }
       );
 
@@ -99,10 +135,20 @@
           program = "${self.packages.${system}.default}/bin/arcana-world";
           meta.description = self.packages.${system}.default.meta.description;
         };
+        arcana-overlay = {
+          type = "app";
+          program = "${self.packages.${system}.arcana-overlay}/bin/arcana-overlay";
+          meta.description = self.packages.${system}.arcana-overlay.meta.description;
+        };
+        arcana-world-desktop = {
+          type = "app";
+          program = "${self.packages.${system}.arcana-world-desktop}/bin/arcana-world";
+          meta.description = self.packages.${system}.arcana-world-desktop.meta.description;
+        };
       });
 
       checks = forAllSystems (system: {
-        inherit (self.packages.${system}) arcana-world;
+        inherit (self.packages.${system}) arcana-world arcana-overlay arcana-world-desktop;
       });
     };
 }

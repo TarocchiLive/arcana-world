@@ -1,6 +1,9 @@
 package domain
 
-import "arcana-world/internal/i18n"
+import (
+	"arcana-world/internal/i18n"
+	"arcana-world/internal/overlay"
+)
 
 // Account 包含认证 Cookie，绝不能写入日志。
 type Account struct {
@@ -20,10 +23,14 @@ type Config struct {
 	OBSURL         string        `json:"obs_url"`
 	OBSAutoConnect bool          `json:"obs_auto_connect"`
 	OBSAutoStream  bool          `json:"obs_auto_stream"`
+	// 退出清理默认启用；旧配置缺省值也会停止推流并关闭直播间。
+	ExitOBSStopDisabled  bool `json:"exit_obs_stop_disabled"`
+	ExitLiveStopDisabled bool `json:"exit_live_stop_disabled"`
 	// 默认启用；使用禁用字段使旧配置无需迁移即可自动监听。
-	DanmakuDisabled bool     `json:"danmaku_disabled"`
-	RecentTitles    []string `json:"recent_titles"`
-	RecentAreas     []Area   `json:"recent_areas"`
+	DanmakuDisabled bool             `json:"danmaku_disabled"`
+	RecentTitles    []string         `json:"recent_titles"`
+	RecentAreas     []Area           `json:"recent_areas"`
+	Overlay         overlay.Settings `json:"overlay"`
 }
 type Room struct {
 	ID           int64

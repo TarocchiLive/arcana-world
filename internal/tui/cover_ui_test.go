@@ -23,6 +23,11 @@ func coverTestModel(t *testing.T) (*Model, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cfg := s.Config()
+	cfg.ExitLiveStopDisabled = true
+	if err := s.SaveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
 	m, err := New(context.Background(), s)
 	if err != nil {
 		t.Fatal(err)

@@ -124,7 +124,7 @@
   "obs.stream_event_invalid": "OBS sent invalid stream event",
   "obs.stream_server_invalid": "stream server must be a valid RTMP, RTMPS, or SRT URL",
   "obs.stream_status_invalid": "OBS sent invalid stream status",
-  "obs.transport_failed": "OBS %s failed; check connection, WebSocket v5 settings, and password",
+  "obs.transport_failed": "OBS %s failed; in OBS, open Tools → WebSocket Server Settings (update OBS if this option is missing), make sure Enable WebSocket server is checked, and verify that the password matches",
   "store.account_credentials_encode_failed": "cannot encode account credentials",
   "store.account_credentials_invalid": "saved account credentials are invalid",
   "store.account_credentials_required": "account ID and cookies are required",
@@ -165,7 +165,11 @@
   "termimage.raw_input_failed": "preview: raw input: %w",
   "termimage.response_too_large": "preview: oversized terminal graphics response",
   "termimage.return_hint": "Esc / q / Enter: return",
+  "termimage.fallback_hint": "Graphical preview is unavailable in this terminal environment. The cover is shown using text characters. A terminal emulator supporting the Kitty graphics protocol is recommended.",
   "termimage.terminal_input_required": "preview: interactive input requires a terminal file",
   "termimage.terminal_size_failed": "preview: terminal size: %w",
-  "termimage.terminal_size_unsupported": "preview: terminal sizing unsupported on this platform"
+  "termimage.terminal_size_unsupported": "preview: terminal sizing unsupported on this platform",
+  "store.cleared": "Application data clearing has started; restart the application",
+  "store.clear_data_failed": "Failed to clear application data: %w",
+  "store.delete_obs_password": "delete OBS password"
 }

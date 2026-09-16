@@ -116,7 +116,7 @@ func (c *Client) Connect(ctx context.Context, endpoint, password string) error {
 	c.generation++
 	generation := c.generation
 	c.cancel = cancel
-	c.snapshot = Snapshot{Connecting: true}
+	c.snapshot = Snapshot{Connecting: true, Status: c.snapshot.Status}
 	c.publishLocked()
 	c.mu.Unlock()
 	defer cancel()
@@ -160,13 +160,13 @@ func (c *Client) Connect(ctx context.Context, endpoint, password string) error {
 		if ws != nil {
 			ws.Close()
 		}
-		c.snapshot = Snapshot{Err: err}
+		c.snapshot = Snapshot{Status: c.snapshot.Status, Err: err}
 		c.publishLocked()
 		return err
 	}
 	s := &session{ws: ws, endpoint: endpoint, done: make(chan struct{}), writes: make(chan struct{}, 1), pending: make(map[string]*pending)}
 	c.session = s
-	c.snapshot = Snapshot{Connected: true}
+	c.snapshot = Snapshot{Connected: true, Status: c.snapshot.Status}
 	c.publishLocked()
 	go c.readLoop(s)
 	return nil
@@ -230,7 +230,12 @@ func (c *Client) dropLocked(err error) {
 		c.session.ws.Close()
 		c.session = nil
 	}
+	status := c.snapshot.Status
 	c.snapshot = Snapshot{Err: err}
+	if err != nil {
+		// 传输断开不表示 OBS 已停止；明确 Disconnect 才清除已知状态。
+		c.snapshot.Status = status
+	}
 	c.publishLocked()
 }
 func (c *Client) Disconnect() error {

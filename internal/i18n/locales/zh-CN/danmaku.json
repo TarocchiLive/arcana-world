@@ -1,15 +1,15 @@
 {
  "danmaku.truncated": "…",
- "danmaku.other": "显示其他事件",
+ "danmaku.other": "其他事件",
  "danmaku.page": "弹幕",
- "danmaku.toggle": "自动监听",
+ "danmaku.toggle": "自动启动",
+ "danmaku.listening": "监听",
  "danmaku.controls": "s 开关 · Space 跟随 · [ ] 翻页 · End 最新 · o 房间 · f 其他 · r 重试 · PgUp/Dn 滚动",
- "danmaku.details": "监听：%s\n历史房间：%d · %s · 本页 %d 条\n",
+ "danmaku.details": "当前房间：%d",
  "danmaku.empty": "暂无弹幕",
  "danmaku.no_room": "登录后自动监听直播间",
- "danmaku.following": "跟随最新",
- "danmaku.paused": "已暂停",
- "danmaku.new_messages": "—— 有新消息 · Space / End 回到最新 ——",
+ "danmaku.following": "跟随消息滚动",
+ "danmaku.new_messages": "（向下滚动查看更多消息）",
  "danmaku.waiting": "等待登录",
  "danmaku.disabled": "已关闭",
  "danmaku.connecting": "连接中",
@@ -45,6 +45,5 @@
  "danmaku.preparing": "[下播]",
  "danmaku.room_change": "[房间更新] %s",
  "danmaku.room_block": "[禁言] %s",
- "danmaku.cut_off": "[直播切断] %s",
- "danmaku.summary": "弹幕：%s · 按 2 浏览\n"
+ "danmaku.cut_off": "[直播切断] %s"
 }

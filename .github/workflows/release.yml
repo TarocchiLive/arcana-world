@@ -32,14 +32,30 @@ jobs:
 
   build:
     needs: checks
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        goos: [darwin, windows, linux]
-        goarch: [amd64, arm64]
+        include:
+          - os: macos-15-intel
+            goos: darwin
+            goarch: amd64
+          - os: macos-15
+            goos: darwin
+            goarch: arm64
+          - os: ubuntu-24.04
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+          - os: windows-latest
+            goos: windows
+            goarch: arm64
+    runs-on: ${{ matrix.os }}
     env:
-      CGO_ENABLED: '0'
       GOOS: ${{ matrix.goos }}
       GOARCH: ${{ matrix.goarch }}
       RELEASE_TAG: ${{ github.ref_name }}
@@ -49,24 +65,38 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Install Wayland drawing dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libpango1.0-dev libcairo2-dev pkg-config
+      - name: Install reproducible archive tools
+        if: runner.os == 'macOS'
+        run: brew install gnu-tar
       - name: Build and package
         shell: bash
         run: |
-          mkdir -p package dist
-          binary=arcana-world
-          if [[ "$GOOS" == windows ]]; then
-            binary+=.exe
-          fi
-          go build -trimpath -buildvcs=false \
+          mkdir -p package/libexec dist
+          suffix=
+          cgo=1
+          tags=
+          tar_tool=tar
+          case "$GOOS" in
+            windows) suffix=.exe; cgo=0 ;;
+            linux) tags=wayland ;;
+            darwin) tar_tool=gtar ;;
+          esac
+          CGO_ENABLED=0 go build -trimpath -buildvcs=false \
             -ldflags="-s -w -buildid= -X main.version=${RELEASE_TAG#v}" \
-            -o "package/$binary" ./cmd/arcana-world
+            -o "package/arcana-world$suffix" ./cmd/arcana-world
+          CGO_ENABLED="$cgo" go build -tags "$tags" -trimpath -buildvcs=false \
+            -ldflags="-s -w -buildid=" \
+            -o "package/libexec/arcana-overlay$suffix" ./cmd/arcana-overlay
           cp LICENSE package/
           archive="arcana-world-${GOOS}-${GOARCH}"
           if [[ "$GOOS" == windows ]]; then
-            (cd package && zip -X "../dist/${archive}.zip" "$binary" LICENSE)
+            (cd package && 7z a -tzip "../dist/${archive}.zip" arcana-world.exe libexec LICENSE)
           else
-            tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
-              -C package -cf - "$binary" LICENSE | gzip -n > "dist/${archive}.tar.gz"
+            "$tar_tool" --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+              -C package -cf - arcana-world libexec LICENSE | gzip -n > "dist/${archive}.tar.gz"
           fi
       - uses: actions/upload-artifact@v7
         with:
