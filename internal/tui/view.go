@@ -7,6 +7,7 @@ import (
 
 	"arcana-world/internal/i18n"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/skip2/go-qrcode"
 )
 
@@ -23,7 +24,17 @@ func (m *Model) View() string {
 	if m.account != nil {
 		account = clean(m.account.Name) + " / " + m.account.UID
 	}
-	header := accent.Render("ARCANA WORLD") + "  " + muted.Render("BILIBILI LIVE CONTROL")
+	liveState := i18n.T(i18n.TUILiveUnknown)
+	liveStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("232")).Background(lipgloss.Color("220"))
+	if m.room != nil {
+		liveState = i18n.T(i18n.TUILiveOffline)
+		liveStyle = liveStyle.Foreground(lipgloss.Color("255")).Background(lipgloss.Color("240"))
+		if m.room.Live {
+			liveState = i18n.T(i18n.TUILiveOnline)
+			liveStyle = liveStyle.Background(lipgloss.Color("160"))
+		}
+	}
+	header := liveStyle.Render("[ "+liveState+" ]") + "  " + accent.Render("ARCANA WORLD") + "  " + muted.Render("BILIBILI LIVE CONTROL")
 	var tabs []string
 	for i, p := range pageNames() {
 		label := fmt.Sprintf(" %d %s ", i+1, p)
@@ -78,7 +89,7 @@ func (m *Model) View() string {
 		footer = i18n.T(i18n.TUIFooterOBSBusy)
 	}
 	return lipgloss.NewStyle().Padding(1, 2).Render(
-		lipgloss.NewStyle().MaxWidth(width).Render(header) + "\n" +
+		ansi.Truncate(header, width, "") + "\n" +
 			muted.Render(i18n.T(i18n.TUIViewAccountLabel)+account) + "\n" + strings.Join(tabs, "") + "\n\n" +
 			chatHeader + m.view.View() + "\n" +
 			lipgloss.NewStyle().MaxWidth(width).Render(warning.Render(clean(status))) + "\n" +
@@ -136,30 +147,19 @@ func (m *Model) content() string {
 	var b strings.Builder
 	switch m.page {
 	case livePage:
-		if m.chat != nil {
-			fmt.Fprintf(&b, i18n.T(i18n.DanmakuSummary), m.chatStatus())
-		}
 		b.WriteString(accent.Render(i18n.T(i18n.TUILiveTitle)) + "\n\n")
 		if m.room == nil {
 			b.WriteString(i18n.T(i18n.TUILiveRoomMissing))
 		} else {
-			state := i18n.T(i18n.TUILiveOffline)
-			if m.room.Live {
-				state = i18n.T(i18n.TUILiveOnline)
-			}
-			fmt.Fprintf(&b, i18n.T(i18n.TUILiveRoomDetails), state, m.room.ID, clean(m.room.Title), clean(m.room.ParentName), clean(m.room.AreaName), m.room.AreaID)
+			fmt.Fprintf(&b, i18n.T(i18n.TUILiveRoomDetails), m.room.ID, clean(m.room.Title), clean(m.room.ParentName), clean(m.room.AreaName), m.room.AreaID)
 		}
 		if m.stream != nil {
 			fmt.Fprintf(&b, i18n.T(i18n.TUILiveProtocol), m.stream.Protocol)
 			if m.reveal {
 				fmt.Fprintf(&b, i18n.T(i18n.TUILiveStreamCredentials), clean(m.stream.Address), clean(m.stream.Key))
-			} else {
-				b.WriteString(i18n.T(i18n.TUILiveCredentialsHidden))
 			}
 		}
-		if m.config.OBSAutoStream {
-			b.WriteString(i18n.T(i18n.TUILiveAutoStreamHint))
-		} else {
+		if !m.config.OBSAutoStream {
 			b.WriteString(i18n.T(i18n.TUILiveConfigureHint))
 		}
 	case accountsPage:

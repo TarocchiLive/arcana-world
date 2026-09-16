@@ -45,6 +45,5 @@
  "danmaku.preparing": "[Offline]",
  "danmaku.room_change": "[Room updated] %s",
  "danmaku.room_block": "[Muted] %s",
- "danmaku.cut_off": "[Stream cut off] %s",
- "danmaku.summary": "Chat: %s · press 2 to browse\n"
+ "danmaku.cut_off": "[Stream cut off] %s"
 }

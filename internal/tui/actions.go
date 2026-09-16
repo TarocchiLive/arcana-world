@@ -19,7 +19,11 @@ type menuItem struct{ label, action string }
 func (m *Model) menu() []menuItem {
 	switch m.page {
 	case livePage:
-		return []menuItem{{i18n.T(i18n.TUIMenuRefreshRoom), "refresh"}, {i18n.T(i18n.TUIMenuStartLive), "start-confirm"}, {i18n.T(i18n.TUIMenuStopLive), "stop-confirm"}, {i18n.T(i18n.TUIMenuRevealStreamKey), "reveal"}}
+		liveAction := menuItem{i18n.T(i18n.TUIMenuStartLive), "start-confirm"}
+		if m.room != nil && m.room.Live {
+			liveAction = menuItem{i18n.T(i18n.TUIMenuStopLive), "stop-confirm"}
+		}
+		return []menuItem{{i18n.T(i18n.TUIMenuRefreshRoom), "refresh"}, liveAction, {i18n.T(i18n.TUIMenuRevealStreamKey), "reveal"}}
 	case accountsPage:
 		items := []menuItem{{i18n.T(i18n.TUIMenuAddAccount), "login"}}
 		for _, a := range m.store.Accounts() {

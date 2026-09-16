@@ -45,6 +45,5 @@
  "danmaku.preparing": "[下播]",
  "danmaku.room_change": "[房间更新] %s",
  "danmaku.room_block": "[禁言] %s",
- "danmaku.cut_off": "[直播切断] %s",
- "danmaku.summary": "弹幕：%s · 按 2 浏览\n"
+ "danmaku.cut_off": "[直播切断] %s"
 }

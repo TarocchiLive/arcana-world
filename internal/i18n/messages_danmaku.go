@@ -33,7 +33,6 @@ const (
 	DanmakuNoOlder        Key = "danmaku.no_older"
 	DanmakuRetry          Key = "danmaku.retry"
 	DanmakuToggleConfirm  Key = "danmaku.toggle_confirm"
-	DanmakuSummary        Key = "danmaku.summary"
 	DanmakuEnter          Key = "danmaku.enter"
 	DanmakuFollow         Key = "danmaku.follow"
 	DanmakuShare          Key = "danmaku.share"
