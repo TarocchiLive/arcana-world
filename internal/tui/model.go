@@ -7,6 +7,7 @@ import (
 	"image"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -77,6 +78,8 @@ type Model struct {
 	obsBusy                bool
 	obsCancel              context.CancelFunc
 	obsOperation           int
+	obsLifecycle           chan struct{}
+	obsClosing             atomic.Bool
 	initialized            bool
 	overlay                *overlayRuntime
 	selection              *roomSelection
@@ -125,6 +128,7 @@ func New(ctx context.Context, s *store.Store) (*Model, error) {
 	in := textinput.New()
 	in.CharLimit = 4096
 	m := &Model{ctx: ctx, store: s, config: cfg, client: c, journal: disk, obsClient: obs.NewClient(), width: 100, height: 32, input: in, status: i18n.T(i18n.TUIStatusReady), view: viewport.New(96, 24)}
+	m.obsLifecycle = make(chan struct{}, 1)
 	m.openChat()
 	return m, nil
 }
@@ -611,9 +615,6 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 		if outcome, ok := r.value.(stopOutcome); ok {
 			if outcome.obsStopped {
 				m.log(i18n.T(i18n.TUILogLiveOBSStopped))
-			}
-			if outcome.warning != "" {
-				m.log(i18n.T(i18n.TUILogLiveStoppedWarning) + outcome.warning)
 			}
 		}
 	case "face":

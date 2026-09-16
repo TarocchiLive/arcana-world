@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"arcana-world/internal/bili"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
 	tea "github.com/charmbracelet/bubbletea"
@@ -25,7 +26,6 @@ type startOutcome struct {
 }
 type stopOutcome struct {
 	obsStopped bool
-	warning    string
 }
 
 func toggleLabel(label string, enabled bool) string {
@@ -35,18 +35,89 @@ func toggleLabel(label string, enabled bool) string {
 	return i18n.T(i18n.TUIToggleOff) + label
 }
 
-// Close 仅释放一次 OBS、浮层与弹幕会话，然后关闭历史与会话日志。
+// Close 仅执行一次：按退出设置停止 OBS、关闭当前账号直播间，再释放资源。
 func (m *Model) Close() error {
 	m.closeOnce.Do(func() {
+		m.obsClosing.Store(true)
 		if m.cancel != nil {
 			m.cancel()
 		}
 		if m.obsCancel != nil {
 			m.obsCancel()
 		}
-		m.closeErr = errors.Join(m.closeOverlay(), m.closeChat(), m.obsClient.Close(), m.journal.Write(i18n.T(i18n.TUILogApplicationExited)), m.journal.Close())
+		gateCtx, gateCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		var stopErr error
+		select {
+		case m.obsLifecycle <- struct{}{}:
+			defer func() { <-m.obsLifecycle }()
+		case <-gateCtx.Done():
+			stopErr = gateCtx.Err()
+		}
+		gateCancel()
+		cfg := m.store.Config()
+		if !cfg.ExitOBSStopDisabled && stopErr == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			_, stopErr = m.stopControlledOBS(ctx, cfg)
+			cancel()
+		}
+		if !cfg.ExitLiveStopDisabled {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			stopErr = errors.Join(stopErr, m.stopExitLive(ctx, cfg))
+			cancel()
+		}
+		if stopErr != nil {
+			stopErr = errors.Join(stopErr, m.journal.Write(m.safe(stopErr.Error())))
+		}
+		m.closeErr = errors.Join(stopErr, m.closeOverlay(), m.closeChat(), m.obsClient.Close(), m.journal.Write(i18n.T(i18n.TUILogApplicationExited)), m.journal.Close())
 	})
 	return m.closeErr
+}
+
+func (m *Model) stopExitLive(ctx context.Context, cfg domain.Config) error {
+	if cfg.ActiveUID == "" {
+		return nil
+	}
+	account, err := m.store.Load(cfg.ActiveUID)
+	if err != nil {
+		return fmt.Errorf(i18n.T(i18n.TUIErrorExitLiveAccount), err)
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	// 独立客户端不读取旧房间，也不修改尚未完成的界面请求的房间缓存。
+	client, err := bili.New(cfg.Proxy)
+	if err != nil {
+		return fmt.Errorf(i18n.T(i18n.TUIErrorExitLiveRoom), err)
+	}
+	client.APIBase, client.LiveBase, client.PassportBase = m.client.APIBase, m.client.LiveBase, m.client.PassportBase
+	client.SetAccount(account)
+	room, err := client.Room(ctx)
+	if err != nil {
+		return fmt.Errorf(i18n.T(i18n.TUIErrorExitLiveRoom), err)
+	}
+	if room.Live {
+		if err := client.Stop(ctx, room.ID); err != nil {
+			return fmt.Errorf(i18n.T(i18n.TUIErrorExitLiveStop), err)
+		}
+	}
+	return nil
+}
+
+// 串行化完整的直播操作，避免退出时停止推流后又执行排队的启动。
+func (m *Model) acquireOBS(ctx context.Context) error {
+	if m.obsClosing.Load() {
+		return context.Canceled
+	}
+	select {
+	case m.obsLifecycle <- struct{}{}:
+		if m.obsClosing.Load() || ctx.Err() != nil {
+			<-m.obsLifecycle
+			return context.Canceled
+		}
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // 仅由一个命令消费连接事件；Init 防止重复进入。
@@ -83,7 +154,14 @@ func (m *Model) runOBS(kind string, fn func(context.Context) error) tea.Cmd {
 	ctx, cancel := context.WithTimeout(m.ctx, 30*time.Second)
 	m.obsCancel = cancel
 	m.status = fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), operationName(kind))
-	return func() tea.Msg { defer cancel(); return obsResultMsg{id: id, kind: kind, err: fn(ctx)} }
+	return func() tea.Msg {
+		defer cancel()
+		if err := m.acquireOBS(ctx); err != nil {
+			return obsResultMsg{id: id, kind: kind, err: err}
+		}
+		defer func() { <-m.obsLifecycle }()
+		return obsResultMsg{id: id, kind: kind, err: fn(ctx)}
+	}
 }
 func (m *Model) handleOBSResult(msg obsResultMsg) tea.Cmd {
 	if msg.id != m.obsOperation {
@@ -139,10 +217,34 @@ func (m *Model) startPrompt() string {
 	return text + i18n.T(i18n.TUIConfirmStartConfigureOnly)
 }
 func (m *Model) stopPrompt() string {
-	if m.config.OBSAutoStream {
+	state := m.obsClient.Snapshot()
+	if state.Connected || m.config.OBSAutoStream || state.Status.Active || state.Status.Reconnecting {
 		return i18n.T(i18n.TUIConfirmStopAutoStream)
 	}
 	return i18n.T(i18n.TUIConfirmStopManualStream)
+}
+
+// 调用方持有 obsLifecycle；断线时使用既有凭据恢复会话，而非假定推流已停止。
+func (m *Model) stopControlledOBS(ctx context.Context, cfg domain.Config) (bool, error) {
+	state := m.obsClient.Snapshot()
+	if !state.Connected {
+		if !cfg.OBSAutoStream && !state.Status.Active && !state.Status.Reconnecting {
+			return false, nil
+		}
+		if err := m.connectSession(ctx, cfg.OBSURL); err != nil {
+			return false, fmt.Errorf(i18n.T(i18n.TUIErrorOBSStopConnect), err)
+		}
+	}
+	status, err := m.obsClient.Status(ctx)
+	if err != nil {
+		return false, fmt.Errorf(i18n.T(i18n.TUIErrorOBSStopStatus), err)
+	}
+	if status.Active || status.Reconnecting {
+		if err := m.obsClient.Stop(ctx); err != nil {
+			return false, fmt.Errorf(i18n.T(i18n.TUIErrorOBSStopStream), err)
+		}
+	}
+	return true, nil
 }
 func (m *Model) startLive() tea.Cmd {
 	if !m.requireRoom() || m.obsBusy {
@@ -150,6 +252,10 @@ func (m *Model) startLive() tea.Cmd {
 	}
 	room, cfg := *m.room, m.config
 	return m.work("start", func(ctx context.Context) (any, error) {
+		if err := m.acquireOBS(ctx); err != nil {
+			return nil, err
+		}
+		defer func() { <-m.obsLifecycle }()
 		if cfg.OBSAutoConnect && !m.obsClient.Snapshot().Connected {
 			if err := m.connectSession(ctx, cfg.OBSURL); err != nil {
 				return nil, fmt.Errorf(i18n.T(i18n.TUIErrorOBSAutoConnect), err)
@@ -197,25 +303,15 @@ func (m *Model) stopLive() tea.Cmd {
 	}
 	roomID, cfg := m.room.ID, m.config
 	return m.work("stop", func(ctx context.Context) (any, error) {
-		outcome := stopOutcome{}
-		if cfg.OBSAutoStream {
-			if m.obsClient.Snapshot().Connected {
-				status, err := m.obsClient.Status(ctx)
-				if err != nil {
-					return nil, fmt.Errorf(i18n.T(i18n.TUIErrorOBSStopStatus), err)
-				}
-				if status.Active || status.Reconnecting {
-					if err = m.obsClient.Stop(ctx); err != nil {
-						return nil, fmt.Errorf(i18n.T(i18n.TUIErrorOBSStopStream), err)
-					}
-				}
-				outcome.obsStopped = true
-			} else {
-				outcome.warning = i18n.T(i18n.TUIWarningOBSDisconnectedStop)
-			}
-		} else {
-			outcome.warning = i18n.T(i18n.TUIWarningOBSManualStop)
+		if err := m.acquireOBS(ctx); err != nil {
+			return nil, err
 		}
+		defer func() { <-m.obsLifecycle }()
+		stopped, err := m.stopControlledOBS(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+		outcome := stopOutcome{obsStopped: stopped}
 		if err := m.client.Stop(ctx, roomID); err != nil {
 			if outcome.obsStopped {
 				return nil, fmt.Errorf(i18n.T(i18n.TUIErrorLiveStopAfterOBS), err)

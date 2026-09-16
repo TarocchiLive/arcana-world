@@ -49,6 +49,8 @@ func (m *Model) menu() []menuItem {
 		return []menuItem{
 			{i18n.T(i18n.TUIMenuSetProxy), "proxy"},
 			{i18n.T(i18n.TUIMenuSetProtocol), "protocol"},
+			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
+			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
 		}
 	case chatPage:
 		return []menuItem{{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"}}
@@ -83,9 +85,23 @@ func (m *Model) perform(action string) tea.Cmd {
 	}
 	if strings.HasPrefix(action, "delete:") {
 		uid := strings.TrimPrefix(action, "delete:")
-		return m.work("delete", func(context.Context) (any, error) { return uid, m.store.Delete(uid) })
+		return m.work("delete", func(ctx context.Context) (any, error) {
+			if err := m.acquireOBS(ctx); err != nil {
+				return nil, err
+			}
+			defer func() { <-m.obsLifecycle }()
+			return uid, m.store.Delete(uid)
+		})
 	}
 	switch action {
+	case "exit-obs-stop":
+		cfg := m.config
+		cfg.ExitOBSStopDisabled = !cfg.ExitOBSStopDisabled
+		return m.saveConfig(cfg, false)
+	case "exit-live-stop":
+		cfg := m.config
+		cfg.ExitLiveStopDisabled = !cfg.ExitLiveStopDisabled
+		return m.saveConfig(cfg, false)
 	case "chat-toggle":
 		if !m.config.DanmakuDisabled {
 			return m.confirm(i18n.T(i18n.DanmakuToggleConfirm), "chat-disable")
@@ -233,6 +249,10 @@ func (m *Model) refresh() tea.Cmd {
 func (m *Model) loadAccount(uid string) tea.Cmd {
 	proxy := m.config.Proxy
 	return m.work("account", func(ctx context.Context) (any, error) {
+		if err := m.acquireOBS(ctx); err != nil {
+			return nil, err
+		}
+		defer func() { <-m.obsLifecycle }()
 		a, err := m.store.Load(uid)
 		if err != nil {
 			return nil, err
@@ -261,6 +281,10 @@ func (m *Model) loadAccount(uid string) tea.Cmd {
 func (m *Model) saveLogin(a domain.Account) tea.Cmd {
 	proxy := m.config.Proxy
 	return m.work("login-save", func(ctx context.Context) (any, error) {
+		if err := m.acquireOBS(ctx); err != nil {
+			return nil, err
+		}
+		defer func() { <-m.obsLifecycle }()
 		c, err := bili.New(proxy)
 		if err != nil {
 			return nil, err
@@ -397,7 +421,11 @@ func (m *Model) submitForm() tea.Cmd {
 		n, _ := strconv.Atoi(value)
 		return m.work("delay-set", func(ctx context.Context) (any, error) { return nil, m.client.SetTimeShift(ctx, n) })
 	case "obs-password":
-		return m.work("obs-password", func(context.Context) (any, error) {
+		return m.work("obs-password", func(ctx context.Context) (any, error) {
+			if err := m.acquireOBS(ctx); err != nil {
+				return nil, err
+			}
+			defer func() { <-m.obsLifecycle }()
 			if err := m.store.SetOBSSecret(value); err != nil {
 				return nil, err
 			}
@@ -406,7 +434,11 @@ func (m *Model) submitForm() tea.Cmd {
 	case "obs-url":
 		cfg := m.config
 		cfg.OBSURL = value
-		return m.work("obs-url", func(context.Context) (any, error) {
+		return m.work("obs-url", func(ctx context.Context) (any, error) {
+			if err := m.acquireOBS(ctx); err != nil {
+				return nil, err
+			}
+			defer func() { <-m.obsLifecycle }()
 			if err := m.store.SaveConfig(cfg); err != nil {
 				return nil, err
 			}
@@ -421,7 +453,11 @@ func (m *Model) submitForm() tea.Cmd {
 }
 func (m *Model) saveConfig(cfg domain.Config, replaceClient bool) tea.Cmd {
 	account := m.account
-	return m.work("config", func(context.Context) (any, error) {
+	return m.work("config", func(ctx context.Context) (any, error) {
+		if err := m.acquireOBS(ctx); err != nil {
+			return nil, err
+		}
+		defer func() { <-m.obsLifecycle }()
 		var c *bili.Client
 		if replaceClient {
 			var err error

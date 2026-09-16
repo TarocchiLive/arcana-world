@@ -59,7 +59,7 @@ OBS 28 and later include this feature, so no plugin is needed. For older version
 5. Connect on the same page and enable **Auto-stream**. Adjust proxy and streaming protocol options on **Settings** (`6`).
 6. Return to **Live** and start your broadcast.
 
-Select **Stop Bilibili live** when you finish. If Auto-stream is off, start and stop streaming in OBS manually.
+By default, exiting stops OBS streaming and closes the current account's Bilibili room, including broadcasts started from another client. On **Settings** (`6`), **Stop OBS streaming on exit** and **Close live room on exit** can be disabled independently. With both off, exiting performs neither action. These settings do not affect **Stop Bilibili live** on the Live page.
 
 If Bilibili requests identity verification, complete it and try again.
 
