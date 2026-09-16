@@ -30,7 +30,7 @@ Arcana World is a Go-based TUI alternative to bilibili LiveHime. It is useful wh
 
 ## Install
 
-Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest), extract it, and run:
+Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest) for your platform, extract the entire archive, and run `arcana-world` at its root (`arcana-world.exe` on Windows):
 
 | Platform | x64 | ARM64 |
 | --- | --- | --- |
@@ -38,16 +38,18 @@ Download the [latest release](https://github.com/TarocchiLive/arcana-world/relea
 | Windows | [Download](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-windows-amd64.zip) | [Download](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-windows-arm64.zip) |
 | Linux | [Download](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-linux-amd64.tar.gz) | [Download](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-linux-arm64.tar.gz) |
 
-Or build from source with Go 1.26+:
+The download includes the main program and native overlay. Extract the entire archive and keep the `libexec` directory alongside the main executable. Move the whole folder when relocating the application. Start only `arcana-world`, then enable Native overlay in Settings; you do not need to run the overlay separately.
+
+Building from source requires Go 1.26+ and the platform's [overlay build dependencies](cmd/arcana-overlay/README.en.md#build-and-launch):
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git
 cd arcana-world
-make build
+make desktop
 ./bin/arcana-world
 ```
 
-Account credentials are saved in your system keyring. Linux users need an available, unlocked Secret Service.
+Run `bin/arcana-world` (`bin/arcana-world.exe` on Windows) and keep the `bin/libexec` directory. For terminal-only use, build with `make build`; graphics development libraries are not required. See [Arcana Overlay](cmd/arcana-overlay/README.en.md#supported-platforms) for overlay platform support.
 
 ## Go live
 
@@ -111,7 +113,7 @@ See [Arcana Overlay](cmd/arcana-overlay/README.en.md) for details.
 ## TODO
 - [ ] Fetch direct Bilibili stream URLs, connect to OBS, and start broadcasts automatically.
 - [x] Receive Bilibili live chat messages and browse gifts and chat history in the TUI.
-- [ ] Add a Bilibili live chat overlay.
+- [x] Add a Bilibili live chat overlay.
 - [ ] Add LiveHime support, TTS chat readouts, and gift announcements.
 
 ## Development

@@ -32,7 +32,7 @@ Arcana World 是一个基于 Go 的 bilibili 直播姬 TUI 替代品，适合在
 
 ## 安装
 
-从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载，解压后运行：
+从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载对应平台的包，完整解压后运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`）：
 
 | 平台 | x64 | ARM64 |
 | --- | --- | --- |
@@ -40,16 +40,18 @@ Arcana World 是一个基于 Go 的 bilibili 直播姬 TUI 替代品，适合在
 | Windows | [下载](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-windows-amd64.zip) | [下载](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-windows-arm64.zip) |
 | Linux | [下载](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-linux-amd64.tar.gz) | [下载](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-linux-arm64.tar.gz) |
 
-也可以使用 Go 1.26+ 从源码构建：
+下载包已包含主程序和原生浮层。请完整解压并保留 `libexec` 目录，移动程序时一并移动整个文件夹。只需启动 `arcana-world`，再到「设置」页开启「原生浮层」，无需单独运行浮层程序。
+
+从源码构建需要 Go 1.26+ 和对应平台的[浮层构建依赖](cmd/arcana-overlay/README.md#构建与启动)：
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git
 cd arcana-world
-make build
+make desktop
 ./bin/arcana-world
 ```
 
-账号凭据使用系统密钥环保存。Linux 用户需要可用且已解锁的 Secret Service。
+构建后运行 `bin/arcana-world`（Windows 为 `bin/arcana-world.exe`），并保留 `bin/libexec` 目录。只需要终端功能时，可使用 `make build`，无需安装图形开发库。浮层的平台支持情况见 [Arcana Overlay](cmd/arcana-overlay/README.md#支持的平台)。
 
 ## 开始直播
 
@@ -113,7 +115,7 @@ arcana-world --help                     # 查看帮助
 ## TODO
 - [ ] 支持获取 B 站推流直链，自动连接 OBS 并开播。
 - [x] 支持 B 站直播间弹幕抓取，并在 TUI 中浏览礼物和聊天记录。
-- [ ] 支持 B 站直播间弹幕浮层。
+- [x] 支持 B 站直播间弹幕浮层。
 - [ ] 支持直播姬、TTS 朗读弹幕和礼物播报。
 
 ## 开发
