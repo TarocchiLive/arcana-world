@@ -124,7 +124,7 @@
   "obs.stream_event_invalid": "OBS sent invalid stream event",
   "obs.stream_server_invalid": "stream server must be a valid RTMP, RTMPS, or SRT URL",
   "obs.stream_status_invalid": "OBS sent invalid stream status",
-  "obs.transport_failed": "OBS %s failed; check connection, WebSocket v5 settings, and password",
+  "obs.transport_failed": "OBS %s failed; in OBS, open Tools → WebSocket Server Settings (update OBS if this option is missing), make sure Enable WebSocket server is checked, and verify that the password matches",
   "store.account_credentials_encode_failed": "cannot encode account credentials",
   "store.account_credentials_invalid": "saved account credentials are invalid",
   "store.account_credentials_required": "account ID and cookies are required",

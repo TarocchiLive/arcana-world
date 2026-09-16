@@ -124,7 +124,7 @@
   "obs.stream_event_invalid": "OBS 发送了无效的推流事件",
   "obs.stream_server_invalid": "推流服务器地址必须是有效的 RTMP、RTMPS 或 SRT URL",
   "obs.stream_status_invalid": "OBS 发送了无效的推流状态",
-  "obs.transport_failed": "OBS %s失败；请检查连接、WebSocket v5 设置和密码",
+  "obs.transport_failed": "OBS %s失败；请在 OBS 中打开「工具」→「WebSocket 服务器设置」（如无此选项，请更新 OBS），确认已勾选「开启 WebSocket 服务器」，并核对密码是否一致",
   "store.account_credentials_encode_failed": "无法编码账号凭据",
   "store.account_credentials_invalid": "已保存的账号凭据无效",
   "store.account_credentials_required": "必须提供账号 ID 和 Cookie",

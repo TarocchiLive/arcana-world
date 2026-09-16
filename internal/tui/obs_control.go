@@ -95,6 +95,8 @@ func (m *Model) handleOBSResult(msg obsResultMsg) tea.Cmd {
 	if msg.err != nil {
 		if errors.Is(msg.err, context.Canceled) {
 			m.log(i18n.T(i18n.TUILogOBSCanceled))
+		} else if msg.kind == "obs-connect" {
+			m.log(msg.err.Error())
 		} else {
 			m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationFailed), operationName(msg.kind), msg.err.Error()))
 		}
