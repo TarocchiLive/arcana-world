@@ -172,6 +172,23 @@ func (v *Viewer) frame(size dimensions, native bool, id uint32, payload []byte) 
 	if _, err := fmt.Fprintf(v.stdout, "%s\r\n", cleanCaption(v.caption, cols)); err != nil {
 		return err
 	}
+	if !native {
+		lines := strings.Split(ansi.Wrap(i18n.T(i18n.TermImageFallbackHint), cols, ""), "\n")
+		if len(lines) > rows {
+			lines = lines[:rows]
+			lines[len(lines)-1] = ansi.Truncate(lines[len(lines)-1]+"…", cols, "…")
+		}
+		for _, line := range lines {
+			if _, err := fmt.Fprintf(v.stdout, "\x1b[33m%s\x1b[0m\r\n", ansi.Truncate(line, cols, "")); err != nil {
+				return err
+			}
+		}
+		rows -= len(lines)
+		if rows == 0 {
+			_, err := fmt.Fprint(v.stdout, cleanCaption(i18n.T(i18n.TermImageReturnHint), cols))
+			return err
+		}
+	}
 	bounds := v.img.Bounds()
 	if native {
 		cellWidth := float64(size.width) / float64(size.cols)

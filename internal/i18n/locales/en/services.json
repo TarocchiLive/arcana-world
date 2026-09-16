@@ -165,6 +165,7 @@
   "termimage.raw_input_failed": "preview: raw input: %w",
   "termimage.response_too_large": "preview: oversized terminal graphics response",
   "termimage.return_hint": "Esc / q / Enter: return",
+  "termimage.fallback_hint": "Graphical preview is unavailable in this terminal environment. The cover is shown using text characters. A terminal emulator supporting the Kitty graphics protocol is recommended.",
   "termimage.terminal_input_required": "preview: interactive input requires a terminal file",
   "termimage.terminal_size_failed": "preview: terminal size: %w",
   "termimage.terminal_size_unsupported": "preview: terminal sizing unsupported on this platform",

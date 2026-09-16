@@ -165,6 +165,7 @@
   "termimage.raw_input_failed": "图片预览：设置原始输入模式失败：%w",
   "termimage.response_too_large": "图片预览：终端图形响应超出大小限制",
   "termimage.return_hint": "Esc / q / Enter：返回",
+  "termimage.fallback_hint": "当前终端环境无法使用图形预览，封面已切换为字符预览。建议使用支持 Kitty 图形协议的终端模拟器。",
   "termimage.terminal_input_required": "图片预览：交互输入必须是终端文件",
   "termimage.terminal_size_failed": "图片预览：获取终端尺寸失败：%w",
   "termimage.terminal_size_unsupported": "图片预览：此平台不支持获取终端尺寸",

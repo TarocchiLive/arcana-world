@@ -171,6 +171,7 @@ const (
 	TermImageRawInputFailed              Key = "termimage.raw_input_failed"
 	TermImageResponseTooLarge            Key = "termimage.response_too_large"
 	TermImageReturnHint                  Key = "termimage.return_hint"
+	TermImageFallbackHint                Key = "termimage.fallback_hint"
 	TermImageTerminalInputRequired       Key = "termimage.terminal_input_required"
 	TermImageTerminalSizeFailed          Key = "termimage.terminal_size_failed"
 	TermImageTerminalSizeUnsupported     Key = "termimage.terminal_size_unsupported"
