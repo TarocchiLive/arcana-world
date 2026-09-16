@@ -55,6 +55,10 @@ func (m *Model) menu() []menuItem {
 			{i18n.T(i18n.TUIMenuSetProtocol), "protocol"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
+			{toggleLabel(i18n.T(i18n.TUIOverlayEnabled), m.overlayEnabled), "overlay-toggle"},
+			{i18n.T(i18n.TUIOverlaySettings), "overlay-settings"},
+			{i18n.T(i18n.TUISettingsReset), "settings-reset-confirm"},
+			{i18n.T(i18n.TUISettingsClearData), "clear-data"},
 		}
 	case chatPage:
 		return []menuItem{{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"}}
@@ -84,6 +88,9 @@ func (m *Model) perform(action string) tea.Cmd {
 	if m.busy {
 		return nil
 	}
+	if strings.HasPrefix(action, "overlay-") {
+		return m.performOverlay(action)
+	}
 	if strings.HasPrefix(action, "account:") {
 		return m.loadAccount(strings.TrimPrefix(action, "account:"))
 	}
@@ -98,6 +105,12 @@ func (m *Model) perform(action string) tea.Cmd {
 		})
 	}
 	switch action {
+	case "settings-reset-confirm":
+		return m.confirm(i18n.T(i18n.TUISettingsResetConfirm), "settings-reset")
+	case "settings-reset":
+		return m.resetSettings()
+	case "clear-data":
+		return m.form("clear-data", i18n.T(i18n.TUISettingsClearDataConfirm), "", false)
 	case "exit-obs-stop":
 		cfg := m.config
 		cfg.ExitOBSStopDisabled = !cfg.ExitOBSStopDisabled
@@ -341,6 +354,7 @@ func (m *Model) confirm(prompt, action string) tea.Cmd {
 	m.prompt = prompt
 	m.confirmAction = action
 	m.selected = 0
+	m.view.GotoTop()
 	return nil
 }
 func (m *Model) choose() tea.Cmd {
@@ -349,6 +363,9 @@ func (m *Model) choose() tea.Cmd {
 	}
 	ch := m.choices[m.selected]
 	m.mode = ""
+	if strings.HasPrefix(m.editKind, "overlay-") {
+		return m.chooseOverlay(ch.value)
+	}
 	switch m.editKind {
 	case "delete":
 		return m.confirm(fmt.Sprintf(i18n.T(i18n.TUIConfirmRemoveAccount), ch.label), "delete:"+ch.value)
@@ -379,6 +396,24 @@ func (m *Model) setArea(a domain.Area) tea.Cmd {
 func (m *Model) submitForm() tea.Cmd {
 	value := strings.TrimSpace(m.input.Value())
 	kind := m.editKind
+	if kind == "clear-data" {
+		if m.input.Value() != "arcanaworldclear" {
+			m.mode = ""
+			m.input.SetValue("")
+			m.input.Blur()
+			m.view.GotoTop()
+			m.log(i18n.T(i18n.TUISettingsClearDataMismatch))
+			return nil
+		}
+		m.clearDataOnExit = true
+		m.obsClosing.Store(true)
+		m.input.SetValue("")
+		m.input.Blur()
+		return tea.Quit
+	}
+	if strings.HasPrefix(kind, "overlay-") {
+		return m.submitOverlay(kind, value)
+	}
 	// 密码保留原始字节，不去除首尾空白。
 	if kind == "obs-password" {
 		value = m.input.Value()

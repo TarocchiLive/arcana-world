@@ -94,7 +94,7 @@ type Config struct {
 }
 
 func DefaultConfig() Config {
-	return Config{Text: "Arcana World", Position: Position{Anchor: Left, X: 32, Y: 0}, Width: 420, Height: 180, Padding: Insets{Top: 12, Right: 16, Bottom: 12, Left: 16}, Font: Font{Size: 22, Weight: 500}, TextAlpha: .9, BackgroundAlpha: .3}
+	return Config{Text: "Arcana World", Position: Position{Anchor: Left, X: 0, Y: 0}, Width: 420, Height: 180, Padding: Insets{Top: 12, Right: 16, Bottom: 12, Left: 16}, Font: Font{Size: 16, Weight: 500}, TextAlpha: .9, BackgroundAlpha: .3}
 }
 
 // Normalize 在进入协议或原生代码前校验所有边界，并统一修复用户可见文本。

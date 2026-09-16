@@ -90,11 +90,16 @@ func TestListenerIdempotentConfigureDrainsOldSession(t *testing.T) {
 	a := domain.Account{UID: "1", Cookies: map[string]string{"SESSDATA": "one"}}
 	l.Configure(&a, "direct", true)
 	waitSignal(t, first)
+	firstSnapshot := l.Snapshot()
 	for range 20 {
 		l.Configure(&a, "direct", true)
 	}
 	a.UID = "2"
 	l.Configure(&a, "direct", true)
+	switching := l.Snapshot()
+	if switching.AccountUID != "2" || switching.RoomID != 0 || switching.Generation == firstSnapshot.Generation {
+		t.Errorf("account switch exposed an old room: %+v", switching)
+	}
 	waitSignal(t, stopping)
 	select {
 	case <-second:
@@ -103,6 +108,10 @@ func TestListenerIdempotentConfigureDrainsOldSession(t *testing.T) {
 	}
 	close(release)
 	waitSignal(t, second)
+	current := l.Snapshot()
+	if current.AccountUID != "2" || current.RoomID != 2 || current.Generation != switching.Generation {
+		t.Errorf("new session published the wrong source: %+v", current)
+	}
 	if calls.Load() != 2 {
 		t.Fatalf("same configuration restarted sessions: %d", calls.Load())
 	}

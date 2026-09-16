@@ -75,10 +75,15 @@ func runArgs(args []string) (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, model.Close()) }()
-	if *enableOverlay {
-		if err := model.EnableOverlay(overlay.Options{Executable: *overlayExecutable, Config: overlay.DefaultConfig()}); err != nil {
-			return err
+	cfg := s.Config()
+	effectiveOverlay := cfg.Overlay.Enabled
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "overlay" {
+			effectiveOverlay = *enableOverlay
 		}
+	})
+	if err := model.ConfigureOverlay(overlay.Options{Executable: *overlayExecutable, Config: cfg.Overlay.Config("")}, effectiveOverlay); err != nil {
+		return err
 	}
 	_, err = tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(ctx)).Run()
 	if ctx.Err() != nil {

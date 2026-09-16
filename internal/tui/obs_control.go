@@ -57,7 +57,7 @@ func (m *Model) Close() error {
 		cfg := m.store.Config()
 		if !cfg.ExitOBSStopDisabled && stopErr == nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			_, stopErr = m.stopControlledOBS(ctx, cfg)
+			_, stopErr = m.stopControlledOBS(ctx, cfg, m.room != nil && m.room.Live)
 			cancel()
 		}
 		if !cfg.ExitLiveStopDisabled {
@@ -69,6 +69,13 @@ func (m *Model) Close() error {
 			stopErr = errors.Join(stopErr, m.journal.Write(m.safe(stopErr.Error())))
 		}
 		m.closeErr = errors.Join(stopErr, m.closeOverlay(), m.closeChat(), m.obsClient.Close(), m.journal.Write(i18n.T(i18n.TUILogApplicationExited)), m.journal.Close())
+		if m.clearDataOnExit {
+			if m.closeErr != nil {
+				m.closeErr = fmt.Errorf(i18n.T(i18n.TUISettingsClearDataShutdownFailed), m.closeErr)
+				return
+			}
+			m.closeErr = m.store.ClearData()
+		}
 	})
 	return m.closeErr
 }
@@ -89,6 +96,7 @@ func (m *Model) stopExitLive(ctx context.Context, cfg domain.Config) error {
 	if err != nil {
 		return fmt.Errorf(i18n.T(i18n.TUIErrorExitLiveRoom), err)
 	}
+	defer client.HTTP.CloseIdleConnections()
 	client.APIBase, client.LiveBase, client.PassportBase = m.client.APIBase, m.client.LiveBase, m.client.PassportBase
 	client.SetAccount(account)
 	room, err := client.Room(ctx)
@@ -225,14 +233,15 @@ func (m *Model) stopPrompt() string {
 }
 
 // 调用方持有 obsLifecycle；断线时使用既有凭据恢复会话，而非假定推流已停止。
-func (m *Model) stopControlledOBS(ctx context.Context, cfg domain.Config) (bool, error) {
+func (m *Model) stopControlledOBS(ctx context.Context, cfg domain.Config, live bool) (bool, error) {
 	state := m.obsClient.Snapshot()
 	if !state.Connected {
-		if !cfg.OBSAutoStream && !state.Status.Active && !state.Status.Reconnecting {
+		// 自动推流是偏好，不是正在推流的证据；已知活动状态在断线后仍需清理。
+		if !(cfg.OBSAutoStream && live) && !state.Status.Active && !state.Status.Reconnecting {
 			return false, nil
 		}
 		if err := m.connectSession(ctx, cfg.OBSURL); err != nil {
-			return false, fmt.Errorf(i18n.T(i18n.TUIErrorOBSStopConnect), err)
+			return false, errors.New(i18n.T(i18n.TUIErrorOBSStopConnect))
 		}
 	}
 	status, err := m.obsClient.Status(ctx)
@@ -301,18 +310,18 @@ func (m *Model) stopLive() tea.Cmd {
 	if !m.requireRoom() || m.obsBusy {
 		return nil
 	}
-	roomID, cfg := m.room.ID, m.config
+	room, cfg := *m.room, m.config
 	return m.work("stop", func(ctx context.Context) (any, error) {
 		if err := m.acquireOBS(ctx); err != nil {
 			return nil, err
 		}
 		defer func() { <-m.obsLifecycle }()
-		stopped, err := m.stopControlledOBS(ctx, cfg)
+		stopped, err := m.stopControlledOBS(ctx, cfg, room.Live)
 		if err != nil {
 			return nil, err
 		}
 		outcome := stopOutcome{obsStopped: stopped}
-		if err := m.client.Stop(ctx, roomID); err != nil {
+		if err := m.client.Stop(ctx, room.ID); err != nil {
 			if outcome.obsStopped {
 				return nil, fmt.Errorf(i18n.T(i18n.TUIErrorLiveStopAfterOBS), err)
 			}

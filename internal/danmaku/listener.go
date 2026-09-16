@@ -19,6 +19,10 @@ type Snapshot struct {
 	RoomID   int64
 	Revision uint64
 	Err      error
+	// AccountUID and Generation identify the desired source even while the
+	// previous session is stopping. RoomID is zero until this source publishes.
+	AccountUID string
+	Generation uint64
 }
 type pendingWrite struct {
 	room  int64
@@ -42,19 +46,20 @@ type target struct {
 // Listener serializes target changes; at most one session writes to history.
 // Settings notifications may coalesce. Business messages never use a lossy channel.
 type Listener struct {
-	mu         sync.Mutex
-	desired    target
-	generation uint64
-	state      Snapshot
-	history    archive
-	factory    func(string, domain.Account) (source, error)
-	pending    []pendingWrite // bounded by the last decoded frame; drained before any new session
-	wake       chan struct{}
-	cancel     context.CancelFunc
-	done       chan struct{}
-	closeOnce  sync.Once
-	closeErr   error
-	retryDelay time.Duration
+	mu              sync.Mutex
+	desired         target
+	generation      uint64
+	stateGeneration uint64
+	state           Snapshot
+	history         archive
+	factory         func(string, domain.Account) (source, error)
+	pending         []pendingWrite // bounded by the last decoded frame; drained before any new session
+	wake            chan struct{}
+	cancel          context.CancelFunc
+	done            chan struct{}
+	closeOnce       sync.Once
+	closeErr        error
+	retryDelay      time.Duration
 }
 
 func NewListener(ctx context.Context, history *History) *Listener {
@@ -108,7 +113,19 @@ func (l *Listener) Retry() {
 	}
 }
 
-func (l *Listener) Snapshot() Snapshot { l.mu.Lock(); defer l.mu.Unlock(); return l.state }
+func (l *Listener) Snapshot() Snapshot {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	state := l.state
+	state.AccountUID, state.Generation = l.desired.account.UID, l.generation
+	if l.stateGeneration != l.generation {
+		state.RoomID = 0
+		if state.Phase != "storage_error" {
+			state.Phase, state.Err = "waiting", nil
+		}
+	}
+	return state
+}
 func (l *Listener) Close() error {
 	l.closeOnce.Do(func() { l.cancel(); <-l.done })
 	l.mu.Lock()
@@ -122,6 +139,7 @@ func (l *Listener) publish(generation uint64, phase string, room int64, err erro
 		return
 	}
 	l.state.Phase, l.state.RoomID, l.state.Err = phase, room, err
+	l.stateGeneration = generation
 	if changed {
 		l.state.Revision++
 	}
@@ -170,7 +188,7 @@ func (l *Listener) control(ctx context.Context) {
 			// Retain its closure and drain it before accepting events from another room.
 			for len(l.pending) > 0 {
 				p := l.pending[0]
-				if err := l.persist(ctx, gen, p.room, p.write); err != nil {
+				if err := l.persist(ctx, activeGeneration, p.room, p.write); err != nil {
 					return
 				}
 				l.pending[0] = pendingWrite{}

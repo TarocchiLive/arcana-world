@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"arcana-world/internal/domain"
+	"arcana-world/internal/overlay"
 	"github.com/zalando/go-keyring"
 )
 
@@ -35,6 +36,12 @@ type Store struct {
 	service string
 	backend Backend
 	config  domain.Config
+	closed  bool
+}
+
+// DefaultConfig returns the defaults used for new profiles and settings resets.
+func DefaultConfig() domain.Config {
+	return domain.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", Overlay: overlay.DefaultSettings()}
 }
 
 func Open(dir string) (*Store, error) { return OpenWithBackend(dir, systemBackend{}) }
@@ -64,7 +71,7 @@ func OpenWithBackend(dir string, backend Backend) (*Store, error) {
 		return nil, errors.New(i18n.T(i18n.StoreConfigDirectorySecureFailed))
 	}
 	sum := sha256.Sum256([]byte(dir))
-	s := &Store{dir: dir, service: "arcana-world/" + hex.EncodeToString(sum[:16]), backend: backend, config: domain.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455"}}
+	s := &Store{dir: dir, service: "arcana-world/" + hex.EncodeToString(sum[:16]), backend: backend, config: DefaultConfig()}
 	path := filepath.Join(dir, "config.json")
 	info, err = os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -86,11 +93,14 @@ func OpenWithBackend(dir string, backend Backend) (*Store, error) {
 	if err = json.Unmarshal(data, &s.config); err != nil {
 		return nil, errors.New(i18n.T(i18n.StoreConfigJsonInvalid))
 	}
+	if s.config.Overlay, err = s.config.Overlay.Normalize(); err != nil {
+		return nil, err
+	}
 	if s.config.Protocol == "" {
-		s.config.Protocol = "rtmp"
+		s.config.Protocol = DefaultConfig().Protocol
 	}
 	if s.config.OBSURL == "" {
-		s.config.OBSURL = "ws://127.0.0.1:4455"
+		s.config.OBSURL = DefaultConfig().OBSURL
 	}
 	seen := make(map[string]bool, len(s.config.Accounts))
 	for _, a := range s.config.Accounts {
@@ -116,13 +126,16 @@ func (s *Store) Accounts() []domain.AccountInfo { return s.Config().Accounts }
 func (s *Store) SaveConfig(c domain.Config) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return errors.New(i18n.T(i18n.StoreCleared))
+	}
 	c = clone(c)
 	c.Accounts = append([]domain.AccountInfo(nil), s.config.Accounts...)
 	if c.Protocol == "" {
-		c.Protocol = "rtmp"
+		c.Protocol = DefaultConfig().Protocol
 	}
 	if c.OBSURL == "" {
-		c.OBSURL = "ws://127.0.0.1:4455"
+		c.OBSURL = DefaultConfig().OBSURL
 	}
 	if err := s.persist(c); err != nil {
 		return err
@@ -156,6 +169,9 @@ func (s *Store) Load(uid string) (domain.Account, error) {
 func (s *Store) Save(a domain.Account) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return errors.New(i18n.T(i18n.StoreCleared))
+	}
 	if strings.TrimSpace(a.UID) == "" || len(a.Cookies) == 0 {
 		return errors.New(i18n.T(i18n.StoreAccountCredentialsRequired))
 	}
@@ -193,6 +209,9 @@ func (s *Store) Save(a domain.Account) error {
 func (s *Store) Delete(uid string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return errors.New(i18n.T(i18n.StoreCleared))
+	}
 	c := clone(s.config)
 	index := -1
 	for i, a := range c.Accounts {
@@ -255,6 +274,9 @@ func (s *Store) OBSSecret() (string, error) {
 func (s *Store) SetOBSSecret(password string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return errors.New(i18n.T(i18n.StoreCleared))
+	}
 	if err := s.backend.Set(s.service, "obs-password", password); err != nil {
 		return secretError(i18n.T(i18n.StoreSaveObsPassword), err)
 	}
@@ -269,6 +291,12 @@ func secretError(action string, err error) error {
 
 // 重命名是提交点：此前发生的错误不会影响原有索引。
 func (s *Store) persist(c domain.Config) error {
+	if s.closed {
+		return errors.New(i18n.T(i18n.StoreCleared))
+	}
+	if _, err := c.Overlay.Normalize(); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return errors.New(i18n.T(i18n.StoreConfigEncodeFailed))

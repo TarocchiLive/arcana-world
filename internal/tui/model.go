@@ -82,6 +82,8 @@ type Model struct {
 	obsClosing             atomic.Bool
 	initialized            bool
 	overlay                *overlayRuntime
+	overlayEnabled         bool
+	overlayChat            overlayChatState
 	selection              *roomSelection
 	cover                  *coverimage.Prepared
 	previewing             bool
@@ -107,6 +109,7 @@ type Model struct {
 	journal                *journal.Log
 	closeOnce              sync.Once
 	closeErr               error
+	clearDataOnExit        bool
 	reveal                 bool
 	view                   viewport.Model
 	chat                   *danmakuUI
@@ -138,7 +141,7 @@ func (m *Model) Init() tea.Cmd {
 	}
 	m.initialized = true
 	cmds := []tea.Cmd{m.watchOBS(), chatTickCmd()}
-	if m.overlay != nil {
+	if m.overlay != nil && m.overlayEnabled {
 		cmds = append(cmds, m.startOverlay())
 	}
 	if m.config.OBSAutoConnect {
@@ -192,8 +195,12 @@ func operationName(kind string) string {
 		return i18n.T(i18n.TUIOBSConnect)
 	case "obs-disconnect":
 		return i18n.T(i18n.TUIOBSDisconnect)
-	case "config":
+	case "config", "overlay-config", "overlay-toggle":
 		return i18n.T(i18n.TUIOperationSaveSettings)
+	case "overlay-restore":
+		return i18n.T(i18n.TUIOverlayRestore)
+	case "settings-reset":
+		return i18n.T(i18n.TUISettingsReset)
 	case "delete":
 		return i18n.T(i18n.TUIOperationRemoveAccount)
 	case "delay":
@@ -250,15 +257,19 @@ func (m *Model) safe(s string) string {
 	return clean(s)
 }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.clearDataOnExit {
+		return m, tea.Quit
+	}
 	defer m.publishOverlay()
 	switch msg := msg.(type) {
 	case overlayStartedMsg:
 		return m, m.handleOverlayStarted(msg)
 	case overlayStoppedMsg:
-		m.handleOverlayStopped(msg)
-		return m, nil
+		return m, m.handleOverlayStopped(msg)
+	case overlayChatMsg:
+		return m, m.handleOverlayChat(msg)
 	case chatTick:
-		return m, m.updateChat()
+		return m, tea.Batch(m.updateChat(), m.updateOverlayChat())
 	case chatPageMsg:
 		return m, m.applyChatPage(msg)
 	case coverPreviewFinished:
@@ -503,6 +514,36 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 	}
 	m.config = m.store.Config()
 	switch r.kind {
+	case "settings-reset":
+		m.client.HTTP.CloseIdleConnections()
+		m.client = r.value.(*bili.Client)
+		m.overlayEnabled = m.config.Overlay.Enabled
+		if m.overlay != nil {
+			m.overlay.options.Config = m.config.Overlay.Config("")
+		}
+		m.syncChat()
+		m.log(i18n.T(i18n.TUISettingsResetDone))
+		return tea.Batch(m.stopOverlay(), m.updateOverlayChat())
+	case "overlay-config", "overlay-toggle", "overlay-restore":
+		if m.overlay == nil {
+			m.overlay = &overlayRuntime{state: "off"}
+		}
+		m.overlay.options.Config = m.config.Overlay.Config("")
+		if r.kind == "overlay-restore" {
+			m.log(i18n.T(i18n.TUIOverlayRestoreDone))
+		} else {
+			m.log(i18n.T(i18n.TUILogSettingsSaved))
+		}
+		var cmd tea.Cmd
+		if r.kind == "overlay-toggle" {
+			m.overlayEnabled = m.config.Overlay.Enabled
+			if m.overlayEnabled {
+				cmd = m.startOverlay()
+			} else {
+				cmd = m.stopOverlay()
+			}
+		}
+		return tea.Batch(cmd, m.updateOverlayChat())
 	case "cover-prepare":
 		m.cover = r.value.(*coverimage.Prepared)
 		m.mode = "cover-review"
@@ -655,7 +696,7 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 		m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationSucceeded), operationName(r.kind)))
 	}
 	m.view.SetContent(m.content())
-	return nil
+	return m.updateOverlayChat()
 }
 func (m *Model) nextPoll() tea.Cmd {
 	id := m.qrGeneration

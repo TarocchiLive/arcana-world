@@ -32,7 +32,7 @@
   "tui.error.obs_connection_required": "Auto-stream is on; connect OBS or enable auto-connect first",
   "tui.error.obs_destination_active": "OBS is streaming; the active destination cannot be overwritten. Stop streaming or disconnect OBS control first.",
   "tui.error.obs_start_status": "Cannot confirm OBS status; live has not started: %w",
-  "tui.error.obs_stop_connect": "Cannot connect to OBS to stop streaming; check streaming status manually: %w",
+  "tui.error.obs_stop_connect": "Arcana World has no connection to OBS, so it could not stop OBS streaming automatically. Stop streaming in OBS manually if necessary.",
   "tui.error.obs_stop_status": "Cannot confirm OBS streaming status; check it manually: %w",
   "tui.error.obs_stop_stream": "Failed to stop OBS streaming; check streaming status manually: %w",
   "tui.footer.busy": "Esc Cancel operation · Ctrl+C Quit (exit behavior can be changed in Settings)",
@@ -207,5 +207,12 @@
   "tui.validation.delay": "Delay must be a nonnegative integer in seconds",
   "tui.validation.image_path": "Enter an image path",
   "tui.validation.obs_url": "Enter a ws:// or wss:// URL without credentials or query parameters",
-  "tui.view.account_label": "Account  "
+  "tui.view.account_label": "Account  ",
+  "tui.settings.reset": "Restore default settings",
+  "tui.settings.reset_confirm": "This resets all values on the Settings page to their defaults. OBS and Bilibili login information will be kept. Reset settings?",
+  "tui.settings.reset_done": "Settings page restored to defaults",
+  "tui.settings.clear_data": "Clear application data",
+  "tui.settings.clear_data_confirm": "You are clearing all Arcana World data. This resets all settings and removes all chat history, logs, and login information. Type “arcanaworldclear” to clear the data.\n\nThe application will exit after clearing.",
+  "tui.settings.clear_data_mismatch": "Input does not match. Clearing application data was canceled.",
+  "tui.settings.clear_data_shutdown_failed": "Application data was not cleared. Resolve the shutdown error and try again: %w"
 }

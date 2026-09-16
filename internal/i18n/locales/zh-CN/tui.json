@@ -32,7 +32,7 @@
   "tui.error.obs_connection_required": "自动推流已开启，请先连接 OBS 或开启自动连接",
   "tui.error.obs_destination_active": "OBS 正在推流，不能覆盖当前推流目标；请先停播或断开 OBS 控制连接",
   "tui.error.obs_start_status": "无法确认 OBS 状态，尚未开播：%w",
-  "tui.error.obs_stop_connect": "无法连接 OBS 以停止推流，请手动检查推流状态：%w",
+  "tui.error.obs_stop_connect": "由于 Arcana World 未建立与 OBS 的连接，无法自动停止 OBS 推流。如有必要，请手动停止 OBS 推流。",
   "tui.error.obs_stop_status": "无法确认 OBS 推流状态，请手动检查：%w",
   "tui.error.obs_stop_stream": "OBS 停止推流失败，请手动检查推流状态：%w",
   "tui.footer.busy": "Esc 取消当前操作 · Ctrl+C 退出（退出行为可在设置页调整）",
@@ -207,5 +207,12 @@
   "tui.validation.delay": "延时必须为非负整数秒",
   "tui.validation.image_path": "请输入图片路径",
   "tui.validation.obs_url": "请输入不含凭据或查询参数的 ws:// 或 wss:// 地址",
-  "tui.view.account_label": "账号  "
+  "tui.view.account_label": "账号  ",
+  "tui.settings.reset": "恢复默认设置",
+  "tui.settings.reset_confirm": "此选项会将设置页中的所有值恢复为默认值，不会清除 OBS 和 B 站登录信息。确定要重置吗？",
+  "tui.settings.reset_done": "设置页已恢复默认设置",
+  "tui.settings.clear_data": "清除应用数据",
+  "tui.settings.clear_data_confirm": "你正在清除 Arcana World 的所有数据。此操作会重置所有设置，并清空所有弹幕、日志及登录信息。请输入「arcanaworldclear」以清除。\n\n清除完成后应用将退出。",
+  "tui.settings.clear_data_mismatch": "输入不匹配，已取消清除应用数据",
+  "tui.settings.clear_data_shutdown_failed": "未清除应用数据，请处理退出错误后重试：%w"
 }

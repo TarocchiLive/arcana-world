@@ -272,11 +272,12 @@ func TestStopLiveStopsOBSBeforeBilibiliAndPropagatesFailure(t *testing.T) {
 	}
 }
 
-func TestCloseReconnectsDisconnectedAutoStream(t *testing.T) {
+func TestCloseReconnectsDisconnectedAutoStreamWhileLive(t *testing.T) {
 	state := &lifecycleOBS{}
 	state.active.Store(true)
 	endpoint := lifecycleServer(t, state)
 	m := lifecycleModel(t, context.Background())
+	m.room = &domain.Room{ID: 1, Live: true}
 	cfg := m.store.Config()
 	cfg.OBSURL = endpoint
 	cfg.OBSAutoStream = true
@@ -322,4 +323,60 @@ func TestCloseAvoidsUnnecessaryOBSRequests(t *testing.T) {
 			t.Fatal("exit sent StopStream to inactive OBS")
 		}
 	})
+}
+
+func TestCloseSkipsDisconnectedAutoStreamBeforeGoingLive(t *testing.T) {
+	for _, knownRoom := range []bool{false, true} {
+		name := "no-room"
+		if knownRoom {
+			name = "offline-room"
+		}
+		t.Run(name, func(t *testing.T) {
+			var attempts atomic.Int32
+			unavailable := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				attempts.Add(1)
+				http.Error(w, "OBS unavailable", http.StatusServiceUnavailable)
+			}))
+			defer unavailable.Close()
+			m := lifecycleModel(t, context.Background())
+			cfg := m.store.Config()
+			cfg.OBSURL = "ws" + strings.TrimPrefix(unavailable.URL, "http")
+			cfg.OBSAutoStream = true
+			if err := m.store.SaveConfig(cfg); err != nil {
+				t.Fatal(err)
+			}
+			if knownRoom {
+				m.room = &domain.Room{ID: 1}
+			}
+			if err := m.Close(); err != nil {
+				t.Fatalf("offline exit reported a streaming risk: %v", err)
+			}
+			if attempts.Load() != 0 {
+				t.Fatal("offline exit attempted to connect to unused OBS")
+			}
+		})
+	}
+}
+
+func TestCloseReportsDisconnectedOBSWhileAutoStreamIsLive(t *testing.T) {
+	var attempts atomic.Int32
+	unavailable := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		http.Error(w, "OBS unavailable", http.StatusServiceUnavailable)
+	}))
+	defer unavailable.Close()
+	m := lifecycleModel(t, context.Background())
+	cfg := m.store.Config()
+	cfg.OBSURL = "ws" + strings.TrimPrefix(unavailable.URL, "http")
+	cfg.OBSAutoStream = true
+	if err := m.store.SaveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	m.room = &domain.Room{ID: 1, Live: true}
+	if err := m.Close(); err == nil {
+		t.Fatal("live exit hid the failure to stop disconnected OBS")
+	}
+	if attempts.Load() != 1 {
+		t.Fatal("live exit did not try to regain OBS control")
+	}
 }

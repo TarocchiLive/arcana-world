@@ -167,5 +167,8 @@
   "termimage.return_hint": "Esc / q / Enter：返回",
   "termimage.terminal_input_required": "图片预览：交互输入必须是终端文件",
   "termimage.terminal_size_failed": "图片预览：获取终端尺寸失败：%w",
-  "termimage.terminal_size_unsupported": "图片预览：此平台不支持获取终端尺寸"
+  "termimage.terminal_size_unsupported": "图片预览：此平台不支持获取终端尺寸",
+  "store.cleared": "应用数据已进入清除流程，请重新启动应用",
+  "store.clear_data_failed": "清除应用数据失败：%w",
+  "store.delete_obs_password": "删除 OBS 密码"
 }
