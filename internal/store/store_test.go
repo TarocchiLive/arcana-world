@@ -158,3 +158,31 @@ func TestDefaultDataDirectoryUsesHomeNotXDG(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestOBSDefaultsPreserveExplicitOptOut(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	// Missing legacy fields inherit defaults; an explicit false must not.
+	if err := os.WriteFile(path, []byte(`{"obs_auto_connect":false}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := OpenWithBackend(dir, memoryBackend{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := s.Config()
+	if cfg.OBSAutoConnect || !cfg.OBSAutoStream {
+		t.Fatal("missing and explicitly disabled OBS settings were conflated")
+	}
+	cfg.OBSAutoStream = false
+	if err := s.SaveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := OpenWithBackend(dir, memoryBackend{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg := reopened.Config(); cfg.OBSAutoConnect || cfg.OBSAutoStream {
+		t.Fatal("saved OBS opt-outs were overwritten by new defaults")
+	}
+}

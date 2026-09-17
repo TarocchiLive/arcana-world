@@ -45,8 +45,8 @@ func pageNames() [pageCount]string {
 	return [pageCount]string{
 		livePage:     i18n.T(i18n.TUIPageLive),
 		chatPage:     i18n.T(i18n.DanmakuPage),
-		overlayPage:  "弹幕浮层",
-		ttsPage:      "TTS",
+		overlayPage:  i18n.T(i18n.OutputOverlayPage),
+		ttsPage:      i18n.T(i18n.OutputTTSPage),
 		accountsPage: i18n.T(i18n.TUIPageAccounts),
 		roomPage:     i18n.T(i18n.TUIPageRoom),
 		obsPage:      "OBS",
@@ -372,6 +372,10 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 			m.selected = len(m.choices) - 1
 		case "enter":
 			return m.choose()
+		case " ":
+			if m.editKind == "output-events" {
+				return m.choose()
+			}
 		}
 	case "confirm":
 		switch key {

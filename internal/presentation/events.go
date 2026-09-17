@@ -8,38 +8,41 @@ import (
 	"unicode"
 
 	"arcana-world/internal/danmaku"
+	"arcana-world/internal/i18n"
 	"github.com/charmbracelet/x/ansi"
 )
 
 type EventSpec struct {
-	ID, Label, OverlayTemplate, TTSTemplate string
+	ID                           string
+	Label                        i18n.Key
+	OverlayTemplate, TTSTemplate string
 }
 
 // 仅收录聊天页默认显示的事件；详情事件以原始命令作为稳定标识。
 var specs = []EventSpec{
-	{"chat", "弹幕", `{{.User}}：{{.Text}}`, `{{.User}}说：{{.Text}}`},
-	{"gift", "礼物", `{{.User}}赠送{{.Gift}}{{if gt .Count 0}} × {{.Count}}{{end}}{{.Coins}}`, `感谢{{.User}}赠送{{if gt .Count 0}}{{.Count}}个{{end}}{{.Gift}}`},
-	{"sc", "醒目留言", `{{.User}}的醒目留言{{if gt .Amount 0}}（{{.Amount}}元）{{end}}：{{.Text}}`, `{{.User}}发送了{{if gt .Amount 0}}{{.Amount}}元的{{end}}醒目留言：{{.Text}}`},
-	{"guard", "大航海", `{{.User}}开通{{.Gift}}{{if gt .Count 0}} × {{.Count}}{{end}}`, `感谢{{.User}}开通{{.Gift}}{{if gt .Count 0}}，数量{{.Count}}{{end}}`},
-	{"enter", "进入直播间", `欢迎{{.User}}进入直播间`, `欢迎{{.User}}来到直播间`},
-	{"follow", "关注", `{{.User}}关注了主播`, `感谢{{.User}}的关注`},
-	{"like", "点赞", `{{.User}}点赞了直播间`, `感谢{{.User}}的点赞`},
-	{"live", "开播", `直播已开始`, `主播开播了`},
-	{"preparing", "下播", `直播已结束`, `本次直播已结束`},
-	{"room_change", "直播间信息变更", `直播间标题已更新：{{.Text}}`, `直播间的新标题是：{{.Text}}`},
-	{"room_block", "用户禁言", `{{.User}}已被禁言`, `{{.User}}已被直播间禁言`},
-	{"cut_off", "直播被切断", `直播已被切断：{{.Text}}`, `直播已被切断。{{.Text}}`},
-	{"delete", "醒目留言删除", `醒目留言已删除`, `有醒目留言被删除`},
-	{"USER_TOAST_MSG", "大航海购买通知", `{{.F "data.username" "观众"}}开通{{.Guard}}{{with .N "data.num"}} × {{.}}{{end}}{{with .F "data.unit" ""}}{{.}}{{end}}`, `感谢{{.F "data.username" "观众"}}开通{{.Guard}}{{with .N "data.num"}}，数量{{.}}{{end}}`},
-	{"GUIARD_MSG", "大航海房间通知", `大航海通知：{{.F "msg" "有人开通了大航海"}}`, `收到大航海通知。{{.F "msg" "有人开通了大航海"}}`},
-	{"LIVE_OPEN_PLATFORM_SEND_GIFT", "互动玩法礼物", `{{.F "data.uname" "观众"}}赠送{{.F "data.gift_name" "礼物"}}{{with .N "data.gift_num"}} × {{.}}{{end}}`, `感谢{{.F "data.uname" "观众"}}赠送{{with .N "data.gift_num"}}{{.}}个{{end}}{{.F "data.gift_name" "礼物"}}`},
-	{"LIVE_OPEN_PLATFORM_GUARD", "互动玩法大航海", `{{.F "data.user_info.uname" "观众"}}开通{{.Guard}}{{with .N "data.guard_num"}} × {{.}}{{end}}`, `感谢{{.F "data.user_info.uname" "观众"}}开通{{.Guard}}{{with .N "data.guard_num"}}，数量{{.}}{{end}}`},
-	{"RECALL_DANMU_MSG", "弹幕撤回", `弹幕已撤回{{with .N "data.target_id"}}（编号{{.}}）{{end}}`, `有一条弹幕被撤回`},
-	{"WARNING", "直播警告", `直播警告：{{.F "msg" "请遵守直播规范"}}`, `收到直播警告。{{.F "msg" "请遵守直播规范"}}`},
-	{"ROOM_SILENT_ON", "开启禁言规则", `直播间已开启{{.Silent}}{{with .N "data.level"}}，等级门槛{{.}}{{end}}{{with .N "data.second"}}，时长{{.}}秒{{end}}{{with .F "data.msg" ""}}：{{.}}{{end}}`, `直播间已开启{{.Silent}}{{with .F "data.msg" ""}}。{{.}}{{end}}`},
-	{"ROOM_SILENT_OFF", "关闭禁言规则", `直播间已关闭禁言规则`, `直播间禁言规则已解除`},
-	{"room_admin_entrance", "任命房管", `已任命房管{{with .N "uid"}}（用户{{.}}）{{end}}{{with .F "msg" ""}}：{{.}}{{end}}`, `直播间任命了新房管{{with .F "msg" ""}}。{{.}}{{end}}`},
-	{"ROOM_ADMIN_REVOKE", "撤销房管", `已撤销房管{{with .N "uid"}}（用户{{.}}）{{end}}{{with .F "msg" ""}}：{{.}}{{end}}`, `直播间撤销了房管权限{{with .F "msg" ""}}。{{.}}{{end}}`},
+	{"chat", i18n.OutputEventChat, `{{.User}}：{{.Text}}`, `{{.User}}说：{{.Text}}`},
+	{"gift", i18n.OutputEventGift, `{{.User}}赠送{{.Gift}}{{if gt .Count 0}} × {{.Count}}{{end}}{{.Coins}}`, `感谢{{.User}}赠送{{if gt .Count 0}}{{.Count}}个{{end}}{{.Gift}}`},
+	{"sc", i18n.OutputEventSC, `{{.User}}的醒目留言{{if gt .Amount 0}}（{{.Amount}}元）{{end}}：{{.Text}}`, `{{.User}}发送了{{if gt .Amount 0}}{{.Amount}}元的{{end}}醒目留言：{{.Text}}`},
+	{"guard", i18n.OutputEventGuard, `{{.User}}开通{{.Gift}}{{if gt .Count 0}} × {{.Count}}{{end}}`, `感谢{{.User}}开通{{.Gift}}{{if gt .Count 0}}，数量{{.Count}}{{end}}`},
+	{"enter", i18n.OutputEventEnter, `欢迎{{.User}}进入直播间`, `欢迎{{.User}}来到直播间`},
+	{"follow", i18n.OutputEventFollow, `{{.User}}关注了主播`, `感谢{{.User}}的关注`},
+	{"like", i18n.OutputEventLike, `{{.User}}点赞了直播间`, `感谢{{.User}}的点赞`},
+	{"live", i18n.OutputEventLive, `直播已开始`, `主播开播了`},
+	{"preparing", i18n.OutputEventPreparing, `直播已结束`, `本次直播已结束`},
+	{"room_change", i18n.OutputEventRoomChange, `直播间标题已更新：{{.Text}}`, `直播间的新标题是：{{.Text}}`},
+	{"room_block", i18n.OutputEventRoomBlock, `{{.User}}已被禁言`, `{{.User}}已被直播间禁言`},
+	{"cut_off", i18n.OutputEventCutOff, `直播已被切断：{{.Text}}`, `直播已被切断。{{.Text}}`},
+	{"delete", i18n.OutputEventDelete, `醒目留言已删除`, `有醒目留言被删除`},
+	{"USER_TOAST_MSG", i18n.OutputEventGuardPurchase, `{{.F "data.username" "观众"}}开通{{.Guard}}{{with .N "data.num"}} × {{.}}{{end}}{{with .F "data.unit" ""}}{{.}}{{end}}`, `感谢{{.F "data.username" "观众"}}开通{{.Guard}}{{with .N "data.num"}}，数量{{.}}{{end}}`},
+	{"GUIARD_MSG", i18n.OutputEventGuardNotice, `大航海通知：{{.F "msg" "有人开通了大航海"}}`, `收到大航海通知。{{.F "msg" "有人开通了大航海"}}`},
+	{"LIVE_OPEN_PLATFORM_SEND_GIFT", i18n.OutputEventInteractiveGift, `{{.F "data.uname" "观众"}}赠送{{.F "data.gift_name" "礼物"}}{{with .N "data.gift_num"}} × {{.}}{{end}}`, `感谢{{.F "data.uname" "观众"}}赠送{{with .N "data.gift_num"}}{{.}}个{{end}}{{.F "data.gift_name" "礼物"}}`},
+	{"LIVE_OPEN_PLATFORM_GUARD", i18n.OutputEventInteractiveGuard, `{{.F "data.user_info.uname" "观众"}}开通{{.Guard}}{{with .N "data.guard_num"}} × {{.}}{{end}}`, `感谢{{.F "data.user_info.uname" "观众"}}开通{{.Guard}}{{with .N "data.guard_num"}}，数量{{.}}{{end}}`},
+	{"RECALL_DANMU_MSG", i18n.OutputEventRecall, `弹幕已撤回{{with .N "data.target_id"}}（编号{{.}}）{{end}}`, `有一条弹幕被撤回`},
+	{"WARNING", i18n.OutputEventWarning, `直播警告：{{.F "msg" "请遵守直播规范"}}`, `收到直播警告。{{.F "msg" "请遵守直播规范"}}`},
+	{"ROOM_SILENT_ON", i18n.OutputEventSilentOn, `直播间已开启{{.Silent}}{{with .N "data.level"}}，等级门槛{{.}}{{end}}{{with .N "data.second"}}，时长{{.}}秒{{end}}{{with .F "data.msg" ""}}：{{.}}{{end}}`, `直播间已开启{{.Silent}}{{with .F "data.msg" ""}}。{{.}}{{end}}`},
+	{"ROOM_SILENT_OFF", i18n.OutputEventSilentOff, `直播间已关闭禁言规则`, `直播间禁言规则已解除`},
+	{"room_admin_entrance", i18n.OutputEventAdminEntrance, `已任命房管{{with .N "uid"}}（用户{{.}}）{{end}}{{with .F "msg" ""}}：{{.}}{{end}}`, `直播间任命了新房管{{with .F "msg" ""}}。{{.}}{{end}}`},
+	{"ROOM_ADMIN_REVOKE", i18n.OutputEventAdminRevoke, `已撤销房管{{with .N "uid"}}（用户{{.}}）{{end}}{{with .F "msg" ""}}：{{.}}{{end}}`, `直播间撤销了房管权限{{with .F "msg" ""}}。{{.}}{{end}}`},
 }
 
 type templates struct{ overlay, tts *template.Template }

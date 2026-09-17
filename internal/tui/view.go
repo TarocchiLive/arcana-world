@@ -68,10 +68,13 @@ func (m *Model) View() string {
 		footer = i18n.T(i18n.DanmakuControls)
 	}
 	if m.page == overlayPage || m.page == ttsPage {
-		footer = "Tab / ← → 切换页签 · ↑ ↓ 选择 · Enter / Space 切换或执行 · q 退出"
+		footer = i18n.T(i18n.OutputFooter)
 	}
 	if m.mode != "" {
 		footer = i18n.T(i18n.TUIFooterModal)
+	}
+	if m.mode == "pick" && m.editKind == "output-events" {
+		footer = i18n.T(i18n.OutputEventsFooter)
 	}
 	if m.busy {
 		footer = i18n.T(i18n.TUIFooterBusy)
@@ -151,14 +154,22 @@ func (m *Model) content() string {
 		start := max(0, m.selected-window+1)
 		end := min(len(m.choices), start+window)
 		for i := start; i < end; i++ {
-			label := ansi.Truncate(clean(m.choices[i].label), max(1, m.view.Width-3), "…")
+			text := m.choices[i].label
+			if m.editKind == "output-events" {
+				text = m.outputEventLabel(m.choices[i])
+			}
+			label := ansi.Truncate(clean(text), max(1, m.view.Width-3), "…")
 			if i == m.selected {
 				b.WriteString(selectedStyle.Render(" › "+label) + "\n")
 			} else {
 				b.WriteString("   " + label + "\n")
 			}
 		}
-		fmt.Fprintf(&b, i18n.T(i18n.TUISelectionPickerControls), m.selected+1, len(m.choices))
+		controls := i18n.TUISelectionPickerControls
+		if m.editKind == "output-events" {
+			controls = i18n.OutputEventsControls
+		}
+		fmt.Fprintf(&b, i18n.T(controls), m.selected+1, len(m.choices))
 		return b.String()
 	case "qr", "face":
 		title := i18n.T(i18n.TUIQRSignInTitle)
@@ -222,13 +233,13 @@ func (m *Model) content() string {
 		}
 		b.WriteString(i18n.T(i18n.TUIOBSDescription))
 	case overlayPage:
-		b.WriteString(accent.Render("弹幕浮层") + "\n\n")
+		b.WriteString(accent.Render(i18n.T(i18n.OutputOverlayPage)) + "\n\n")
 		b.WriteString(m.overlayStateText())
-		b.WriteString("\n选择要在浮层显示的事件；与 TTS 独立保存。\n")
+		b.WriteString(i18n.T(i18n.OutputOverlayDescription))
 	case ttsPage:
-		b.WriteString(accent.Render("TTS · 语音播报") + "\n\n")
+		b.WriteString(accent.Render(i18n.T(i18n.OutputTTSTitle)) + "\n\n")
 		b.WriteString(m.ttsStateText())
-		fmt.Fprintf(&b, "\n音色：%s\n选择要播报的事件；与浮层独立保存。\n", clean(m.ttsVoiceName()))
+		fmt.Fprintf(&b, i18n.T(i18n.OutputTTSDescription), clean(m.ttsVoiceName()))
 	case settingsPage:
 		proxy := m.config.Proxy
 		if proxy == "" {
@@ -238,7 +249,7 @@ func (m *Model) content() string {
 			proxy = u.String()
 		}
 		fmt.Fprintf(&b, i18n.T(i18n.TUISettingsDetails), accent.Render(i18n.T(i18n.TUISettingsTitle)), clean(proxy), m.config.Protocol)
-		fmt.Fprintf(&b, "\nTTS 音色：%s\n", clean(m.ttsVoiceName()))
+		fmt.Fprintf(&b, i18n.T(i18n.OutputVoiceDetails), clean(m.ttsVoiceName()))
 	case logsPage:
 		b.WriteString(accent.Render(i18n.T(i18n.TUILogsTitle)) + "\n" + muted.Render(clean(m.journal.Path())) + "\n\n")
 		if len(m.logs) == 0 {

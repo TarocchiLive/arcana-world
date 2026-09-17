@@ -1,11 +1,13 @@
 package tui
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"unicode"
 
 	"arcana-world/internal/danmaku"
+	"arcana-world/internal/i18n"
 	"arcana-world/internal/presentation"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -153,7 +155,7 @@ func (m *Model) handleOverlayChat(msg overlayChatMsg) tea.Cmd {
 	if msg.err != nil {
 		if detail := msg.err.Error(); detail != c.readError {
 			c.readError = detail
-			m.log("浮层事件读取失败：" + detail)
+			m.log(fmt.Sprintf(i18n.T(i18n.TUILogOverlayChatReadFailed), detail))
 		}
 		return nil
 	}

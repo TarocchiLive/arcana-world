@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+
 	"arcana-world/internal/bili"
 	"arcana-world/internal/i18n"
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,7 +23,7 @@ func (m *Model) handleSettingsResetResult(value *bili.Client, err error, label i
 		m.overlay.options.Config = m.config.Overlay.Config("")
 	}
 	if err := m.closeTTS(); err != nil {
-		m.log("TTS 停止失败：" + err.Error())
+		m.log(fmt.Sprintf(i18n.T(i18n.TTSLogStopFailed), err))
 	}
 	m.syncChat()
 	m.log(i18n.T(i18n.TUISettingsResetDone))

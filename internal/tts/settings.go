@@ -3,6 +3,8 @@ package tts
 import (
 	"errors"
 	"strings"
+
+	"arcana-world/internal/i18n"
 )
 
 type Settings struct {
@@ -11,20 +13,21 @@ type Settings struct {
 }
 
 type Voice struct {
-	ID, Name string
+	ID   string
+	Name i18n.Key
 }
 
 var chineseVoices = []Voice{
-	{"zh-CN-XiaoxiaoNeural", "晓晓（普通话女声）"},
-	{"zh-CN-XiaoyiNeural", "晓伊（普通话女声）"},
-	{"zh-CN-YunxiNeural", "云希（普通话男声）"},
-	{"zh-CN-YunjianNeural", "云健（普通话男声）"},
-	{"zh-CN-YunxiaNeural", "云夏（普通话男声）"},
-	{"zh-CN-YunyangNeural", "云扬（普通话男声）"},
-	{"zh-HK-HiuGaaiNeural", "晓佳（粤语女声）"},
-	{"zh-HK-WanLungNeural", "云龙（粤语男声）"},
-	{"zh-TW-HsiaoChenNeural", "晓臻（台湾普通话女声）"},
-	{"zh-TW-YunJheNeural", "云哲（台湾普通话男声）"},
+	{"zh-CN-XiaoxiaoNeural", i18n.OutputVoiceXiaoxiao},
+	{"zh-CN-XiaoyiNeural", i18n.OutputVoiceXiaoyi},
+	{"zh-CN-YunxiNeural", i18n.OutputVoiceYunxi},
+	{"zh-CN-YunjianNeural", i18n.OutputVoiceYunjian},
+	{"zh-CN-YunxiaNeural", i18n.OutputVoiceYunxia},
+	{"zh-CN-YunyangNeural", i18n.OutputVoiceYunyang},
+	{"zh-HK-HiuGaaiNeural", i18n.OutputVoiceHiuGaai},
+	{"zh-HK-WanLungNeural", i18n.OutputVoiceWanLung},
+	{"zh-TW-HsiaoChenNeural", i18n.OutputVoiceHsiaoChen},
+	{"zh-TW-YunJheNeural", i18n.OutputVoiceYunJhe},
 }
 
 func Voices() []Voice { return append([]Voice(nil), chineseVoices...) }
@@ -42,5 +45,5 @@ func (s Settings) Normalize() (Settings, error) {
 			return s, nil
 		}
 	}
-	return Settings{}, errors.New("不支持的中文语音音色")
+	return Settings{}, errors.New(i18n.T(i18n.OutputVoiceUnsupported))
 }

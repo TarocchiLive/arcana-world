@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"arcana-world/internal/danmaku"
+	"arcana-world/internal/i18n"
 	"arcana-world/internal/presentation"
 	"arcana-world/internal/tts"
 	tea "github.com/charmbracelet/bubbletea"
@@ -69,7 +70,7 @@ func (m *Model) ttsError(err error) {
 	detail := m.safe(err.Error())
 	if m.tts.lastError != detail {
 		m.tts.lastError = detail
-		m.log("语音播报失败：" + detail)
+		m.log(fmt.Sprintf(i18n.T(i18n.TTSLogFailed), detail))
 	}
 }
 
@@ -127,13 +128,13 @@ func (m *Model) startTTSManager() {
 	edge, err := tts.NewEdge(tts.EdgeOptions{Voice: r.voice, Proxy: r.proxy})
 	if err != nil {
 		r.failed = true
-		m.ttsError(fmt.Errorf("语音合成后端不可用（需要 arcana-world-tts）：%w", err))
+		m.ttsError(fmt.Errorf(i18n.T(i18n.TTSSynthesisBackendUnavailable), err))
 		return
 	}
 	player, err := tts.NewPlayer(tts.PlayerOptions{})
 	if err != nil {
 		r.failed = true
-		m.ttsError(fmt.Errorf("音频播放后端不可用（需要 arcana-world-tts）：%w", err))
+		m.ttsError(fmt.Errorf(i18n.T(i18n.TTSPlaybackBackendUnavailable), err))
 		return
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
@@ -231,7 +232,7 @@ func (m *Model) handleTTSEvents(msg ttsEventsMsg) tea.Cmd {
 	}
 	r.loading = false
 	if msg.err != nil {
-		m.ttsError(fmt.Errorf("读取监听事件：%w", msg.err))
+		m.ttsError(fmt.Errorf(i18n.T(i18n.TTSReadEventsFailed), msg.err))
 		return nil
 	}
 	r.loaded, r.latest, r.revision = true, msg.latest, msg.revision
@@ -256,32 +257,32 @@ func (m *Model) handleTTSEvents(msg ttsEventsMsg) tea.Cmd {
 func (m *Model) ttsStateText() string {
 	r := m.tts
 	if r == nil {
-		return "语音播报：已关闭"
+		return fmt.Sprintf(i18n.T(i18n.TTSState), i18n.T(i18n.TTSOff))
 	}
-	state := "已关闭"
+	state := i18n.T(i18n.TTSOff)
 	if r.enabled {
-		state = "等待监听"
+		state = i18n.T(i18n.TTSWaitingForListener)
 		if r.room > 0 {
-			state = "等待新事件"
+			state = i18n.T(i18n.TTSWaitingForEvents)
 		}
 	}
 	if len(r.retired) != 0 {
-		state = "正在停止旧播报"
+		state = i18n.T(i18n.TTSStopping)
 	}
 	if r.manager != nil {
 		snapshot := r.manager.Snapshot()
 		switch snapshot.Phase {
 		case tts.PhaseSynthesizing:
-			state = "正在合成"
+			state = i18n.T(i18n.TTSSynthesizing)
 		case tts.PhasePlaying:
-			state = "正在播放"
+			state = i18n.T(i18n.TTSPlaying)
 		}
-		state += fmt.Sprintf("，排队 %d，队满跳过 %d", snapshot.Pending, snapshot.Dropped)
+		state += fmt.Sprintf(i18n.T(i18n.TTSQueueCounts), snapshot.Pending, snapshot.Dropped)
 	}
 	if r.lastError != "" {
-		state += "\n错误：" + r.lastError
+		state += fmt.Sprintf(i18n.T(i18n.TTSLastError), r.lastError)
 	}
-	return "语音播报：" + state
+	return fmt.Sprintf(i18n.T(i18n.TTSState), state)
 }
 
 func (m *Model) closeTTS() error {

@@ -42,7 +42,7 @@ type Store struct {
 
 // DefaultConfig returns the defaults used for new profiles and settings resets.
 func DefaultConfig() domain.Config {
-	return domain.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
+	return domain.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", OBSAutoConnect: true, OBSAutoStream: true, Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
 }
 
 func applyConnectionDefaults(c *domain.Config) {

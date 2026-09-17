@@ -63,7 +63,7 @@ func (m *Model) menu() []menuItem {
 			{i18n.T(i18n.TUIMenuSetProtocol), "protocol"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
-			{"TTS 音色", "tts-voice"},
+			{i18n.T(i18n.OutputVoice), "tts-voice"},
 			{i18n.T(i18n.TUISettingsReset), "settings-reset-confirm"},
 			{i18n.T(i18n.TUISettingsClearData), "clear-data"},
 		}
@@ -95,8 +95,8 @@ func (m *Model) perform(action string) tea.Cmd {
 	if m.busy {
 		return nil
 	}
-	if strings.HasPrefix(action, "output-event:") {
-		return m.toggleOutputEvent(strings.TrimPrefix(action, "output-event:"))
+	if action == "output-events" {
+		return m.pickOutputEvents()
 	}
 	if action == "tts-voice" {
 		return m.pickTTSVoice()
@@ -340,6 +340,9 @@ func (m *Model) choose() tea.Cmd {
 		return nil
 	}
 	ch := m.choices[m.selected]
+	if m.editKind == "output-events" {
+		return m.toggleOutputEvent(ch.value)
+	}
 	m.mode = ""
 	if strings.HasPrefix(m.editKind, "overlay-") {
 		return m.chooseOverlay(ch.value)

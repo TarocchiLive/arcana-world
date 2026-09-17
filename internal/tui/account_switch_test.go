@@ -42,6 +42,8 @@ func switchModel(t *testing.T, failure string) (*Model, domain.Account, *atomic.
 	m.account = &old
 	m.client.SetAccount(old)
 	cfg := m.store.Config()
+	// Account-switch tests connect a fake OBS explicitly when it is needed.
+	cfg.OBSAutoConnect, cfg.OBSAutoStream = false, false
 	cfg.ExitOBSStopDisabled = true
 	cfg.ExitLiveStopDisabled = true
 	if err := m.store.SaveConfig(cfg); err != nil {

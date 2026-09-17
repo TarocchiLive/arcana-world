@@ -135,6 +135,13 @@ func TestExitRefreshesCommittedAccountAndSkipsOfflineOrAbsentAccount(t *testing.
 			var requests, stops atomic.Int32
 			liveURL := exitLiveServer(t, mode != "offline", "", &requests, &stops)
 			m := lifecycleModel(t, context.Background())
+			// This scenario exercises Bilibili cleanup without OBS integration.
+			cfg := m.store.Config()
+			cfg.OBSAutoConnect, cfg.OBSAutoStream = false, false
+			if err := m.store.SaveConfig(cfg); err != nil {
+				t.Fatal(err)
+			}
+			m.config = cfg
 			m.client.LiveBase = liveURL
 			account := exitAccount()
 			switch mode {
