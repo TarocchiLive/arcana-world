@@ -134,8 +134,8 @@ func (s *Store) SaveConfig(c domain.Config) error {
 	if s.closed {
 		return errors.New(i18n.T(i18n.StoreCleared))
 	}
+	c.Accounts = s.config.Accounts
 	c = clone(c)
-	c.Accounts = append([]domain.AccountInfo(nil), s.config.Accounts...)
 	applyConnectionDefaults(&c)
 	if err := s.persist(c); err != nil {
 		return err

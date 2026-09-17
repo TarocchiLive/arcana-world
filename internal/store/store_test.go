@@ -79,6 +79,36 @@ func TestFailedIndexCommitRestoresPreviousCredential(t *testing.T) {
 	}
 }
 
+func TestSaveConfigPreservesAccountIndexAndOwnsHistory(t *testing.T) {
+	s, err := OpenWithBackend(t.TempDir(), memoryBackend{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	account := domain.Account{UID: "saved", Name: "original", Cookies: map[string]string{"SESSDATA": "secret"}}
+	if err := s.Save(account); err != nil {
+		t.Fatal(err)
+	}
+	cfg := s.Config()
+	cfg.Accounts = []domain.AccountInfo{{UID: "injected", Name: "not saved"}}
+	cfg.RecentTitles = []string{"saved title"}
+	cfg.RecentAreas = []domain.Area{{ID: 7, Name: "saved area"}}
+	if err := s.SaveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	cfg.RecentTitles[0] = "mutated"
+	cfg.RecentAreas[0].Name = "mutated"
+	got := s.Config()
+	if len(got.Accounts) != 1 || got.Accounts[0].UID != account.UID {
+		t.Fatal("settings save replaced the credential-backed account index")
+	}
+	if got.RecentTitles[0] != "saved title" || got.RecentAreas[0].Name != "saved area" {
+		t.Fatal("settings save retained caller-owned history slices")
+	}
+	if loaded, err := s.Load(account.UID); err != nil || loaded.Name != account.Name {
+		t.Fatalf("settings save made the saved account unavailable: %v", err)
+	}
+}
+
 type unavailableBackend struct {
 	memoryBackend
 	unavailable bool

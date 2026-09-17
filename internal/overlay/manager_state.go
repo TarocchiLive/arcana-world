@@ -90,12 +90,3 @@ func (m *Manager) SetDisplay(id uint32, output string) error {
 func (m *Manager) Place(anchor Anchor, x, y float64) error {
 	return m.SetPosition(Position{Anchor: anchor, X: x, Y: y})
 }
-func (m *Manager) PlaceTopLeft(x, y float64) error     { return m.Place(TopLeft, x, y) }
-func (m *Manager) PlaceTop(x, y float64) error         { return m.Place(Top, x, y) }
-func (m *Manager) PlaceTopRight(x, y float64) error    { return m.Place(TopRight, x, y) }
-func (m *Manager) PlaceLeft(x, y float64) error        { return m.Place(Left, x, y) }
-func (m *Manager) PlaceCenter(x, y float64) error      { return m.Place(Center, x, y) }
-func (m *Manager) PlaceRight(x, y float64) error       { return m.Place(Right, x, y) }
-func (m *Manager) PlaceBottomLeft(x, y float64) error  { return m.Place(BottomLeft, x, y) }
-func (m *Manager) PlaceBottom(x, y float64) error      { return m.Place(Bottom, x, y) }
-func (m *Manager) PlaceBottomRight(x, y float64) error { return m.Place(BottomRight, x, y) }

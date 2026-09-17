@@ -9,12 +9,11 @@ import (
 )
 
 func refreshOperation() operation[domain.Room] {
-	return operation[domain.Room]{name: "refresh", discardOnCancel: true, handle: (*Model).handleRefreshResult}
+	return operation[domain.Room]{label: i18n.TUIOperationRefreshRoom, discardOnCancel: true, handle: (*Model).handleRefreshResult}
 }
 
-func (m *Model) handleRefreshResult(value domain.Room, err error) tea.Cmd {
-
-	if cmd, failed := m.resultError("refresh", err); failed {
+func (m *Model) handleRefreshResult(value domain.Room, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
 	room := value
@@ -28,12 +27,11 @@ func (m *Model) handleRefreshResult(value domain.Room, err error) tea.Cmd {
 }
 
 func startOperation() operation[app.StartOutcome] {
-	return operation[app.StartOutcome]{name: "start", discardOnCancel: false, handle: (*Model).handleStartResult}
+	return operation[app.StartOutcome]{label: i18n.TUIOperationStartLive, discardOnCancel: false, handle: (*Model).handleStartResult}
 }
 
-func (m *Model) handleStartResult(value app.StartOutcome, err error) tea.Cmd {
-
-	if cmd, failed := m.resultError("start", err); failed {
+func (m *Model) handleStartResult(value app.StartOutcome, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
 	outcome := value
@@ -59,12 +57,11 @@ func (m *Model) handleStartResult(value app.StartOutcome, err error) tea.Cmd {
 }
 
 func stopOperation() operation[app.StopOutcome] {
-	return operation[app.StopOutcome]{name: "stop", discardOnCancel: false, handle: (*Model).handleStopResult}
+	return operation[app.StopOutcome]{label: i18n.TUIOperationStopLive, discardOnCancel: false, handle: (*Model).handleStopResult}
 }
 
-func (m *Model) handleStopResult(value app.StopOutcome, err error) tea.Cmd {
-
-	if cmd, failed := m.resultError("stop", err); failed {
+func (m *Model) handleStopResult(value app.StopOutcome, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
 	if m.room != nil {
@@ -80,12 +77,11 @@ func (m *Model) handleStopResult(value app.StopOutcome, err error) tea.Cmd {
 }
 
 func areasOperation() operation[areaCatalog] {
-	return operation[areaCatalog]{name: "areas", discardOnCancel: true, handle: (*Model).handleAreasResult}
+	return operation[areaCatalog]{label: i18n.TUIOperationFetchCategories, discardOnCancel: true, handle: (*Model).handleAreasResult}
 }
 
-func (m *Model) handleAreasResult(value areaCatalog, err error) tea.Cmd {
-
-	if cmd, failed := m.resultError("areas", err); failed {
+func (m *Model) handleAreasResult(value areaCatalog, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
 	catalog := value
@@ -100,65 +96,49 @@ func (m *Model) handleAreasResult(value areaCatalog, err error) tea.Cmd {
 }
 
 func delayOperation() operation[int] {
-	return operation[int]{name: "delay", discardOnCancel: true, handle: (*Model).handleDelayResult}
+	return operation[int]{label: i18n.TUIOperationReadDelay, discardOnCancel: true, handle: (*Model).handleDelayResult}
 }
 
-func (m *Model) handleDelayResult(value int, err error) tea.Cmd {
-
-	if cmd, failed := m.resultError("delay", err); failed {
+func (m *Model) handleDelayResult(value int, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
 	return m.form("delay", i18n.T(i18n.TUIFormDelay), fmt.Sprint(value), false)
 }
 
 func areaOperation() operation[*domain.Area] {
-	return operation[*domain.Area]{name: "area", discardOnCancel: false, handle: (*Model).handleAreaResult}
+	return operation[*domain.Area]{label: i18n.TUIOperationUpdateCategory, discardOnCancel: false, handle: (*Model).handleAreaResult}
 }
 
-func (m *Model) handleAreaResult(value *domain.Area, err error) tea.Cmd {
+func (m *Model) handleAreaResult(value *domain.Area, err error, label i18n.Key) tea.Cmd {
 	if value != nil && m.room != nil {
 		m.room.AreaID = value.ID
 		m.room.AreaName = value.Name
 		m.room.ParentName = value.Parent
 	}
-	if cmd, failed := m.resultError("area", err); failed {
-		return cmd
-	}
-	m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationSucceeded), operationName("area")))
-
-	return m.finishResult()
+	return m.completeOperation(label, err)
 }
 
 func titleOperation() operation[*string] {
-	return operation[*string]{name: "title", discardOnCancel: false, handle: (*Model).handleTitleResult}
+	return operation[*string]{label: i18n.TUIOperationUpdateTitle, discardOnCancel: false, handle: (*Model).handleTitleResult}
 }
 
-func (m *Model) handleTitleResult(value *string, err error) tea.Cmd {
+func (m *Model) handleTitleResult(value *string, err error, label i18n.Key) tea.Cmd {
 	if value != nil && m.room != nil {
 		m.room.Title = *value
 	}
-	if cmd, failed := m.resultError("title", err); failed {
-		return cmd
-	}
-	m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationSucceeded), operationName("title")))
-
-	return m.finishResult()
+	return m.completeOperation(label, err)
 }
 
 func announcementOperation() operation[*string] {
-	return operation[*string]{name: "announcement", discardOnCancel: false, handle: (*Model).handleAnnouncementResult}
+	return operation[*string]{label: i18n.TUIOperationUpdateAnnouncement, discardOnCancel: false, handle: (*Model).handleAnnouncementResult}
 }
 
-func (m *Model) handleAnnouncementResult(value *string, err error) tea.Cmd {
+func (m *Model) handleAnnouncementResult(value *string, err error, label i18n.Key) tea.Cmd {
 	if value != nil && m.room != nil {
 		m.room.Announcement = *value
 	}
-	if cmd, failed := m.resultError("announcement", err); failed {
-		return cmd
-	}
-	m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationSucceeded), operationName("announcement")))
-
-	return m.finishResult()
+	return m.completeOperation(label, err)
 }
 
-var delaySetOperation = completionOperation("delay-set")
+var delaySetOperation = completionOperation(i18n.TUIOperationUpdateDelay)

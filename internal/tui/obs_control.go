@@ -15,9 +15,9 @@ const obsOperationTimeout = 30 * time.Second
 
 type obsEventMsg struct{ closed bool }
 type obsResultMsg struct {
-	id   int
-	kind string
-	err  error
+	id    int
+	label i18n.Key
+	err   error
 }
 
 func toggleLabel(label string, enabled bool) string {
@@ -77,7 +77,7 @@ func (m *Model) handleOBSEvent(msg obsEventMsg) tea.Cmd {
 	}
 	return m.watchOBS()
 }
-func (m *Model) runOBS(kind string, fn func(context.Context) error) tea.Cmd {
+func (m *Model) runOBS(label i18n.Key, fn func(context.Context) error) tea.Cmd {
 	if m.obsBusy || m.busy {
 		return nil
 	}
@@ -86,14 +86,14 @@ func (m *Model) runOBS(kind string, fn func(context.Context) error) tea.Cmd {
 	id := m.obsOperation
 	ctx, cancel := context.WithTimeout(m.ctx, obsOperationTimeout)
 	m.obsCancel = cancel
-	m.status = fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), operationName(kind))
+	m.status = fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), i18n.T(label))
 	return func() tea.Msg {
 		defer cancel()
 		if err := m.session.Lock(ctx); err != nil {
-			return obsResultMsg{id: id, kind: kind, err: err}
+			return obsResultMsg{id: id, label: label, err: err}
 		}
 		defer m.session.Unlock()
-		return obsResultMsg{id: id, kind: kind, err: fn(ctx)}
+		return obsResultMsg{id: id, label: label, err: fn(ctx)}
 	}
 }
 func (m *Model) handleOBSResult(msg obsResultMsg) tea.Cmd {
@@ -106,14 +106,14 @@ func (m *Model) handleOBSResult(msg obsResultMsg) tea.Cmd {
 	if msg.err != nil {
 		if errors.Is(msg.err, context.Canceled) {
 			m.log(i18n.T(i18n.TUILogOBSCanceled))
-		} else if msg.kind == "obs-connect" {
+		} else if msg.label == i18n.TUIOBSConnect {
 			m.log(msg.err.Error())
 		} else {
-			m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationFailed), operationName(msg.kind), msg.err.Error()))
+			m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationFailed), i18n.T(msg.label), msg.err.Error()))
 		}
-	} else if msg.kind == "obs-connect" && m.obsState.Connected {
+	} else if msg.label == i18n.TUIOBSConnect && m.obsState.Connected {
 		m.log(i18n.T(i18n.TUILogOBSConnected))
-	} else if msg.kind == "obs-disconnect" {
+	} else if msg.label == i18n.TUIOBSDisconnect {
 		m.log(i18n.T(i18n.TUILogOBSDisconnected))
 	}
 	return nil
@@ -123,10 +123,10 @@ func (m *Model) connectOBS() tea.Cmd {
 		return nil
 	}
 	endpoint := m.config.OBSURL
-	return m.runOBS("obs-connect", func(ctx context.Context) error { return m.session.ConnectOBS(ctx, endpoint) })
+	return m.runOBS(i18n.TUIOBSConnect, func(ctx context.Context) error { return m.session.ConnectOBS(ctx, endpoint) })
 }
 func (m *Model) disconnectOBS() tea.Cmd {
-	return m.runOBS("obs-disconnect", func(context.Context) error { return m.obsClient.Disconnect() })
+	return m.runOBS(i18n.TUIOBSDisconnect, func(context.Context) error { return m.obsClient.Disconnect() })
 }
 func (m *Model) startPrompt() string {
 	text := i18n.T(i18n.TUIConfirmStartLive)

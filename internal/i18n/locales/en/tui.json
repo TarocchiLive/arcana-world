@@ -139,7 +139,6 @@
   "tui.operation.update_delay": "Update delay",
   "tui.operation.update_obs_password": "Update OBS password",
   "tui.operation.update_obs_url": "Update OBS URL",
-  "tui.operation.update_other": "Update %s",
   "tui.operation.update_title": "Update title",
   "tui.operation.upload_cover": "Upload cover",
   "tui.operation.wait_qr": "Wait for QR scan",

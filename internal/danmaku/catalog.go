@@ -81,14 +81,6 @@ func commandFieldText(value any, kind byte) (string, bool) {
 		return string(number), ok
 	case 'i':
 		text := stringValue(value)
-		if text == "" {
-			return "", false
-		}
-		for _, digit := range text {
-			if digit < '0' || digit > '9' {
-				return "", false
-			}
-		}
 		_, err := strconv.ParseUint(text, 10, 64)
 		return text, err == nil
 	case 'b':

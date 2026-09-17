@@ -163,7 +163,7 @@ func TestCloseWaitsForCanceledStartBeforeStopping(t *testing.T) {
 	if err := m.obsClient.Connect(context.Background(), endpoint, ""); err != nil {
 		t.Fatal(err)
 	}
-	command := m.runOBS("obs-start", m.obsClient.Start)
+	command := m.runOBS(startOperation().label, m.obsClient.Start)
 	done := make(chan struct{})
 	go func() { command(); close(done) }()
 	awaitLifecycle(t, state.started)

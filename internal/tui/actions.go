@@ -428,11 +428,11 @@ func (m *Model) submitForm() tea.Cmd {
 		n, _ := strconv.Atoi(value)
 		return work(m, delaySetOperation, func(ctx context.Context) (struct{}, error) { return struct{}{}, m.client.SetTimeShift(ctx, n) })
 	case "obs-password":
-		return m.saveOBSSetting(kind, func() error { return m.store.SetOBSSecret(value) })
+		return m.saveOBSSetting(obsPasswordOperation, func() error { return m.store.SetOBSSecret(value) })
 	case "obs-url":
 		cfg := m.config
 		cfg.OBSURL = value
-		return m.saveOBSSetting(kind, func() error { return m.store.SaveConfig(cfg) })
+		return m.saveOBSSetting(obsURLOperation, func() error { return m.store.SaveConfig(cfg) })
 	case "proxy":
 		cfg := m.config
 		cfg.Proxy = value
@@ -441,34 +441,15 @@ func (m *Model) submitForm() tea.Cmd {
 	return nil
 }
 func (m *Model) saveConfig(cfg domain.Config, replaceClient bool) tea.Cmd {
-	account := m.account
+	if replaceClient {
+		return m.rebuildClientAndSave(configOperation(), cfg.Proxy, func() error { return m.store.SaveConfig(cfg) })
+	}
 	return work(m, configOperation(), func(ctx context.Context) (*bili.Client, error) {
 		if err := m.session.Lock(ctx); err != nil {
 			return nil, err
 		}
 		defer m.session.Unlock()
-		var c *bili.Client
-		if replaceClient {
-			var err error
-			c, err = bili.New(cfg.Proxy)
-			if err != nil {
-				return nil, err
-			}
-			if account != nil {
-				c.SetAccount(*account)
-			}
-		}
-		if err := m.store.SaveConfig(cfg); err != nil {
-			if c != nil {
-				c.HTTP.CloseIdleConnections()
-			}
-			return nil, err
-		}
-		if replaceClient {
-			m.session.Track(c)
-			return c, nil
-		}
-		return nil, nil
+		return nil, m.store.SaveConfig(cfg)
 	})
 }
 

@@ -100,7 +100,7 @@ func (m *Model) performOverlay(action string) tea.Cmd {
 	switch action {
 	case "overlay-toggle":
 		s.Enabled = !m.overlayEnabled
-		return m.saveOverlay(s, "overlay-toggle")
+		return m.saveOverlay(s, overlayToggleOperation())
 	case "overlay-settings":
 		m.choices = nil
 		for _, f := range overlayFields {
@@ -111,7 +111,7 @@ func (m *Model) performOverlay(action string) tea.Cmd {
 	case "overlay-restore":
 		defaults := overlay.DefaultSettings()
 		defaults.Enabled, defaults.Content = s.Enabled, s.Content
-		return m.saveOverlay(defaults, "overlay-restore")
+		return m.saveOverlay(defaults, overlayRestoreOperation())
 	}
 	return nil
 }
@@ -120,10 +120,10 @@ func (m *Model) chooseOverlay(value string) tea.Cmd {
 	switch m.editKind {
 	case "overlay-content":
 		s.Content = value
-		return m.saveOverlay(s, "overlay-config")
+		return m.saveOverlay(s, overlayConfigOperation())
 	case "overlay-anchor":
 		s.Position.Anchor = overlay.Anchor(value)
-		return m.saveOverlay(s, "overlay-config")
+		return m.saveOverlay(s, overlayConfigOperation())
 	case "overlay-fields":
 		switch value {
 		case "content":
@@ -140,7 +140,7 @@ func (m *Model) chooseOverlay(value string) tea.Cmd {
 			return m.pick("overlay-anchor", i18n.T(i18n.TUIOverlayAnchor))
 		case "italic":
 			s.Font.Italic = !s.Font.Italic
-			return m.saveOverlay(s, "overlay-config")
+			return m.saveOverlay(s, overlayConfigOperation())
 		case "restore":
 			return m.confirm(i18n.T(i18n.TUIOverlayRestoreConfirm), "overlay-restore")
 		}
@@ -163,11 +163,11 @@ func (m *Model) submitOverlay(kind, value string) tea.Cmd {
 			m.status = i18n.T(i18n.TUIOverlayInvalidNumber)
 			return nil
 		}
-		return m.saveOverlay(s, "overlay-config")
+		return m.saveOverlay(s, overlayConfigOperation())
 	}
 	return nil
 }
-func (m *Model) saveOverlay(settings overlay.Settings, kind string) tea.Cmd {
+func (m *Model) saveOverlay(settings overlay.Settings, op operation[struct{}]) tea.Cmd {
 	s, err := settings.Normalize()
 	if err != nil {
 		m.status = fmt.Sprintf(i18n.T(i18n.TUIOverlayInvalidSettings), clean(err.Error()))
@@ -176,12 +176,6 @@ func (m *Model) saveOverlay(settings overlay.Settings, kind string) tea.Cmd {
 	m.mode = ""
 	m.input.SetValue("")
 	m.input.Blur()
-	op := overlayConfigOperation()
-	if kind == "overlay-toggle" {
-		op = overlayToggleOperation()
-	} else if kind == "overlay-restore" {
-		op = overlayRestoreOperation()
-	}
 	return work(m, op, func(ctx context.Context) (struct{}, error) {
 		if err := ctx.Err(); err != nil {
 			return struct{}{}, err

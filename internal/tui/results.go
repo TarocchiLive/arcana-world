@@ -18,9 +18,9 @@ func (r taskResult[T]) apply(m *Model) tea.Cmd {
 	if r.err == nil {
 		m.config = m.store.Config()
 	}
-	return r.operation.handle(m, r.value, r.err)
+	return r.operation.handle(m, r.value, r.err, r.operation.label)
 }
-func (m *Model) resultError(name string, err error) (tea.Cmd, bool) {
+func (m *Model) resultError(label i18n.Key, err error) (tea.Cmd, bool) {
 	if err == nil {
 		return nil, false
 	}
@@ -31,7 +31,7 @@ func (m *Model) resultError(name string, err error) (tea.Cmd, bool) {
 	if errors.Is(err, context.Canceled) {
 		m.log(i18n.T(i18n.TUIStatusRemoteCancelWarning))
 	} else {
-		m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationFailed), operationName(name), err.Error()))
+		m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationFailed), i18n.T(label), err.Error()))
 	}
 	return nil, true
 }
@@ -41,15 +41,19 @@ func (m *Model) finishResult() tea.Cmd {
 }
 
 // Completion-only operations share error reporting and the normal success notice.
-func completionOperation(name string) operation[struct{}] {
+func completionOperation(label i18n.Key) operation[struct{}] {
 	return operation[struct{}]{
-		name: name,
-		handle: func(m *Model, _ struct{}, err error) tea.Cmd {
-			if cmd, failed := m.resultError(name, err); failed {
-				return cmd
-			}
-			m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationSucceeded), operationName(name)))
-			return m.finishResult()
+		label: label,
+		handle: func(m *Model, _ struct{}, err error, label i18n.Key) tea.Cmd {
+			return m.completeOperation(label, err)
 		},
 	}
+}
+
+func (m *Model) completeOperation(label i18n.Key, err error) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
+		return cmd
+	}
+	m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationSucceeded), i18n.T(label)))
+	return m.finishResult()
 }

@@ -14,9 +14,9 @@ type taskMessage interface {
 	apply(*Model) tea.Cmd
 }
 type operation[T any] struct {
-	name            string
+	label           i18n.Key
 	discardOnCancel bool
-	handle          func(*Model, T, error) tea.Cmd
+	handle          func(*Model, T, error, i18n.Key) tea.Cmd
 }
 type taskResult[T any] struct {
 	id        int
@@ -37,7 +37,7 @@ func work[T any](m *Model, op operation[T], fn func(context.Context) (T, error))
 	id := m.operation
 	ctx, cancel := context.WithTimeout(m.ctx, operationTimeout)
 	m.cancel = cancel
-	m.status = fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), operationName(op.name))
+	m.status = fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), i18n.T(op.label))
 	return func() tea.Msg {
 		defer cancel()
 		value, err := fn(ctx)

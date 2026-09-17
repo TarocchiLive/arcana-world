@@ -9,12 +9,11 @@ import (
 )
 
 func qrOperation() operation[domain.QR] {
-	return operation[domain.QR]{name: "qr", discardOnCancel: true, handle: (*Model).handleQRResult}
+	return operation[domain.QR]{label: i18n.TUIOperationGenerateQR, discardOnCancel: true, handle: (*Model).handleQRResult}
 }
 
-func (m *Model) handleQRResult(value domain.QR, err error) tea.Cmd {
-
-	if cmd, failed := m.resultError("qr", err); failed {
+func (m *Model) handleQRResult(value domain.QR, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
 	qr := value
@@ -28,12 +27,11 @@ func (m *Model) handleQRResult(value domain.QR, err error) tea.Cmd {
 }
 
 func pollOperation() operation[domain.LoginPoll] {
-	return operation[domain.LoginPoll]{name: "poll", discardOnCancel: true, handle: (*Model).handlePollResult}
+	return operation[domain.LoginPoll]{label: i18n.TUIOperationWaitQR, discardOnCancel: true, handle: (*Model).handlePollResult}
 }
 
-func (m *Model) handlePollResult(value domain.LoginPoll, err error) tea.Cmd {
-
-	if cmd, failed := m.resultError("poll", err); failed {
+func (m *Model) handlePollResult(value domain.LoginPoll, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
 		if cmd != nil {
 			return cmd
 		}
@@ -78,24 +76,24 @@ func (m *Model) handlePollResult(value domain.LoginPoll, err error) tea.Cmd {
 }
 
 func accountOperation() operation[app.AccountOutcome] {
-	return operation[app.AccountOutcome]{name: "account", discardOnCancel: false, handle: (*Model).handleAccountResult}
+	return operation[app.AccountOutcome]{label: i18n.TUIOperationLoadAccount, discardOnCancel: false, handle: (*Model).handleAccountResult}
 }
 
-func (m *Model) handleAccountResult(value app.AccountOutcome, err error) tea.Cmd {
+func (m *Model) handleAccountResult(value app.AccountOutcome, err error, label i18n.Key) tea.Cmd {
 	m.applyOldRoom(value)
-	if cmd, failed := m.resultError("account", err); failed {
+	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
 	return m.adoptAccount(value)
 }
 
 func loginSaveOperation() operation[app.AccountOutcome] {
-	return operation[app.AccountOutcome]{name: "login-save", discardOnCancel: false, handle: (*Model).handleLoginSaveResult}
+	return operation[app.AccountOutcome]{label: i18n.TUIOperationSaveLogin, discardOnCancel: false, handle: (*Model).handleLoginSaveResult}
 }
 
-func (m *Model) handleLoginSaveResult(value app.AccountOutcome, err error) tea.Cmd {
+func (m *Model) handleLoginSaveResult(value app.AccountOutcome, err error, label i18n.Key) tea.Cmd {
 	m.applyOldRoom(value)
-	if cmd, failed := m.resultError("login-save", err); failed {
+	if cmd, failed := m.resultError(label, err); failed {
 		if cmd != nil {
 			return cmd
 		}
@@ -110,12 +108,12 @@ func (m *Model) handleLoginSaveResult(value app.AccountOutcome, err error) tea.C
 }
 
 func deleteOperation() operation[app.AccountOutcome] {
-	return operation[app.AccountOutcome]{name: "delete", discardOnCancel: false, handle: (*Model).handleDeleteResult}
+	return operation[app.AccountOutcome]{label: i18n.TUIOperationRemoveAccount, discardOnCancel: false, handle: (*Model).handleDeleteResult}
 }
 
-func (m *Model) handleDeleteResult(value app.AccountOutcome, err error) tea.Cmd {
+func (m *Model) handleDeleteResult(value app.AccountOutcome, err error, label i18n.Key) tea.Cmd {
 	m.applyOldRoom(value)
-	if cmd, failed := m.resultError("delete", err); failed {
+	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
 	out := value
@@ -133,12 +131,11 @@ func (m *Model) handleDeleteResult(value app.AccountOutcome, err error) tea.Cmd 
 }
 
 func faceOperation() operation[string] {
-	return operation[string]{name: "face", discardOnCancel: true, handle: (*Model).handleFaceResult}
+	return operation[string]{label: i18n.TUIOperationIdentityLink, discardOnCancel: true, handle: (*Model).handleFaceResult}
 }
 
-func (m *Model) handleFaceResult(value string, err error) tea.Cmd {
-
-	if cmd, failed := m.resultError("face", err); failed {
+func (m *Model) handleFaceResult(value string, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
 	m.faceURL = value

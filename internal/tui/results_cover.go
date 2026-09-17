@@ -9,12 +9,11 @@ import (
 )
 
 func coverPrepareOperation() operation[*coverimage.Prepared] {
-	return operation[*coverimage.Prepared]{name: "cover-prepare", discardOnCancel: true, handle: (*Model).handleCoverPrepareResult}
+	return operation[*coverimage.Prepared]{label: i18n.TUIOperationPrepareCover, discardOnCancel: true, handle: (*Model).handleCoverPrepareResult}
 }
 
-func (m *Model) handleCoverPrepareResult(value *coverimage.Prepared, err error) tea.Cmd {
-
-	if cmd, failed := m.resultError("cover-prepare", err); failed {
+func (m *Model) handleCoverPrepareResult(value *coverimage.Prepared, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
 		if cmd != nil {
 			return cmd
 		}
@@ -29,12 +28,11 @@ func (m *Model) handleCoverPrepareResult(value *coverimage.Prepared, err error) 
 }
 
 func coverFetchOperation() operation[image.Image] {
-	return operation[image.Image]{name: "cover-fetch", discardOnCancel: true, handle: (*Model).handleCoverFetchResult}
+	return operation[image.Image]{label: i18n.TUIOperationFetchCover, discardOnCancel: true, handle: (*Model).handleCoverFetchResult}
 }
 
-func (m *Model) handleCoverFetchResult(value image.Image, err error) tea.Cmd {
-
-	if cmd, failed := m.resultError("cover-fetch", err); failed {
+func (m *Model) handleCoverFetchResult(value image.Image, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
 		if cmd != nil {
 			return cmd
 		}
@@ -45,12 +43,11 @@ func (m *Model) handleCoverFetchResult(value image.Image, err error) tea.Cmd {
 }
 
 func coverUploadOperation() operation[bili.CoverUpdate] {
-	return operation[bili.CoverUpdate]{name: "cover-upload", discardOnCancel: false, handle: (*Model).handleCoverUploadResult}
+	return operation[bili.CoverUpdate]{label: i18n.TUIOperationUploadCover, discardOnCancel: false, handle: (*Model).handleCoverUploadResult}
 }
 
-func (m *Model) handleCoverUploadResult(value bili.CoverUpdate, err error) tea.Cmd {
-
-	if cmd, failed := m.resultError("cover-upload", err); failed {
+func (m *Model) handleCoverUploadResult(value bili.CoverUpdate, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
 	update := value

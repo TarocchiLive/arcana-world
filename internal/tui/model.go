@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -144,62 +143,6 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func operationName(kind string) string {
-	switch kind {
-	case "cover-prepare":
-		return i18n.T(i18n.TUIOperationPrepareCover)
-	case "cover-fetch":
-		return i18n.T(i18n.TUIOperationFetchCover)
-	case "cover-upload":
-		return i18n.T(i18n.TUIOperationUploadCover)
-	case "refresh":
-		return i18n.T(i18n.TUIOperationRefreshRoom)
-	case "account":
-		return i18n.T(i18n.TUIOperationLoadAccount)
-	case "qr":
-		return i18n.T(i18n.TUIOperationGenerateQR)
-	case "poll":
-		return i18n.T(i18n.TUIOperationWaitQR)
-	case "login-save":
-		return i18n.T(i18n.TUIOperationSaveLogin)
-	case "start":
-		return i18n.T(i18n.TUIOperationStartLive)
-	case "stop":
-		return i18n.T(i18n.TUIOperationStopLive)
-	case "areas":
-		return i18n.T(i18n.TUIOperationFetchCategories)
-	case "face":
-		return i18n.T(i18n.TUIOperationIdentityLink)
-	case "obs-connect":
-		return i18n.T(i18n.TUIOBSConnect)
-	case "obs-disconnect":
-		return i18n.T(i18n.TUIOBSDisconnect)
-	case "config", "overlay-config", "overlay-toggle":
-		return i18n.T(i18n.TUIOperationSaveSettings)
-	case "overlay-restore":
-		return i18n.T(i18n.TUIOverlayRestore)
-	case "settings-reset":
-		return i18n.T(i18n.TUISettingsReset)
-	case "delete":
-		return i18n.T(i18n.TUIOperationRemoveAccount)
-	case "delay":
-		return i18n.T(i18n.TUIOperationReadDelay)
-	case "area":
-		return i18n.T(i18n.TUIOperationUpdateCategory)
-	case "announcement":
-		return i18n.T(i18n.TUIOperationUpdateAnnouncement)
-	case "delay-set":
-		return i18n.T(i18n.TUIOperationUpdateDelay)
-	case "obs-password":
-		return i18n.T(i18n.TUIOperationUpdateOBSPassword)
-	case "obs-url":
-		return i18n.T(i18n.TUIOperationUpdateOBSURL)
-	case "title":
-		return i18n.T(i18n.TUIOperationUpdateTitle)
-	default:
-		return fmt.Sprintf(i18n.T(i18n.TUIOperationUpdateOther), kind)
-	}
-}
 func (m *Model) log(s string) {
 	s = m.safe(s)
 	if err := m.journal.Write(s); err != nil {

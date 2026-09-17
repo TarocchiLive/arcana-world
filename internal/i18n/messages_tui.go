@@ -142,7 +142,6 @@ const (
 	TUIOperationUpdateDelay            Key = "tui.operation.update_delay"
 	TUIOperationUpdateOBSPassword      Key = "tui.operation.update_obs_password"
 	TUIOperationUpdateOBSURL           Key = "tui.operation.update_obs_url"
-	TUIOperationUpdateOther            Key = "tui.operation.update_other"
 	TUIOperationUpdateTitle            Key = "tui.operation.update_title"
 	TUIOperationUploadCover            Key = "tui.operation.upload_cover"
 	TUIOperationWaitQR                 Key = "tui.operation.wait_qr"

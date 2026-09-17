@@ -139,7 +139,6 @@
   "tui.operation.update_delay": "更新延时",
   "tui.operation.update_obs_password": "更新OBS 密码",
   "tui.operation.update_obs_url": "更新OBS 地址",
-  "tui.operation.update_other": "更新%s",
   "tui.operation.update_title": "更新标题",
   "tui.operation.upload_cover": "上传封面",
   "tui.operation.wait_qr": "等待扫码",

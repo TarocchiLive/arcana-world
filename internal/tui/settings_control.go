@@ -9,20 +9,28 @@ import (
 )
 
 func (m *Model) resetSettings() tea.Cmd {
+	return m.rebuildClientAndSave(settingsResetOperation(), store.DefaultConfig().Proxy, func() error {
+		_, err := m.store.ResetSettings()
+		return err
+	})
+}
+
+// Rebuild and commit under the session gate; ownership transfers only after save succeeds.
+func (m *Model) rebuildClientAndSave(op operation[*bili.Client], proxy string, save func() error) tea.Cmd {
 	account := m.account
-	return work(m, settingsResetOperation(), func(ctx context.Context) (*bili.Client, error) {
+	return work(m, op, func(ctx context.Context) (*bili.Client, error) {
 		if err := m.session.Lock(ctx); err != nil {
 			return nil, err
 		}
 		defer m.session.Unlock()
-		client, err := bili.New(store.DefaultConfig().Proxy)
+		client, err := bili.New(proxy)
 		if err != nil {
 			return nil, err
 		}
 		if account != nil {
 			client.SetAccount(*account)
 		}
-		if _, err := m.store.ResetSettings(); err != nil {
+		if err := save(); err != nil {
 			client.HTTP.CloseIdleConnections()
 			return nil, err
 		}
@@ -32,11 +40,7 @@ func (m *Model) resetSettings() tea.Cmd {
 }
 
 // OBS settings are committed under the session gate before disconnecting.
-func (m *Model) saveOBSSetting(kind string, save func() error) tea.Cmd {
-	op := obsURLOperation
-	if kind == "obs-password" {
-		op = obsPasswordOperation
-	}
+func (m *Model) saveOBSSetting(op operation[struct{}], save func() error) tea.Cmd {
 	return work(m, op, func(ctx context.Context) (struct{}, error) {
 		if err := m.session.Lock(ctx); err != nil {
 			return struct{}{}, err

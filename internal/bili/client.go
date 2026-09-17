@@ -104,7 +104,7 @@ func (c *Client) SetAccount(account domain.Account) {
 // Python urllib.parse.urlencode 不转义 '~'，并用 '+' 表示空格。
 func encode(v url.Values) string { return strings.ReplaceAll(v.Encode(), "%7E", "~") }
 func signed(payload url.Values, omit ...string) url.Values {
-	p := url.Values{"access_key": {""}, "build": {build}, "platform": {"pc_link"}, "ts": {strconv.FormatInt(time.Now().Unix(), 10)}, "version": {version}, "appkey": {appKey}}
+	p := url.Values{"access_key": {""}, "build": {build}, "platform": {"pc_link"}, "ts": {decimal(time.Now().Unix())}, "version": {version}, "appkey": {appKey}}
 	for _, key := range omit {
 		p.Del(key)
 	}
