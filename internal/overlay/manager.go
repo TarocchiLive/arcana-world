@@ -44,7 +44,7 @@ func bundledExecutable(executable string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("overlay: resolving application path: %w", err)
 	}
-	name := "arcana-overlay"
+	name := "arcana-world-overlay"
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}

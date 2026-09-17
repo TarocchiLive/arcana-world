@@ -42,7 +42,7 @@ Arcana World 是一个基于 Go 的 bilibili 直播姬 TUI 替代品，适合在
 
 下载包已包含主程序和原生浮层。请完整解压并保留 `libexec` 目录，移动程序时一并移动整个文件夹。只需启动 `arcana-world`，再到「设置」页开启「原生浮层」，无需单独运行浮层程序。
 
-从源码构建需要 Go 1.26+ 和对应平台的[浮层构建依赖](cmd/arcana-overlay/README.md#构建与启动)。Linux 下还需安装 ALSA 开发库与 `pkg-config`，用于构建配套音频程序（Debian/Ubuntu：`libasound2-dev pkg-config`）：
+从源码构建需要 Go 1.26+ 和对应平台的[浮层构建依赖](cmd/arcana-world-overlay/README.md#构建与启动)。Linux 下还需安装 ALSA 开发库与 `pkg-config`，用于构建配套音频程序（Debian/Ubuntu：`libasound2-dev pkg-config`）：
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git
@@ -51,7 +51,7 @@ make desktop
 ./bin/arcana-world
 ```
 
-构建后运行 `bin/arcana-world`（Windows 为 `bin/arcana-world.exe`），并保留 `bin/libexec` 目录。只需要终端功能时，可使用 `make build`，无需安装图形开发库。浮层的平台支持情况见 [Arcana Overlay](cmd/arcana-overlay/README.md#支持的平台)。
+构建后运行 `bin/arcana-world`（Windows 为 `bin/arcana-world.exe`），并保留 `bin/libexec` 目录。只需要终端功能时，可使用 `make build`，无需安装图形开发库。浮层的平台支持情况见 [Arcana World Overlay](cmd/arcana-world-overlay/README.md#支持的平台)。
 
 ## 开始直播
 
@@ -110,7 +110,7 @@ arcana-world --help                     # 查看帮助
 
 支持无焦点、鼠标穿透的半透明桌面文字浮层。
 
-详见 [Arcana Overlay](cmd/arcana-overlay/README.md)。
+详见 [Arcana World Overlay](cmd/arcana-world-overlay/README.md)。
 
 ## TODO
 - [ ] 支持获取 B 站推流直链，自动连接 OBS 并开播。

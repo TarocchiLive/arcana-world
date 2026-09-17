@@ -1,6 +1,6 @@
 {
   "overlay.cli.enable": "Enable the native overlay for this session (defaults to saved setting; -overlay=false disables it)",
-  "overlay.cli.executable": "Overlay executable path (defaults to libexec/arcana-overlay relative to the real main executable)",
+  "overlay.cli.executable": "Overlay executable path (defaults to libexec/arcana-world-overlay relative to the real main executable)",
   "overlay.log.started": "Native overlay is ready",
   "overlay.log.startup_failed": "Overlay startup failed: %s",
   "overlay.log.stopped": "Overlay exited: %s",

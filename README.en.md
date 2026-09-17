@@ -40,7 +40,7 @@ Download the [latest release](https://github.com/TarocchiLive/arcana-world/relea
 
 The download includes the main program and native overlay. Extract the entire archive and keep the `libexec` directory alongside the main executable. Move the whole folder when relocating the application. Start only `arcana-world`, then enable Native overlay in Settings; you do not need to run the overlay separately.
 
-Building from source requires Go 1.26+ and the platform's [overlay build dependencies](cmd/arcana-overlay/README.en.md#build-and-launch). On Linux, the bundled audio helper also requires ALSA development libraries and `pkg-config` (`libasound2-dev pkg-config` on Debian/Ubuntu):
+Building from source requires Go 1.26+ and the platform's [overlay build dependencies](cmd/arcana-world-overlay/README.en.md#build-and-launch). On Linux, the bundled audio helper also requires ALSA development libraries and `pkg-config` (`libasound2-dev pkg-config` on Debian/Ubuntu):
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git
@@ -49,7 +49,7 @@ make desktop
 ./bin/arcana-world
 ```
 
-Run `bin/arcana-world` (`bin/arcana-world.exe` on Windows) and keep the `bin/libexec` directory. For terminal-only use, build with `make build`; graphics development libraries are not required. See [Arcana Overlay](cmd/arcana-overlay/README.en.md#supported-platforms) for overlay platform support.
+Run `bin/arcana-world` (`bin/arcana-world.exe` on Windows) and keep the `bin/libexec` directory. For terminal-only use, build with `make build`; graphics development libraries are not required. See [Arcana World Overlay](cmd/arcana-world-overlay/README.en.md#supported-platforms) for overlay platform support.
 
 ## Go live
 
@@ -108,7 +108,7 @@ Default data directory: `~/.arcana/world`.
 
 Provides a focus-free, click-through, semi-transparent desktop text overlay.
 
-See [Arcana Overlay](cmd/arcana-overlay/README.en.md) for details.
+See [Arcana World Overlay](cmd/arcana-world-overlay/README.en.md) for details.
 
 ## TODO
 - [ ] Fetch direct Bilibili stream URLs, connect to OBS, and start broadcasts automatically.

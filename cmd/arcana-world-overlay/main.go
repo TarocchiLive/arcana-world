@@ -1,4 +1,4 @@
-// arcana-overlay 是可选的原生桌面文字浮层，独立于 TUI。
+// arcana-world-overlay 是可选的原生桌面文字浮层，独立于 TUI。
 package main
 
 import (
@@ -22,12 +22,12 @@ import (
 func init() { runtime.LockOSThread() }
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "arcana-overlay:", err)
+		fmt.Fprintln(os.Stderr, "arcana-world-overlay:", err)
 		os.Exit(1)
 	}
 }
 func run() error {
-	flags := flag.NewFlagSet("arcana-overlay", flag.ContinueOnError)
+	flags := flag.NewFlagSet("arcana-world-overlay", flag.ContinueOnError)
 	cfg := overlay.DefaultConfig()
 	flags.StringVar(&cfg.Text, "text", cfg.Text, "text to display")
 	anchor := flags.String("anchor", string(cfg.Position.Anchor), "top-left, top, top-right, left, center, right, bottom-left, bottom, bottom-right")
@@ -49,7 +49,7 @@ func run() error {
 	duration := flags.Duration("duration", 0, "close automatically after this duration; 0 waits for Ctrl+C")
 	socket := flags.String("socket", "", "managed host Unix socket; cannot be combined with standalone options")
 	flags.Usage = func() {
-		fmt.Fprintln(flags.Output(), "Usage: arcana-overlay [options]")
+		fmt.Fprintln(flags.Output(), "Usage: arcana-world-overlay [options]")
 		fmt.Fprintln(flags.Output(), "Native click-through overlay: macOS, Windows 10 1803+, KDE/niri Wayland.")
 		fmt.Fprintln(flags.Output(), "Linux: make overlay requires cgo, -tags wayland, wayland-client and pangocairo.")
 		fmt.Fprintln(flags.Output(), "GNOME/Mutter lacks layer-shell. No ordinary-window or X11 fallback.")

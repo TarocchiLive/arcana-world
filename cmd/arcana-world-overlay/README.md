@@ -1,4 +1,4 @@
-# Arcana Overlay
+# Arcana World Overlay
 
 **中文** · [English](README.en.md)
 
@@ -33,7 +33,7 @@ Arcana World 的跨平台桌面文字浮层会在固定屏幕区域显示文字�
 默认显示在屏幕左侧、垂直居中，横纵偏移均为 0，大小为 420 × 180，字号为 16。位置和字号使用逻辑单位，随系统显示缩放（DPI）调整。
 
 ```sh
-./bin/libexec/arcana-overlay -text '欢迎来到直播间' -anchor bottom-left -x 24 -y 24 -width 480 -height 200 -padding 20 -font-size 28 -background-alpha 0.25
+./bin/libexec/arcana-world-overlay -text '欢迎来到直播间' -anchor bottom-left -x 24 -y 24 -width 480 -height 200 -padding 20 -font-size 28 -background-alpha 0.25
 ```
 
 | 参数 | 用途 |
@@ -64,13 +64,13 @@ Arcana World 的跨平台桌面文字浮层会在固定屏幕区域显示文字�
 显示每秒更新的时钟：
 
 ```sh
-./bin/libexec/arcana-overlay -text '当前时间' -clock
+./bin/libexec/arcana-world-overlay -text '当前时间' -clock
 ```
 
 通过管道接收其他程序输出的文字：
 
 ```sh
-printf '%s\n' '新的提示内容' | ./bin/libexec/arcana-overlay -stdin
+printf '%s\n' '新的提示内容' | ./bin/libexec/arcana-world-overlay -stdin
 ```
 
 `-stdin` 每收到一行就替换全部文字，输入结束后保留最后一行，不会自动关闭。单行最多约 1 MiB。它不能与 `-clock` 同时使用。
@@ -87,7 +87,7 @@ printf '%s\n' '新的提示内容' | ./bin/libexec/arcana-overlay -stdin
 
 ### 随 Arcana World 启动
 
-完整解压便携包后，运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`），在「设置」页开启「原生浮层」，无需手工启动 helper。保留根目录主程序、`LICENSE` 和 `libexec/arcana-overlay`（Windows 带 `.exe`）的布局，搬迁时整体移动目录。本地使用 `make desktop` 构建后，也可通过命令行启用：
+完整解压便携包后，运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`），在「设置」页开启「原生浮层」，无需手工启动 helper。保留根目录主程序、`LICENSE` 和 `libexec/arcana-world-overlay`（Windows 带 `.exe`）的布局，搬迁时整体移动目录。本地使用 `make desktop` 构建后，也可通过命令行启用：
 
 ```sh
 ./bin/arcana-world -overlay
@@ -97,7 +97,7 @@ printf '%s\n' '新的提示内容' | ./bin/libexec/arcana-overlay -stdin
 
 内容模式依次为「实时弹幕」「房间状态」「状态与弹幕」。弹幕模式使用当前登录账号的直播间，最多显示六条普通弹幕，不受 TUI 弹幕页的历史翻阅、房间选择或当前页面影响；关闭弹幕监听后清空浮层弹幕。每次刷新最多扫描最近 256 条新记录，密集通知期间可能跳过较早的弹幕，完整记录仍可在弹幕页查看。
 
-`-overlay` 和 `-overlay=false` 只覆盖本次启动的开关，不自动改写保存的设置；在 TUI 中操作开关会保存。使用 `-overlay-executable /path/to/arcana-overlay` 指定其他位置的浮层程序。主程序管理模式下，上面的独立浮层外观参数不生效。
+`-overlay` 和 `-overlay=false` 只覆盖本次启动的开关，不自动改写保存的设置；在 TUI 中操作开关会保存。使用 `-overlay-executable /path/to/arcana-world-overlay` 指定其他位置的浮层程序。主程序管理模式下，上面的独立浮层外观参数不生效。
 
 已有保存值不会因默认值更新而改变。「恢复默认设置」会重置整个设置页，包括浮层设置，但保留 OBS 配置、密码和 B 站登录信息。「恢复默认外观」需确认后执行，仅重置浮层外观，不改变内容模式和开关；完成后显示恢复成功提示。
 
@@ -115,24 +115,24 @@ macOS / Linux：
 
 ```sh
 make overlay
-./bin/libexec/arcana-overlay -text '欢迎来到直播间'
+./bin/libexec/arcana-world-overlay -text '欢迎来到直播间'
 ```
 
-使用 `make desktop` 同时构建 `bin/arcana-world` 与 `bin/libexec/arcana-overlay`（Windows 带 `.exe`），`make build` 仍只构建 TUI，无需图形开发库。Nix 默认包包含浮层，可运行 `nix run -- -overlay`；`nix run .#arcana-world` 仅运行 TUI。
+使用 `make desktop` 同时构建 `bin/arcana-world` 与 `bin/libexec/arcana-world-overlay`（Windows 带 `.exe`），`make build` 仍只构建 TUI，无需图形开发库。Nix 默认包包含浮层，可运行 `nix run -- -overlay`；`nix run .#arcana-world` 仅运行 TUI。
 
 Windows（PowerShell）：
 
 ```powershell
-go build -o bin/libexec/arcana-overlay.exe ./cmd/arcana-overlay
-.\bin\libexec\arcana-overlay.exe -text '欢迎来到直播间'
+go build -o bin/libexec/arcana-world-overlay.exe ./cmd/arcana-world-overlay
+.\bin\libexec\arcana-world-overlay.exe -text '欢迎来到直播间'
 ```
 
-在启动它的终端按 `Ctrl+C` 关闭。加上 `-duration 30s` 可在 30 秒后自动关闭。上面的独立调用命令使用本地构建路径；便携包中使用 `./libexec/arcana-overlay`，Windows 对应 `.\libexec\arcana-overlay.exe`。
+在启动它的终端按 `Ctrl+C` 关闭。加上 `-duration 30s` 可在 30 秒后自动关闭。上面的独立调用命令使用本地构建路径；便携包中使用 `./libexec/arcana-world-overlay`，Windows 对应 `.\libexec\arcana-world-overlay.exe`。
 
 ## 更多选项
 
 ```sh
-./bin/libexec/arcana-overlay -help
+./bin/libexec/arcana-world-overlay -help
 ```
 
 帮助中的 `-socket` 由主程序管理浮层时使用，普通运行无需设置。

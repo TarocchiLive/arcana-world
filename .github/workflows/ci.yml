@@ -59,7 +59,7 @@ jobs:
         run: CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "bin/arcana-world${{ matrix.suffix }}" ./cmd/arcana-world
       - name: Build native overlay
         shell: bash
-        run: go build -tags "$OVERLAY_TAGS" -trimpath -buildvcs=false -o "bin/libexec/arcana-overlay${{ matrix.suffix }}" ./cmd/arcana-overlay
+        run: go build -tags "$OVERLAY_TAGS" -trimpath -buildvcs=false -o "bin/libexec/arcana-world-overlay${{ matrix.suffix }}" ./cmd/arcana-world-overlay
       - name: Build speech helper
         shell: bash
         run: CGO_ENABLED=${{ matrix.audio_cgo }} go build -tags tts_audio -trimpath -buildvcs=false -o "bin/libexec/arcana-world-tts${{ matrix.suffix }}" ./cmd/arcana-world-tts
@@ -74,7 +74,7 @@ jobs:
         run: "./bin/arcana-world${{ matrix.suffix }} -help"
       - name: Check overlay help
         shell: bash
-        run: "./bin/libexec/arcana-overlay${{ matrix.suffix }} -help"
+        run: "./bin/libexec/arcana-world-overlay${{ matrix.suffix }} -help"
       - name: Check speech helper help
         shell: bash
         run: '"./bin/libexec/arcana-world-tts${{ matrix.suffix }}" -help'

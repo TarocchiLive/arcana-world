@@ -19,7 +19,7 @@ build:
 
 # 原生浮层：macOS 使用 AppKit，Windows 使用 Win32，Linux 使用 layer-shell。
 overlay:
-	CGO_ENABLED=$(OVERLAY_CGO) go build $(OVERLAY_TAGS) -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o bin/libexec/arcana-overlay$(EXE_SUFFIX) ./cmd/arcana-overlay
+	CGO_ENABLED=$(OVERLAY_CGO) go build $(OVERLAY_TAGS) -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o bin/libexec/arcana-world-overlay$(EXE_SUFFIX) ./cmd/arcana-world-overlay
 
 tts:
 	CGO_ENABLED=$(AUDIO_CGO) go build -tags tts_audio -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o bin/libexec/arcana-world-tts$(EXE_SUFFIX) ./cmd/arcana-world-tts
@@ -35,4 +35,4 @@ check:
 	go vet ./...
 
 clean:
-	rm -f bin/arcana-world bin/arcana-world.exe bin/libexec/arcana-overlay bin/libexec/arcana-overlay.exe bin/arcana-overlay bin/arcana-overlay.exe bin/libexec/arcana-world-tts bin/libexec/arcana-world-tts.exe
+	rm -f bin/arcana-world bin/arcana-world.exe bin/libexec/arcana-world-overlay bin/libexec/arcana-world-overlay.exe bin/arcana-world-overlay bin/arcana-world-overlay.exe bin/libexec/arcana-world-tts bin/libexec/arcana-world-tts.exe

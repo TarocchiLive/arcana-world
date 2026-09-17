@@ -90,7 +90,7 @@ jobs:
             -o "package/arcana-world$suffix" ./cmd/arcana-world
           CGO_ENABLED="$cgo" go build -tags "$tags" -trimpath -buildvcs=false \
             -ldflags="-s -w -buildid=" \
-            -o "package/libexec/arcana-overlay$suffix" ./cmd/arcana-overlay
+            -o "package/libexec/arcana-world-overlay$suffix" ./cmd/arcana-world-overlay
           CGO_ENABLED="$audio_cgo" go build -tags tts_audio -trimpath -buildvcs=false \
             -ldflags="-s -w -buildid=" \
             -o "package/libexec/arcana-world-tts$suffix" ./cmd/arcana-world-tts

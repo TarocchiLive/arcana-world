@@ -14,7 +14,7 @@ func TestBundledExecutableFollowsMovedInstallationAndSymlink(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(install, "libexec"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	name := "arcana-overlay"
+	name := "arcana-world-overlay"
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}

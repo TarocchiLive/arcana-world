@@ -17,7 +17,7 @@
 - 显示白名单区分常态显示、开启 `f` 后显示和始终隐藏的消息，完整清单见[弹幕显示白名单](docs/danmaku-whitelist.md)。
 - 暂停或翻阅历史时，在顶部提示有新消息；按 `Space` 或 `End` 返回最新。
 - 提供 Nix Flake 构建、运行入口和检查任务，并锁定构建依赖。
-- 使用 `nix develop`（或 `nix develop .#arcana-world`）进入独立的 TUI 开发环境，使用 `nix develop .#arcana-overlay` 进入浮层开发环境；Linux 下会自动启用 Wayland 构建标签。开发使用 Go 模块模式，无需生成 `vendor/`。
+- 使用 `nix develop`（或 `nix develop .#arcana-world`）进入独立的 TUI 开发环境，使用 `nix develop .#arcana-world-overlay` 进入浮层开发环境；Linux 下会自动启用 Wayland 构建标签。开发使用 Go 模块模式，无需生成 `vendor/`。
 - 在设置页管理原生浮层，支持运行时启停、外观持久化及房间状态、实时弹幕、组合三种内容模式；命令行可临时覆盖启用状态。
 - 提供 `make desktop` 和 Nix 桌面配套包；跨平台发行统一为根目录主程序与 `libexec` 浮层组成的便携包，保留独立 TUI 开发构建。
 - 设置页底部新增「恢复默认设置」和「清除应用数据」。恢复默认仅影响设置页配置，保留 OBS 配置和登录凭据；清除须输入 `arcanaworldclear`，关闭后台资源后删除当前数据目录的应用文件及对应登录凭据并退出，输入不匹配则返回设置页。
