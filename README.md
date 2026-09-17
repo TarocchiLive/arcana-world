@@ -11,36 +11,35 @@
 
 **中文** · [English](README.en.md)
 
-Arcana World 是一个基于 Go 的 bilibili 直播姬 TUI 替代品，适合在无法直接运行直播姬的平台（如 Linux）上开播，也适合官方客户端无法使用的情况。你可以在终端完成登录和直播设置，再用 OBS 推流。
+Arcana World 是一款基于 Go 的 bilibili 直播姬 + 弹幕姬。
+
+支持手机扫码登录，弹幕悬浮窗，语音播报。跨平台。
+
+原生支持Windows、Linux、MacOS。
 
 ## 预览
 
 <p align="center">
-  <img src="assets/arcana-world-1-cn.png" alt="主菜单" width="48%">
-  <img src="assets/arcana-world-2-cn.png" alt="封面图预览" width="48%">
+  <img src="assets/arcana-world-01.webp" alt="主菜单" width="48%">
+  <img src="assets/arcana-world-02.webp" alt="浮层配置项" width="48%">
+  <img src="assets/arcana-world-03.webp" alt="封面图预览" width="48%">
+  <img src="assets/arcana-world-04.webp" alt="弹幕浮层" width="48%">
 </p>
 
-## 功能详情
+## 功能亮点
 
-- 扫码登录，保存和切换多个账号。
-- 开播、停播，修改标题、分区、公告和封面。
-- 自动裁剪封面，并在上传前提供终端预览（需要兼容的终端模拟器，推荐 kitty 或 ghostty）。
-- 将推流配置写入 OBS，并按需同步开播和停播。
-- 登录后自动监听自己的直播间。
-- 支持 RTMP / SRT、中文和英文界面，以及网络代理。
-- 支持 macOS、Windows 和 Linux。
+- **扫码登录，连接 OBS，然后一键开播**
+- **直播间实时弹幕浏览，提供穿透弹幕悬浮窗，不干扰鼠标键盘操作**
+- **支持弹幕，礼物语音播报，SC播报，基于 Edge TTS，0 占用，高质量**
+- **常态内存占用 40MB，超轻量、超流畅、超稳定**
 
 ## 安装
 
-从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载对应平台的包，完整解压后运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`）：
+### 快速开始
 
-| 平台 | x64 | ARM64 |
-| --- | --- | --- |
-| macOS | [Intel](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-darwin-amd64.tar.gz) | [Apple Silicon](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-darwin-arm64.tar.gz) |
-| Windows | [下载](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-windows-amd64.zip) | [下载](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-windows-arm64.zip) |
-| Linux | [下载](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-linux-amd64.tar.gz) | [下载](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-linux-arm64.tar.gz) |
+从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载对应平台的包，如 arcana-world-windows-amd64.zip，完整解压后运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`）即可。
 
-下载包已包含主程序和原生浮层。请完整解压并保留 `libexec` 目录，移动程序时一并移动整个文件夹。只需启动 `arcana-world`，再到「设置」页开启「原生浮层」，无需单独运行浮层程序。
+### 从源码构建
 
 从源码构建需要 Go 1.26+ 和对应平台的[浮层构建依赖](cmd/arcana-world-overlay/README.md#构建与启动)。Linux 下还需安装 ALSA 开发库与 `pkg-config`，用于构建配套音频程序（Debian/Ubuntu：`libasound2-dev pkg-config`）：
 
@@ -51,7 +50,7 @@ make desktop
 ./bin/arcana-world
 ```
 
-构建后运行 `bin/arcana-world`（Windows 为 `bin/arcana-world.exe`），并保留 `bin/libexec` 目录。只需要终端功能时，可使用 `make build`，无需安装图形开发库。浮层的平台支持情况见 [Arcana World Overlay](cmd/arcana-world-overlay/README.md#支持的平台)。
+构建后运行 `bin/arcana-world`（Windows 为 `bin/arcana-world.exe`）。只需要终端功能时（无浮层），可使用 `make build`，无需安装图形开发库。浮层的平台支持情况见 [Arcana World Overlay](cmd/arcana-world-overlay/README.md#支持的平台)。
 
 ## 开始直播
 
@@ -59,29 +58,15 @@ make desktop
 2. 在「直播间」页设置标题、分区和封面。
 3. 在 OBS Studio 顶栏点击「工具」→「WebSocket 服务器设置」→ 勾选「开启 WebSocket 服务器」→「显示连接信息」→ 复制服务器密码 →「确定」（[官方设置指南](https://obsproject.com/kb/remote-control-guide)）。
    OBS 28 及以上已内置此功能，无需安装插件；旧版请安装与 OBS 版本兼容的 [obs-websocket 5.x 插件](https://github.com/obsproject/obs-websocket/releases)。
-4. 在 Arcana World 的「OBS」（`5`）页填写服务器地址（例如 `ws://127.0.0.1:4455`）和刚才复制的密码。
-5. 在同一页连接，开启「自动推流」；代理和推流协议在「设置」（`6`）页调整。
+4. 在 Arcana World 的「OBS」（`7`）页填写服务器地址（例如 `ws://127.0.0.1:4455`）和刚才复制的密码。
+5. 在同一页连接，开启「自动推流」；代理和推流协议在「设置」（`8`）页调整。
 6. 回到「直播」页，选择开播。
 
-退出应用默认停止 OBS 推流并关闭当前账号的 B 站直播间，包括从其他客户端开启的直播。可在「设置」（`6`）页分别关闭「退出时停止 OBS 推流」和「退出时关闭直播间」；全部关闭后，退出不执行这两项操作。这些设置不影响直播页的「停播」操作。
+退出应用默认停止 OBS 推流并关闭当前账号的 B 站直播间，包括从其他客户端开启的直播。可在「设置」（`8`）页分别关闭「退出时停止 OBS 推流」和「退出时关闭直播间」；全部关闭后，退出不执行这两项操作。这些设置不影响直播页的「停播」操作。
 
 切换到不同账号（含扫码登录）或删除当前账号时，会先请求确认，再停止旧账号直播及关联的 OBS 推流；停止失败则不切换或删除。退出设置不影响这些切换清理操作。
 
 如果 B 站要求身份验证，按提示完成后重新开播。
-
-### 快捷键
-
-| 按键 | 操作 |
-| --- | --- |
-| `↑↓` / `j k` | 选择 |
-| `Enter` | 确认 |
-| `Tab` / `1–8` | 切换页面 |
-| `PgUp` / `PgDn` | 滚动 |
-| `r` | 刷新 |
-| `Esc` | 返回或取消 |
-| `q` | 退出 |
-
-页面顺序：`1` 直播、`2` 弹幕、`3` 账号、`4` 直播间、`5` OBS、`6` 设置、`7` 日志、`8` 帮助。
 
 ### 弹幕与历史
 
@@ -94,6 +79,12 @@ make desktop
 默认显示的消息类型见[弹幕显示白名单](docs/danmaku-whitelist.md)。白名单之外的消息即使开启 `f` 也不展示，但原始数据仍保存。
 
 历史按房间保存在数据目录的 `danmaku/history.db`；历史和操作日志保留最近七天并自动清理。断开连接期间的消息不会重新拉取到数据库。
+
+### 桌面浮层
+
+支持无焦点、鼠标穿透的半透明桌面文字浮层。「弹幕浮层」与「TTS」页分别选择要输出的事件，默认勾选所有无需开启 `f` 即可显示的事件；按 `Enter` 或 `Space` 切换。两页配置互不影响，输出模板暂仅支持中文。「设置」页可选择 TTS 音色，「TTS」页提供试听、启停及停止当前播放并清空队列。启用后仅播报新事件，不回放历史；语音合成需要联网。
+
+详见 [Arcana World Overlay](cmd/arcana-world-overlay/README.md)。
 
 ### 常用选项
 
@@ -108,17 +99,11 @@ arcana-world --help                     # 查看帮助
 
 默认数据目录：`~/.arcana/world`。
 
-### 桌面浮层
-
-支持无焦点、鼠标穿透的半透明桌面文字浮层。
-
-详见 [Arcana World Overlay](cmd/arcana-world-overlay/README.md)。
-
 ## TODO
-- [ ] 支持获取 B 站推流直链，自动连接 OBS 并开播。
+- [x] 支持获取 B 站推流直链，自动连接 OBS 并开播。
 - [x] 支持 B 站直播间弹幕抓取，并在 TUI 中浏览礼物和聊天记录。
 - [x] 支持 B 站直播间弹幕浮层。
-- [ ] 支持直播姬、TTS 朗读弹幕和礼物播报。
+- [x] 支持 TTS 朗读弹幕和礼物播报。
 
 ## 开发
 
@@ -141,6 +126,6 @@ make build  # 构建
 
 ## 致谢
 
-- 社区内无私提供声明与实现参考的各位大佬。
+- 社区内无私提供相关平台 API 声明与实现参考的各位大佬。
 - [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive)：本项目推流协议实现的来源。
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea)：终端界面框架。

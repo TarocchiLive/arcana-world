@@ -87,19 +87,19 @@ Do not use `-display` and `-output` together.
 
 ### Launch with Arcana World
 
-Extract the entire portable bundle, run `arcana-world` at its root (`arcana-world.exe` on Windows), and enable Native overlay in Settings. You do not need to start the helper manually. Keep the main executable, `LICENSE`, and `libexec/arcana-world-overlay` (`.exe` on Windows) in their packaged locations, and move the whole folder together. After building locally with `make desktop`, you can also enable it from the command line:
+Extract the entire portable bundle, run `arcana-world` at its root (`arcana-world.exe` on Windows), and enable Native overlay on the Overlay tab. You do not need to start the helper manually. Keep the main executable, `LICENSE`, and `libexec/arcana-world-overlay` (`.exe` on Windows) in their packaged locations, and move the whole folder together. After building locally with `make desktop`, you can also enable it from the command line:
 
 ```sh
 ./bin/arcana-world -overlay
 ```
 
-By default, the overlay displays live chat and closes when the main program exits. Its content is empty before sign-in or when no messages are available. On Settings, toggle Native overlay or open Overlay content and appearance to change the content mode, position, size, padding, font, opacity, and monitor. Settings persist across launches. Startup failures do not block other features; Settings and Logs show the reason. Turn the overlay off and on again to retry.
+By default, the overlay displays live events and closes when the main program exits. Its content is empty before sign-in or when no events are available. On the Overlay tab, toggle Native overlay or open Overlay content and appearance to change the content mode, position, size, padding, font, opacity, and monitor. Settings persist across launches. Startup failures do not block other features; Overlay and Logs show the reason. Turn the overlay off and on again to retry.
 
-Content modes are listed as Live chat, Room status, and Status and chat. Chat modes show up to six ordinary messages from the signed-in account's live room, independently of TUI history browsing, selected history room, or active page. Disabling chat listening clears overlay chat. Each refresh scans at most 256 recent new records, so heavy notification traffic can skip older chat messages; the saved records remain available on the Chat page.
+Content modes are listed as Live chat, Room status, and Status and chat. Chat modes show up to six selected events from the signed-in account's live room. All events visible without `f` are selected by default, and templates use Chinese. Selections are independent of TTS, TUI history browsing, selected history room, and active page. Disabling chat listening clears overlay events. Each refresh scans at most 256 recent new records, so heavy notification traffic can skip older events; the saved records remain available on the Chat page.
 
 `-overlay` and `-overlay=false` override the switch for this launch without changing saved settings. Using the switch in the TUI saves it. Use `-overlay-executable /path/to/arcana-world-overlay` for an executable in another location. The standalone appearance options above do not apply when the main program manages the overlay.
 
-Saved values are not changed when defaults change. Restore default settings resets the entire Settings page, including the overlay, while keeping OBS configuration, its password, and Bilibili login information. Restore default appearance asks for confirmation, resets only overlay appearance while keeping its content mode and enabled state, and shows a completion message.
+Saved values are not changed when defaults change. Restore default settings resets application preferences, overlay settings, TTS voice, and event selections while keeping OBS configuration, its password, and Bilibili login information. Restore default appearance asks for confirmation, resets only overlay appearance while keeping its content mode and enabled state, and shows a completion message.
 
 ## Build and launch
 

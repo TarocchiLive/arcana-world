@@ -8,7 +8,8 @@ Versions are listed newest first. v0.1.5 is reserved for the next release and ha
 
 ### Added
 
-- Add Edge TTS synthesis and MP3 playback through a single `arcana-world-tts` helper. TUI controls and automatic chat reading are not connected yet.
+- Connect Edge TTS synthesis and MP3 playback to a dedicated TTS tab with on/off, preview, and queue-clearing controls. Offer 10 Chinese voices in Settings.
+- Give Overlay and TTS separate tabs and independent selections for all 23 default-visible event types, selected by default. Declare Chinese overlay and speech templates in code. Speak only new events and cancel old playback when the account, room, voice, or listening state changes.
 - Synthesize and play messages serially, with five waiting slots by default and new messages dropped when full. Support cancelling playback, clearing the queue, and submitting new messages after stopping.
 - Add `make tts`, a Nix speech development shell, and a companion package. Include the speech program in `make desktop` and release bundles while keeping the standalone TUI independent of audio runtimes.
 
@@ -18,9 +19,9 @@ Versions are listed newest first. v0.1.5 is reserved for the next release and ha
 - Show a new-message banner at the top while paused or browsing history. Press `Space` or `End` to return to the latest messages.
 - Provide Flake build, application, and check outputs with pinned build dependencies.
 - Use `nix develop` (or `nix develop .#arcana-world`) for the independent TUI environment, and `nix develop .#arcana-world-overlay` for overlay development. The Wayland build tag is enabled automatically on Linux. Development uses Go modules without generating `vendor/`.
-- Manage the native overlay from Settings, with runtime on/off controls, saved appearance, and room-status, live-chat, or combined content. CLI flags can override the enabled state for one launch.
+- Manage the native overlay from its dedicated tab, with runtime on/off controls, saved appearance, and room-status, live-event, or combined content. CLI flags can override the enabled state for one launch.
 - Add `make desktop` and a Nix desktop package. Unify cross-platform releases into portable bundles with the main executable at the root and the overlay under `libexec`, while retaining TUI-only development builds.
-- Add Restore default settings and Clear application data at the bottom of Settings. Reset affects only Settings-page preferences and keeps OBS configuration and credentials. Clearing requires `arcanaworldclear`, closes background resources, deletes application files and credentials for the current data directory, and exits. Incorrect input returns to Settings.
+- Add Restore default settings and Clear application data at the bottom of Settings. Reset restores application preferences, overlay settings, TTS voice, and event selections while keeping OBS configuration and credentials. Clearing requires `arcanaworldclear`, closes background resources, deletes application files and credentials for the current data directory, and exits. Incorrect input returns to Settings.
 
 ### Changed
 
