@@ -197,14 +197,12 @@ func (s *Store) Save(a domain.Account) error {
 	if !found {
 		c.Accounts = append(c.Accounts, domain.AccountInfo{UID: a.UID, Name: a.Name})
 	}
-	if err = s.backend.Set(s.service, user, string(data)); err != nil {
-		return secretError(i18n.T(i18n.StoreSaveAccountCredentials), err)
-	}
-	if err = s.persist(c); err != nil {
-		return s.rollback(user, old, exists, err)
-	}
-	s.config = c
-	return nil
+	return s.commitCredentialsLocked(c, user, old, exists, func() error {
+		if err := s.backend.Set(s.service, user, string(data)); err != nil {
+			return secretError(i18n.T(i18n.StoreSaveAccountCredentials), err)
+		}
+		return nil
+	})
 }
 func (s *Store) Delete(uid string) error {
 	s.mu.Lock()
@@ -229,18 +227,33 @@ func (s *Store) Delete(uid string) error {
 	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return secretError(i18n.T(i18n.StoreReadCredentialsBeforeDeletion), err)
 	}
+	var change func() error
 	if exists {
-		if err = s.backend.Delete(s.service, user); err != nil {
-			return secretError(i18n.T(i18n.StoreDeleteAccountCredentials), err)
+		change = func() error {
+			if err := s.backend.Delete(s.service, user); err != nil {
+				return secretError(i18n.T(i18n.StoreDeleteAccountCredentials), err)
+			}
+			return nil
 		}
 	}
 	c.Accounts = append(c.Accounts[:index], c.Accounts[index+1:]...)
 	if c.ActiveUID == uid {
 		c.ActiveUID = ""
 	}
-	if err = s.persist(c); err != nil {
-		if exists {
-			return s.rollback(user, old, true, err)
+	return s.commitCredentialsLocked(c, user, old, exists, change)
+}
+
+// commitCredentialsLocked 在凭据变更和索引持久化都成功后发布配置。
+// change 为 nil 表示凭据原本不存在，不执行变更或补偿。
+func (s *Store) commitCredentialsLocked(c domain.Config, user, old string, exists bool, change func() error) error {
+	if change != nil {
+		if err := change(); err != nil {
+			return err
+		}
+	}
+	if err := s.persist(c); err != nil {
+		if change != nil {
+			return s.rollback(user, old, exists, err)
 		}
 		return err
 	}

@@ -49,14 +49,14 @@ func TestLiveMenuFollowsRoomResultsAndKeepsSelection(t *testing.T) {
 
 	for _, step := range []struct {
 		name   string
-		result resultMsg
+		result taskMessage
 		want   string
 	}{
-		{"offline refresh", resultMsg{kind: "refresh", value: domain.Room{ID: 1, AreaID: 1}}, "start"},
-		{"start", resultMsg{kind: "start", value: app.StartOutcome{}}, "stop"},
-		{"stop", resultMsg{kind: "stop", value: app.StopOutcome{}}, "start"},
-		{"online refresh", resultMsg{kind: "refresh", value: domain.Room{ID: 1, AreaID: 1, Live: true}}, "stop"},
-		{"offline refresh after online", resultMsg{kind: "refresh", value: domain.Room{ID: 1, AreaID: 1}}, "start"},
+		{"offline refresh", taskResult[domain.Room]{operation: refreshOperation(), value: domain.Room{ID: 1, AreaID: 1}}, "start"},
+		{"start", taskResult[app.StartOutcome]{operation: startOperation(), value: app.StartOutcome{}}, "stop"},
+		{"stop", taskResult[app.StopOutcome]{operation: stopOperation(), value: app.StopOutcome{}}, "start"},
+		{"online refresh", taskResult[domain.Room]{operation: refreshOperation(), value: domain.Room{ID: 1, AreaID: 1, Live: true}}, "stop"},
+		{"offline refresh after online", taskResult[domain.Room]{operation: refreshOperation(), value: domain.Room{ID: 1, AreaID: 1}}, "start"},
 	} {
 		t.Run(step.name, func(t *testing.T) {
 			m.Update(step.result)

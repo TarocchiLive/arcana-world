@@ -10,7 +10,7 @@ import (
 
 func (m *Model) resetSettings() tea.Cmd {
 	account := m.account
-	return m.work("settings-reset", func(ctx context.Context) (any, error) {
+	return work(m, settingsResetOperation(), func(ctx context.Context) (*bili.Client, error) {
 		if err := m.session.Lock(ctx); err != nil {
 			return nil, err
 		}
@@ -33,14 +33,18 @@ func (m *Model) resetSettings() tea.Cmd {
 
 // OBS settings are committed under the session gate before disconnecting.
 func (m *Model) saveOBSSetting(kind string, save func() error) tea.Cmd {
-	return m.work(kind, func(ctx context.Context) (any, error) {
+	op := obsURLOperation
+	if kind == "obs-password" {
+		op = obsPasswordOperation
+	}
+	return work(m, op, func(ctx context.Context) (struct{}, error) {
 		if err := m.session.Lock(ctx); err != nil {
-			return nil, err
+			return struct{}{}, err
 		}
 		defer m.session.Unlock()
 		if err := save(); err != nil {
-			return nil, err
+			return struct{}{}, err
 		}
-		return nil, m.obsClient.Disconnect()
+		return struct{}{}, m.obsClient.Disconnect()
 	})
 }

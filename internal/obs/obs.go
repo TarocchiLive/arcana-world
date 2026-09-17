@@ -251,18 +251,21 @@ func (c *Client) dropLocked(err error) {
 	}
 	c.publishLocked()
 }
-func (c *Client) Disconnect() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return nil
-	}
+func (c *Client) invalidateLocked() {
 	c.generation++
 	if c.cancel != nil {
 		c.cancel()
 		c.cancel = nil
 	}
 	c.dropLocked(nil)
+}
+func (c *Client) Disconnect() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
+	c.invalidateLocked()
 	return nil
 }
 func (c *Client) Close() error {
@@ -272,12 +275,7 @@ func (c *Client) Close() error {
 		return nil
 	}
 	c.closed = true
-	c.generation++
-	if c.cancel != nil {
-		c.cancel()
-		c.cancel = nil
-	}
-	c.dropLocked(nil)
+	c.invalidateLocked()
 	close(c.events)
 	return nil
 }

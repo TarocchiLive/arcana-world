@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"arcana-world/internal/app"
 	"arcana-world/internal/bili"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
@@ -111,7 +112,7 @@ func (m *Model) perform(action string) tea.Cmd {
 	}
 	if strings.HasPrefix(action, "delete:") {
 		uid, client := strings.TrimPrefix(action, "delete:"), m.client
-		return m.work("delete", func(ctx context.Context) (any, error) { return m.session.Delete(ctx, client, uid) })
+		return work(m, deleteOperation(), func(ctx context.Context) (app.AccountOutcome, error) { return m.session.Delete(ctx, client, uid) })
 	}
 	switch action {
 	case "settings-reset-confirm":
@@ -140,7 +141,7 @@ func (m *Model) perform(action string) tea.Cmd {
 		cfg.DanmakuDisabled = true
 		return m.saveConfig(cfg, false)
 	case "login":
-		return m.work("qr", func(ctx context.Context) (any, error) { return m.client.GenerateQR(ctx) })
+		return work(m, qrOperation(), func(ctx context.Context) (domain.QR, error) { return m.client.GenerateQR(ctx) })
 	case "refresh":
 		if m.account == nil {
 			m.log(i18n.T(i18n.TUIStatusSignInRequired))
@@ -209,10 +210,10 @@ func (m *Model) perform(action string) tea.Cmd {
 		}
 		roomID := m.room.ID
 		local := m.store.Config().RecentAreas
-		return m.work("areas", func(ctx context.Context) (any, error) {
+		return work(m, areasOperation(), func(ctx context.Context) (areaCatalog, error) {
 			all, err := m.client.Areas(ctx)
 			if err != nil {
-				return nil, err
+				return areaCatalog{}, err
 			}
 			recent, historyErr := m.client.RecentAreas(ctx, roomID, all)
 			return areaCatalog{all: all, recent: append(recent, local...), historyErr: historyErr}, nil
@@ -221,7 +222,7 @@ func (m *Model) perform(action string) tea.Cmd {
 		if !m.requireRoom() {
 			return nil
 		}
-		return m.work("delay", func(ctx context.Context) (any, error) { return m.client.TimeShift(ctx) })
+		return work(m, delayOperation(), func(ctx context.Context) (int, error) { return m.client.TimeShift(ctx) })
 	case "delete-pick":
 		m.choices = nil
 		for _, a := range m.store.Accounts() {
@@ -270,11 +271,11 @@ func (m *Model) perform(action string) tea.Cmd {
 	return nil
 }
 func (m *Model) refresh() tea.Cmd {
-	return m.work("refresh", func(ctx context.Context) (any, error) { return m.client.Room(ctx) })
+	return work(m, refreshOperation(), func(ctx context.Context) (domain.Room, error) { return m.client.Room(ctx) })
 }
 func (m *Model) loadAccount(uid string) tea.Cmd {
 	client := m.client
-	return m.work("account", func(ctx context.Context) (any, error) { return m.session.Switch(ctx, client, uid, nil) })
+	return work(m, accountOperation(), func(ctx context.Context) (app.AccountOutcome, error) { return m.session.Switch(ctx, client, uid, nil) })
 }
 func (m *Model) saveLogin(a domain.Account) tea.Cmd {
 	uid := a.UID
@@ -289,7 +290,7 @@ func (m *Model) saveLogin(a domain.Account) tea.Cmd {
 }
 func (m *Model) commitLogin(a domain.Account) tea.Cmd {
 	client := m.client
-	return m.work("login-save", func(ctx context.Context) (any, error) { return m.session.Switch(ctx, client, "", &a) })
+	return work(m, loginSaveOperation(), func(ctx context.Context) (app.AccountOutcome, error) { return m.session.Switch(ctx, client, "", &a) })
 }
 func (m *Model) form(kind, prompt, value string, secret bool) tea.Cmd {
 	m.mode = "form"
@@ -350,18 +351,12 @@ func (m *Model) choose() tea.Cmd {
 func (m *Model) setArea(a domain.Area) tea.Cmd {
 	room := m.room.ID
 	cfg := m.store.Config()
-	return m.work("area", func(ctx context.Context) (any, error) {
+	return work(m, areaOperation(), func(ctx context.Context) (*domain.Area, error) {
 		if err := m.client.SetArea(ctx, room, a.ID); err != nil {
 			return nil, err
 		}
-		recent := []domain.Area{a}
-		for _, old := range cfg.RecentAreas {
-			if old.ID != a.ID && len(recent) < recentAreaLimit {
-				recent = append(recent, old)
-			}
-		}
-		cfg.RecentAreas = recent
-		return editResult{kind: "area", area: &a}, m.store.SaveConfig(cfg)
+		cfg.RecentAreas = prependRecent(cfg.RecentAreas, a, recentAreaLimit, func(a domain.Area) int64 { return a.ID })
+		return &a, m.store.SaveConfig(cfg)
 	})
 }
 func (m *Model) submitForm() tea.Cmd {
@@ -421,17 +416,17 @@ func (m *Model) submitForm() tea.Cmd {
 	switch kind {
 	case "announcement":
 		room := m.room.ID
-		return m.work("announcement", func(ctx context.Context) (any, error) {
+		return work(m, announcementOperation(), func(ctx context.Context) (*string, error) {
 			if err := m.client.SetAnnouncement(ctx, room, value); err != nil {
 				return nil, err
 			}
-			return editResult{kind: "announcement", value: value}, nil
+			return &value, nil
 		})
 	case "cover-path":
 		return m.prepareCover(value)
 	case "delay":
 		n, _ := strconv.Atoi(value)
-		return m.work("delay-set", func(ctx context.Context) (any, error) { return nil, m.client.SetTimeShift(ctx, n) })
+		return work(m, delaySetOperation, func(ctx context.Context) (struct{}, error) { return struct{}{}, m.client.SetTimeShift(ctx, n) })
 	case "obs-password":
 		return m.saveOBSSetting(kind, func() error { return m.store.SetOBSSecret(value) })
 	case "obs-url":
@@ -447,7 +442,7 @@ func (m *Model) submitForm() tea.Cmd {
 }
 func (m *Model) saveConfig(cfg domain.Config, replaceClient bool) tea.Cmd {
 	account := m.account
-	return m.work("config", func(ctx context.Context) (any, error) {
+	return work(m, configOperation(), func(ctx context.Context) (*bili.Client, error) {
 		if err := m.session.Lock(ctx); err != nil {
 			return nil, err
 		}
@@ -503,17 +498,30 @@ func (m *Model) updateSelection(msg tea.Msg) tea.Cmd {
 func (m *Model) setTitle(value string) tea.Cmd {
 	room := m.room.ID
 	cfg := m.store.Config()
-	return m.work("title", func(ctx context.Context) (any, error) {
+	return work(m, titleOperation(), func(ctx context.Context) (*string, error) {
 		if err := m.client.SetTitle(ctx, room, value); err != nil {
 			return nil, err
 		}
-		titles := []string{value}
-		for _, s := range cfg.RecentTitles {
-			if s != value && len(titles) < recentTitleLimit {
-				titles = append(titles, s)
-			}
-		}
-		cfg.RecentTitles = titles
-		return editResult{kind: "title", value: value}, m.store.SaveConfig(cfg)
+		cfg.RecentTitles = prependRecent(cfg.RecentTitles, value, recentTitleLimit, func(s string) string { return s })
+		return &value, m.store.SaveConfig(cfg)
 	})
+}
+
+// prependRecent preserves all other entries, including their duplicates.
+func prependRecent[T any, K comparable](history []T, value T, limit int, identity func(T) K) []T {
+	if limit <= 0 {
+		return nil
+	}
+	recent := make([]T, 1, min(limit, len(history)+1))
+	recent[0] = value
+	key := identity(value)
+	for _, old := range history {
+		if len(recent) == limit {
+			break
+		}
+		if identity(old) != key {
+			recent = append(recent, old)
+		}
+	}
+	return recent
 }

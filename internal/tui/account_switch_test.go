@@ -83,7 +83,7 @@ func TestAccountSwitchConfirmationCoversSavedAndQRAccounts(t *testing.T) {
 		t.Fatal("cancel changed identity or broadcast")
 	}
 	m.mode = "qr"
-	cmd := m.result(resultMsg{kind: "poll", value: domain.LoginPoll{Code: 0, Account: &target}})
+	cmd := (taskResult[domain.LoginPoll]{operation: pollOperation(), value: domain.LoginPoll{Code: 0, Account: &target}}).apply(m)
 	if cmd != nil || m.mode != "confirm" {
 		t.Fatal("QR login bypassed switch confirmation")
 	}
@@ -92,12 +92,12 @@ func TestAccountSwitchConfirmationCoversSavedAndQRAccounts(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("confirmed login did not run")
 	}
-	result := cmd().(resultMsg)
-	if result.err != nil {
-		t.Fatal(result.err)
+	result := cmd().(taskMessage)
+	if result.taskError() != nil {
+		t.Fatal(result.taskError())
 	}
 	m.busy = false
-	m.result(result)
+	result.apply(m)
 	if m.account.UID != "7" || m.store.Config().ActiveUID != "7" || stops.Load() != 1 || state.active.Load() || state.stops.Load() != 1 {
 		t.Fatal("confirmed switch did not stop old live/OBS streams and commit new identity")
 	}
@@ -107,12 +107,12 @@ func TestAccountSwitchFailureRetainsFreshOldRoomAndIdentity(t *testing.T) {
 	m, target, stops, _ := switchModel(t, "/room/v1/Room/stopLive")
 	m.perform("account:" + target.UID)
 	m.selected = 1
-	result := m.modalKey(tea.KeyMsg{Type: tea.KeyEnter})().(resultMsg)
-	if result.err == nil {
+	result := m.modalKey(tea.KeyMsg{Type: tea.KeyEnter})().(taskMessage)
+	if result.taskError() == nil {
 		t.Fatal("failed remote stop accepted")
 	}
 	m.busy = false
-	m.result(result)
+	result.apply(m)
 	if m.store.Config().ActiveUID != "42" || m.account.UID != "42" {
 		t.Fatal("failed cleanup committed target identity")
 	}
@@ -127,8 +127,8 @@ func TestQueuedAccountSwitchCannotCommitAfterQuit(t *testing.T) {
 	m.selected = 1
 	queued := m.modalKey(tea.KeyMsg{Type: tea.KeyEnter})
 	m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-	result := queued().(resultMsg)
-	if result.err == nil || m.store.Config().ActiveUID != "42" || stops.Load() != 0 {
+	result := queued().(taskMessage)
+	if result.taskError() == nil || m.store.Config().ActiveUID != "42" || stops.Load() != 0 {
 		t.Fatal("queued account switch escaped quit barrier")
 	}
 }
@@ -138,12 +138,12 @@ func TestAccountSwitchSaveFailureKeepsConfirmedStopVisible(t *testing.T) {
 	secrets.reject = true
 	m.perform("account:" + target.UID)
 	m.selected = 1
-	result := m.modalKey(tea.KeyMsg{Type: tea.KeyEnter})().(resultMsg)
-	if result.err == nil {
+	result := m.modalKey(tea.KeyMsg{Type: tea.KeyEnter})().(taskMessage)
+	if result.taskError() == nil {
 		t.Fatal("credential failure accepted")
 	}
 	m.busy = false
-	m.result(result)
+	result.apply(m)
 	if m.account.UID != "42" || m.store.Config().ActiveUID != "42" {
 		t.Fatal("failed save changed active identity")
 	}

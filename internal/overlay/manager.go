@@ -11,10 +11,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
+
+	"arcana-world/internal/helperpath"
 )
 
 const (
@@ -49,15 +50,10 @@ type Manager struct {
 
 // Resolve the real installation directory, not the working directory or a launcher symlink.
 func bundledExecutable(executable string) (string, error) {
-	executable, err := filepath.EvalSymlinks(executable)
+	path, err := helperpath.Installed(executable, "arcana-world-overlay")
 	if err != nil {
 		return "", fmt.Errorf("overlay: resolving application path: %w", err)
 	}
-	name := "arcana-world-overlay"
-	if runtime.GOOS == "windows" {
-		name += ".exe"
-	}
-	path := filepath.Join(filepath.Dir(executable), "libexec", name)
 	info, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("overlay: bundled executable %q is missing; extract the complete portable package again: %w", path, err)
@@ -106,25 +102,30 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+	var listener *net.UnixListener
+	transferred := false
+	defer func() {
+		if transferred {
+			return
+		}
+		if listener != nil {
+			_ = listener.Close()
+		}
+		_ = os.RemoveAll(directory)
+	}()
 	socketPath := filepath.Join(directory, "s")
 	if len(socketPath) >= socketPathLimit {
-		_ = os.RemoveAll(directory)
 		return nil, fmt.Errorf("overlay: runtime directory produces a Unix socket path of %d bytes (must be below %d)", len(socketPath), socketPathLimit)
 	}
-	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socketPath, Net: "unix"})
+	listener, err = net.ListenUnix("unix", &net.UnixAddr{Name: socketPath, Net: "unix"})
 	if err != nil {
-		_ = os.RemoveAll(directory)
 		return nil, fmt.Errorf("overlay: Unix sockets require a supported OS (Windows 10 1803 or newer): %w", err)
 	}
 	if err = secureSocket(socketPath); err != nil {
-		_ = listener.Close()
-		_ = os.RemoveAll(directory)
 		return nil, err
 	}
 	var secret [32]byte
 	if _, err = rand.Read(secret[:]); err != nil {
-		_ = listener.Close()
-		_ = os.RemoveAll(directory)
 		return nil, err
 	}
 	token := hex.EncodeToString(secret[:])
@@ -141,8 +142,6 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 	cmd.Stderr = diagnostics
 	cmd.WaitDelay = options.ShutdownTimeout
 	if err = cmd.Start(); err != nil {
-		_ = listener.Close()
-		_ = os.RemoveAll(directory)
 		return nil, fmt.Errorf("overlay: starting child: %w", err)
 	}
 	childDone := make(chan struct{})
@@ -152,6 +151,7 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 	manager := &Manager{cfg: cfg, done: make(chan struct{}), dirty: make(chan struct{}, 1), cancel: cancel}
 	ready := make(chan struct{})
 	go manager.manage(managedCtx, options, listener, directory, cmd, childDone, &childErr, diagnostics, token, ready)
+	transferred = true // manage now owns the listener, directory, and child.
 	select {
 	case <-ready:
 		if err := ctx.Err(); err != nil {

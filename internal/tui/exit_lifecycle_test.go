@@ -154,9 +154,9 @@ func TestExitRefreshesCommittedAccountAndSkipsOfflineOrAbsentAccount(t *testing.
 				if mode == "deleted" {
 					m.account = &account
 					m.client.SetAccount(account)
-					queued := m.perform("delete:" + account.UID)().(resultMsg)
-					if queued.err != nil {
-						t.Fatal(queued.err)
+					queued := m.perform("delete:" + account.UID)().(taskMessage)
+					if queued.taskError() != nil {
+						t.Fatal(queued.taskError())
 					}
 					// Deletion itself closes the old broadcast before removing identity.
 					if stops.Load() != 1 {

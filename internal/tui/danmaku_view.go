@@ -21,17 +21,17 @@ func (m *Model) chatStatus() string {
 	}
 	key := i18n.DanmakuWaiting
 	switch c.state.Phase {
-	case "disabled":
+	case danmaku.PhaseDisabled:
 		key = i18n.DanmakuDisabled
-	case "connecting":
+	case danmaku.PhaseConnecting:
 		key = i18n.DanmakuConnecting
-	case "connected":
+	case danmaku.PhaseConnected:
 		key = i18n.DanmakuConnected
-	case "reconnecting":
+	case danmaku.PhaseReconnecting:
 		key = i18n.DanmakuReconnecting
-	case "storage_error":
+	case danmaku.PhaseStorageError:
 		key = i18n.DanmakuStorageError
-	case "error":
+	case danmaku.PhaseError:
 		key = i18n.DanmakuError
 	}
 	return i18n.T(key)
@@ -50,7 +50,7 @@ func (m *Model) chatHeader(more bool) string {
 		return i18n.T(key) + strings.TrimSpace(state)
 	}
 	b.WriteString(strings.Join([]string{
-		toggle(i18n.DanmakuListening, c.state.Phase == "connected"),
+		toggle(i18n.DanmakuListening, c.state.Phase == danmaku.PhaseConnected),
 		toggle(i18n.DanmakuOther, c.showOther),
 		toggle(i18n.DanmakuFollowing, c.follow),
 		toggle(i18n.DanmakuToggle, !m.config.DanmakuDisabled),
@@ -60,7 +60,7 @@ func (m *Model) chatHeader(more bool) string {
 		room += " " + i18n.T(i18n.DanmakuNewMessages)
 	}
 	b.WriteString(ansi.Truncate(room, max(12, m.view.Width), "…") + "\n")
-	if c.state.Phase != "connected" && c.state.Phase != "disabled" && c.state.Phase != "" {
+	if c.state.Phase != danmaku.PhaseConnected && c.state.Phase != danmaku.PhaseDisabled && c.state.Phase != "" {
 		b.WriteString(m.chatStatus() + "\n")
 	}
 	if c.state.Err != nil {

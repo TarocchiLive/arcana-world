@@ -87,6 +87,19 @@ func assertRuntimeClean(t *testing.T, root string) {
 		t.Fatalf("socket directory remains after child exit: %v", entries)
 	}
 }
+func TestManagerFailedChildStartCleansRuntime(t *testing.T) {
+	options := helperOptions(t, "stop")
+	options.Executable = filepath.Join(t.TempDir(), "missing-overlay")
+	manager, err := Start(context.Background(), options)
+	if manager != nil {
+		_ = manager.Close()
+		t.Fatal("missing child executable started a manager")
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing child executable error=%v", err)
+	}
+	assertRuntimeClean(t, options.RuntimeDir)
+}
 func TestManagerNormalNativeStopAndConcurrentClose(t *testing.T) {
 	options := helperOptions(t, "stop")
 	manager, err := Start(context.Background(), options)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"arcana-world/internal/app"
 	"arcana-world/internal/i18n"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -150,12 +151,12 @@ func (m *Model) startLive() tea.Cmd {
 		return nil
 	}
 	room, cfg, client := *m.room, m.config, m.client
-	return m.work("start", func(ctx context.Context) (any, error) { return m.session.Start(ctx, client, room, cfg) })
+	return work(m, startOperation(), func(ctx context.Context) (app.StartOutcome, error) { return m.session.Start(ctx, client, room, cfg) })
 }
 func (m *Model) stopLive() tea.Cmd {
 	if !m.requireRoom() || m.obsBusy {
 		return nil
 	}
 	room, cfg, client := *m.room, m.config, m.client
-	return m.work("stop", func(ctx context.Context) (any, error) { return m.session.Stop(ctx, client, room, cfg) })
+	return work(m, stopOperation(), func(ctx context.Context) (app.StopOutcome, error) { return m.session.Stop(ctx, client, room, cfg) })
 }

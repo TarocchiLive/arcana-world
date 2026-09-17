@@ -240,7 +240,7 @@ func (m *Model) chatKey(key string) (bool, tea.Cmd) {
 		}
 		if c.listener != nil {
 			phase := c.listener.Snapshot().Phase
-			if phase == "error" || phase == "reconnecting" {
+			if phase == danmaku.PhaseError || phase == danmaku.PhaseReconnecting {
 				c.listener.Retry()
 			}
 		}

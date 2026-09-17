@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"image"
 	"strings"
 	"sync"
 	"time"
@@ -54,18 +53,8 @@ func pageNames() [pageCount]string {
 	}
 }
 
-type resultMsg struct {
-	id    int
-	kind  string
-	value any
-	err   error
-}
 type pollTick struct{ generation int }
 type choice struct{ label, value string }
-type editResult struct {
-	kind, value string
-	area        *domain.Area
-}
 
 type Model struct {
 	ctx                    context.Context
@@ -154,19 +143,7 @@ func (m *Model) Init() tea.Cmd {
 	}
 	return tea.Batch(cmds...)
 }
-func (m *Model) work(kind string, fn func(context.Context) (any, error)) tea.Cmd {
-	if m.busy {
-		return nil
-	}
-	m.busy = true
-	m.canceled = false
-	m.operation++
-	id := m.operation
-	ctx, cancel := context.WithTimeout(m.ctx, operationTimeout)
-	m.cancel = cancel
-	m.status = fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), operationName(kind))
-	return func() tea.Msg { defer cancel(); value, err := fn(ctx); return resultMsg{id, kind, value, err} }
-}
+
 func operationName(kind string) string {
 	switch kind {
 	case "cover-prepare":
@@ -291,17 +268,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.view.Width = max(12, m.width-4)
 		m.view.Height = max(3, m.height-10)
 		m.input.Width = max(10, m.width-10)
-	case resultMsg:
-		if msg.id != m.operation {
+	case taskMessage:
+		if msg.taskID() != m.operation {
 			return m, nil
 		}
 		m.busy = false
 		m.cancel = nil
-		return m, m.result(msg)
+		return m, msg.apply(m)
 	case pollTick:
 		if msg.generation == m.qrGeneration && m.mode == "qr" && !m.busy && m.qr != nil {
 			key := m.qr.Key
-			return m, m.work("poll", func(ctx context.Context) (any, error) { return m.client.PollQR(ctx, key) })
+			return m, work(m, pollOperation(), func(ctx context.Context) (domain.LoginPoll, error) { return m.client.PollQR(ctx, key) })
 		}
 	case tea.KeyMsg:
 		key := msg.String()
@@ -466,253 +443,6 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 	m.view.SetContent(m.content())
 	m.view, _ = m.view.Update(msg)
 	return nil
-}
-func (m *Model) result(r resultMsg) tea.Cmd {
-	if m.canceled {
-		switch r.kind {
-		case "qr", "poll", "face", "areas", "delay", "refresh", "cover-prepare", "cover-fetch":
-			m.log(i18n.T(i18n.TUIStatusOperationCanceled))
-			return nil
-		}
-	}
-	// 即使后续本地历史保存失败，也应用已确认的远程变更。
-	if edit, ok := r.value.(editResult); ok && m.room != nil {
-		switch edit.kind {
-		case "title":
-			m.room.Title = edit.value
-		case "announcement":
-			m.room.Announcement = edit.value
-		case "area":
-			m.room.AreaID = edit.area.ID
-			m.room.AreaName = edit.area.Name
-			m.room.ParentName = edit.area.Parent
-		}
-	}
-	if out, ok := r.value.(app.AccountOutcome); ok && out.OldRoom != nil {
-		m.room = out.OldRoom
-		if !m.room.Live {
-			m.stream = nil
-			m.reveal = false
-		}
-		m.obsState = m.obsClient.Snapshot()
-	}
-	if r.err != nil {
-		var face *domain.FaceChallenge
-		if errors.As(r.err, &face) && !m.canceled {
-			return m.work("face", func(ctx context.Context) (any, error) { return m.client.ResolveFace(ctx, face) })
-		}
-		if errors.Is(r.err, context.Canceled) {
-			m.log(i18n.T(i18n.TUIStatusRemoteCancelWarning))
-		} else {
-			m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationFailed), operationName(r.kind), r.err.Error()))
-		}
-		if r.kind == "poll" {
-			m.mode = ""
-			m.qr = nil
-			m.qrText = ""
-			m.qrGeneration++
-		}
-		if r.kind == "login-save" {
-			if m.canceled {
-				m.pendingAccount = nil
-			} else {
-				m.mode = "login-save"
-			}
-		}
-		if r.kind == "cover-prepare" || r.kind == "cover-fetch" {
-			m.mode = "cover"
-		}
-		return nil
-	}
-	m.config = m.store.Config()
-	switch r.kind {
-	case "settings-reset":
-		m.session.Release(m.client)
-		m.client = r.value.(*bili.Client)
-		m.overlayEnabled = m.config.Overlay.Enabled
-		if m.overlay != nil {
-			m.overlay.options.Config = m.config.Overlay.Config("")
-		}
-		m.syncChat()
-		m.log(i18n.T(i18n.TUISettingsResetDone))
-		return tea.Batch(m.stopOverlay(), m.updateOverlayChat())
-	case "overlay-config", "overlay-toggle", "overlay-restore":
-		if m.overlay == nil {
-			m.overlay = &overlayRuntime{state: "off"}
-		}
-		m.overlay.options.Config = m.config.Overlay.Config("")
-		if r.kind == "overlay-restore" {
-			m.log(i18n.T(i18n.TUIOverlayRestoreDone))
-		} else {
-			m.log(i18n.T(i18n.TUILogSettingsSaved))
-		}
-		var cmd tea.Cmd
-		if r.kind == "overlay-toggle" {
-			m.overlayEnabled = m.config.Overlay.Enabled
-			if m.overlayEnabled {
-				cmd = m.startOverlay()
-			} else {
-				cmd = m.stopOverlay()
-			}
-		}
-		return tea.Batch(cmd, m.updateOverlayChat())
-	case "cover-prepare":
-		m.cover = r.value.(*coverimage.Prepared)
-		m.mode = "cover-review"
-		m.view.GotoTop()
-		m.status = i18n.T(i18n.TUIStatusCoverProcessed)
-	case "cover-fetch":
-		return m.previewCover(r.value.(image.Image), i18n.T(i18n.TUICoverCurrentPreviewTitle))
-	case "cover-upload":
-		update := r.value.(bili.CoverUpdate)
-		m.room.CoverURL = update.URL
-		m.room.CoverStatus = update.Status
-		if update.Reason != "" {
-			m.room.CoverStatus += " · " + m.safe(update.Reason)
-		}
-		m.cover = nil
-		m.mode = "cover"
-		m.log(i18n.T(i18n.TUILogCoverSubmitted) + m.room.CoverStatus)
-	case "account", "login-save":
-		a := r.value.(app.AccountOutcome)
-		m.account = &a.Account
-		m.session.Release(m.client)
-		m.client = a.Client
-		m.syncChat()
-		m.room = nil
-		m.stream = nil
-		m.reveal = false
-		m.pendingAccount = nil
-		m.mode = ""
-		m.qr = nil
-		m.qrText = ""
-		m.qrGeneration++
-		m.log(i18n.T(i18n.TUILogAccountSwitched) + a.Account.Name + " / " + a.Account.UID)
-		return m.refresh()
-	case "refresh":
-		room := r.value.(domain.Room)
-		m.room = &room
-		if !room.Live {
-			m.stream = nil
-			m.reveal = false
-		}
-		m.log(i18n.T(i18n.TUILogRoomRefreshed))
-	case "qr":
-		qr := r.value.(domain.QR)
-		m.qr = &qr
-		m.mode = "qr"
-		m.qrGeneration++
-		m.qrText = renderQR(qr.URL)
-		m.view.GotoTop()
-		m.status = i18n.T(i18n.TUIStatusScanQR)
-		return m.nextPoll()
-	case "poll":
-		if m.mode != "qr" {
-			return nil
-		}
-		poll := r.value.(domain.LoginPoll)
-		switch poll.Code {
-		case 0:
-			if poll.Account == nil {
-				m.log(i18n.T(i18n.TUILogLoginCredentialsMissing))
-				m.mode = ""
-				return nil
-			}
-			m.pendingAccount = poll.Account
-			m.qr = nil
-			m.qrText = ""
-			m.qrGeneration++
-			return m.saveLogin(*poll.Account)
-		case 86101:
-			m.status = i18n.T(i18n.TUIStatusWaitingQR)
-		case 86090:
-			m.status = i18n.T(i18n.TUIStatusConfirmLogin)
-		case 86038:
-			m.log(i18n.T(i18n.TUILogQRExpired))
-			m.mode = ""
-			m.qr = nil
-			m.qrText = ""
-			return nil
-		default:
-			m.log(fmt.Sprintf(i18n.T(i18n.TUILogLoginStatusUnexpected), poll.Code))
-			m.mode = ""
-			return nil
-		}
-		return m.nextPoll()
-	case "start":
-		outcome := r.value.(app.StartOutcome)
-		s := outcome.Stream
-		m.stream = &s
-		m.reveal = false
-		if m.room != nil {
-			m.room.Live = true
-		}
-		m.log(i18n.T(i18n.TUILogLiveStarted))
-		if outcome.OBSStarted {
-			m.log(i18n.T(i18n.TUILogLiveOBSStarted))
-		} else if outcome.OBSConfigured {
-			m.log(i18n.T(i18n.TUILogLiveOBSConfigured))
-		}
-		if outcome.OBSErr != nil {
-			m.log(i18n.T(i18n.TUILogLiveOBSFailed) + outcome.OBSErr.Error())
-		}
-		if s.Warning != "" {
-			m.log(s.Warning)
-		}
-	case "stop":
-		if m.room != nil {
-			m.room.Live = false
-		}
-		m.stream = nil
-		m.reveal = false
-		m.log(i18n.T(i18n.TUILogLiveStopped))
-		if outcome, ok := r.value.(app.StopOutcome); ok {
-			if outcome.OBSStopped {
-				m.log(i18n.T(i18n.TUILogLiveOBSStopped))
-			}
-		}
-	case "face":
-		m.faceURL = r.value.(string)
-		m.qrText = renderQR(m.faceURL)
-		m.mode = "face"
-		m.view.GotoTop()
-		m.status = i18n.T(i18n.TUIStatusIdentityRequired)
-	case "areas":
-		catalog := r.value.(areaCatalog)
-		m.selection = newAreaSelection(catalog.all, catalog.recent, m.room.AreaID)
-		m.mode = "selection"
-		m.view.GotoTop()
-		m.status = i18n.T(i18n.TUIStatusCategorySelectHint)
-		if catalog.historyErr != nil {
-			m.log(i18n.T(i18n.TUILogRecentCategoriesFailed) + catalog.historyErr.Error())
-		}
-		return m.selection.Init()
-	case "delay":
-		return m.form("delay", i18n.T(i18n.TUIFormDelay), fmt.Sprint(r.value.(int)), false)
-	case "delete":
-		out := r.value.(app.AccountOutcome)
-		if out.Client != nil {
-			m.account = nil
-			m.room = nil
-			m.stream = nil
-			m.reveal = false
-			m.session.Release(m.client)
-			m.client = out.Client
-			m.syncChat()
-		}
-		m.log(i18n.T(i18n.TUILogAccountRemoved))
-	case "config":
-		if c, ok := r.value.(*bili.Client); ok {
-			m.session.Release(m.client)
-			m.client = c
-		}
-		m.log(i18n.T(i18n.TUILogSettingsSaved))
-		m.syncChat()
-	default:
-		m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationSucceeded), operationName(r.kind)))
-	}
-	m.view.SetContent(m.content())
-	return m.updateOverlayChat()
 }
 func (m *Model) nextPoll() tea.Cmd {
 	id := m.qrGeneration

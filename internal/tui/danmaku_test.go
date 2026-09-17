@@ -45,9 +45,9 @@ func runChatCommand(m *Model, cmd tea.Cmd) {
 		switch msg := cmd().(type) {
 		case chatPageMsg:
 			cmd = m.applyChatPage(msg)
-		case resultMsg:
+		case taskMessage:
 			m.busy = false
-			cmd = m.result(msg)
+			cmd = msg.apply(m)
 		default:
 			return
 		}

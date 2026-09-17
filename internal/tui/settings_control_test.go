@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"arcana-world/internal/bili"
 	"context"
 	"errors"
 	"io"
@@ -58,9 +59,9 @@ func TestResetSettingsRequiresConfirmationAndKeepsOBS(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("confirmed reset did not run")
 	}
-	msg := cmd().(resultMsg)
-	if msg.err != nil {
-		t.Fatal(msg.err)
+	msg := cmd().(taskMessage)
+	if msg.taskError() != nil {
+		t.Fatal(msg.taskError())
 	}
 	m.Update(msg)
 	got, defaults := m.store.Config(), store.DefaultConfig()
@@ -105,9 +106,9 @@ func TestResetSettingsClosesPreviousIdleConnections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	msg := m.resetSettings()().(resultMsg)
-	if msg.err != nil {
-		t.Fatal(msg.err)
+	msg := m.resetSettings()().(taskMessage)
+	if msg.taskError() != nil {
+		t.Fatal(msg.taskError())
 	}
 	m.Update(msg)
 	select {
@@ -169,7 +170,7 @@ func TestClearDataRequiresExactPhraseAndClosesBeforeDeletion(t *testing.T) {
 	if err := m.Close(); err != nil {
 		t.Fatal(err)
 	}
-	m.Update(resultMsg{kind: "config"})
+	m.Update(taskResult[*bili.Client]{operation: configOperation()})
 	if _, err := os.Stat(configPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("late update or repeated close recreated cleared data")
 	}
@@ -229,9 +230,9 @@ func TestRestoreOverlayAppearanceRequiresConfirmationAndKeepsContent(t *testing.
 	if cmd == nil {
 		t.Fatal("confirmed appearance restore did not save")
 	}
-	msg := cmd().(resultMsg)
-	if msg.err != nil {
-		t.Fatal(msg.err)
+	msg := cmd().(taskMessage)
+	if msg.taskError() != nil {
+		t.Fatal(msg.taskError())
 	}
 	m.Update(msg)
 	want := cfg

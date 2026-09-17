@@ -12,24 +12,51 @@ import (
 )
 
 type overlaySettingField struct {
-	key   string
-	label i18n.Key
-	value string
+	key    string
+	label  i18n.Key
+	read   func(overlay.Settings) string
+	assign func(*overlay.Settings, string) error
 }
 
-func overlayFields(s overlay.Settings) []overlaySettingField {
-	n := func(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
-	return []overlaySettingField{
-		{"content", i18n.TUIOverlayContent, overlayContentLabel(s.Content)},
-		{"anchor", i18n.TUIOverlayAnchor, overlayAnchorLabel(string(s.Position.Anchor))},
-		{"x", i18n.TUIOverlayX, n(s.Position.X)}, {"y", i18n.TUIOverlayY, n(s.Position.Y)},
-		{"width", i18n.TUIOverlayWidth, n(s.Width)}, {"height", i18n.TUIOverlayHeight, n(s.Height)},
-		{"padding-top", i18n.TUIOverlayPaddingTop, n(s.Padding.Top)}, {"padding-right", i18n.TUIOverlayPaddingRight, n(s.Padding.Right)},
-		{"padding-bottom", i18n.TUIOverlayPaddingBottom, n(s.Padding.Bottom)}, {"padding-left", i18n.TUIOverlayPaddingLeft, n(s.Padding.Left)},
-		{"font-family", i18n.TUIOverlayFontFamily, s.Font.Family}, {"font-size", i18n.TUIOverlayFontSize, n(s.Font.Size)},
-		{"font-weight", i18n.TUIOverlayFontWeight, strconv.Itoa(s.Font.Weight)}, {"italic", i18n.TUIOverlayItalic, toggleLabel("", s.Font.Italic)},
-		{"text-alpha", i18n.TUIOverlayTextAlpha, n(s.TextAlpha)}, {"background-alpha", i18n.TUIOverlayBackgroundAlpha, n(s.BackgroundAlpha)},
-		{"display-id", i18n.TUIOverlayDisplayID, strconv.FormatUint(uint64(s.DisplayID), 10)}, {"output", i18n.TUIOverlayOutput, s.Output},
+// Ordinary fields own their parser and accessor. A nil assign marks a special
+// interaction handled explicitly by chooseOverlay.
+var overlayFields = [...]overlaySettingField{
+	{key: "content", label: i18n.TUIOverlayContent, read: func(s overlay.Settings) string { return overlayContentLabel(s.Content) }},
+	{key: "anchor", label: i18n.TUIOverlayAnchor, read: func(s overlay.Settings) string { return overlayAnchorLabel(string(s.Position.Anchor)) }},
+	overlayNumberField("x", i18n.TUIOverlayX, func(s overlay.Settings) float64 { return s.Position.X }, func(s *overlay.Settings, n float64) { s.Position.X = n }),
+	overlayNumberField("y", i18n.TUIOverlayY, func(s overlay.Settings) float64 { return s.Position.Y }, func(s *overlay.Settings, n float64) { s.Position.Y = n }),
+	overlayNumberField("width", i18n.TUIOverlayWidth, func(s overlay.Settings) float64 { return s.Width }, func(s *overlay.Settings, n float64) { s.Width = n }),
+	overlayNumberField("height", i18n.TUIOverlayHeight, func(s overlay.Settings) float64 { return s.Height }, func(s *overlay.Settings, n float64) { s.Height = n }),
+	overlayNumberField("padding-top", i18n.TUIOverlayPaddingTop, func(s overlay.Settings) float64 { return s.Padding.Top }, func(s *overlay.Settings, n float64) { s.Padding.Top = n }),
+	overlayNumberField("padding-right", i18n.TUIOverlayPaddingRight, func(s overlay.Settings) float64 { return s.Padding.Right }, func(s *overlay.Settings, n float64) { s.Padding.Right = n }),
+	overlayNumberField("padding-bottom", i18n.TUIOverlayPaddingBottom, func(s overlay.Settings) float64 { return s.Padding.Bottom }, func(s *overlay.Settings, n float64) { s.Padding.Bottom = n }),
+	overlayNumberField("padding-left", i18n.TUIOverlayPaddingLeft, func(s overlay.Settings) float64 { return s.Padding.Left }, func(s *overlay.Settings, n float64) { s.Padding.Left = n }),
+	{key: "font-family", label: i18n.TUIOverlayFontFamily, read: func(s overlay.Settings) string { return s.Font.Family }, assign: func(s *overlay.Settings, value string) error { s.Font.Family = value; return nil }},
+	overlayNumberField("font-size", i18n.TUIOverlayFontSize, func(s overlay.Settings) float64 { return s.Font.Size }, func(s *overlay.Settings, n float64) { s.Font.Size = n }),
+	{key: "font-weight", label: i18n.TUIOverlayFontWeight, read: func(s overlay.Settings) string { return strconv.Itoa(s.Font.Weight) }, assign: func(s *overlay.Settings, value string) (err error) {
+		s.Font.Weight, err = strconv.Atoi(value)
+		return err
+	}},
+	{key: "italic", label: i18n.TUIOverlayItalic, read: func(s overlay.Settings) string { return toggleLabel("", s.Font.Italic) }},
+	overlayNumberField("text-alpha", i18n.TUIOverlayTextAlpha, func(s overlay.Settings) float64 { return s.TextAlpha }, func(s *overlay.Settings, n float64) { s.TextAlpha = n }),
+	overlayNumberField("background-alpha", i18n.TUIOverlayBackgroundAlpha, func(s overlay.Settings) float64 { return s.BackgroundAlpha }, func(s *overlay.Settings, n float64) { s.BackgroundAlpha = n }),
+	{key: "display-id", label: i18n.TUIOverlayDisplayID, read: func(s overlay.Settings) string { return strconv.FormatUint(uint64(s.DisplayID), 10) }, assign: func(s *overlay.Settings, value string) error {
+		n, err := strconv.ParseUint(value, 10, 32)
+		s.DisplayID, s.Output = uint32(n), ""
+		return err
+	}},
+	{key: "output", label: i18n.TUIOverlayOutput, read: func(s overlay.Settings) string { return s.Output }, assign: func(s *overlay.Settings, value string) error { s.Output, s.DisplayID = value, 0; return nil }},
+}
+
+func overlayNumberField(key string, label i18n.Key, get func(overlay.Settings) float64, set func(*overlay.Settings, float64)) overlaySettingField {
+	return overlaySettingField{
+		key: key, label: label,
+		read: func(s overlay.Settings) string { return strconv.FormatFloat(get(s), 'f', -1, 64) },
+		assign: func(s *overlay.Settings, value string) error {
+			n, err := strconv.ParseFloat(value, 64)
+			set(s, n)
+			return err
+		},
 	}
 }
 func overlayContentLabel(value string) string {
@@ -76,8 +103,8 @@ func (m *Model) performOverlay(action string) tea.Cmd {
 		return m.saveOverlay(s, "overlay-toggle")
 	case "overlay-settings":
 		m.choices = nil
-		for _, f := range overlayFields(s) {
-			m.choices = append(m.choices, choice{i18n.T(f.label) + ": " + clean(f.value), f.key})
+		for _, f := range overlayFields {
+			m.choices = append(m.choices, choice{i18n.T(f.label) + ": " + clean(f.read(s)), f.key})
 		}
 		m.choices = append(m.choices, choice{i18n.T(i18n.TUIOverlayRestore), "restore"})
 		return m.pick("overlay-fields", i18n.T(i18n.TUIOverlaySettings))
@@ -117,9 +144,9 @@ func (m *Model) chooseOverlay(value string) tea.Cmd {
 		case "restore":
 			return m.confirm(i18n.T(i18n.TUIOverlayRestoreConfirm), "overlay-restore")
 		}
-		for _, f := range overlayFields(s) {
+		for _, f := range overlayFields {
 			if f.key == value {
-				return m.form("overlay-"+value, i18n.T(f.label), f.value, false)
+				return m.form("overlay-"+value, i18n.T(f.label), f.read(s), false)
 			}
 		}
 	}
@@ -127,55 +154,18 @@ func (m *Model) chooseOverlay(value string) tea.Cmd {
 }
 func (m *Model) submitOverlay(kind, value string) tea.Cmd {
 	s := m.config.Overlay
-	var err error
-	switch strings.TrimPrefix(kind, "overlay-") {
-	case "font-family":
-		s.Font.Family = value
-	case "output":
-		s.Output = value
-		s.DisplayID = 0
-	case "display-id":
-		var n uint64
-		n, err = strconv.ParseUint(value, 10, 32)
-		s.DisplayID, s.Output = uint32(n), ""
-	case "font-weight":
-		s.Font.Weight, err = strconv.Atoi(value)
-	default:
-		var target *float64
-		switch kind {
-		case "overlay-x":
-			target = &s.Position.X
-		case "overlay-y":
-			target = &s.Position.Y
-		case "overlay-width":
-			target = &s.Width
-		case "overlay-height":
-			target = &s.Height
-		case "overlay-padding-top":
-			target = &s.Padding.Top
-		case "overlay-padding-right":
-			target = &s.Padding.Right
-		case "overlay-padding-bottom":
-			target = &s.Padding.Bottom
-		case "overlay-padding-left":
-			target = &s.Padding.Left
-		case "overlay-font-size":
-			target = &s.Font.Size
-		case "overlay-text-alpha":
-			target = &s.TextAlpha
-		case "overlay-background-alpha":
-			target = &s.BackgroundAlpha
+	key := strings.TrimPrefix(kind, "overlay-")
+	for _, field := range overlayFields {
+		if field.key != key || field.assign == nil {
+			continue
 		}
-		if target == nil {
+		if err := field.assign(&s, value); err != nil {
+			m.status = i18n.T(i18n.TUIOverlayInvalidNumber)
 			return nil
 		}
-		*target, err = strconv.ParseFloat(value, 64)
+		return m.saveOverlay(s, "overlay-config")
 	}
-	if err != nil {
-		m.status = i18n.T(i18n.TUIOverlayInvalidNumber)
-		return nil
-	}
-	return m.saveOverlay(s, "overlay-config")
+	return nil
 }
 func (m *Model) saveOverlay(settings overlay.Settings, kind string) tea.Cmd {
 	s, err := settings.Normalize()
@@ -186,13 +176,19 @@ func (m *Model) saveOverlay(settings overlay.Settings, kind string) tea.Cmd {
 	m.mode = ""
 	m.input.SetValue("")
 	m.input.Blur()
-	return m.work(kind, func(ctx context.Context) (any, error) {
+	op := overlayConfigOperation()
+	if kind == "overlay-toggle" {
+		op = overlayToggleOperation()
+	} else if kind == "overlay-restore" {
+		op = overlayRestoreOperation()
+	}
+	return work(m, op, func(ctx context.Context) (struct{}, error) {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return struct{}{}, err
 		}
 		// Read the latest store snapshot rather than overwriting unrelated account/settings changes.
 		cfg := m.store.Config()
 		cfg.Overlay = s
-		return nil, m.store.SaveConfig(cfg)
+		return struct{}{}, m.store.SaveConfig(cfg)
 	})
 }

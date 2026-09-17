@@ -12,6 +12,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"arcana-world/internal/helperpath"
 )
 
 const (
@@ -26,14 +28,10 @@ func resolveHelper(name, explicit string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("tts: locating application: %w", err)
 		}
-		executable, err = filepath.EvalSymlinks(executable)
+		path, err = helperpath.Installed(executable, name)
 		if err != nil {
 			return "", fmt.Errorf("tts: resolving application: %w", err)
 		}
-		if runtime.GOOS == "windows" {
-			name += ".exe"
-		}
-		path = filepath.Join(filepath.Dir(executable), "libexec", name)
 	} else {
 		var err error
 		path, err = filepath.Abs(path)
