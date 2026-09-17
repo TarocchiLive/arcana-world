@@ -3,6 +3,7 @@ package domain
 import (
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/overlay"
+	"arcana-world/internal/tts"
 )
 
 // Account 包含认证 Cookie，绝不能写入日志。
@@ -27,10 +28,12 @@ type Config struct {
 	ExitOBSStopDisabled  bool `json:"exit_obs_stop_disabled"`
 	ExitLiveStopDisabled bool `json:"exit_live_stop_disabled"`
 	// 默认启用；使用禁用字段使旧配置无需迁移即可自动监听。
-	DanmakuDisabled bool             `json:"danmaku_disabled"`
-	RecentTitles    []string         `json:"recent_titles"`
-	RecentAreas     []Area           `json:"recent_areas"`
-	Overlay         overlay.Settings `json:"overlay"`
+	DanmakuDisabled       bool             `json:"danmaku_disabled"`
+	RecentTitles          []string         `json:"recent_titles"`
+	RecentAreas           []Area           `json:"recent_areas"`
+	Overlay               overlay.Settings `json:"overlay"`
+	OverlayDisabledEvents []string         `json:"overlay_disabled_events,omitempty"`
+	TTS                   tts.Settings     `json:"tts"`
 }
 type Room struct {
 	ID           int64

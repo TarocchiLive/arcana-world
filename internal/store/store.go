@@ -15,6 +15,7 @@ import (
 
 	"arcana-world/internal/domain"
 	"arcana-world/internal/overlay"
+	"arcana-world/internal/tts"
 	"github.com/zalando/go-keyring"
 )
 
@@ -41,7 +42,7 @@ type Store struct {
 
 // DefaultConfig returns the defaults used for new profiles and settings resets.
 func DefaultConfig() domain.Config {
-	return domain.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", Overlay: overlay.DefaultSettings()}
+	return domain.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
 }
 
 func applyConnectionDefaults(c *domain.Config) {
@@ -106,6 +107,9 @@ func OpenWithBackend(dir string, backend Backend) (*Store, error) {
 	if s.config.Overlay, err = s.config.Overlay.Normalize(); err != nil {
 		return nil, err
 	}
+	if s.config.TTS, err = s.config.TTS.Normalize(); err != nil {
+		return nil, err
+	}
 	applyConnectionDefaults(&s.config)
 	seen := make(map[string]bool, len(s.config.Accounts))
 	for _, a := range s.config.Accounts {
@@ -122,6 +126,8 @@ func clone(c domain.Config) domain.Config {
 	c.Accounts = append([]domain.AccountInfo(nil), c.Accounts...)
 	c.RecentTitles = append([]string(nil), c.RecentTitles...)
 	c.RecentAreas = append([]domain.Area(nil), c.RecentAreas...)
+	c.OverlayDisabledEvents = append([]string(nil), c.OverlayDisabledEvents...)
+	c.TTS.DisabledEvents = append([]string(nil), c.TTS.DisabledEvents...)
 	return c
 }
 func (s *Store) Config() domain.Config          { s.mu.Lock(); defer s.mu.Unlock(); return clone(s.config) }
@@ -137,6 +143,10 @@ func (s *Store) SaveConfig(c domain.Config) error {
 	c.Accounts = s.config.Accounts
 	c = clone(c)
 	applyConnectionDefaults(&c)
+	var err error
+	if c.TTS, err = c.TTS.Normalize(); err != nil {
+		return err
+	}
 	if err := s.persist(c); err != nil {
 		return err
 	}
@@ -308,6 +318,9 @@ func (s *Store) persist(c domain.Config) error {
 		return errors.New(i18n.T(i18n.StoreCleared))
 	}
 	if _, err := c.Overlay.Normalize(); err != nil {
+		return err
+	}
+	if _, err := c.TTS.Normalize(); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(c, "", "  ")
