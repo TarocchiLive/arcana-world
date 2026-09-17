@@ -111,6 +111,36 @@ jobs:
       GH_REPO: ${{ github.repository }}
       RELEASE_TAG: ${{ github.ref_name }}
     steps:
+      - uses: actions/checkout@v6
+      - name: Extract release notes from changelogs
+        env:
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          tag = os.environ["RELEASE_TAG"]
+          repository = os.environ["RELEASE_REPOSITORY"]
+          sections = []
+          for language, filename in (("中文", "CHANGELOG.md"), ("English", "CHANGELOG.en.md")):
+              text = Path(filename).read_text(encoding="utf-8")
+              heading = re.search(r"^## \[" + re.escape(tag) + r"\][^\n]*\n", text, re.MULTILINE)
+              if heading is None:
+                  raise SystemExit(f"{filename}: missing release section for {tag}")
+              body = text[heading.end():]
+              end = re.search(r"^## |^\[v[^\]]+\]:", body, re.MULTILINE)
+              if end:
+                  body = body[:end.start()]
+              body = body.strip()
+              if not body:
+                  raise SystemExit(f"{filename}: empty release section for {tag}")
+              body = re.sub(r"\]\((?![a-zA-Z][a-zA-Z0-9+.-]*:|#|/)([^)]+)\)",
+                            lambda match: f"](https://github.com/{repository}/blob/{tag}/{match[1]})", body)
+              sections.append(f"## {language}\n\n{body}")
+          Path("release-notes.txt").write_text("\n\n".join(sections) + "\n", encoding="utf-8")
+          PY
       - uses: actions/download-artifact@v8
         with:
           pattern: release-*
@@ -130,6 +160,6 @@ jobs:
           if [[ "$RELEASE_TAG" == *-* ]]; then
             flags=(--prerelease --latest=false)
           fi
-          gh release create "$RELEASE_TAG" --verify-tag --generate-notes \
+          gh release create "$RELEASE_TAG" --verify-tag --notes-file release-notes.txt \
             --title "$RELEASE_TAG" --draft dist/*
           gh release edit "$RELEASE_TAG" --draft=false "${flags[@]}"

@@ -18,7 +18,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-var version = "0.1.3"
+var version = "0.2.0-rc.1"
 
 func run() (err error) {
 	return runArgs(os.Args[1:])
