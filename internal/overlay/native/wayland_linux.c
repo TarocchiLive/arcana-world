@@ -537,6 +537,7 @@ static bool paint_pixels(struct arcana_wayland *s, struct pixels *p) {
     double left = fmin(c->padding_left, s->width), top = fmin(c->padding_top, s->height);
     double width = fmax(0, s->width - left - fmin(c->padding_right, s->width));
     double height = fmax(0, s->height - top - fmin(c->padding_bottom, s->height));
+    if (width <= 0 || height <= 0 || !*c->text) goto done;
     cairo_rectangle(cr, left, top, width, height);
     cairo_clip(cr);
     PangoLayout *layout = pango_cairo_create_layout(cr);
@@ -547,15 +548,18 @@ static bool paint_pixels(struct arcana_wayland *s, struct pixels *p) {
     pango_font_description_set_style(font, c->italic ? PANGO_STYLE_ITALIC : PANGO_STYLE_NORMAL);
     pango_layout_set_font_description(layout, font);
     pango_layout_set_width(layout, (int)(width * PANGO_SCALE));
-    pango_layout_set_height(layout, (int)(height * PANGO_SCALE));
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
-    pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
     pango_layout_set_text(layout, c->text, -1);
-    cairo_move_to(cr, left, top);
+    // 聊天快照按时间排列，最新内容在末尾。先按宽度完整换行，再在
+    // 固定内容框内显示尾部；Pango 的高度省略会优先保留旧段落。
+    int text_height;
+    pango_layout_get_pixel_size(layout, NULL, &text_height);
+    cairo_move_to(cr, left, top - fmax(0, text_height - height));
     cairo_set_source_rgba(cr, 1, 1, 1, c->text_alpha);
     pango_cairo_show_layout(cr, layout);
     pango_font_description_free(font);
     g_object_unref(layout);
+done:
     cairo_surface_flush(image);
     cairo_status_t status = cairo_status(cr);
     if (status == CAIRO_STATUS_SUCCESS) status = cairo_surface_status(image);

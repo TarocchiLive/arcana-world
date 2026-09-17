@@ -47,6 +47,7 @@ Versions are listed newest first.
 
 ### Fixed
 
+- Fix long-message ellipsizing and newer messages being clipped below older content in the Wayland overlay. Wrap text to the available width and show its tail on overflow without moving or resizing the overlay.
 - Clear credentials referenced by the active account ID even when the account index is incomplete.
 - Close the previous client's idle connections when resetting settings, and close temporary connections used for exit checks.
 - Keep wide characters in the cover preview fallback notice within very narrow terminal bounds.
