@@ -7,10 +7,10 @@ import (
 	"image"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unicode"
 
+	"arcana-world/internal/app"
 	"arcana-world/internal/bili"
 	"arcana-world/internal/coverimage"
 	"arcana-world/internal/domain"
@@ -56,10 +56,6 @@ type resultMsg struct {
 }
 type pollTick struct{ generation int }
 type choice struct{ label, value string }
-type accountResult struct {
-	account domain.Account
-	client  *bili.Client
-}
 type editResult struct {
 	kind, value string
 	area        *domain.Area
@@ -78,8 +74,7 @@ type Model struct {
 	obsBusy                bool
 	obsCancel              context.CancelFunc
 	obsOperation           int
-	obsLifecycle           chan struct{}
-	obsClosing             atomic.Bool
+	session                *app.Session
 	initialized            bool
 	overlay                *overlayRuntime
 	overlayEnabled         bool
@@ -126,12 +121,13 @@ func New(ctx context.Context, s *store.Store) (*Model, error) {
 		return nil, errors.Join(err, disk.Write(i18n.T(i18n.TUILogStartupFailed)+err.Error()), disk.Close())
 	}
 	if err := disk.Write(i18n.T(i18n.TUILogApplicationStarted)); err != nil {
+		c.HTTP.CloseIdleConnections()
 		return nil, errors.Join(err, disk.Close())
 	}
 	in := textinput.New()
 	in.CharLimit = 4096
 	m := &Model{ctx: ctx, store: s, config: cfg, client: c, journal: disk, obsClient: obs.NewClient(), width: 100, height: 32, input: in, status: i18n.T(i18n.TUIStatusReady), view: viewport.New(96, 24)}
-	m.obsLifecycle = make(chan struct{}, 1)
+	m.session = app.New(s, m.obsClient, c)
 	m.openChat()
 	return m, nil
 }
@@ -304,6 +300,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		key := msg.String()
 		if key == "ctrl+c" || (key == "q" && m.mode == "") {
+			m.session.BeginClose()
 			if m.cancel != nil {
 				m.cancel()
 			}
@@ -445,6 +442,7 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 			if m.selected == 1 {
 				return m.perform(action)
 			}
+			m.pendingAccount = nil
 		}
 	case "login-save":
 		if key == "enter" && m.pendingAccount != nil {
@@ -484,6 +482,14 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 			m.room.ParentName = edit.area.Parent
 		}
 	}
+	if out, ok := r.value.(app.AccountOutcome); ok && out.OldRoom != nil {
+		m.room = out.OldRoom
+		if !m.room.Live {
+			m.stream = nil
+			m.reveal = false
+		}
+		m.obsState = m.obsClient.Snapshot()
+	}
 	if r.err != nil {
 		var face *domain.FaceChallenge
 		if errors.As(r.err, &face) && !m.canceled {
@@ -515,7 +521,7 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 	m.config = m.store.Config()
 	switch r.kind {
 	case "settings-reset":
-		m.client.HTTP.CloseIdleConnections()
+		m.session.Release(m.client)
 		m.client = r.value.(*bili.Client)
 		m.overlayEnabled = m.config.Overlay.Enabled
 		if m.overlay != nil {
@@ -562,9 +568,10 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 		m.mode = "cover"
 		m.log(i18n.T(i18n.TUILogCoverSubmitted) + m.room.CoverStatus)
 	case "account", "login-save":
-		a := r.value.(accountResult)
-		m.account = &a.account
-		m.client = a.client
+		a := r.value.(app.AccountOutcome)
+		m.account = &a.Account
+		m.session.Release(m.client)
+		m.client = a.Client
 		m.syncChat()
 		m.room = nil
 		m.stream = nil
@@ -574,7 +581,7 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 		m.qr = nil
 		m.qrText = ""
 		m.qrGeneration++
-		m.log(i18n.T(i18n.TUILogAccountSwitched) + a.account.Name + " / " + a.account.UID)
+		m.log(i18n.T(i18n.TUILogAccountSwitched) + a.Account.Name + " / " + a.Account.UID)
 		return m.refresh()
 	case "refresh":
 		room := r.value.(domain.Room)
@@ -627,21 +634,21 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 		}
 		return m.nextPoll()
 	case "start":
-		outcome := r.value.(startOutcome)
-		s := outcome.stream
+		outcome := r.value.(app.StartOutcome)
+		s := outcome.Stream
 		m.stream = &s
 		m.reveal = false
 		if m.room != nil {
 			m.room.Live = true
 		}
 		m.log(i18n.T(i18n.TUILogLiveStarted))
-		if outcome.obsStarted {
+		if outcome.OBSStarted {
 			m.log(i18n.T(i18n.TUILogLiveOBSStarted))
-		} else if outcome.obsConfigured {
+		} else if outcome.OBSConfigured {
 			m.log(i18n.T(i18n.TUILogLiveOBSConfigured))
 		}
-		if outcome.obsErr != nil {
-			m.log(i18n.T(i18n.TUILogLiveOBSFailed) + outcome.obsErr.Error())
+		if outcome.OBSErr != nil {
+			m.log(i18n.T(i18n.TUILogLiveOBSFailed) + outcome.OBSErr.Error())
 		}
 		if s.Warning != "" {
 			m.log(s.Warning)
@@ -653,8 +660,8 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 		m.stream = nil
 		m.reveal = false
 		m.log(i18n.T(i18n.TUILogLiveStopped))
-		if outcome, ok := r.value.(stopOutcome); ok {
-			if outcome.obsStopped {
+		if outcome, ok := r.value.(app.StopOutcome); ok {
+			if outcome.OBSStopped {
 				m.log(i18n.T(i18n.TUILogLiveOBSStopped))
 			}
 		}
@@ -677,17 +684,20 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 	case "delay":
 		return m.form("delay", i18n.T(i18n.TUIFormDelay), fmt.Sprint(r.value.(int)), false)
 	case "delete":
-		if m.account != nil && m.account.UID == r.value.(string) {
+		out := r.value.(app.AccountOutcome)
+		if out.Client != nil {
 			m.account = nil
 			m.room = nil
 			m.stream = nil
 			m.reveal = false
-			m.client, _ = bili.New(m.config.Proxy)
+			m.session.Release(m.client)
+			m.client = out.Client
 			m.syncChat()
 		}
 		m.log(i18n.T(i18n.TUILogAccountRemoved))
 	case "config":
 		if c, ok := r.value.(*bili.Client); ok {
+			m.session.Release(m.client)
 			m.client = c
 		}
 		m.log(i18n.T(i18n.TUILogSettingsSaved))

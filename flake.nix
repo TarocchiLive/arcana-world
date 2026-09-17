@@ -45,6 +45,7 @@
             ldflags = [
               "-s"
               "-w"
+              "-buildid="
               "-X main.version=${version}"
             ];
 
@@ -79,7 +80,7 @@
               pkgs.pango
               pkgs.cairo
             ];
-            ldflags = [ "-s" "-w" ];
+            ldflags = [ "-s" "-w" "-buildid=" ];
             postInstall = ''
               install -Dm644 LICENSE "$out/share/licenses/arcana-world-overlay/LICENSE"
             '';
@@ -100,7 +101,7 @@
             tags = [ "tts_audio" ];
             nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
             buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.alsa-lib ];
-            ldflags = [ "-s" "-w" ];
+            ldflags = [ "-s" "-w" "-buildid=" ];
             checkPhase = ''
               runHook preCheck
               go test -tags tts_audio ./internal/tts/audio ./cmd/arcana-world-tts
@@ -116,6 +117,7 @@
               description = "Arcana World with optional desktop overlay and speech helper";
             };
           } ''
+            # Match the portable bundle layout used by scripts/build.sh.
             install -Dm755 ${arcana-world}/bin/arcana-world "$out/bin/arcana-world"
             install -Dm755 ${arcana-world-overlay}/bin/arcana-world-overlay "$out/bin/libexec/arcana-world-overlay"
             install -Dm755 ${arcana-world-tts}/bin/arcana-world-tts "$out/bin/libexec/arcana-world-tts"

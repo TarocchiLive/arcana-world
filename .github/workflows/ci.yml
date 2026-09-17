@@ -5,12 +5,72 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   checks:
+    if: github.event_name != 'schedule'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            suffix: ''
+          - os: macos-latest
+            suffix: ''
+          - os: windows-latest
+            suffix: .exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check core
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            make check
+          else
+            CGO_ENABLED=0 go test ./...
+          fi
+      - name: Install Wayland drawing and audio dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libpango1.0-dev libcairo2-dev libasound2-dev pkg-config
+      - name: Build desktop bundle
+        shell: bash
+        run: bash scripts/build.sh desktop
+      - name: Check native helper packages without device access
+        shell: bash
+        run: |
+          audio_cgo=0
+          overlay_cgo=1
+          overlay_tags=
+          case "$RUNNER_OS" in
+            Linux) audio_cgo=1; overlay_tags=wayland ;;
+            Windows) overlay_cgo=0 ;;
+          esac
+          CGO_ENABLED="$audio_cgo" go test -tags tts_audio ./internal/tts/audio ./cmd/arcana-world-tts
+          CGO_ENABLED="$overlay_cgo" go test -tags "$overlay_tags" ./internal/overlay/...
+      - name: Check command help
+        shell: bash
+        run: |
+          "./bin/arcana-world${{ matrix.suffix }}" -help
+          "./bin/libexec/arcana-world-overlay${{ matrix.suffix }}" -help
+          "./bin/libexec/arcana-world-tts${{ matrix.suffix }}" -help
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ runner.os }}-${{ runner.arch }}
+          path: bin/
+
+  vulnerabilities:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -18,67 +78,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - run: make check
-      - run: make build
-
-  desktop:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            cgo: '1'
-            audio_cgo: '1'
-            tags: wayland
-            suffix: ''
-          - os: macos-latest
-            cgo: '1'
-            audio_cgo: '0'
-            tags: ''
-            suffix: ''
-          - os: windows-latest
-            cgo: '0'
-            audio_cgo: '0'
-            tags: ''
-            suffix: .exe
-    runs-on: ${{ matrix.os }}
-    env:
-      CGO_ENABLED: ${{ matrix.cgo }}
-      OVERLAY_TAGS: ${{ matrix.tags }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Install Wayland drawing dependencies
-        if: runner.os == 'Linux'
+      - name: Install native dependencies
         run: sudo apt-get update && sudo apt-get install -y libwayland-dev libpango1.0-dev libcairo2-dev libasound2-dev pkg-config
-      - name: Build TUI
-        shell: bash
-        run: CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "bin/arcana-world${{ matrix.suffix }}" ./cmd/arcana-world
-      - name: Build native overlay
-        shell: bash
-        run: go build -tags "$OVERLAY_TAGS" -trimpath -buildvcs=false -o "bin/libexec/arcana-world-overlay${{ matrix.suffix }}" ./cmd/arcana-world-overlay
-      - name: Build speech helper
-        shell: bash
-        run: CGO_ENABLED=${{ matrix.audio_cgo }} go build -tags tts_audio -trimpath -buildvcs=false -o "bin/libexec/arcana-world-tts${{ matrix.suffix }}" ./cmd/arcana-world-tts
-      - name: Check speech helper without device access
-        shell: bash
-        run: CGO_ENABLED=${{ matrix.audio_cgo }} go test -tags tts_audio ./internal/tts/audio ./cmd/arcana-world-tts
-      - name: Check overlay package
-        shell: bash
-        run: go test -tags "$OVERLAY_TAGS" ./internal/overlay/...
-      - name: Check command help
-        shell: bash
-        run: "./bin/arcana-world${{ matrix.suffix }} -help"
-      - name: Check overlay help
-        shell: bash
-        run: "./bin/libexec/arcana-world-overlay${{ matrix.suffix }} -help"
-      - name: Check speech helper help
-        shell: bash
-        run: '"./bin/libexec/arcana-world-tts${{ matrix.suffix }}" -help'
-      - uses: actions/upload-artifact@v7
-        with:
-          name: desktop-${{ runner.os }}-${{ runner.arch }}
-          path: bin/
+      - name: Install vulnerability scanner
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+      - name: Scan standalone TUI and core
+        run: CGO_ENABLED=0 govulncheck ./...
+      - name: Scan native desktop and speech code
+        run: CGO_ENABLED=1 govulncheck -tags=wayland,tts_audio ./...

@@ -158,6 +158,11 @@ func TestExitRefreshesCommittedAccountAndSkipsOfflineOrAbsentAccount(t *testing.
 					if queued.err != nil {
 						t.Fatal(queued.err)
 					}
+					// Deletion itself closes the old broadcast before removing identity.
+					if stops.Load() != 1 {
+						t.Fatal("deletion did not stop old broadcast")
+					}
+					requests.Store(0)
 				}
 			case "offline":
 				persistExitAccount(t, m, account)

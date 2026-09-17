@@ -214,11 +214,11 @@ func (c *Client) FetchCover(ctx context.Context, rawURL string) (image.Image, er
 		return nil, errors.New(i18n.T(i18n.BiliCoverFileTooLarge))
 	}
 	raw, err := io.ReadAll(io.LimitReader(response.Body, coverimage.MaxFileSize+1))
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	if err != nil {
 		return nil, errors.New(i18n.T(i18n.BiliCoverReadFailed))
-	}
-	if err = ctx.Err(); err != nil {
-		return nil, err
 	}
 	img, err := coverimage.Decode(raw)
 	if err != nil {

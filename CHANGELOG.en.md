@@ -24,6 +24,12 @@ Versions are listed newest first. v0.1.5 is reserved for the next release and ha
 
 ### Changed
 
+- Store each history message's raw business payload once and migrate existing storage automatically, preserving paging, deduplication, and deletion semantics.
+- Confirm before switching accounts (including QR sign-in) or deleting the current account, then stop the old broadcast and associated OBS stream. Keep the current account on failure, independently of exit settings.
+- Move account and broadcast orchestration from the TUI into the application layer, consistently reclaim idle client connections, and preserve cancellation causes while reading API and cover responses.
+- Run basic core tests on Linux, macOS, and Windows. Share one build entrypoint across Make, CI, and six-platform releases while keeping the standalone TUI CGO-free and Nix declarative with the same companion layout.
+- Scan default and native speech-tag dependencies weekly. Retain release SHA-256 checksums and add GitHub build provenance attestations. Move the outdated TTS development plan into the local archive.
+
 - Show a yellow notice when cover previews use text characters, recommending a terminal with Kitty graphics support. The notice wraps in narrow windows.
 - Default the overlay to the left-center position with zero offsets, font size 16, and live chat as the first content option. Existing saved values remain unchanged.
 
@@ -52,6 +58,7 @@ Versions are listed newest first. v0.1.5 is reserved for the next release and ha
 
 ### Notes
 
+- History databases upgrade automatically to a versioned format. Before downgrading the application, restore a pre-upgrade database backup rather than opening the upgraded database with an older version.
 - Messages missed while disconnected are not replayed after reconnection. Local history may be incomplete and is not a complete financial ledger.
 - Messages that can be decoded are not necessarily shown. Unlisted messages and payloads that fail to parse remain hidden.
 

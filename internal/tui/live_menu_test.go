@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"arcana-world/internal/app"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/store"
 	tea "github.com/charmbracelet/bubbletea"
@@ -52,8 +53,8 @@ func TestLiveMenuFollowsRoomResultsAndKeepsSelection(t *testing.T) {
 		want   string
 	}{
 		{"offline refresh", resultMsg{kind: "refresh", value: domain.Room{ID: 1, AreaID: 1}}, "start"},
-		{"start", resultMsg{kind: "start", value: startOutcome{}}, "stop"},
-		{"stop", resultMsg{kind: "stop", value: stopOutcome{}}, "start"},
+		{"start", resultMsg{kind: "start", value: app.StartOutcome{}}, "stop"},
+		{"stop", resultMsg{kind: "stop", value: app.StopOutcome{}}, "start"},
 		{"online refresh", resultMsg{kind: "refresh", value: domain.Room{ID: 1, AreaID: 1, Live: true}}, "stop"},
 		{"offline refresh after online", resultMsg{kind: "refresh", value: domain.Room{ID: 1, AreaID: 1}}, "start"},
 	} {

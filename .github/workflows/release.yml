@@ -74,26 +74,14 @@ jobs:
       - name: Build and package
         shell: bash
         run: |
-          mkdir -p package/libexec dist
+          OUT_DIR=package VERSION="$RELEASE_TAG" bash scripts/build.sh desktop
+          mkdir -p dist
           suffix=
-          cgo=1
-          audio_cgo=0
-          tags=
           tar_tool=tar
           case "$GOOS" in
-            windows) suffix=.exe; cgo=0 ;;
-            linux) tags=wayland; audio_cgo=1 ;;
+            windows) suffix=.exe ;;
             darwin) tar_tool=gtar ;;
           esac
-          CGO_ENABLED=0 go build -trimpath -buildvcs=false \
-            -ldflags="-s -w -buildid= -X main.version=${RELEASE_TAG#v}" \
-            -o "package/arcana-world$suffix" ./cmd/arcana-world
-          CGO_ENABLED="$cgo" go build -tags "$tags" -trimpath -buildvcs=false \
-            -ldflags="-s -w -buildid=" \
-            -o "package/libexec/arcana-world-overlay$suffix" ./cmd/arcana-world-overlay
-          CGO_ENABLED="$audio_cgo" go build -tags tts_audio -trimpath -buildvcs=false \
-            -ldflags="-s -w -buildid=" \
-            -o "package/libexec/arcana-world-tts$suffix" ./cmd/arcana-world-tts
           "./package/libexec/arcana-world-tts$suffix" -help
           cp LICENSE package/
           archive="arcana-world-${GOOS}-${GOARCH}"
@@ -116,6 +104,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -129,6 +119,10 @@ jobs:
       - name: Generate checksums
         working-directory: dist
         run: sha256sum *.tar.gz *.zip > checksums.txt
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/*
       - name: Publish GitHub Release
         shell: bash
         run: |

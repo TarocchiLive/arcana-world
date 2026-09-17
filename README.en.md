@@ -63,6 +63,8 @@ OBS 28 and later include this feature, so no plugin is needed. For older version
 
 By default, exiting stops OBS streaming and closes the current account's Bilibili room, including broadcasts started from another client. On **Settings** (`6`), **Stop OBS streaming on exit** and **Close live room on exit** can be disabled independently. With both off, exiting performs neither action. These settings do not affect **Stop Bilibili live** on the Live page.
 
+Switching to a different account (including QR sign-in) or deleting the current account asks for confirmation before stopping the old account's broadcast and associated OBS stream. If stopping fails, the account is not switched or deleted. Exit settings do not control this cleanup.
+
 If Bilibili requests identity verification, complete it and try again.
 
 ### Keyboard shortcuts

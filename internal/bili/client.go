@@ -217,6 +217,9 @@ func (c *Client) request(ctx context.Context, method, base, path string, query u
 		return result, nil, fmt.Errorf(i18n.T(i18n.BiliApiHttpStatus), response.StatusCode)
 	}
 	raw, err := io.ReadAll(io.LimitReader(response.Body, maxResponse+1))
+	if ctx.Err() != nil {
+		return result, nil, ctx.Err()
+	}
 	if err != nil {
 		return result, nil, errors.New(i18n.T(i18n.BiliApiResponseReadFailed))
 	}

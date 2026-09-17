@@ -11,10 +11,10 @@ import (
 func (m *Model) resetSettings() tea.Cmd {
 	account := m.account
 	return m.work("settings-reset", func(ctx context.Context) (any, error) {
-		if err := m.acquireOBS(ctx); err != nil {
+		if err := m.session.Lock(ctx); err != nil {
 			return nil, err
 		}
-		defer func() { <-m.obsLifecycle }()
+		defer m.session.Unlock()
 		client, err := bili.New(store.DefaultConfig().Proxy)
 		if err != nil {
 			return nil, err
@@ -26,6 +26,7 @@ func (m *Model) resetSettings() tea.Cmd {
 			client.HTTP.CloseIdleConnections()
 			return nil, err
 		}
+		m.session.Track(client)
 		return client, nil
 	})
 }

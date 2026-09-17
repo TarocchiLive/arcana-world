@@ -182,7 +182,7 @@ func TestCloseWaitsForCanceledStartBeforeStopping(t *testing.T) {
 	if state.active.Load() || state.stops.Load() != 1 {
 		t.Fatal("in-flight start escaped shutdown stop")
 	}
-	if err := m.acquireOBS(context.Background()); err == nil {
+	if err := m.session.Lock(context.Background()); err == nil {
 		t.Fatal("accepted OBS operation after shutdown")
 	}
 }

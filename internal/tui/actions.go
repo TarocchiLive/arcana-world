@@ -92,17 +92,21 @@ func (m *Model) perform(action string) tea.Cmd {
 		return m.performOverlay(action)
 	}
 	if strings.HasPrefix(action, "account:") {
-		return m.loadAccount(strings.TrimPrefix(action, "account:"))
+		uid := strings.TrimPrefix(action, "account:")
+		if m.config.ActiveUID != "" && m.config.ActiveUID != uid {
+			return m.confirm(i18n.T(i18n.TUIConfirmSwitchAccount), "switch:"+uid)
+		}
+		return m.loadAccount(uid)
+	}
+	if strings.HasPrefix(action, "switch:") {
+		return m.loadAccount(strings.TrimPrefix(action, "switch:"))
+	}
+	if action == "login-switch" && m.pendingAccount != nil {
+		return m.commitLogin(*m.pendingAccount)
 	}
 	if strings.HasPrefix(action, "delete:") {
-		uid := strings.TrimPrefix(action, "delete:")
-		return m.work("delete", func(ctx context.Context) (any, error) {
-			if err := m.acquireOBS(ctx); err != nil {
-				return nil, err
-			}
-			defer func() { <-m.obsLifecycle }()
-			return uid, m.store.Delete(uid)
-		})
+		uid, client := strings.TrimPrefix(action, "delete:"), m.client
+		return m.work("delete", func(ctx context.Context) (any, error) { return m.session.Delete(ctx, client, uid) })
 	}
 	switch action {
 	case "settings-reset-confirm":
@@ -264,65 +268,23 @@ func (m *Model) refresh() tea.Cmd {
 	return m.work("refresh", func(ctx context.Context) (any, error) { return m.client.Room(ctx) })
 }
 func (m *Model) loadAccount(uid string) tea.Cmd {
-	proxy := m.config.Proxy
-	return m.work("account", func(ctx context.Context) (any, error) {
-		if err := m.acquireOBS(ctx); err != nil {
-			return nil, err
-		}
-		defer func() { <-m.obsLifecycle }()
-		a, err := m.store.Load(uid)
-		if err != nil {
-			return nil, err
-		}
-		c, err := bili.New(proxy)
-		if err != nil {
-			return nil, err
-		}
-		c.SetAccount(a)
-		info, err := c.Validate(ctx)
-		if err != nil {
-			return nil, err
-		}
-		a.Name = info.Name
-		if err = m.store.Save(a); err != nil {
-			return nil, err
-		}
-		cfg := m.store.Config()
-		cfg.ActiveUID = a.UID
-		if err = m.store.SaveConfig(cfg); err != nil {
-			return nil, err
-		}
-		return accountResult{a, c}, nil
-	})
+	client := m.client
+	return m.work("account", func(ctx context.Context) (any, error) { return m.session.Switch(ctx, client, uid, nil) })
 }
 func (m *Model) saveLogin(a domain.Account) tea.Cmd {
-	proxy := m.config.Proxy
-	return m.work("login-save", func(ctx context.Context) (any, error) {
-		if err := m.acquireOBS(ctx); err != nil {
-			return nil, err
-		}
-		defer func() { <-m.obsLifecycle }()
-		c, err := bili.New(proxy)
-		if err != nil {
-			return nil, err
-		}
-		c.SetAccount(a)
-		info, err := c.Validate(ctx)
-		if err != nil {
-			return nil, err
-		}
-		a.UID = info.UID
-		a.Name = info.Name
-		if err = m.store.Save(a); err != nil {
-			return nil, err
-		}
-		cfg := m.store.Config()
-		cfg.ActiveUID = a.UID
-		if err = m.store.SaveConfig(cfg); err != nil {
-			return nil, err
-		}
-		return accountResult{a, c}, nil
-	})
+	uid := a.UID
+	if uid == "" {
+		uid = a.Cookies["DedeUserID"]
+	}
+	if m.config.ActiveUID != "" && m.config.ActiveUID != uid {
+		m.pendingAccount = &a
+		return m.confirm(i18n.T(i18n.TUIConfirmSwitchAccount), "login-switch")
+	}
+	return m.commitLogin(a)
+}
+func (m *Model) commitLogin(a domain.Account) tea.Cmd {
+	client := m.client
+	return m.work("login-save", func(ctx context.Context) (any, error) { return m.session.Switch(ctx, client, "", &a) })
 }
 func (m *Model) form(kind, prompt, value string, secret bool) tea.Cmd {
 	m.mode = "form"
@@ -368,7 +330,11 @@ func (m *Model) choose() tea.Cmd {
 	}
 	switch m.editKind {
 	case "delete":
-		return m.confirm(fmt.Sprintf(i18n.T(i18n.TUIConfirmRemoveAccount), ch.label), "delete:"+ch.value)
+		prompt := fmt.Sprintf(i18n.T(i18n.TUIConfirmRemoveAccount), ch.label)
+		if m.config.ActiveUID == ch.value {
+			prompt += "\n" + i18n.T(i18n.TUIConfirmDetachAccount)
+		}
+		return m.confirm(prompt, "delete:"+ch.value)
 	case "protocol":
 		cfg := m.config
 		cfg.Protocol = ch.value
@@ -406,7 +372,7 @@ func (m *Model) submitForm() tea.Cmd {
 			return nil
 		}
 		m.clearDataOnExit = true
-		m.obsClosing.Store(true)
+		m.session.BeginClose()
 		m.input.SetValue("")
 		m.input.Blur()
 		return tea.Quit
@@ -437,10 +403,12 @@ func (m *Model) submitForm() tea.Cmd {
 			return nil
 		}
 	case "proxy":
-		if _, err := bili.New(value); err != nil {
+		client, err := bili.New(value)
+		if err != nil {
 			m.status = clean(err.Error())
 			return nil
 		}
+		client.HTTP.CloseIdleConnections()
 	}
 	m.mode = ""
 	m.input.SetValue("")
@@ -461,10 +429,10 @@ func (m *Model) submitForm() tea.Cmd {
 		return m.work("delay-set", func(ctx context.Context) (any, error) { return nil, m.client.SetTimeShift(ctx, n) })
 	case "obs-password":
 		return m.work("obs-password", func(ctx context.Context) (any, error) {
-			if err := m.acquireOBS(ctx); err != nil {
+			if err := m.session.Lock(ctx); err != nil {
 				return nil, err
 			}
-			defer func() { <-m.obsLifecycle }()
+			defer m.session.Unlock()
 			if err := m.store.SetOBSSecret(value); err != nil {
 				return nil, err
 			}
@@ -474,10 +442,10 @@ func (m *Model) submitForm() tea.Cmd {
 		cfg := m.config
 		cfg.OBSURL = value
 		return m.work("obs-url", func(ctx context.Context) (any, error) {
-			if err := m.acquireOBS(ctx); err != nil {
+			if err := m.session.Lock(ctx); err != nil {
 				return nil, err
 			}
-			defer func() { <-m.obsLifecycle }()
+			defer m.session.Unlock()
 			if err := m.store.SaveConfig(cfg); err != nil {
 				return nil, err
 			}
@@ -493,10 +461,10 @@ func (m *Model) submitForm() tea.Cmd {
 func (m *Model) saveConfig(cfg domain.Config, replaceClient bool) tea.Cmd {
 	account := m.account
 	return m.work("config", func(ctx context.Context) (any, error) {
-		if err := m.acquireOBS(ctx); err != nil {
+		if err := m.session.Lock(ctx); err != nil {
 			return nil, err
 		}
-		defer func() { <-m.obsLifecycle }()
+		defer m.session.Unlock()
 		var c *bili.Client
 		if replaceClient {
 			var err error
@@ -509,9 +477,13 @@ func (m *Model) saveConfig(cfg domain.Config, replaceClient bool) tea.Cmd {
 			}
 		}
 		if err := m.store.SaveConfig(cfg); err != nil {
+			if c != nil {
+				c.HTTP.CloseIdleConnections()
+			}
 			return nil, err
 		}
 		if replaceClient {
+			m.session.Track(c)
 			return c, nil
 		}
 		return nil, nil
