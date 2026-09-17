@@ -97,6 +97,12 @@ func (m *Model) View() string {
 			status + "\n" +
 			lipgloss.NewStyle().MaxWidth(width).Render(muted.Render(footer)))
 }
+
+// Keep page navigation aligned with the rows available below picker chrome.
+func (m *Model) pickerWindow() int {
+	return max(3, m.view.Height-5)
+}
+
 func (m *Model) content() string {
 	switch m.mode {
 	case "cover", "cover-review":
@@ -123,7 +129,7 @@ func (m *Model) content() string {
 	case "pick":
 		var b strings.Builder
 		b.WriteString(accent.Render(m.prompt) + "\n\n")
-		window := max(3, m.view.Height-5)
+		window := m.pickerWindow()
 		start := max(0, m.selected-window+1)
 		end := min(len(m.choices), start+window)
 		for i := start; i < end; i++ {

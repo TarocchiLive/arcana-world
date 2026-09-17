@@ -18,11 +18,13 @@ import (
 	"net/textproto"
 	"net/url"
 	"strings"
-	"time"
 	"unicode"
 
 	"arcana-world/internal/coverimage"
 )
+
+const maxCoverRedirects = 5
+const maxCoverRejectionRunes = 200
 
 type CoverUpdate struct {
 	URL    string
@@ -181,7 +183,7 @@ func (c *Client) FetchCover(ctx context.Context, rawURL string) (image.Image, er
 	if c.HTTP == nil {
 		return nil, errors.New(i18n.T(i18n.BiliHttpClientMissing))
 	}
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
@@ -190,7 +192,7 @@ func (c *Client) FetchCover(ctx context.Context, rawURL string) (image.Image, er
 	client := *c.HTTP
 	client.Jar = nil
 	client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
-		if len(via) >= 5 {
+		if len(via) >= maxCoverRedirects {
 			return errors.New(i18n.T(i18n.BiliCoverRedirectLimit))
 		}
 		if _, err := coverURL(next.URL.String(), false); err != nil {
@@ -248,7 +250,7 @@ func (c *Client) coverFailure(operation string, response envelope) error {
 		if unicode.IsControl(r) {
 			continue
 		}
-		if count == 200 {
+		if count == maxCoverRejectionRunes {
 			safe.WriteString("…")
 			break
 		}

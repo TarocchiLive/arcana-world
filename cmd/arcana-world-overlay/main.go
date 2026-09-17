@@ -35,7 +35,7 @@ func run() error {
 	flags.Float64Var(&cfg.Position.Y, "y", cfg.Position.Y, "vertical anchor offset in logical points; positive points inward at edges")
 	flags.Float64Var(&cfg.Width, "width", cfg.Width, "panel width in logical points")
 	flags.Float64Var(&cfg.Height, "height", cfg.Height, "panel height in logical points")
-	padding := flags.String("padding", "12,16,12,16", "padding: one value, or top,right,bottom,left in logical points")
+	padding := flags.String("padding", fmt.Sprintf("%g,%g,%g,%g", cfg.Padding.Top, cfg.Padding.Right, cfg.Padding.Bottom, cfg.Padding.Left), "padding: one value, or top,right,bottom,left in logical points")
 	flags.StringVar(&cfg.Font.Family, "font", cfg.Font.Family, "font family; empty uses the platform default")
 	flags.Float64Var(&cfg.Font.Size, "font-size", cfg.Font.Size, "font size in logical points")
 	flags.IntVar(&cfg.Font.Weight, "font-weight", cfg.Font.Weight, "font weight (100..900)")

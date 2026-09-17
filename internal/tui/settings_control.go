@@ -30,3 +30,17 @@ func (m *Model) resetSettings() tea.Cmd {
 		return client, nil
 	})
 }
+
+// OBS settings are committed under the session gate before disconnecting.
+func (m *Model) saveOBSSetting(kind string, save func() error) tea.Cmd {
+	return m.work(kind, func(ctx context.Context) (any, error) {
+		if err := m.session.Lock(ctx); err != nil {
+			return nil, err
+		}
+		defer m.session.Unlock()
+		if err := save(); err != nil {
+			return nil, err
+		}
+		return nil, m.obsClient.Disconnect()
+	})
+}

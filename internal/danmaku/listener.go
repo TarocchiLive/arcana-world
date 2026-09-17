@@ -13,6 +13,15 @@ import (
 	"arcana-world/internal/domain"
 )
 
+const (
+	roomLookupTimeout    = 30 * time.Second
+	initialRetryDelay    = time.Second
+	maxReconnectDelay    = 30 * time.Second
+	maxBackoffExponent   = 5
+	reconnectJitterParts = 4
+	stableSessionPeriod  = time.Minute
+)
+
 // Snapshot contains status only: message delivery never depends on the UI.
 type Snapshot struct {
 	Phase    string
@@ -75,7 +84,7 @@ func NewListener(ctx context.Context, history *History) *Listener {
 
 func newListener(ctx context.Context, history archive, factory func(string, domain.Account) (source, error)) *Listener {
 	ctx, cancel := context.WithCancel(ctx)
-	l := &Listener{history: history, factory: factory, wake: make(chan struct{}, 1), cancel: cancel, done: make(chan struct{}), retryDelay: time.Second, state: Snapshot{Phase: "waiting"}}
+	l := &Listener{history: history, factory: factory, wake: make(chan struct{}, 1), cancel: cancel, done: make(chan struct{}), retryDelay: initialRetryDelay, state: Snapshot{Phase: "waiting"}}
 	go l.control(ctx)
 	return l
 }
@@ -271,7 +280,7 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 	for ctx.Err() == nil {
 		l.publish(gen, "connecting", room, nil, false)
 		if room == 0 {
-			callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			callCtx, cancel := context.WithTimeout(ctx, roomLookupTimeout)
 			info, roomErr := c.Room(callCtx)
 			cancel()
 			err = roomErr
@@ -302,7 +311,7 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 			})
 			// Do not reset backoff merely on auth: repeatedly dying sockets otherwise
 			// cause a reconnect storm.
-			if authenticated && time.Since(started) >= time.Minute {
+			if authenticated && time.Since(started) >= stableSessionPeriod {
 				failures = 0
 			}
 			gap := "connection_lost"
@@ -318,8 +327,8 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 			return
 		}
 		l.publish(gen, "reconnecting", room, err, true)
-		delay := min(30*time.Second, l.retryDelay*time.Duration(1<<min(failures, 5)))
-		delay += time.Duration(rand.Int64N(max(1, int64(delay/4))))
+		delay := min(maxReconnectDelay, l.retryDelay*time.Duration(1<<min(failures, maxBackoffExponent)))
+		delay += time.Duration(rand.Int64N(max(1, int64(delay/reconnectJitterParts))))
 		failures++
 		attempt++
 		if !sleep(ctx, delay) {

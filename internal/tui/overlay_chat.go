@@ -10,7 +10,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const overlayChatLimit = 6
+const (
+	overlayChatLimit        = 6
+	overlayChatScanPages    = 4
+	overlayChatScanPageSize = 64
+	overlayChatTextLimit    = 200
+	overlayChatUserLimit    = 40
+	overlayTitleLimit       = 200
+)
 
 // Only bounded, already-sanitized lines survive a history read. Neither the
 // viewport's room nor its pagination/read position participates in this state.
@@ -96,10 +103,10 @@ func (m *Model) updateOverlayChat() tea.Cmd {
 	return func() tea.Msg {
 		msg := overlayChatMsg{request: request, revision: revision, latest: after}
 		var before uint64
-		// A broadcast flood cannot turn a 500 ms refresh into an unbounded
+		// A broadcast flood cannot turn a refresh into an unbounded
 		// history scan. Previously collected chat lines remain available.
-		for page := range 4 {
-			events, err := history.Page(room, before, 64)
+		for page := range overlayChatScanPages {
+			events, err := history.Page(room, before, overlayChatScanPageSize)
 			if err != nil {
 				msg.err = err
 				return msg
@@ -117,18 +124,18 @@ func (m *Model) updateOverlayChat() tea.Cmd {
 				if event.Kind != "chat" || event.Deleted || event.RoomID != room {
 					continue
 				}
-				text := overlayChatPlain(event.Text, 200)
+				text := overlayChatPlain(event.Text, overlayChatTextLimit)
 				if text == "" {
 					continue
 				}
-				msg.lines[msg.count] = overlayChatPlain(event.User, 40) + ": " + text
+				msg.lines[msg.count] = overlayChatPlain(event.User, overlayChatUserLimit) + ": " + text
 				msg.count++
 				if msg.count == overlayChatLimit {
 					return msg
 				}
 			}
 			before = events[len(events)-1].Sequence
-			if len(events) < 64 {
+			if len(events) < overlayChatScanPageSize {
 				break
 			}
 		}
@@ -184,7 +191,7 @@ func (m *Model) overlayContentText() string {
 		c.content = c.text
 		return c.content
 	}
-	summary.title = overlayChatPlain(summary.title, 200)
+	summary.title = overlayChatPlain(summary.title, overlayTitleLimit)
 	c.content = overlayText(summary)
 	if mode == "combined" && c.text != "" {
 		c.content += "\n\n" + c.text

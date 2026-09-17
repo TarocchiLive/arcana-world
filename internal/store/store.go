@@ -44,6 +44,16 @@ func DefaultConfig() domain.Config {
 	return domain.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", Overlay: overlay.DefaultSettings()}
 }
 
+func applyConnectionDefaults(c *domain.Config) {
+	defaults := DefaultConfig()
+	if c.Protocol == "" {
+		c.Protocol = defaults.Protocol
+	}
+	if c.OBSURL == "" {
+		c.OBSURL = defaults.OBSURL
+	}
+}
+
 func Open(dir string) (*Store, error) { return OpenWithBackend(dir, systemBackend{}) }
 func OpenWithBackend(dir string, backend Backend) (*Store, error) {
 	if backend == nil {
@@ -96,12 +106,7 @@ func OpenWithBackend(dir string, backend Backend) (*Store, error) {
 	if s.config.Overlay, err = s.config.Overlay.Normalize(); err != nil {
 		return nil, err
 	}
-	if s.config.Protocol == "" {
-		s.config.Protocol = DefaultConfig().Protocol
-	}
-	if s.config.OBSURL == "" {
-		s.config.OBSURL = DefaultConfig().OBSURL
-	}
+	applyConnectionDefaults(&s.config)
 	seen := make(map[string]bool, len(s.config.Accounts))
 	for _, a := range s.config.Accounts {
 		if strings.TrimSpace(a.UID) == "" || seen[a.UID] {
@@ -131,12 +136,7 @@ func (s *Store) SaveConfig(c domain.Config) error {
 	}
 	c = clone(c)
 	c.Accounts = append([]domain.AccountInfo(nil), s.config.Accounts...)
-	if c.Protocol == "" {
-		c.Protocol = DefaultConfig().Protocol
-	}
-	if c.OBSURL == "" {
-		c.OBSURL = DefaultConfig().OBSURL
-	}
+	applyConnectionDefaults(&c)
 	if err := s.persist(c); err != nil {
 		return err
 	}

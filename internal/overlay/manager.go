@@ -17,6 +17,15 @@ import (
 	"time"
 )
 
+const (
+	defaultStartupTimeout  = 10 * time.Second
+	defaultShutdownTimeout = 2 * time.Second
+	defaultUpdateInterval  = time.Second / 60
+	hostAuthTimeout        = time.Second
+	// Leave room within the Unix socket path limits of all supported platforms.
+	socketPathLimit = 100
+)
+
 // Options 控制独立原生子进程及其有界通信生命周期。
 type Options struct {
 	Executable      string
@@ -72,13 +81,13 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 		return nil, err
 	}
 	if options.StartupTimeout == 0 {
-		options.StartupTimeout = 10 * time.Second
+		options.StartupTimeout = defaultStartupTimeout
 	}
 	if options.ShutdownTimeout == 0 {
-		options.ShutdownTimeout = 2 * time.Second
+		options.ShutdownTimeout = defaultShutdownTimeout
 	}
 	if options.UpdateInterval == 0 {
-		options.UpdateInterval = time.Second / 60
+		options.UpdateInterval = defaultUpdateInterval
 	}
 	if options.StartupTimeout < 0 || options.ShutdownTimeout < 0 || options.UpdateInterval < 0 {
 		return nil, errors.New("overlay: timeouts and update interval must be positive")
@@ -98,9 +107,9 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 		return nil, err
 	}
 	socketPath := filepath.Join(directory, "s")
-	if len(socketPath) >= 100 {
+	if len(socketPath) >= socketPathLimit {
 		_ = os.RemoveAll(directory)
-		return nil, fmt.Errorf("overlay: runtime directory produces a Unix socket path of %d bytes (must be below 100)", len(socketPath))
+		return nil, fmt.Errorf("overlay: runtime directory produces a Unix socket path of %d bytes (must be below %d)", len(socketPath), socketPathLimit)
 	}
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socketPath, Net: "unix"})
 	if err != nil {
@@ -312,7 +321,7 @@ func acceptHost(ctx context.Context, listener *net.UnixListener, token string) (
 			return nil, err
 		}
 		stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
-		deadline := time.Now().Add(time.Second)
+		deadline := time.Now().Add(hostAuthTimeout)
 		if limit, ok := ctx.Deadline(); ok && limit.Before(deadline) {
 			deadline = limit
 		}

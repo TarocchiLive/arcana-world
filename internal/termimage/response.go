@@ -15,6 +15,15 @@ import (
 var errPreviewClosed = errors.New("preview closed")
 var errPreviewResized = errors.New("preview resized")
 
+const graphicsAckTimeout = 3 * time.Second
+
+func (v *Viewer) waitPlacementReady(id uint32, size dimensions) error {
+	if err := v.waitAck(id); err != nil {
+		return err
+	}
+	return v.checkSize(size)
+}
+
 // 放置前等待上传确认，确保终端已有完整图像资源；
 // 绘制页脚前等待放置确认，确保画面提交完成，
 // 无需在终端解码图片时通过休眠或周期性重绘等待。
@@ -23,7 +32,7 @@ func (v *Viewer) waitAck(id uint32) error {
 	if !ok {
 		return errors.New(i18n.T(i18n.TermImageAcknowledgmentInputRequired))
 	}
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(graphicsAckTimeout)
 	var parser responseParser
 	var input [256]byte
 	for time.Now().Before(deadline) {

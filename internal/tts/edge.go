@@ -17,7 +17,13 @@ import (
 
 var ErrUnsupportedProxy = errors.New("tts: unsupported proxy scheme")
 
-const defaultVoice = "zh-CN-XiaoxiaoNeural"
+const (
+	defaultVoice            = "zh-CN-XiaoxiaoNeural"
+	defaultSynthesisTimeout = 30 * time.Second
+	maxEdgeRequestBytes     = 8 << 10
+	maxVoiceBytes           = 96
+	maxProxyBytes           = 2048
+)
 
 type EdgeOptions struct {
 	Executable string
@@ -40,7 +46,7 @@ func NewEdge(options EdgeOptions) (*Edge, error) {
 		return nil, errors.New("tts: negative synthesis timeout")
 	}
 	if options.Timeout == 0 {
-		options.Timeout = 30 * time.Second
+		options.Timeout = defaultSynthesisTimeout
 	}
 	if options.Voice == "" {
 		options.Voice = defaultVoice
@@ -77,7 +83,7 @@ func (e *Edge) Synthesize(ctx context.Context, text string) ([]byte, error) {
 	if err := encoder.Encode(edgeRequest{Text: text, Voice: e.voice, Proxy: e.proxy}); err != nil {
 		return nil, errors.New("tts: encoding synthesis input")
 	}
-	if input.Len() > 8<<10 {
+	if input.Len() > maxEdgeRequestBytes {
 		return nil, errors.New("tts: synthesis input exceeds limit")
 	}
 	audio, err := runHelper(ctx, e.executable, []string{"synthesize"}, input.Bytes(), MaxAudioBytes, withoutProxyEnv(os.Environ()))
@@ -90,7 +96,7 @@ func (e *Edge) Synthesize(ctx context.Context, text string) ([]byte, error) {
 	return audio, nil
 }
 func validVoice(voice string) bool {
-	if len(voice) > 96 || !strings.HasSuffix(voice, "Neural") {
+	if len(voice) > maxVoiceBytes || !strings.HasSuffix(voice, "Neural") {
 		return false
 	}
 	for _, c := range voice {
@@ -121,7 +127,7 @@ func normalizeProxy(value string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
-	if len(value) > 2048 {
+	if len(value) > maxProxyBytes {
 		return "", errors.New("tts: invalid proxy")
 	}
 	proxy, err := url.Parse(value)

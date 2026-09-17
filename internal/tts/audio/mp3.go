@@ -12,10 +12,14 @@ import (
 )
 
 const (
-	sampleRate       = 24000
-	maxAudioBytes    = 8 << 20
-	maxMetadataBytes = 1 << 20
-	maxPCMBytes      = sampleRate * 4 * 120
+	sampleRate        = 24000
+	pcmChannels       = 2
+	pcmBytesPerSample = 2 // Signed 16-bit PCM from go-mp3.
+	pcmBytesPerSecond = sampleRate * pcmChannels * pcmBytesPerSample
+	maxAudioSeconds   = 120
+	maxAudioBytes     = 8 << 20
+	maxMetadataBytes  = 1 << 20
+	maxPCMBytes       = pcmBytesPerSecond * maxAudioSeconds
 )
 
 func validateMP3(data []byte) error {

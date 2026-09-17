@@ -35,6 +35,12 @@ const (
 	pageCount
 )
 
+const (
+	operationTimeout = 60 * time.Second
+	qrPollInterval   = 2 * time.Second
+	logEntryLimit    = 200
+)
+
 func pageNames() [pageCount]string {
 	return [pageCount]string{
 		livePage:     i18n.T(i18n.TUIPageLive),
@@ -156,7 +162,7 @@ func (m *Model) work(kind string, fn func(context.Context) (any, error)) tea.Cmd
 	m.canceled = false
 	m.operation++
 	id := m.operation
-	ctx, cancel := context.WithTimeout(m.ctx, 60*time.Second)
+	ctx, cancel := context.WithTimeout(m.ctx, operationTimeout)
 	m.cancel = cancel
 	m.status = fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), operationName(kind))
 	return func() tea.Msg { defer cancel(); value, err := fn(ctx); return resultMsg{id, kind, value, err} }
@@ -223,8 +229,8 @@ func (m *Model) log(s string) {
 		s += i18n.T(i18n.TUILogWriteFailedPrefix) + m.safe(err.Error()) + i18n.T(i18n.TUILogWriteFailedSuffix)
 	}
 	m.logs = append(m.logs, time.Now().Format("15:04:05")+"  "+s)
-	if len(m.logs) > 200 {
-		m.logs = append([]string(nil), m.logs[len(m.logs)-200:]...)
+	if len(m.logs) > logEntryLimit {
+		m.logs = append([]string(nil), m.logs[len(m.logs)-logEntryLimit:]...)
 	}
 	m.status = s
 }
@@ -422,9 +428,9 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		case "down", "j":
 			m.selected = min(len(m.choices)-1, m.selected+1)
 		case "pgup":
-			m.selected = max(0, m.selected-max(3, m.view.Height-5))
+			m.selected = max(0, m.selected-m.pickerWindow())
 		case "pgdown":
-			m.selected = min(len(m.choices)-1, m.selected+max(3, m.view.Height-5))
+			m.selected = min(len(m.choices)-1, m.selected+m.pickerWindow())
 		case "home":
 			m.selected = 0
 		case "end":
@@ -710,5 +716,5 @@ func (m *Model) result(r resultMsg) tea.Cmd {
 }
 func (m *Model) nextPoll() tea.Cmd {
 	id := m.qrGeneration
-	return tea.Tick(2*time.Second, func(time.Time) tea.Msg { return pollTick{id} })
+	return tea.Tick(qrPollInterval, func(time.Time) tea.Msg { return pollTick{id} })
 }

@@ -14,6 +14,11 @@ import (
 	"time"
 )
 
+const (
+	maxHelperDiagnosticBytes = 8 << 10
+	helperWaitDelay          = 2 * time.Second
+)
+
 func resolveHelper(name, explicit string) (string, error) {
 	path := explicit
 	if path == "" {
@@ -52,7 +57,7 @@ type cappedDiagnostics struct{ data []byte }
 
 func (b *cappedDiagnostics) Write(p []byte) (int, error) {
 	n := len(p)
-	if remaining := (8 << 10) - len(b.data); remaining > 0 {
+	if remaining := maxHelperDiagnosticBytes - len(b.data); remaining > 0 {
 		if len(p) > remaining {
 			p = p[:remaining]
 		}
@@ -72,7 +77,7 @@ func runHelper(ctx context.Context, executable string, args []string, input []by
 		return nil, errors.New("tts: invalid output limit")
 	}
 	cmd := exec.CommandContext(ctx, executable, args...)
-	cmd.WaitDelay = 2 * time.Second
+	cmd.WaitDelay = helperWaitDelay
 	cmd.Env = env
 	cmd.Stdin = bytes.NewReader(input)
 	diagnostics := new(cappedDiagnostics)

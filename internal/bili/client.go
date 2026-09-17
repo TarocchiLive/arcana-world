@@ -30,6 +30,9 @@ const (
 	maxResponse = 4 << 20
 )
 
+const requestTimeout = 30 * time.Second
+const liveWebOrigin = "https://live.bilibili.com"
+
 // Client 同步执行操作。调用方负责串行处理账号变更和各项操作。
 // 可替换基础 URL 和 HTTP 客户端以进行离线验证。
 type Client struct {
@@ -87,7 +90,7 @@ func New(proxy string) (*Client, error) {
 	id[6] = (id[6] & 0x0f) | 0x40
 	id[8] = (id[8] & 0x3f) | 0x80
 	buvid := fmt.Sprintf("%X-%X-%X-%X-%X%duser", id[:4], id[4:6], id[6:8], id[8:10], id[10:], os.Getpid())
-	return &Client{HTTP: &http.Client{Transport: transport, Timeout: 30 * time.Second}, APIBase: "https://api.bilibili.com", LiveBase: "https://api.live.bilibili.com", PassportBase: "https://passport.bilibili.com", account: domain.Account{Cookies: make(map[string]string)}, buvid: buvid}, nil
+	return &Client{HTTP: &http.Client{Transport: transport, Timeout: requestTimeout}, APIBase: "https://api.bilibili.com", LiveBase: "https://api.live.bilibili.com", PassportBase: "https://passport.bilibili.com", account: domain.Account{Cookies: make(map[string]string)}, buvid: buvid}, nil
 }
 
 func (c *Client) SetAccount(account domain.Account) {
@@ -166,7 +169,7 @@ func (c *Client) request(ctx context.Context, method, base, path string, query u
 		return result, nil, errors.New(i18n.T(i18n.BiliApiUrlInvalid))
 	}
 	u.RawQuery = encode(query)
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
 	if err != nil {
@@ -179,8 +182,8 @@ func (c *Client) request(ctx context.Context, method, base, path string, query u
 	req.Header.Set("User-Agent", "LiveHime/"+version+" os/Windows pc_app/livehime build/"+build+" osVer/10.0_x86_64")
 	if web {
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36 pc_app/livehime build/"+build)
-		req.Header.Set("Origin", "https://live.bilibili.com")
-		req.Header.Set("Referer", "https://live.bilibili.com/")
+		req.Header.Set("Origin", liveWebOrigin)
+		req.Header.Set("Referer", liveWebOrigin+"/")
 	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)

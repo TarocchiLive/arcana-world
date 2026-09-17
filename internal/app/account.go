@@ -15,8 +15,8 @@ type AccountOutcome struct {
 	OldRoom *domain.Room
 }
 
-func (m *Session) client(source *bili.Client, account *domain.Account) (*bili.Client, error) {
-	c, err := bili.New(m.store.Config().Proxy)
+func (m *Session) client(source *bili.Client, account *domain.Account, proxy string) (*bili.Client, error) {
+	c, err := bili.New(proxy)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func (m *Session) detach(ctx context.Context, source *bili.Client, out *AccountO
 	if err != nil {
 		return err
 	}
-	c, err := m.client(source, &old)
+	c, err := m.client(source, &old, m.store.Config().Proxy)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func (m *Session) Switch(ctx context.Context, source *bili.Client, uid string, l
 			return out, err
 		}
 	}
-	c, err := m.client(source, &a)
+	c, err := m.client(source, &a, m.store.Config().Proxy)
 	if err != nil {
 		return out, err
 	}
@@ -143,7 +143,7 @@ func (m *Session) Delete(ctx context.Context, source *bili.Client, uid string) (
 	var c *bili.Client
 	if active {
 		var err error
-		c, err = m.client(source, nil)
+		c, err = m.client(source, nil, m.store.Config().Proxy)
 		if err != nil {
 			return out, err
 		}

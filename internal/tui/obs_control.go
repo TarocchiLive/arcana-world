@@ -10,6 +10,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+const obsOperationTimeout = 30 * time.Second
+
 type obsEventMsg struct{ closed bool }
 type obsResultMsg struct {
 	id   int
@@ -81,7 +83,7 @@ func (m *Model) runOBS(kind string, fn func(context.Context) error) tea.Cmd {
 	m.obsBusy = true
 	m.obsOperation++
 	id := m.obsOperation
-	ctx, cancel := context.WithTimeout(m.ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(m.ctx, obsOperationTimeout)
 	m.obsCancel = cancel
 	m.status = fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), operationName(kind))
 	return func() tea.Msg {

@@ -16,6 +16,11 @@ import (
 
 type menuItem struct{ label, action string }
 
+const (
+	recentAreaLimit  = 10
+	recentTitleLimit = 5
+)
+
 func (m *Model) menu() []menuItem {
 	switch m.page {
 	case livePage:
@@ -351,7 +356,7 @@ func (m *Model) setArea(a domain.Area) tea.Cmd {
 		}
 		recent := []domain.Area{a}
 		for _, old := range cfg.RecentAreas {
-			if old.ID != a.ID && len(recent) < 10 {
+			if old.ID != a.ID && len(recent) < recentAreaLimit {
 				recent = append(recent, old)
 			}
 		}
@@ -428,29 +433,11 @@ func (m *Model) submitForm() tea.Cmd {
 		n, _ := strconv.Atoi(value)
 		return m.work("delay-set", func(ctx context.Context) (any, error) { return nil, m.client.SetTimeShift(ctx, n) })
 	case "obs-password":
-		return m.work("obs-password", func(ctx context.Context) (any, error) {
-			if err := m.session.Lock(ctx); err != nil {
-				return nil, err
-			}
-			defer m.session.Unlock()
-			if err := m.store.SetOBSSecret(value); err != nil {
-				return nil, err
-			}
-			return nil, m.obsClient.Disconnect()
-		})
+		return m.saveOBSSetting(kind, func() error { return m.store.SetOBSSecret(value) })
 	case "obs-url":
 		cfg := m.config
 		cfg.OBSURL = value
-		return m.work("obs-url", func(ctx context.Context) (any, error) {
-			if err := m.session.Lock(ctx); err != nil {
-				return nil, err
-			}
-			defer m.session.Unlock()
-			if err := m.store.SaveConfig(cfg); err != nil {
-				return nil, err
-			}
-			return nil, m.obsClient.Disconnect()
-		})
+		return m.saveOBSSetting(kind, func() error { return m.store.SaveConfig(cfg) })
 	case "proxy":
 		cfg := m.config
 		cfg.Proxy = value
@@ -522,7 +509,7 @@ func (m *Model) setTitle(value string) tea.Cmd {
 		}
 		titles := []string{value}
 		for _, s := range cfg.RecentTitles {
-			if s != value && len(titles) < 5 {
+			if s != value && len(titles) < recentTitleLimit {
 				titles = append(titles, s)
 			}
 		}

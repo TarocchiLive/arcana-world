@@ -20,7 +20,7 @@ import (
 
 func (c *Client) GenerateQR(ctx context.Context) (domain.QR, error) {
 	now := time.Now()
-	p := values("source", "live_pc", "web_location", "0.0", "go_url", fmt.Sprintf("https://live.bilibili.com/p/html/live-pc-blink/mini-login-v2/?livehime_create_ts=%d&livehime_ts=%d", now.UnixMilli(), now.Unix()))
+	p := values("source", "live_pc", "web_location", "0.0", "go_url", fmt.Sprintf(liveWebOrigin+"/p/html/live-pc-blink/mini-login-v2/?livehime_create_ts=%d&livehime_ts=%d", now.UnixMilli(), now.Unix()))
 	var d struct {
 		Key string `json:"qrcode_key"`
 		URL string `json:"url"`

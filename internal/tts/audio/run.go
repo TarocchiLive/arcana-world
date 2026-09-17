@@ -13,6 +13,13 @@ import (
 	"github.com/ebitengine/oto/v3"
 )
 
+const (
+	playbackBufferDuration = 100 * time.Millisecond
+	playbackPollInterval   = 10 * time.Millisecond
+	playbackDrainTail      = 500 * time.Millisecond
+	playbackBufferBytes    = int(pcmBytesPerSecond * playbackBufferDuration / time.Second)
+)
+
 // Run decodes and plays a single MP3. It must only be called once per process:
 // Oto does not support creating a second context or closing the first one.
 func Run(ctx context.Context, in io.Reader) error {
@@ -35,9 +42,9 @@ func Run(ctx context.Context, in io.Reader) error {
 	}
 	device, ready, err := oto.NewContext(&oto.NewContextOptions{
 		SampleRate:   sampleRate,
-		ChannelCount: 2,
+		ChannelCount: pcmChannels,
 		Format:       oto.FormatSignedInt16LE,
-		BufferSize:   100 * time.Millisecond,
+		BufferSize:   playbackBufferDuration,
 	})
 	if err != nil {
 		return fmt.Errorf("audio: initialize device: %w", err)
@@ -55,9 +62,9 @@ func Run(ctx context.Context, in io.Reader) error {
 	}
 	stream := &trackedPCM{source: decoder}
 	player := device.NewPlayer(stream)
-	player.SetBufferSize(9600)
+	player.SetBufferSize(playbackBufferBytes)
 	player.Play()
-	return waitPlayback(ctx, player, device.Err, stream, 500*time.Millisecond)
+	return waitPlayback(ctx, player, device.Err, stream, playbackDrainTail)
 }
 
 type playbackDevice interface {
@@ -90,7 +97,7 @@ func playbackDrained(player playbackDevice, deviceErr func() error, state pcmSta
 // Oto has no hardware drain callback: this is not a universal physical drain guarantee.
 func waitPlayback(ctx context.Context, player playbackDevice, deviceErr func() error, stream *trackedPCM, tail time.Duration) (err error) {
 	defer func() { err = errors.Join(err, player.Close()) }()
-	ticker := time.NewTicker(10 * time.Millisecond)
+	ticker := time.NewTicker(playbackPollInterval)
 	defer ticker.Stop()
 	var drainedAt time.Time
 	for {

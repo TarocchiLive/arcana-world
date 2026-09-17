@@ -11,6 +11,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+const initialSelectionWindow = 8
+
 type selectionResult struct {
 	Canceled bool
 	Title    string
@@ -47,7 +49,7 @@ func newTitleSelection(current string, recent []string) *roomSelection {
 	in.SetValue(selectionText(current))
 	in.CursorEnd()
 	in.Focus()
-	s := &roomSelection{titleMode: true, input: in, selected: -1, window: 8}
+	s := &roomSelection{titleMode: true, input: in, selected: -1, window: initialSelectionWindow}
 	seen := make(map[string]bool)
 	for _, title := range recent {
 		title = selectionText(title)
@@ -60,7 +62,7 @@ func newTitleSelection(current string, recent []string) *roomSelection {
 }
 
 func newAreaSelection(all, recent []domain.Area, currentID int64) *roomSelection {
-	s := &roomSelection{currentID: currentID, window: 8}
+	s := &roomSelection{currentID: currentID, window: initialSelectionWindow}
 	canonical := make(map[int64]domain.Area, len(all))
 	for _, area := range all {
 		if area.ID <= 0 {

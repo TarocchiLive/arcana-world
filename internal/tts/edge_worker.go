@@ -17,6 +17,8 @@ import (
 	edge "github.com/wujunwei928/edge-tts-go/edge_tts"
 )
 
+const edgeReceiveTimeoutSeconds = 20
+
 // RunEdge handles one request in a dedicated process. It changes that process's
 // proxy environment and default logger; callers must not run it in the host.
 func RunEdge(in io.Reader, out io.Writer) error {
@@ -37,7 +39,7 @@ func RunEdge(in io.Reader, out io.Writer) error {
 	if err := xml.EscapeText(&escaped, []byte(request.Text)); err != nil {
 		return errors.New("tts: invalid synthesis input")
 	}
-	communicator, err := edge.NewCommunicate(escaped.String(), edge.SetVoice(request.Voice), edge.SetProxy(request.Proxy), edge.SetOutputFormat(edge.OutputFormatMP3), edge.SetReceiveTimeout(20))
+	communicator, err := edge.NewCommunicate(escaped.String(), edge.SetVoice(request.Voice), edge.SetProxy(request.Proxy), edge.SetOutputFormat(edge.OutputFormatMP3), edge.SetReceiveTimeout(edgeReceiveTimeoutSeconds))
 	if err != nil {
 		return errors.New("tts: invalid synthesis configuration")
 	}
@@ -58,8 +60,8 @@ func RunEdge(in io.Reader, out io.Writer) error {
 }
 func readEdgeRequest(in io.Reader) (edgeRequest, error) {
 	var request edgeRequest
-	data, err := io.ReadAll(io.LimitReader(in, (8<<10)+1))
-	if err != nil || len(data) > 8<<10 || !utf8.Valid(data) {
+	data, err := io.ReadAll(io.LimitReader(in, maxEdgeRequestBytes+1))
+	if err != nil || len(data) > maxEdgeRequestBytes || !utf8.Valid(data) {
 		return request, errors.New("tts: invalid synthesis input")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))

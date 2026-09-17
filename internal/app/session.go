@@ -15,6 +15,10 @@ import (
 	"time"
 )
 
+// Each shutdown phase gets its own deadline so one failure cannot exhaust
+// the time available to the remaining cleanup.
+const shutdownPhaseTimeout = 15 * time.Second
+
 // Session owns serialized identity and broadcast transitions, including shutdown.
 // The UI owns display snapshots; commands return confirmed remote outcomes.
 type Session struct {
@@ -183,13 +187,11 @@ func (m *Session) stopExitLive(ctx context.Context, cfg domain.Config, source *b
 		return ctx.Err()
 	}
 	// 独立客户端不读取旧房间，也不修改尚未完成的界面请求的房间缓存。
-	client, err := bili.New(cfg.Proxy)
+	client, err := m.client(source, &account, cfg.Proxy)
 	if err != nil {
 		return fmt.Errorf(i18n.T(i18n.TUIErrorExitLiveRoom), err)
 	}
 	defer client.HTTP.CloseIdleConnections()
-	client.APIBase, client.LiveBase, client.PassportBase = source.APIBase, source.LiveBase, source.PassportBase
-	client.SetAccount(account)
 	room, err := client.Room(ctx)
 	if err != nil {
 		return fmt.Errorf(i18n.T(i18n.TUIErrorExitLiveRoom), err)
@@ -213,7 +215,7 @@ func (m *Session) Close(source *bili.Client, live bool) error {
 		m.clientsMu.Unlock()
 		source.HTTP.CloseIdleConnections()
 	}()
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownPhaseTimeout)
 	defer cancel()
 	var gateErr error
 	select {
@@ -225,12 +227,12 @@ func (m *Session) Close(source *bili.Client, live bool) error {
 	cfg := m.store.Config()
 	err := gateErr
 	if !cfg.ExitOBSStopDisabled && gateErr == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownPhaseTimeout)
 		_, err = m.stopControlledOBS(ctx, cfg, live)
 		cancel()
 	}
 	if !cfg.ExitLiveStopDisabled {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownPhaseTimeout)
 		err = errors.Join(err, m.stopExitLive(ctx, cfg, source))
 		cancel()
 	}
