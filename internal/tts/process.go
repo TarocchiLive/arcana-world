@@ -38,10 +38,10 @@ func resolveHelper(name, explicit string) (string, error) {
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return "", fmt.Errorf("tts: helper %q unavailable; build TTS helpers or extract the complete portable package: %w", path, err)
+		return "", fmt.Errorf("tts: helper %q unavailable; build the TTS helper or extract the complete portable package: %w", path, err)
 	}
 	if !info.Mode().IsRegular() || runtime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
-		return "", fmt.Errorf("tts: helper %q is not executable; rebuild TTS helpers or extract the complete portable package", path)
+		return "", fmt.Errorf("tts: helper %q is not executable; rebuild the TTS helper or extract the complete portable package", path)
 	}
 	return path, nil
 }
@@ -61,7 +61,7 @@ func (b *cappedDiagnostics) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-func runHelper(ctx context.Context, executable string, input []byte, maxOutput int, env []string) ([]byte, error) {
+func runHelper(ctx context.Context, executable string, args []string, input []byte, maxOutput int, env []string) ([]byte, error) {
 	if ctx == nil {
 		return nil, errors.New("tts: nil context")
 	}
@@ -71,7 +71,7 @@ func runHelper(ctx context.Context, executable string, input []byte, maxOutput i
 	if maxOutput < 0 {
 		return nil, errors.New("tts: invalid output limit")
 	}
-	cmd := exec.CommandContext(ctx, executable)
+	cmd := exec.CommandContext(ctx, executable, args...)
 	cmd.WaitDelay = 2 * time.Second
 	cmd.Env = env
 	cmd.Stdin = bytes.NewReader(input)

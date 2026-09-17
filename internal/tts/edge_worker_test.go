@@ -81,7 +81,7 @@ func TestProxyEnvironmentPrecedence(t *testing.T) {
 	} {
 		env := append(withoutProxyEnv(fixtureEnv("proxy")), "HTTPS_PROXY=http://environment.invalid:8080", "NO_PROXY="+tc.noProxy, "ARCANA_TTS_TEST_PROXY="+tc.explicit)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		data, err := runHelper(ctx, testExecutable(t), nil, 2048, env)
+		data, err := runHelper(ctx, testExecutable(t), nil, nil, 2048, env)
 		cancel()
 		if err != nil || string(data) != tc.want {
 			t.Fatalf("proxy precedence: got %q, %v; want %q", data, err, tc.want)

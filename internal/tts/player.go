@@ -25,7 +25,7 @@ func NewPlayer(options PlayerOptions) (*ProcessPlayer, error) {
 	if options.Timeout == 0 {
 		options.Timeout = 2 * time.Minute
 	}
-	executable, err := resolveHelper("arcana-audio", options.Executable)
+	executable, err := resolveHelper("arcana-world-tts", options.Executable)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (p *ProcessPlayer) Play(ctx context.Context, audio []byte) error {
 	}
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
-	if _, err := runHelper(ctx, p.executable, audio, 0, nil); err != nil {
+	if _, err := runHelper(ctx, p.executable, []string{"play"}, audio, 0, nil); err != nil {
 		return fmt.Errorf("tts: playback helper: %w", err)
 	}
 	return nil

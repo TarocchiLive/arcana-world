@@ -129,7 +129,7 @@ func TestEdgeRealStreamCancellationAndEscaping(t *testing.T) {
 	env := append(withoutProxyEnv(fixtureEnv("edge")), "SSL_CERT_FILE="+caPath, "SSL_CERT_DIR="+t.TempDir())
 	result := make(chan error, 1)
 	executable := testExecutable(t)
-	go func() { _, err := runHelper(ctx, executable, input, MaxAudioBytes, env); result <- err }()
+	go func() { _, err := runHelper(ctx, executable, nil, input, MaxAudioBytes, env); result <- err }()
 	select {
 	case body := <-ssml:
 		var document struct {

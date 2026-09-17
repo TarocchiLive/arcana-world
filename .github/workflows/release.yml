@@ -91,14 +91,10 @@ jobs:
           CGO_ENABLED="$cgo" go build -tags "$tags" -trimpath -buildvcs=false \
             -ldflags="-s -w -buildid=" \
             -o "package/libexec/arcana-overlay$suffix" ./cmd/arcana-overlay
-          CGO_ENABLED=0 go build -trimpath -buildvcs=false \
-            -ldflags="-s -w -buildid=" \
-            -o "package/libexec/arcana-tts$suffix" ./cmd/arcana-tts
           CGO_ENABLED="$audio_cgo" go build -tags tts_audio -trimpath -buildvcs=false \
             -ldflags="-s -w -buildid=" \
-            -o "package/libexec/arcana-audio$suffix" ./cmd/arcana-audio
-          "./package/libexec/arcana-tts$suffix" -help
-          "./package/libexec/arcana-audio$suffix" -help
+            -o "package/libexec/arcana-world-tts$suffix" ./cmd/arcana-world-tts
+          "./package/libexec/arcana-world-tts$suffix" -help
           cp LICENSE package/
           archive="arcana-world-${GOOS}-${GOARCH}"
           if [[ "$GOOS" == windows ]]; then

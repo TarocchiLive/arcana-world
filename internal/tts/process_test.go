@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 		fmt.Fprintln(os.Stderr, os.Getenv("ARCANA_TTS_TEST_DIAGNOSTIC"))
 		os.Exit(1)
 	case "resolve":
-		path, err := resolveHelper("arcana-tts", "")
+		path, err := resolveHelper("arcana-world-tts", "")
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -115,7 +115,7 @@ func TestHelperCancellationReapsChild(t *testing.T) {
 			defer cancel()
 			result := make(chan error, 1)
 			go func() {
-				_, err := runHelper(ctx, executable, []byte("request"), 8, append(fixtureEnv("wait"), "ARCANA_TTS_TEST_READY="+listener.Addr().String()))
+				_, err := runHelper(ctx, executable, nil, []byte("request"), 8, append(fixtureEnv("wait"), "ARCANA_TTS_TEST_READY="+listener.Addr().String()))
 				result <- err
 			}()
 			listener.(*net.TCPListener).SetDeadline(time.Now().Add(5 * time.Second))
@@ -156,7 +156,7 @@ func TestHelperOutputAndFailures(t *testing.T) {
 		t.Run(tc.mode+fmt.Sprint(tc.limit), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			data, err := runHelper(ctx, executable, nil, tc.limit, fixtureEnv(tc.mode))
+			data, err := runHelper(ctx, executable, nil, nil, tc.limit, fixtureEnv(tc.mode))
 			if (err != nil) != tc.fail || string(data) != tc.want {
 				t.Fatalf("output=%q error=%v", data, err)
 			}
@@ -175,10 +175,10 @@ func TestHelperOutputAndFailures(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := runHelper(ctx, executable, nil, 0, fixtureEnv("empty")); !errors.Is(err, context.Canceled) {
+	if _, err := runHelper(ctx, executable, nil, nil, 0, fixtureEnv("empty")); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if _, err := runHelper(context.Background(), filepath.Join(t.TempDir(), "missing"), nil, 0, nil); err == nil {
+	if _, err := runHelper(context.Background(), filepath.Join(t.TempDir(), "missing"), nil, nil, 0, nil); err == nil {
 		t.Fatal("missing child accepted")
 	}
 }
@@ -187,37 +187,37 @@ func TestResolveHelper(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := resolveHelper("arcana-tts", path); err == nil {
+	if _, err := resolveHelper("arcana-world-tts", path); err == nil {
 		t.Fatal("missing helper accepted")
 	}
 	if err := os.WriteFile(path, []byte("not run"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if runtime.GOOS != "windows" {
-		if _, err := resolveHelper("arcana-tts", path); err == nil {
+		if _, err := resolveHelper("arcana-world-tts", path); err == nil {
 			t.Fatal("nonexecutable helper accepted")
 		}
 	}
 	if err := os.Chmod(path, 0700); err != nil {
 		t.Fatal(err)
 	}
-	got, err := resolveHelper("arcana-tts", path)
+	got, err := resolveHelper("arcana-world-tts", path)
 	if err != nil || got != path {
 		t.Fatalf("%q %v", got, err)
 	}
-	if _, err := resolveHelper("arcana-tts", filepath.Dir(path)); err == nil {
+	if _, err := resolveHelper("arcana-world-tts", filepath.Dir(path)); err == nil {
 		t.Fatal("directory accepted")
 	}
 	// A same-name executable in the working directory must never be selected.
 	t.Chdir(filepath.Dir(path))
-	name := "arcana-tts"
+	name := "arcana-world-tts"
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
 	if err := os.WriteFile(name, []byte("not run"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	got, err = resolveHelper("arcana-tts", "")
+	got, err = resolveHelper("arcana-world-tts", "")
 	if err == nil && filepath.Dir(got) == filepath.Dir(path) {
 		t.Fatal("selected working-directory executable")
 	}
@@ -250,8 +250,12 @@ func TestRelocatedHelperUsesInstallationDirectory(t *testing.T) {
 	if closeErr != nil {
 		t.Fatal(closeErr)
 	}
-	helper := filepath.Join(directory, "libexec", "arcana-tts"+suffix)
+	helper := filepath.Join(directory, "libexec", "arcana-world-tts"+suffix)
 	if err := os.WriteFile(helper, []byte("helper"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	resolvedHelper, err := filepath.EvalSymlinks(helper)
+	if err != nil {
 		t.Fatal(err)
 	}
 	t.Chdir(t.TempDir())
@@ -265,9 +269,9 @@ func TestRelocatedHelperUsesInstallationDirectory(t *testing.T) {
 	}
 	for _, launch := range launches {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		data, err := runHelper(ctx, launch, nil, 4096, fixtureEnv("resolve"))
+		data, err := runHelper(ctx, launch, nil, nil, 4096, fixtureEnv("resolve"))
 		cancel()
-		if err != nil || string(data) != helper {
+		if err != nil || string(data) != resolvedHelper {
 			t.Fatalf("relocated resolution: %q %v", data, err)
 		}
 	}
@@ -276,7 +280,7 @@ func TestRelocatedHelperUsesInstallationDirectory(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := runHelper(ctx, executable, nil, 4096, fixtureEnv("resolve")); err == nil {
+	if _, err := runHelper(ctx, executable, nil, nil, 4096, fixtureEnv("resolve")); err == nil {
 		t.Fatal("missing bundled helper accepted")
 	}
 }
@@ -292,7 +296,7 @@ func TestHelperFailedExitRacingCancellation(t *testing.T) {
 	result := make(chan error, 1)
 	executable := testExecutable(t)
 	go func() {
-		_, err := runHelper(ctx, executable, nil, 0, append(fixtureEnv("fail-ready"), "ARCANA_TTS_TEST_READY="+listener.Addr().String()))
+		_, err := runHelper(ctx, executable, nil, nil, 0, append(fixtureEnv("fail-ready"), "ARCANA_TTS_TEST_READY="+listener.Addr().String()))
 		result <- err
 	}()
 	listener.(*net.TCPListener).SetDeadline(time.Now().Add(5 * time.Second))
@@ -327,7 +331,7 @@ func TestHelperPreservesSafeFailureCategories(t *testing.T) {
 		{"tts: synthesis handshake rejected", "handshake"},
 	} {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		_, err := runHelper(ctx, testExecutable(t), nil, 0, append(fixtureEnv("diagnostic"), "ARCANA_TTS_TEST_DIAGNOSTIC="+tc.diagnostic))
+		_, err := runHelper(ctx, testExecutable(t), nil, nil, 0, append(fixtureEnv("diagnostic"), "ARCANA_TTS_TEST_DIAGNOSTIC="+tc.diagnostic))
 		cancel()
 		if err == nil || !strings.Contains(err.Error(), tc.category) {
 			t.Fatalf("lost failure category: %v", err)

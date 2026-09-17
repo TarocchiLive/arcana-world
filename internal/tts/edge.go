@@ -52,7 +52,7 @@ func NewEdge(options EdgeOptions) (*Edge, error) {
 	if err != nil {
 		return nil, err
 	}
-	executable, err := resolveHelper("arcana-tts", options.Executable)
+	executable, err := resolveHelper("arcana-world-tts", options.Executable)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (e *Edge) Synthesize(ctx context.Context, text string) ([]byte, error) {
 	if input.Len() > 8<<10 {
 		return nil, errors.New("tts: synthesis input exceeds limit")
 	}
-	audio, err := runHelper(ctx, e.executable, input.Bytes(), MaxAudioBytes, withoutProxyEnv(os.Environ()))
+	audio, err := runHelper(ctx, e.executable, []string{"synthesize"}, input.Bytes(), MaxAudioBytes, withoutProxyEnv(os.Environ()))
 	if err != nil {
 		return nil, fmt.Errorf("tts: synthesize: %w", err)
 	}
