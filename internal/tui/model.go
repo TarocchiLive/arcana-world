@@ -24,6 +24,8 @@ import (
 const (
 	livePage = iota
 	chatPage
+	overlayPage
+	ttsPage
 	accountsPage
 	roomPage
 	obsPage
@@ -43,6 +45,8 @@ func pageNames() [pageCount]string {
 	return [pageCount]string{
 		livePage:     i18n.T(i18n.TUIPageLive),
 		chatPage:     i18n.T(i18n.DanmakuPage),
+		overlayPage:  "弹幕浮层",
+		ttsPage:      "TTS",
 		accountsPage: i18n.T(i18n.TUIPageAccounts),
 		roomPage:     i18n.T(i18n.TUIPageRoom),
 		obsPage:      "OBS",
@@ -71,6 +75,7 @@ type Model struct {
 	session                *app.Session
 	initialized            bool
 	overlay                *overlayRuntime
+	tts                    *ttsRuntime
 	overlayEnabled         bool
 	overlayChat            overlayChatState
 	selection              *roomSelection
@@ -183,6 +188,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	defer m.publishOverlay()
+	defer m.syncTTS()
 	switch msg := msg.(type) {
 	case overlayStartedMsg:
 		return m, m.handleOverlayStarted(msg)
@@ -190,8 +196,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.handleOverlayStopped(msg)
 	case overlayChatMsg:
 		return m, m.handleOverlayChat(msg)
+	case ttsEventsMsg:
+		return m, m.handleTTSEvents(msg)
 	case chatTick:
-		return m, tea.Batch(m.updateChat(), m.updateOverlayChat())
+		return m, tea.Batch(m.updateChat(), m.updateOverlayChat(), m.updateTTS())
 	case chatPageMsg:
 		return m, m.applyChatPage(msg)
 	case coverPreviewFinished:
@@ -274,8 +282,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "shift+tab", "left":
 			m.page = (m.page + len(m.cursors) - 1) % len(m.cursors)
 			m.view.GotoTop()
-		case "1", "2", "3", "4", "5", "6", "7", "8":
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 			m.page = int(key[0] - '1')
+			m.view.GotoTop()
+		case "0":
+			m.page = helpPage
 			m.view.GotoTop()
 		case "up", "k":
 			if m.cursors[m.page] > 0 {
@@ -287,6 +298,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter":
 			return m, m.activate()
+		case " ":
+			if m.page == overlayPage || m.page == ttsPage {
+				return m, m.activate()
+			}
 		case "r":
 			if m.account != nil {
 				return m, m.refresh()

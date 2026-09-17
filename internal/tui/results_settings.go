@@ -20,6 +20,9 @@ func (m *Model) handleSettingsResetResult(value *bili.Client, err error, label i
 	if m.overlay != nil {
 		m.overlay.options.Config = m.config.Overlay.Config("")
 	}
+	if err := m.closeTTS(); err != nil {
+		m.log("TTS 停止失败：" + err.Error())
+	}
 	m.syncChat()
 	m.log(i18n.T(i18n.TUISettingsResetDone))
 	return tea.Batch(m.stopOverlay(), m.updateOverlayChat())

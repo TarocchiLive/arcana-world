@@ -55,14 +55,15 @@ func (m *Model) menu() []menuItem {
 			{i18n.T(i18n.TUISettingsOBSURL), "obs-url"},
 			{i18n.T(i18n.TUIMenuOBSPassword), "obs-password"},
 		}
+	case overlayPage, ttsPage:
+		return m.outputMenu()
 	case settingsPage:
 		return []menuItem{
 			{i18n.T(i18n.TUIMenuSetProxy), "proxy"},
 			{i18n.T(i18n.TUIMenuSetProtocol), "protocol"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
-			{toggleLabel(i18n.T(i18n.TUIOverlayEnabled), m.overlayEnabled), "overlay-toggle"},
-			{i18n.T(i18n.TUIOverlaySettings), "overlay-settings"},
+			{"TTS 音色", "tts-voice"},
 			{i18n.T(i18n.TUISettingsReset), "settings-reset-confirm"},
 			{i18n.T(i18n.TUISettingsClearData), "clear-data"},
 		}
@@ -93,6 +94,15 @@ func (m *Model) requireRoom() bool {
 func (m *Model) perform(action string) tea.Cmd {
 	if m.busy {
 		return nil
+	}
+	if strings.HasPrefix(action, "output-event:") {
+		return m.toggleOutputEvent(strings.TrimPrefix(action, "output-event:"))
+	}
+	if action == "tts-voice" {
+		return m.pickTTSVoice()
+	}
+	if strings.HasPrefix(action, "tts-") {
+		return m.performTTS(action)
 	}
 	if strings.HasPrefix(action, "overlay-") {
 		return m.performOverlay(action)
@@ -335,6 +345,10 @@ func (m *Model) choose() tea.Cmd {
 		return m.chooseOverlay(ch.value)
 	}
 	switch m.editKind {
+	case "tts-voice":
+		cfg := m.config
+		cfg.TTS.Voice = ch.value
+		return m.saveConfig(cfg, false)
 	case "delete":
 		prompt := fmt.Sprintf(i18n.T(i18n.TUIConfirmRemoveAccount), ch.label)
 		if m.config.ActiveUID == ch.value {

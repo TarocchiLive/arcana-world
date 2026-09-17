@@ -7,6 +7,7 @@ import (
 
 	"arcana-world/internal/danmaku"
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/presentation"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -103,22 +104,14 @@ func (m *Model) chatView() string {
 // This is a display allowlist, not an ingestion filter. Unknown/new event kinds
 // and commands stay hidden even with Other enabled; durable history is unchanged.
 func chatEventVisible(e danmaku.Event, showOther bool) bool {
-	switch e.Kind {
-	case "chat", "gift", "sc", "guard", "enter", "follow",
-		"like", "live", "preparing",
-		"room_change", "room_block", "cut_off", "delete":
+	if presentation.Enabled(nil, e) {
 		return true
+	}
+	switch e.Kind {
 	case "gap", "watched", "likes", "share", "special_follow":
 		return showOther
 	case "detail":
 		switch e.Text {
-		// Purchases, recalls and moderation in the listening room.
-		// GUARD_MSG is a cross-room broadcast; GUIARD_MSG is a local notice.
-		case "USER_TOAST_MSG", "GUIARD_MSG",
-			"LIVE_OPEN_PLATFORM_SEND_GIFT", "LIVE_OPEN_PLATFORM_GUARD",
-			"RECALL_DANMU_MSG", "WARNING", "ROOM_SILENT_ON", "ROOM_SILENT_OFF",
-			"room_admin_entrance", "ROOM_ADMIN_REVOKE":
-			return true
 		// Local interaction effects and gift-combo summaries.
 		case "WELCOME", "WELCOME_GUARD", "ENTRY_EFFECT", "USER_VIRTUAL_MVP",
 			"EFFECT_DANMAKU_MSG", "DM_INTERACTION", "COMBO_SEND", "COMBO_END",

@@ -61,9 +61,9 @@ func overlayText(summary overlaySummary) string {
 	if !summary.room {
 		return "Arcana World"
 	}
-	state := i18n.T(i18n.TUILiveOffline)
+	state := "未开播"
 	if summary.live {
-		state = i18n.T(i18n.TUILiveOnline)
+		state = "直播中"
 	}
 	return "Arcana World\n" + clean(summary.title) + "\n" + state
 }

@@ -38,7 +38,7 @@ func (m *Model) View() string {
 	header := liveStyle.Render("[ "+liveState+" ]") + "  " + accent.Render("ARCANA WORLD") + "  " + muted.Render("BILIBILI LIVE CONTROL")
 	var tabs []string
 	for i, p := range pageNames() {
-		label := fmt.Sprintf(" %d %s ", i+1, p)
+		label := fmt.Sprintf(" %d %s ", (i+1)%10, p)
 		if i == m.page {
 			label = selectedStyle.Render(label)
 		} else {
@@ -46,6 +46,7 @@ func (m *Model) View() string {
 		}
 		tabs = append(tabs, label)
 	}
+	tabBar := ansi.Wrap(strings.Join(tabs, ""), width, " ")
 	chatHeader := ""
 	if m.chat != nil {
 		if m.page == chatPage && m.mode == "" {
@@ -66,6 +67,9 @@ func (m *Model) View() string {
 	if m.page == chatPage {
 		footer = i18n.T(i18n.DanmakuControls)
 	}
+	if m.page == overlayPage || m.page == ttsPage {
+		footer = "Tab / ← → 切换页签 · ↑ ↓ 选择 · Enter / Space 切换或执行 · q 退出"
+	}
 	if m.mode != "" {
 		footer = i18n.T(i18n.TUIFooterModal)
 	}
@@ -76,12 +80,26 @@ func (m *Model) View() string {
 		footer = i18n.T(i18n.TUIFooterOBSBusy)
 	}
 	status = warning.Render(ansi.Wrap(clean(status), width, ""))
-	m.view.Height = max(1, m.height-10-(lipgloss.Height(status)-1))
+	m.view.Height = max(1, m.height-10-(lipgloss.Height(status)-1)-(lipgloss.Height(tabBar)-1))
 	if chatHeader != "" {
 		m.view.Height = max(1, m.view.Height-lipgloss.Height(chatHeader))
 		chatHeader += "\n"
 	}
-	m.view.SetContent(m.content())
+	content := m.content()
+	m.view.SetContent(content)
+	if m.mode == "pick" || (m.mode == "" && len(m.menu()) > 0 && m.page != chatPage) {
+		for row, line := range strings.Split(content, "\n") {
+			if !strings.HasPrefix(ansi.Strip(line), " › ") {
+				continue
+			}
+			if row < m.view.YOffset {
+				m.view.SetYOffset(row)
+			} else if row >= m.view.YOffset+m.view.Height {
+				m.view.SetYOffset(row - m.view.Height + 1)
+			}
+			break
+		}
+	}
 	if m.page == chatPage && m.mode == "" && m.chat != nil && m.chat.scrollToLatest {
 		m.view.GotoBottom()
 		m.chat.scrollToLatest = false
@@ -92,7 +110,7 @@ func (m *Model) View() string {
 	}
 	return lipgloss.NewStyle().Padding(1, 2).Render(
 		ansi.Truncate(header, width, "") + "\n" +
-			muted.Render(i18n.T(i18n.TUIViewAccountLabel)+account) + "\n" + strings.Join(tabs, "") + "\n\n" +
+			muted.Render(i18n.T(i18n.TUIViewAccountLabel)+account) + "\n" + tabBar + "\n\n" +
 			chatHeader + m.view.View() + "\n" +
 			status + "\n" +
 			lipgloss.NewStyle().MaxWidth(width).Render(muted.Render(footer)))
@@ -133,7 +151,7 @@ func (m *Model) content() string {
 		start := max(0, m.selected-window+1)
 		end := min(len(m.choices), start+window)
 		for i := start; i < end; i++ {
-			label := clean(m.choices[i].label)
+			label := ansi.Truncate(clean(m.choices[i].label), max(1, m.view.Width-3), "…")
 			if i == m.selected {
 				b.WriteString(selectedStyle.Render(" › "+label) + "\n")
 			} else {
@@ -203,6 +221,14 @@ func (m *Model) content() string {
 			fmt.Fprintf(&b, i18n.T(i18n.TUIOBSStreamDetails), streaming)
 		}
 		b.WriteString(i18n.T(i18n.TUIOBSDescription))
+	case overlayPage:
+		b.WriteString(accent.Render("弹幕浮层") + "\n\n")
+		b.WriteString(m.overlayStateText())
+		b.WriteString("\n选择要在浮层显示的事件；与 TTS 独立保存。\n")
+	case ttsPage:
+		b.WriteString(accent.Render("TTS · 语音播报") + "\n\n")
+		b.WriteString(m.ttsStateText())
+		fmt.Fprintf(&b, "\n音色：%s\n选择要播报的事件；与浮层独立保存。\n", clean(m.ttsVoiceName()))
 	case settingsPage:
 		proxy := m.config.Proxy
 		if proxy == "" {
@@ -212,7 +238,7 @@ func (m *Model) content() string {
 			proxy = u.String()
 		}
 		fmt.Fprintf(&b, i18n.T(i18n.TUISettingsDetails), accent.Render(i18n.T(i18n.TUISettingsTitle)), clean(proxy), m.config.Protocol)
-		b.WriteString(m.overlayStateText())
+		fmt.Fprintf(&b, "\nTTS 音色：%s\n", clean(m.ttsVoiceName()))
 	case logsPage:
 		b.WriteString(accent.Render(i18n.T(i18n.TUILogsTitle)) + "\n" + muted.Render(clean(m.journal.Path())) + "\n\n")
 		if len(m.logs) == 0 {
@@ -231,9 +257,10 @@ func (m *Model) content() string {
 		b.WriteString("\n")
 		cursor := min(m.cursors[m.page], len(items)-1)
 		for i, item := range items {
-			label := "   " + item.label
+			text := ansi.Truncate(clean(item.label), max(1, m.view.Width-3), "…")
+			label := "   " + text
 			if i == cursor {
-				label = selectedStyle.Render(" › " + item.label)
+				label = selectedStyle.Render(" › " + text)
 			}
 			b.WriteString(label + "\n")
 		}

@@ -37,11 +37,12 @@ func (m *Model) Close() error {
 		if m.obsCancel != nil {
 			m.obsCancel()
 		}
+		ttsErr := m.closeTTS()
 		stopErr := m.session.Close(m.client, m.room != nil && m.room.Live)
 		if stopErr != nil {
 			stopErr = errors.Join(stopErr, m.journal.Write(m.safe(stopErr.Error())))
 		}
-		m.closeErr = errors.Join(stopErr, m.closeOverlay(), m.closeChat(), m.obsClient.Close(), m.journal.Write(i18n.T(i18n.TUILogApplicationExited)), m.journal.Close())
+		m.closeErr = errors.Join(ttsErr, stopErr, m.closeOverlay(), m.closeChat(), m.obsClient.Close(), m.journal.Write(i18n.T(i18n.TUILogApplicationExited)), m.journal.Close())
 		if m.clearDataOnExit {
 			if m.closeErr != nil {
 				m.closeErr = fmt.Errorf(i18n.T(i18n.TUISettingsClearDataShutdownFailed), m.closeErr)
