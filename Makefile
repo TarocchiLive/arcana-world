@@ -1,26 +1,14 @@
-.PHONY: build overlay desktop run check clean
+.PHONY: build overlay tts desktop run check clean
 
-OVERLAY_GOOS := $(shell go env GOOS)
-OVERLAY_CGO := 1
-OVERLAY_TAGS :=
-EXE_SUFFIX :=
-ifeq ($(OVERLAY_GOOS),windows)
-OVERLAY_CGO := 0
-EXE_SUFFIX := .exe
-endif
-ifeq ($(OVERLAY_GOOS),linux)
-OVERLAY_TAGS := -tags wayland
-endif
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
+VERSION ?=
+OUT_DIR ?= bin
+BUILD = GOOS="$(GOOS)" GOARCH="$(GOARCH)" VERSION="$(VERSION)" OUT_DIR="$(OUT_DIR)" bash scripts/build.sh
 
-build:
-	go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o bin/arcana-world$(EXE_SUFFIX) ./cmd/arcana-world
-
-# 原生浮层：macOS 使用 AppKit，Windows 使用 Win32，Linux 使用 layer-shell。
-overlay:
-	CGO_ENABLED=$(OVERLAY_CGO) go build $(OVERLAY_TAGS) -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o bin/libexec/arcana-overlay$(EXE_SUFFIX) ./cmd/arcana-overlay
-
-# 配套构建；默认 build 仍只构建不依赖图形运行时的 TUI。
-desktop: build overlay
+# Default build remains a standalone, CGO-free TUI.
+build overlay tts desktop:
+	$(BUILD) $@
 
 run:
 	go run ./cmd/arcana-world
@@ -30,4 +18,4 @@ check:
 	go vet ./...
 
 clean:
-	rm -f bin/arcana-world bin/arcana-world.exe bin/libexec/arcana-overlay bin/libexec/arcana-overlay.exe bin/arcana-overlay bin/arcana-overlay.exe
+	rm -f "$(OUT_DIR)/arcana-world" "$(OUT_DIR)/arcana-world.exe" "$(OUT_DIR)/libexec/arcana-world-overlay" "$(OUT_DIR)/libexec/arcana-world-overlay.exe" "$(OUT_DIR)/libexec/arcana-world-tts" "$(OUT_DIR)/libexec/arcana-world-tts.exe"

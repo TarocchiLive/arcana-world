@@ -23,6 +23,14 @@ import (
 	"github.com/charmbracelet/x/term"
 )
 
+const (
+	// Kitty graphics payloads are base64 chunks of at most 4096 bytes.
+	graphicsEncodedChunkSize = 4096
+	graphicsRawChunkSize     = graphicsEncodedChunkSize / 4 * 3
+	previewReservedRows      = 3
+	defaultCellAspect        = 0.5
+)
+
 // Viewer 以结构化方式实现 tea.ExecCommand；只有 Run 拥有输出权限。
 // 非终端输出只接收一帧 ANSI 半块图像，随后立即返回。
 // 交互输入必须是终端文件；绝不读取可能任意阻塞的读取器，
@@ -165,7 +173,7 @@ func cleanCaption(text string, width int) string {
 }
 
 func (v *Viewer) frame(size dimensions, native bool, id uint32, payload []byte) error {
-	cols, rows := size.cols-1, size.rows-3 // 预留最后一列，避免自动换行。
+	cols, rows := size.cols-1, size.rows-previewReservedRows // 预留最后一列，避免自动换行。
 	if cols < 1 || rows < 1 {
 		return nil
 	}
@@ -201,25 +209,19 @@ func (v *Viewer) frame(size dimensions, native bool, id uint32, payload []byte) 
 		if err := transmit(v.stdout, payload, id); err != nil {
 			return err
 		}
-		if err := v.waitAck(id); err != nil {
-			return err
-		}
-		if err := v.checkSize(size); err != nil {
+		if err := v.waitPlacementReady(id, size); err != nil {
 			return err
 		}
 		if _, err := fmt.Fprintf(v.stdout, "\x1b_Ga=p,i=%d,%s,C=1,q=0;\x1b\\", id, fit); err != nil {
 			return err
 		}
-		if err := v.waitAck(id); err != nil {
-			return err
-		}
-		if err := v.checkSize(size); err != nil {
+		if err := v.waitPlacementReady(id, size); err != nil {
 			return err
 		}
 		_, err := fmt.Fprintf(v.stdout, "\x1b[%d;1H%s", size.rows, cleanCaption(i18n.T(i18n.TermImageReturnHint), cols))
 		return err
 	}
-	cellAspect := 0.5
+	cellAspect := defaultCellAspect
 	if size.width > 0 && size.height > 0 {
 		cellAspect = float64(size.width) * float64(size.rows) / (float64(size.height) * float64(size.cols))
 	}
@@ -253,9 +255,9 @@ func (v *Viewer) frame(size dimensions, native bool, id uint32, payload []byte) 
 }
 
 func transmit(w io.Writer, pngData []byte, id uint32) error {
-	var encoded [4096]byte
+	var encoded [graphicsEncodedChunkSize]byte
 	for offset := 0; offset < len(pngData); {
-		end := min(offset+3072, len(pngData))
+		end := min(offset+graphicsRawChunkSize, len(pngData))
 		n := base64.StdEncoding.EncodedLen(end - offset)
 		base64.StdEncoding.Encode(encoded[:n], pngData[offset:end])
 		more := 0

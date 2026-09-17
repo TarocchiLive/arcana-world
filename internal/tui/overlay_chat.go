@@ -2,41 +2,49 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 
 	"arcana-world/internal/danmaku"
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/presentation"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const overlayChatLimit = 6
+const (
+	overlayChatLimit        = 6
+	overlayChatScanPages    = 4
+	overlayChatScanPageSize = 64
+	overlayChatTextLimit    = 200
+	overlayTitleLimit       = 200
+)
 
 // Only bounded, already-sanitized lines survive a history read. Neither the
 // viewport's room nor its pagination/read position participates in this state.
 type overlayChatState struct {
-	listener       *danmaku.Listener
-	history        *danmaku.History
-	account        string
-	generation     uint64
-	mode           string
-	room           int64
-	active         bool
-	request        uint64
-	loading        bool
-	loaded         bool
-	revision       uint64
-	latest         uint64
-	lines          [overlayChatLimit]string
-	count          int
-	readError      string
-	text           string
-	cached         bool
-	cachedSummary  overlaySummary
-	cachedLanguage string
-	cachedMode     string
-	cachedChat     string
-	content        string
+	listener      *danmaku.Listener
+	history       *danmaku.History
+	account       string
+	generation    uint64
+	mode          string
+	room          int64
+	disabled      []string
+	active        bool
+	request       uint64
+	loading       bool
+	loaded        bool
+	revision      uint64
+	latest        uint64
+	lines         [overlayChatLimit]string
+	count         int
+	readError     string
+	text          string
+	cached        bool
+	cachedSummary overlaySummary
+	cachedMode    string
+	cachedChat    string
+	content       string
 }
 
 type overlayChatMsg struct {
@@ -73,11 +81,11 @@ func (m *Model) syncOverlayChatSource() {
 			}
 		}
 	}
-	if c.listener == listener && c.history == history && c.account == account && c.generation == generation && c.mode == mode && c.room == room && c.active == active {
+	if c.listener == listener && c.history == history && c.account == account && c.generation == generation && c.mode == mode && c.room == room && c.active == active && slices.Equal(c.disabled, m.config.OverlayDisabledEvents) {
 		return
 	}
 	request := c.request + 1
-	*c = overlayChatState{listener: listener, history: history, account: account, generation: generation, mode: mode, room: room, active: active, request: request}
+	*c = overlayChatState{listener: listener, history: history, account: account, generation: generation, mode: mode, disabled: slices.Clone(m.config.OverlayDisabledEvents), room: room, active: active, request: request}
 }
 
 func (m *Model) updateOverlayChat() tea.Cmd {
@@ -93,13 +101,14 @@ func (m *Model) updateOverlayChat() tea.Cmd {
 	c.loading = true
 	c.request++
 	request, room, after, history := c.request, c.room, c.latest, c.history
+	disabled := c.disabled
 	return func() tea.Msg {
 		msg := overlayChatMsg{request: request, revision: revision, latest: after}
 		var before uint64
-		// A broadcast flood cannot turn a 500 ms refresh into an unbounded
+		// A broadcast flood cannot turn a refresh into an unbounded
 		// history scan. Previously collected chat lines remain available.
-		for page := range 4 {
-			events, err := history.Page(room, before, 64)
+		for page := range overlayChatScanPages {
+			events, err := history.Page(room, before, overlayChatScanPageSize)
 			if err != nil {
 				msg.err = err
 				return msg
@@ -114,21 +123,21 @@ func (m *Model) updateOverlayChat() tea.Cmd {
 				if event.Sequence <= after {
 					return msg
 				}
-				if event.Kind != "chat" || event.Deleted || event.RoomID != room {
+				if event.Deleted || event.RoomID != room || !presentation.Enabled(disabled, event) {
 					continue
 				}
-				text := overlayChatPlain(event.Text, 200)
+				text := overlayChatPlain(presentation.RenderOverlay(event), overlayChatTextLimit)
 				if text == "" {
 					continue
 				}
-				msg.lines[msg.count] = overlayChatPlain(event.User, 40) + ": " + text
+				msg.lines[msg.count] = text
 				msg.count++
 				if msg.count == overlayChatLimit {
 					return msg
 				}
 			}
 			before = events[len(events)-1].Sequence
-			if len(events) < 64 {
+			if len(events) < overlayChatScanPageSize {
 				break
 			}
 		}
@@ -174,17 +183,16 @@ func (m *Model) overlayContentText() string {
 	m.syncOverlayChatSource()
 	c := &m.overlayChat
 	summary := m.overlaySummary()
-	language := i18n.T(i18n.TUILiveOnline)
 	mode := m.config.Overlay.Content
-	if c.cached && c.cachedSummary == summary && c.cachedLanguage == language && c.cachedMode == mode && c.cachedChat == c.text {
+	if c.cached && c.cachedSummary == summary && c.cachedMode == mode && c.cachedChat == c.text {
 		return c.content
 	}
-	c.cached, c.cachedSummary, c.cachedLanguage, c.cachedMode, c.cachedChat = true, summary, language, mode, c.text
+	c.cached, c.cachedSummary, c.cachedMode, c.cachedChat = true, summary, mode, c.text
 	if mode == "danmaku" {
 		c.content = c.text
 		return c.content
 	}
-	summary.title = overlayChatPlain(summary.title, 200)
+	summary.title = overlayChatPlain(summary.title, overlayTitleLimit)
 	c.content = overlayText(summary)
 	if mode == "combined" && c.text != "" {
 		c.content += "\n\n" + c.text

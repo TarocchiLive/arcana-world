@@ -3,7 +3,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-enum { ARCANA_WAYLAND_MAX_TEXT_BYTES = 1024 * 1024 };
 struct arcana_wayland_config {
     char *text, *output, *family;
     int anchor, weight, italic;

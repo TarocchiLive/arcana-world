@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const maxHostErrorBytes = 8 << 10
+
 // Serve 在当前线程运行原生入口；控制连接断开时取消原生生命周期。
 func Serve(ctx context.Context, socketPath string, run func(context.Context, Config, <-chan Config, func()) error) error {
 	token := os.Getenv(tokenEnvironment)
@@ -21,7 +23,7 @@ func Serve(ctx context.Context, socketPath string, run func(context.Context, Con
 	if run == nil {
 		return errors.New("overlay: missing native runner")
 	}
-	conn, err := (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "unix", socketPath)
+	conn, err := (&net.Dialer{Timeout: defaultStartupTimeout}).DialContext(ctx, "unix", socketPath)
 	if err != nil {
 		return fmt.Errorf("overlay: connecting control socket: %w", err)
 	}
@@ -30,7 +32,7 @@ func Serve(ctx context.Context, socketPath string, run func(context.Context, Con
 	defer cancel()
 	stopClose := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stopClose()
-	if err = conn.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+	if err = conn.SetDeadline(time.Now().Add(defaultStartupTimeout)); err != nil {
 		return err
 	}
 	if err = writeFrame(conn, wireFrame{Type: "hello", Token: token}); err != nil {
@@ -148,8 +150,8 @@ func Serve(ctx context.Context, socketPath string, run func(context.Context, Con
 
 func boundedError(err error) string {
 	text := err.Error()
-	if len(text) > 8192 {
-		return text[:8192]
+	if len(text) > maxHostErrorBytes {
+		return text[:maxHostErrorBytes]
 	}
 	return text
 }

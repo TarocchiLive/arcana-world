@@ -18,14 +18,31 @@ const (
 	danmakuMaxDepth    = 8
 )
 
+const danmakuHeaderSize = 16
+
+const (
+	danmakuOpHeartbeat      = 2
+	danmakuOpHeartbeatReply = 3
+	danmakuOpMessage        = 5
+	danmakuOpAuth           = 7
+	danmakuOpAuthReply      = 8
+)
+
+const (
+	danmakuVersionJSON   = 0
+	danmakuVersionPlain  = 1
+	danmakuVersionZlib   = 2
+	danmakuVersionBrotli = 3
+)
+
 func danmakuPacket(op uint32, version uint16, body []byte) []byte {
-	data := make([]byte, 16+len(body))
+	data := make([]byte, danmakuHeaderSize+len(body))
 	binary.BigEndian.PutUint32(data, uint32(len(data)))
-	binary.BigEndian.PutUint16(data[4:], 16)
+	binary.BigEndian.PutUint16(data[4:], danmakuHeaderSize)
 	binary.BigEndian.PutUint16(data[6:], version)
 	binary.BigEndian.PutUint32(data[8:], op)
 	binary.BigEndian.PutUint32(data[12:], 1)
-	copy(data[16:], body)
+	copy(data[danmakuHeaderSize:], body)
 	return data
 }
 
@@ -36,29 +53,29 @@ func danmakuDecode(data []byte, depth int, budget *int, receive func(uint32, []b
 		return errors.New("danmaku: packet nesting limit exceeded")
 	}
 	for len(data) > 0 {
-		if len(data) < 16 {
+		if len(data) < danmakuHeaderSize {
 			return errors.New("danmaku: truncated packet header")
 		}
 		size := uint64(binary.BigEndian.Uint32(data))
 		header := uint64(binary.BigEndian.Uint16(data[4:]))
 		version := binary.BigEndian.Uint16(data[6:])
 		op := binary.BigEndian.Uint32(data[8:])
-		if header < 16 || size < header || size > uint64(len(data)) || size > danmakuMaxPacket {
+		if header < danmakuHeaderSize || size < header || size > uint64(len(data)) || size > danmakuMaxPacket {
 			return errors.New("danmaku: invalid packet bounds")
 		}
 		body := data[header:size]
 		switch version {
-		case 0, 1:
+		case danmakuVersionJSON, danmakuVersionPlain:
 			if err := receive(op, body); err != nil {
 				return err
 			}
-		case 2, 3:
+		case danmakuVersionZlib, danmakuVersionBrotli:
 			if depth >= danmakuMaxDepth || *budget <= 0 {
 				return errors.New("danmaku: packet expansion limit exceeded")
 			}
 			var reader io.Reader
 			var closer io.Closer
-			if version == 2 {
+			if version == danmakuVersionZlib {
 				zr, err := zlib.NewReader(bytes.NewReader(body))
 				if err != nil {
 					return errors.New("danmaku: invalid compressed packet")

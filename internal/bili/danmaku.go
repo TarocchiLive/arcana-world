@@ -28,6 +28,14 @@ import (
 
 const danmakuUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
+const (
+	danmakuHeartbeatInterval = 30 * time.Second
+	danmakuIOTimeout         = 10 * time.Second
+	danmakuConnectTimeout    = 30 * time.Second
+	danmakuTCPKeepAlive      = 30 * time.Second
+	danmakuMaxProxyResponse  = 64 << 10
+)
+
 // The wrapper reuses request's cookie validation, bounded reads and redirect
 // rejection while avoiding its desktop device identifier and desktop UA.
 type danmakuTransport struct{ base http.RoundTripper }
@@ -193,7 +201,7 @@ func (c *Client) ListenDanmaku(ctx context.Context, roomID int64, attempt int, a
 	if err != nil {
 		return err
 	}
-	headers := http.Header{"User-Agent": {danmakuUserAgent}, "Origin": {"https://live.bilibili.com"}, "Referer": {"https://live.bilibili.com/"}}
+	headers := http.Header{"User-Agent": {danmakuUserAgent}, "Origin": {liveWebOrigin}, "Referer": {liveWebOrigin + "/"}}
 	// Cookies are only used at the metadata endpoints, never sent to comet hosts.
 	conn, response, err := dialer.DialContext(ctx, target, headers)
 	if response != nil && response.Body != nil {
@@ -205,8 +213,8 @@ func (c *Client) ListenDanmaku(ctx context.Context, roomID int64, attempt int, a
 		}
 		return errors.New("danmaku: websocket connection failed")
 	}
-	auth, _ := json.Marshal(map[string]any{"uid": int64(nav.MID), "roomid": int64(room.RoomID), "protover": 3, "platform": "web", "type": 2, "key": info.Token, "buvid": buvid})
-	return danmakuSession(ctx, conn, auth, authenticated, receive, 30*time.Second, 10*time.Second)
+	auth, _ := json.Marshal(map[string]any{"uid": int64(nav.MID), "roomid": int64(room.RoomID), "protover": danmakuVersionBrotli, "platform": "web", "type": 2, "key": info.Token, "buvid": buvid})
+	return danmakuSession(ctx, conn, auth, authenticated, receive, danmakuHeartbeatInterval, danmakuIOTimeout)
 }
 
 func danmakuDialer(ctx context.Context, tr *http.Transport, target string) (*websocket.Dialer, error) {
@@ -223,7 +231,7 @@ func danmakuDialer(ctx context.Context, tr *http.Transport, target string) (*web
 	config.NextProtos = []string{"http/1.1"}
 	dial := tr.DialContext
 	if dial == nil {
-		dial = (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext
+		dial = (&net.Dialer{Timeout: danmakuConnectTimeout, KeepAlive: danmakuTCPKeepAlive}).DialContext
 	}
 	underlyingDial := dial
 	dial = func(dialCtx context.Context, network, addr string) (net.Conn, error) {
@@ -236,7 +244,7 @@ func danmakuDialer(ctx context.Context, tr *http.Transport, target string) (*web
 		wrapped.stop = context.AfterFunc(ctx, func() { raw.Close(); close(closed) })
 		return wrapped, nil
 	}
-	d := &websocket.Dialer{NetDialContext: dial, TLSClientConfig: config, HandshakeTimeout: 30 * time.Second}
+	d := &websocket.Dialer{NetDialContext: dial, TLSClientConfig: config, HandshakeTimeout: danmakuConnectTimeout}
 	if tr.Proxy == nil {
 		return d, nil
 	}
@@ -314,7 +322,7 @@ func danmakuCONNECT(conn net.Conn, address string, user *url.Userinfo) error {
 	if err := request.Write(conn); err != nil {
 		return errors.New("danmaku: proxy CONNECT write failed")
 	}
-	limited := &io.LimitedReader{R: conn, N: 64 << 10}
+	limited := &io.LimitedReader{R: conn, N: danmakuMaxProxyResponse}
 	reader := bufio.NewReader(limited)
 	response, err := http.ReadResponse(reader, request)
 	if err != nil || limited.N == 0 {
@@ -378,7 +386,7 @@ func danmakuSession(ctx context.Context, conn *websocket.Conn, auth []byte, auth
 				return
 			case <-ticker.C:
 				conn.SetWriteDeadline(time.Now().Add(timeout))
-				if conn.WriteMessage(websocket.BinaryMessage, danmakuPacket(2, 1, nil)) != nil {
+				if conn.WriteMessage(websocket.BinaryMessage, danmakuPacket(danmakuOpHeartbeat, danmakuVersionPlain, nil)) != nil {
 					heartbeatFailed.Store(true)
 					conn.Close()
 					return
@@ -388,7 +396,7 @@ func danmakuSession(ctx context.Context, conn *websocket.Conn, auth []byte, auth
 	}()
 	defer func() { close(done); <-joined }()
 	conn.SetWriteDeadline(time.Now().Add(timeout))
-	if err := conn.WriteMessage(websocket.BinaryMessage, danmakuPacket(7, 1, auth)); err != nil {
+	if err := conn.WriteMessage(websocket.BinaryMessage, danmakuPacket(danmakuOpAuth, danmakuVersionPlain, auth)); err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -413,7 +421,7 @@ func danmakuSession(ctx context.Context, conn *websocket.Conn, auth []byte, auth
 		budget := danmakuMaxExpanded
 		err = danmakuDecode(data, 0, &budget, func(op uint32, body []byte) error {
 			switch op {
-			case 8:
+			case danmakuOpAuthReply:
 				var reply struct {
 					Code *int `json:"code"`
 				}
@@ -428,11 +436,11 @@ func danmakuSession(ctx context.Context, conn *websocket.Conn, auth []byte, auth
 						authenticated()
 					}
 				}
-			case 3:
+			case danmakuOpHeartbeatReply:
 				if authed {
 					conn.SetReadDeadline(time.Now().Add(interval + timeout))
 				}
-			case 5:
+			case danmakuOpMessage:
 				// Do not consult ctx here: completed packets must reach durable storage,
 				// including earlier packets in a frame with a later corrupt packet.
 				return receive(append(json.RawMessage(nil), body...))

@@ -7,6 +7,7 @@ import (
 
 	"arcana-world/internal/danmaku"
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/presentation"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -21,17 +22,17 @@ func (m *Model) chatStatus() string {
 	}
 	key := i18n.DanmakuWaiting
 	switch c.state.Phase {
-	case "disabled":
+	case danmaku.PhaseDisabled:
 		key = i18n.DanmakuDisabled
-	case "connecting":
+	case danmaku.PhaseConnecting:
 		key = i18n.DanmakuConnecting
-	case "connected":
+	case danmaku.PhaseConnected:
 		key = i18n.DanmakuConnected
-	case "reconnecting":
+	case danmaku.PhaseReconnecting:
 		key = i18n.DanmakuReconnecting
-	case "storage_error":
+	case danmaku.PhaseStorageError:
 		key = i18n.DanmakuStorageError
-	case "error":
+	case danmaku.PhaseError:
 		key = i18n.DanmakuError
 	}
 	return i18n.T(key)
@@ -50,7 +51,7 @@ func (m *Model) chatHeader(more bool) string {
 		return i18n.T(key) + strings.TrimSpace(state)
 	}
 	b.WriteString(strings.Join([]string{
-		toggle(i18n.DanmakuListening, c.state.Phase == "connected"),
+		toggle(i18n.DanmakuListening, c.state.Phase == danmaku.PhaseConnected),
 		toggle(i18n.DanmakuOther, c.showOther),
 		toggle(i18n.DanmakuFollowing, c.follow),
 		toggle(i18n.DanmakuToggle, !m.config.DanmakuDisabled),
@@ -60,7 +61,7 @@ func (m *Model) chatHeader(more bool) string {
 		room += " " + i18n.T(i18n.DanmakuNewMessages)
 	}
 	b.WriteString(ansi.Truncate(room, max(12, m.view.Width), "…") + "\n")
-	if c.state.Phase != "connected" && c.state.Phase != "disabled" && c.state.Phase != "" {
+	if c.state.Phase != danmaku.PhaseConnected && c.state.Phase != danmaku.PhaseDisabled && c.state.Phase != "" {
 		b.WriteString(m.chatStatus() + "\n")
 	}
 	if c.state.Err != nil {
@@ -103,22 +104,14 @@ func (m *Model) chatView() string {
 // This is a display allowlist, not an ingestion filter. Unknown/new event kinds
 // and commands stay hidden even with Other enabled; durable history is unchanged.
 func chatEventVisible(e danmaku.Event, showOther bool) bool {
-	switch e.Kind {
-	case "chat", "gift", "sc", "guard", "enter", "follow",
-		"like", "live", "preparing",
-		"room_change", "room_block", "cut_off", "delete":
+	if presentation.Enabled(nil, e) {
 		return true
+	}
+	switch e.Kind {
 	case "gap", "watched", "likes", "share", "special_follow":
 		return showOther
 	case "detail":
 		switch e.Text {
-		// Purchases, recalls and moderation in the listening room.
-		// GUARD_MSG is a cross-room broadcast; GUIARD_MSG is a local notice.
-		case "USER_TOAST_MSG", "GUIARD_MSG",
-			"LIVE_OPEN_PLATFORM_SEND_GIFT", "LIVE_OPEN_PLATFORM_GUARD",
-			"RECALL_DANMU_MSG", "WARNING", "ROOM_SILENT_ON", "ROOM_SILENT_OFF",
-			"room_admin_entrance", "ROOM_ADMIN_REVOKE":
-			return true
 		// Local interaction effects and gift-combo summaries.
 		case "WELCOME", "WELCOME_GUARD", "ENTRY_EFFECT", "USER_VIRTUAL_MVP",
 			"EFFECT_DANMAKU_MSG", "DM_INTERACTION", "COMBO_SEND", "COMBO_END",

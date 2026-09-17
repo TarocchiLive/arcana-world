@@ -9,7 +9,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const chatPageSize = 100
+const (
+	chatPageSize        = 100
+	chatRefreshInterval = 500 * time.Millisecond
+)
 
 type danmakuUI struct {
 	history        *danmaku.History
@@ -79,7 +82,7 @@ func (m *Model) closeChat() error {
 	return errors.Join(m.chat.listener.Close(), m.chat.history.Close())
 }
 func chatTickCmd() tea.Cmd {
-	return tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg { return chatTick{} })
+	return tea.Tick(chatRefreshInterval, func(time.Time) tea.Msg { return chatTick{} })
 }
 func (m *Model) updateChat() tea.Cmd {
 	if m.chat == nil {
@@ -237,7 +240,7 @@ func (m *Model) chatKey(key string) (bool, tea.Cmd) {
 		}
 		if c.listener != nil {
 			phase := c.listener.Snapshot().Phase
-			if phase == "error" || phase == "reconnecting" {
+			if phase == danmaku.PhaseError || phase == danmaku.PhaseReconnecting {
 				c.listener.Retry()
 			}
 		}

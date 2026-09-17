@@ -104,9 +104,9 @@ func TestMalformedAndUnknownRawRetention(t *testing.T) {
 		}
 	}
 	if err := h.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(roomsBucket).Bucket(key(1)).Bucket(rawBucket)
+		room := tx.Bucket(roomsBucket).Bucket(key(1))
 		for i, raw := range raws {
-			if string(b.Get(key(uint64(i+1)))) != raw {
+			if string(rawForEvent(room, key(uint64(i+1)))) != raw {
 				return fmt.Errorf("raw record %d changed", i)
 			}
 		}
@@ -232,8 +232,8 @@ func TestRetentionBoundaryRawAndIdentity(t *testing.T) {
 		t.Fatalf("retention boundary: %+v", events)
 	}
 	if err := h.db.View(func(tx *bolt.Tx) error {
-		raw := tx.Bucket(roomsBucket).Bucket(key(1)).Bucket(rawBucket)
-		if raw.Get(key(1)) != nil || raw.Get(key(2)) == nil || raw.Get(key(3)) == nil {
+		room := tx.Bucket(roomsBucket).Bucket(key(1))
+		if rawForEvent(room, key(1)) != nil || rawForEvent(room, key(2)) == nil || rawForEvent(room, key(3)) == nil {
 			return errors.New("raw retention differs from event retention")
 		}
 		return nil
@@ -259,6 +259,7 @@ func TestRetentionStartupMigratesAndExpiresTombstones(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	downgradeHistory(t, h)
 	if err := h.Close(); err != nil {
 		t.Fatal(err)
 	}

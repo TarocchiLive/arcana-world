@@ -24,7 +24,9 @@ type History struct {
 
 var roomsBucket = []byte("rooms")
 var eventsBucket = []byte("events")
-var rawBucket = []byte("raw")
+var rawBucket = []byte("messages")
+var messageIDsBucket = []byte("message-ids")
+var messageRefsBucket = []byte("message-refs")
 var idsBucket = []byte("identities")
 var tombstonesBucket = []byte("sc-deleted")
 var scBucket = []byte("sc-sequences")
@@ -70,7 +72,7 @@ func Open(dir string) (*History, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.Update(func(tx *bolt.Tx) error { _, err := tx.CreateBucketIfNotExists(roomsBucket); return err }); err != nil {
+	if err := db.Update(migrateHistory); err != nil {
 		return nil, errors.Join(err, db.Close())
 	}
 	// File fsync alone does not persist a newly created directory entry on Unix.
@@ -127,12 +129,14 @@ func (h *History) append(roomID int64, raw []byte, projections ...projection) (b
 		if err != nil {
 			return err
 		}
-		for _, name := range [][]byte{eventsBucket, rawBucket, idsBucket, tombstonesBucket, scBucket} {
+		for _, name := range [][]byte{eventsBucket, rawBucket, messageIDsBucket, messageRefsBucket, idsBucket, tombstonesBucket, scBucket} {
 			if _, err := room.CreateBucketIfNotExists(name); err != nil {
 				return err
 			}
 		}
 		events, ids, tombstones, sc := room.Bucket(eventsBucket), room.Bucket(idsBucket), room.Bucket(tombstonesBucket), room.Bucket(scBucket)
+		var messageID []byte
+		var references uint64
 		for _, p := range projections {
 			if p.identity != "" && ids.Get([]byte(p.identity)) != nil {
 				continue
@@ -172,9 +176,20 @@ func (h *History) append(roomID int64, raw []byte, projections ...projection) (b
 			if err := events.Put(seqKey, encoded); err != nil {
 				return err
 			}
-			if err := room.Bucket(rawBucket).Put(seqKey, raw); err != nil {
+			if messageID == nil {
+				id, err := room.Bucket(rawBucket).NextSequence()
+				if err != nil {
+					return err
+				}
+				messageID = key(id)
+				if err := room.Bucket(rawBucket).Put(messageID, raw); err != nil {
+					return err
+				}
+			}
+			if err := room.Bucket(messageIDsBucket).Put(seqKey, messageID); err != nil {
 				return err
 			}
+			references++
 			if p.identity != "" {
 				if err := ids.Put([]byte(p.identity), seqKey); err != nil {
 					return err
@@ -186,6 +201,9 @@ func (h *History) append(roomID int64, raw []byte, projections ...projection) (b
 				}
 			}
 			inserted = true
+		}
+		if messageID != nil {
+			return room.Bucket(messageRefsBucket).Put(messageID, key(references))
 		}
 		return nil
 	})
@@ -230,7 +248,7 @@ func (h *History) Page(roomID int64, before uint64, limit int) ([]Event, error) 
 			// Reinterpret old unknown records without changing their receive time,
 			// stable pagination cursor, or the retained raw payload.
 			if event.Kind == "unknown" && !event.Deleted {
-				p := project(roomID, room.Bucket(rawBucket).Get(k))
+				p := project(roomID, rawForEvent(room, k))
 				if p.event.Kind != "unknown" && len(p.batch) == 0 && p.scID == "" && len(p.deletes) == 0 {
 					p.event.Sequence, p.event.Time = event.Sequence, event.Time
 					event = p.event
@@ -308,7 +326,7 @@ func (h *History) prune(now time.Time) error {
 				return nil
 			}
 			room := rooms.Bucket(roomKey)
-			events, raw := room.Bucket(eventsBucket), room.Bucket(rawBucket)
+			events := room.Bucket(eventsBucket)
 			tombstones := room.Bucket(tombstonesBucket)
 			// Older databases stored a one-byte flag instead of a deletion
 			// sequence. Recover those references from retained business bytes.
@@ -326,14 +344,14 @@ func (h *History) prune(now time.Time) error {
 					return err
 				}
 				if event.Time.Before(cutoff) {
-					if err := raw.Delete(k); err != nil {
+					if err := releaseMessage(room, k); err != nil {
 						return err
 					}
 					if err := c.Delete(); err != nil {
 						return err
 					}
 				} else if legacy {
-					for _, p := range projectMany(event.RoomID, raw.Get(k)) {
+					for _, p := range projectMany(event.RoomID, rawForEvent(room, k)) {
 						for _, id := range p.deletes {
 							if err := tombstones.Put([]byte(id), k); err != nil {
 								return err

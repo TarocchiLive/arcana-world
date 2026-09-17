@@ -1,0 +1,16 @@
+{
+  "tts.log.failed": "语音播报失败：%s",
+  "tts.log.stop_failed": "TTS 停止失败：%s",
+  "tts.error.synthesis_backend_unavailable": "语音合成后端不可用（需要 arcana-world-tts）：%w",
+  "tts.error.playback_backend_unavailable": "音频播放后端不可用（需要 arcana-world-tts）：%w",
+  "tts.error.read_events_failed": "读取监听事件：%w",
+  "tts.ui.state": "语音播报：%s",
+  "tts.ui.off": "已关闭",
+  "tts.ui.waiting_for_listener": "等待监听",
+  "tts.ui.waiting_for_events": "等待新事件",
+  "tts.ui.stopping": "正在停止旧播报",
+  "tts.ui.synthesizing": "正在合成",
+  "tts.ui.playing": "正在播放",
+  "tts.ui.queue_counts": "，排队 %d，队满跳过 %d",
+  "tts.ui.last_error": "\n错误：%s"
+}

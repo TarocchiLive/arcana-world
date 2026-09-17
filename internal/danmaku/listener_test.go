@@ -31,7 +31,7 @@ func waitSignal(t *testing.T, ch <-chan struct{}) {
 		t.Fatal("listener did not make progress")
 	}
 }
-func waitPhase(t *testing.T, l *Listener, phase string) {
+func waitPhase(t *testing.T, l *Listener, phase Phase) {
 	t.Helper()
 	deadline := time.NewTimer(3 * time.Second)
 	defer deadline.Stop()

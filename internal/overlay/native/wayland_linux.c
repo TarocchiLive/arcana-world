@@ -434,7 +434,7 @@ static void create_surface(struct arcana_wayland *s, struct output *output) {
     wl_surface_add_listener(s->surface, &surface_listener, s);
     s->layer = (struct wl_proxy *)wl_proxy_marshal_constructor_versioned(s->shell, 0,
         &zwlr_layer_surface_v1_interface, wl_proxy_get_version(s->shell), NULL,
-        s->surface, output->proxy, 3u, "arcana-overlay");
+        s->surface, output->proxy, 3u, "arcana-world-overlay");
     if (!s->layer) { fail(s, "cannot allocate layer surface"); return; }
     wl_proxy_add_listener(s->layer, (void (**)(void))layer_listener, s);
     wl_proxy_marshal(s->layer, 1, 1u | 4u); // 上边和左边。
@@ -503,7 +503,7 @@ static bool allocate_pixels(struct arcana_wayland *s, struct pixels *p, int widt
     }
     free_pixels(p);
     p->width = width; p->height = height; p->stride = stride; p->size = (size_t)stride * height;
-    int fd = memfd_create("arcana-overlay", MFD_CLOEXEC);
+    int fd = memfd_create("arcana-world-overlay", MFD_CLOEXEC);
     if (fd < 0) { fail(s, "memfd_create failed: %s", strerror(errno)); return false; }
     if (ftruncate(fd, (off_t)p->size)) { fail(s, "cannot size pixel store: %s", strerror(errno)); close(fd); return false; }
     p->data = mmap(NULL, p->size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);

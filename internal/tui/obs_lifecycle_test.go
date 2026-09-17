@@ -163,7 +163,7 @@ func TestCloseWaitsForCanceledStartBeforeStopping(t *testing.T) {
 	if err := m.obsClient.Connect(context.Background(), endpoint, ""); err != nil {
 		t.Fatal(err)
 	}
-	command := m.runOBS("obs-start", m.obsClient.Start)
+	command := m.runOBS(startOperation().label, m.obsClient.Start)
 	done := make(chan struct{})
 	go func() { command(); close(done) }()
 	awaitLifecycle(t, state.started)
@@ -182,7 +182,7 @@ func TestCloseWaitsForCanceledStartBeforeStopping(t *testing.T) {
 	if state.active.Load() || state.stops.Load() != 1 {
 		t.Fatal("in-flight start escaped shutdown stop")
 	}
-	if err := m.acquireOBS(context.Background()); err == nil {
+	if err := m.session.Lock(context.Background()); err == nil {
 		t.Fatal("accepted OBS operation after shutdown")
 	}
 }
@@ -256,17 +256,17 @@ func TestStopLiveStopsOBSBeforeBilibiliAndPropagatesFailure(t *testing.T) {
 			if err := m.obsClient.Connect(context.Background(), endpoint, ""); err != nil {
 				t.Fatal(err)
 			}
-			result := m.stopLive()().(resultMsg)
+			result := m.stopLive()().(taskMessage)
 			if reject {
-				if result.err == nil || calls.Load() != 0 {
+				if result.taskError() == nil || calls.Load() != 0 {
 					t.Fatal("OBS failure was not propagated before Bilibili Stop")
 				}
 				if err := m.Close(); err == nil {
 					t.Fatal("shutdown hid OBS stop failure")
 				}
 				awaitLifecycle(t, state.closed)
-			} else if result.err != nil || calls.Load() != 1 {
-				t.Fatalf("stop live result: %v; Bilibili calls: %d", result.err, calls.Load())
+			} else if result.taskError() != nil || calls.Load() != 1 {
+				t.Fatalf("stop live result: %v; Bilibili calls: %d", result.taskError(), calls.Load())
 			}
 		})
 	}

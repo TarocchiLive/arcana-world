@@ -21,6 +21,19 @@ import (
 
 const operationTimeout = 15 * time.Second
 
+// OBS WebSocket v5 opcodes and negotiated protocol settings.
+const (
+	opHello           = 0
+	opIdentify        = 1
+	opIdentified      = 2
+	opEvent           = 5
+	opRequest         = 6
+	opRequestResponse = 7
+	rpcVersion        = 1
+	subscribeOutputs  = 1 << 6
+	requestSucceeded  = 100
+)
+
 type Snapshot struct {
 	Connected  bool
 	Connecting bool
@@ -177,7 +190,7 @@ func identify(ctx context.Context, ws *websocket.Conn, password string) error {
 	if ws.ReadJSON(&e) != nil {
 		return transportError(ctx, i18n.T(i18n.OBSReceiveHello))
 	}
-	if e.Op != 0 {
+	if e.Op != opHello {
 		return errors.New(i18n.T(i18n.OBSHelloMissing))
 	}
 	var hello struct {
@@ -187,10 +200,10 @@ func identify(ctx context.Context, ws *websocket.Conn, password string) error {
 			Salt      string `json:"salt"`
 		} `json:"authentication"`
 	}
-	if json.Unmarshal(e.D, &hello) != nil || hello.RPCVersion < 1 {
+	if json.Unmarshal(e.D, &hello) != nil || hello.RPCVersion < rpcVersion {
 		return errors.New(i18n.T(i18n.OBSHelloInvalid))
 	}
-	data := map[string]any{"rpcVersion": 1, "eventSubscriptions": 64}
+	data := map[string]any{"rpcVersion": rpcVersion, "eventSubscriptions": subscribeOutputs}
 	if hello.Authentication != nil {
 		if hello.Authentication.Challenge == "" || hello.Authentication.Salt == "" {
 			return errors.New(i18n.T(i18n.OBSAuthenticationChallengeInvalid))
@@ -199,19 +212,19 @@ func identify(ctx context.Context, ws *websocket.Conn, password string) error {
 		proof := sha256.Sum256([]byte(base64.StdEncoding.EncodeToString(secret[:]) + hello.Authentication.Challenge))
 		data["authentication"] = base64.StdEncoding.EncodeToString(proof[:])
 	}
-	if writeMessage(ws, 1, data) != nil {
+	if writeMessage(ws, opIdentify, data) != nil {
 		return transportError(ctx, i18n.T(i18n.OBSIdentify))
 	}
 	if ws.ReadJSON(&e) != nil {
 		return transportError(ctx, i18n.T(i18n.OBSReceiveIdentification))
 	}
-	if e.Op != 2 {
+	if e.Op != opIdentified {
 		return errors.New(i18n.T(i18n.OBSIdentificationFailed))
 	}
 	var identified struct {
 		Version int `json:"negotiatedRpcVersion"`
 	}
-	if json.Unmarshal(e.D, &identified) != nil || identified.Version != 1 {
+	if json.Unmarshal(e.D, &identified) != nil || identified.Version != rpcVersion {
 		return errors.New(i18n.T(i18n.OBSRpcVersionUnsupported))
 	}
 	return nil
@@ -238,18 +251,21 @@ func (c *Client) dropLocked(err error) {
 	}
 	c.publishLocked()
 }
-func (c *Client) Disconnect() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return nil
-	}
+func (c *Client) invalidateLocked() {
 	c.generation++
 	if c.cancel != nil {
 		c.cancel()
 		c.cancel = nil
 	}
 	c.dropLocked(nil)
+}
+func (c *Client) Disconnect() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
+	c.invalidateLocked()
 	return nil
 }
 func (c *Client) Close() error {
@@ -259,12 +275,7 @@ func (c *Client) Close() error {
 		return nil
 	}
 	c.closed = true
-	c.generation++
-	if c.cancel != nil {
-		c.cancel()
-		c.cancel = nil
-	}
-	c.dropLocked(nil)
+	c.invalidateLocked()
 	close(c.events)
 	return nil
 }
@@ -294,7 +305,7 @@ func (c *Client) readLoop(s *session) {
 			c.fail(s, transportError(context.Background(), i18n.T(i18n.OBSReceiveMessage)))
 			return
 		}
-		if e.Op == 5 {
+		if e.Op == opEvent {
 			var event struct {
 				Type string `json:"eventType"`
 				Data struct {
@@ -325,7 +336,7 @@ func (c *Client) readLoop(s *session) {
 			c.mu.Unlock()
 			continue
 		}
-		if e.Op != 7 {
+		if e.Op != opRequestResponse {
 			c.fail(s, errors.New(i18n.T(i18n.OBSProtocolMessageUnexpected)))
 			return
 		}
@@ -352,7 +363,7 @@ func (c *Client) readLoop(s *session) {
 			result := reply{data: response.Data}
 			if response.Type != p.kind {
 				result.err = errors.New(i18n.T(i18n.OBSResponseOperationMismatch))
-			} else if !*response.Status.Result || response.Status.Code != 100 {
+			} else if !*response.Status.Result || response.Status.Code != requestSucceeded {
 				result.err = fmt.Errorf(i18n.T(i18n.OBSRequestRejected), p.kind, response.Status.Code)
 			} else if p.kind == "GetStreamStatus" {
 				status, err := decodeStatus(response.Data)
@@ -412,7 +423,7 @@ func (c *Client) request(ctx context.Context, s *session, kind string, data any)
 	stop := context.AfterFunc(ctx, func() { s.ws.Close(); close(stopped) })
 	err := s.ws.SetWriteDeadline(deadline)
 	if err == nil {
-		err = writeMessage(s.ws, 6, req)
+		err = writeMessage(s.ws, opRequest, req)
 	}
 	if !stop() {
 		<-stopped

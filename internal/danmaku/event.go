@@ -4,6 +4,7 @@ package danmaku
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -62,6 +63,18 @@ func strong(v any) string {
 	return s
 }
 func identity(parts ...string) string { b, _ := json.Marshal(parts); return string(b) }
+
+// decodeEventJSON preserves integer precision and accepts exactly one JSON value.
+func decodeEventJSON(reader io.Reader, out any) bool {
+	decoder := json.NewDecoder(reader)
+	decoder.UseNumber()
+	if decoder.Decode(out) != nil {
+		return false
+	}
+	var extra any
+	return decoder.Decode(&extra) == io.EOF
+}
+
 func projectMany(room int64, raw []byte) []projection {
 	p := project(room, raw)
 	if len(p.batch) != 0 {
@@ -72,9 +85,7 @@ func projectMany(room int64, raw []byte) []projection {
 func project(room int64, raw []byte) projection {
 	p := projection{event: Event{RoomID: room, Kind: "unknown", Time: time.Now().UTC()}}
 	var root map[string]any
-	d := json.NewDecoder(bytes.NewReader(raw))
-	d.UseNumber()
-	if !json.Valid(raw) || d.Decode(&root) != nil {
+	if !decodeEventJSON(bytes.NewReader(raw), &root) {
 		return p
 	}
 	cmd := strings.SplitN(stringValue(root["cmd"]), ":", 2)[0]

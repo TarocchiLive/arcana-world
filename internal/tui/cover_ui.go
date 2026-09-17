@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 
+	"arcana-world/internal/bili"
 	"arcana-world/internal/coverimage"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/termimage"
@@ -35,19 +36,19 @@ func (m *Model) coverKey(msg tea.KeyMsg) tea.Cmd {
 			return nil
 		}
 		source := m.room.CoverURL
-		return m.work("cover-fetch", func(ctx context.Context) (any, error) {
+		return work(m, coverFetchOperation(), func(ctx context.Context) (image.Image, error) {
 			return m.client.FetchCover(ctx, source)
 		})
 	case "enter":
 		if m.mode == "cover-review" && m.cover != nil {
 			prepared := m.cover
-			return m.work("cover-upload", func(ctx context.Context) (any, error) { return m.client.UploadCover(ctx, prepared) })
+			return work(m, coverUploadOperation(), func(ctx context.Context) (bili.CoverUpdate, error) { return m.client.UploadCover(ctx, prepared) })
 		}
 	}
 	return nil
 }
 func (m *Model) prepareCover(path string) tea.Cmd {
-	return m.work("cover-prepare", func(ctx context.Context) (any, error) { return coverimage.Prepare(ctx, path) })
+	return work(m, coverPrepareOperation(), func(ctx context.Context) (*coverimage.Prepared, error) { return coverimage.Prepare(ctx, path) })
 }
 func (m *Model) previewCover(img image.Image, caption string) tea.Cmd {
 	if m.previewing {

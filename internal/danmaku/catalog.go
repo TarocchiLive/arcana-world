@@ -2,7 +2,6 @@ package danmaku
 
 import (
 	"encoding/json"
-	"io"
 	"strconv"
 	"strings"
 
@@ -82,14 +81,6 @@ func commandFieldText(value any, kind byte) (string, bool) {
 		return string(number), ok
 	case 'i':
 		text := stringValue(value)
-		if text == "" {
-			return "", false
-		}
-		for _, digit := range text {
-			if digit < '0' || digit > '9' {
-				return "", false
-			}
-		}
 		_, err := strconv.ParseUint(text, 10, 64)
 		return text, err == nil
 	case 'b':
@@ -105,13 +96,7 @@ func commandFieldText(value any, kind byte) (string, bool) {
 		}
 	case 'j':
 		if text, ok := value.(string); ok {
-			decoder := json.NewDecoder(strings.NewReader(text))
-			decoder.UseNumber()
-			if decoder.Decode(&value) != nil {
-				return "", false
-			}
-			var extra any
-			if decoder.Decode(&extra) != io.EOF {
+			if !decodeEventJSON(strings.NewReader(text), &value) {
 				return "", false
 			}
 		}

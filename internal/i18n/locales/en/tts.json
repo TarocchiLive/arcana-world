@@ -1,0 +1,16 @@
+{
+  "tts.log.failed": "TTS failed: %s",
+  "tts.log.stop_failed": "TTS stop failed: %s",
+  "tts.error.synthesis_backend_unavailable": "Speech synthesis backend unavailable (requires arcana-world-tts): %w",
+  "tts.error.playback_backend_unavailable": "Audio playback backend unavailable (requires arcana-world-tts): %w",
+  "tts.error.read_events_failed": "Read listener events: %w",
+  "tts.ui.state": "TTS: %s",
+  "tts.ui.off": "Off",
+  "tts.ui.waiting_for_listener": "Waiting for listener",
+  "tts.ui.waiting_for_events": "Waiting for new events",
+  "tts.ui.stopping": "Stopping previous speech",
+  "tts.ui.synthesizing": "Synthesizing",
+  "tts.ui.playing": "Playing",
+  "tts.ui.queue_counts": ", queued %d, skipped because queue was full %d",
+  "tts.ui.last_error": "\nError: %s"
+}

@@ -57,7 +57,7 @@ func TestExitSettingsToggleIndependentlyWithoutStoppingBroadcast(t *testing.T) {
 			t.Fatalf("setting action %q did not save", step.action)
 		}
 		msg := command()
-		if result, ok := msg.(resultMsg); !ok || result.err != nil {
+		if result, ok := msg.(taskMessage); !ok || result.taskError() != nil {
 			t.Fatalf("setting action failed: %+v", msg)
 		}
 		m.Update(msg)
@@ -91,9 +91,9 @@ func TestExitUsesCommittedToggleBeforeResultDelivery(t *testing.T) {
 	if command == nil {
 		t.Fatal("exit toggle did not produce a save command")
 	}
-	queued := command().(resultMsg)
-	if queued.err != nil {
-		t.Fatal(queued.err)
+	queued := command().(taskMessage)
+	if queued.taskError() != nil {
+		t.Fatal(queued.taskError())
 	}
 	// Close before Bubble Tea delivers the successful save result.
 	if err := m.Close(); err != nil {
@@ -118,9 +118,9 @@ func TestQueuedOBSConnectionEditsCannotRunAfterExit(t *testing.T) {
 			if err := m.Close(); err != nil {
 				t.Fatal(err)
 			}
-			result := command().(resultMsg)
-			if !errors.Is(result.err, context.Canceled) {
-				t.Fatalf("OBS edit ran after shutdown: %v", result.err)
+			result := command().(taskMessage)
+			if !errors.Is(result.taskError(), context.Canceled) {
+				t.Fatalf("OBS edit ran after shutdown: %v", result.taskError())
 			}
 			if m.store.Config().OBSURL != originalURL {
 				t.Fatal("queued edit changed the OBS URL after shutdown")

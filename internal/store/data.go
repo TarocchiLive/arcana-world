@@ -11,8 +11,8 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// ResetSettings resets only settings-page preferences, leaving credentials,
-// OBS connection settings, account selection and histories untouched.
+// ResetSettings resets application, overlay and speech preferences, leaving
+// credentials, OBS connection settings, account selection and histories untouched.
 func (s *Store) ResetSettings() (domain.Config, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -23,6 +23,8 @@ func (s *Store) ResetSettings() (domain.Config, error) {
 	c.ExitOBSStopDisabled = d.ExitOBSStopDisabled
 	c.ExitLiveStopDisabled = d.ExitLiveStopDisabled
 	c.Overlay = d.Overlay
+	c.OverlayDisabledEvents = d.OverlayDisabledEvents
+	c.TTS = d.TTS
 	if err := s.persist(c); err != nil {
 		return domain.Config{}, err
 	}
@@ -30,7 +32,7 @@ func (s *Store) ResetSettings() (domain.Config, error) {
 	return clone(c), nil
 }
 
-// ClearData requires the caller to close the overlay, listener/history, OBS,
+// ClearData requires the caller to close speech, overlay, listener/history, OBS,
 // and journal first. Once attempted, this Store rejects all further writes,
 // even if clearing fails. ClearData itself remains retryable. Credentials are
 // deleted before files; any failure preserves the account index for retry.

@@ -13,9 +13,32 @@ import (
 	"arcana-world/internal/domain"
 )
 
+const (
+	roomLookupTimeout    = 30 * time.Second
+	initialRetryDelay    = time.Second
+	maxReconnectDelay    = 30 * time.Second
+	maxBackoffExponent   = 5
+	reconnectJitterParts = 4
+	stableSessionPeriod  = time.Minute
+)
+
+// Phase identifies a listener status without imposing a separate transition engine.
+// The string values remain stable for status consumers.
+type Phase string
+
+const (
+	PhaseWaiting      Phase = "waiting"
+	PhaseDisabled     Phase = "disabled"
+	PhaseConnecting   Phase = "connecting"
+	PhaseConnected    Phase = "connected"
+	PhaseReconnecting Phase = "reconnecting"
+	PhaseStorageError Phase = "storage_error"
+	PhaseError        Phase = "error"
+)
+
 // Snapshot contains status only: message delivery never depends on the UI.
 type Snapshot struct {
-	Phase    string
+	Phase    Phase
 	RoomID   int64
 	Revision uint64
 	Err      error
@@ -75,7 +98,7 @@ func NewListener(ctx context.Context, history *History) *Listener {
 
 func newListener(ctx context.Context, history archive, factory func(string, domain.Account) (source, error)) *Listener {
 	ctx, cancel := context.WithCancel(ctx)
-	l := &Listener{history: history, factory: factory, wake: make(chan struct{}, 1), cancel: cancel, done: make(chan struct{}), retryDelay: time.Second, state: Snapshot{Phase: "waiting"}}
+	l := &Listener{history: history, factory: factory, wake: make(chan struct{}, 1), cancel: cancel, done: make(chan struct{}), retryDelay: initialRetryDelay, state: Snapshot{Phase: PhaseWaiting}}
 	go l.control(ctx)
 	return l
 }
@@ -120,8 +143,8 @@ func (l *Listener) Snapshot() Snapshot {
 	state.AccountUID, state.Generation = l.desired.account.UID, l.generation
 	if l.stateGeneration != l.generation {
 		state.RoomID = 0
-		if state.Phase != "storage_error" {
-			state.Phase, state.Err = "waiting", nil
+		if state.Phase != PhaseStorageError {
+			state.Phase, state.Err = PhaseWaiting, nil
 		}
 	}
 	return state
@@ -132,10 +155,10 @@ func (l *Listener) Close() error {
 	defer l.mu.Unlock()
 	return l.closeErr
 }
-func (l *Listener) publish(generation uint64, phase string, room int64, err error, changed bool) {
+func (l *Listener) publish(generation uint64, phase Phase, room int64, err error, changed bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if generation != l.generation && phase != "storage_error" {
+	if generation != l.generation && phase != PhaseStorageError {
 		return
 	}
 	l.state.Phase, l.state.RoomID, l.state.Err = phase, room, err
@@ -203,11 +226,11 @@ func (l *Listener) control(ctx context.Context) {
 				return
 			}
 			if !next.enabled {
-				l.publish(gen, "disabled", 0, nil, true)
+				l.publish(gen, PhaseDisabled, 0, nil, true)
 				continue
 			}
 			if next.account.UID == "" {
-				l.publish(gen, "waiting", 0, nil, true)
+				l.publish(gen, PhaseWaiting, 0, nil, true)
 				continue
 			}
 			session, cancel := context.WithCancel(ctx)
@@ -223,8 +246,8 @@ func (l *Listener) control(ctx context.Context) {
 // unbounded queue. Shutdown attempts the write once more and reports failure.
 func (l *Listener) persist(ctx context.Context, gen uint64, room int64, write func() (bool, error)) error {
 	phase := l.Snapshot().Phase
-	if phase == "storage_error" {
-		phase = "connecting"
+	if phase == PhaseStorageError {
+		phase = PhaseConnecting
 	}
 	for {
 		changed, err := write()
@@ -232,7 +255,7 @@ func (l *Listener) persist(ctx context.Context, gen uint64, room int64, write fu
 			l.publish(gen, phase, room, nil, changed)
 			return nil
 		}
-		l.publish(gen, "storage_error", room, err, false)
+		l.publish(gen, PhaseStorageError, room, err, false)
 		if !sleep(ctx, l.retryDelay) {
 			_, finalErr := write()
 			return finalErr
@@ -260,7 +283,7 @@ func (l *Listener) save(ctx context.Context, gen uint64, room int64, write func(
 func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 	c, err := l.factory(next.proxy, next.account)
 	if err != nil {
-		l.publish(gen, "error", 0, err, true)
+		l.publish(gen, PhaseError, 0, err, true)
 		return
 	}
 	if client, ok := c.(*bili.Client); ok {
@@ -269,9 +292,9 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 	var room int64
 	attempt, failures := 0, 0
 	for ctx.Err() == nil {
-		l.publish(gen, "connecting", room, nil, false)
+		l.publish(gen, PhaseConnecting, room, nil, false)
 		if room == 0 {
-			callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			callCtx, cancel := context.WithTimeout(ctx, roomLookupTimeout)
 			info, roomErr := c.Room(callCtx)
 			cancel()
 			err = roomErr
@@ -291,18 +314,18 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 			if err != nil || ctx.Err() != nil {
 				return
 			}
-			l.publish(gen, "connecting", room, nil, false)
+			l.publish(gen, PhaseConnecting, room, nil, false)
 			started := time.Now()
 			authenticated := false
 			err = c.ListenDanmaku(ctx, room, attempt, func() {
 				authenticated = true
-				l.publish(gen, "connected", room, nil, false)
+				l.publish(gen, PhaseConnected, room, nil, false)
 			}, func(raw json.RawMessage) error {
 				return l.save(ctx, gen, room, func() (bool, error) { return l.history.Append(room, raw) })
 			})
 			// Do not reset backoff merely on auth: repeatedly dying sockets otherwise
 			// cause a reconnect storm.
-			if authenticated && time.Since(started) >= time.Minute {
+			if authenticated && time.Since(started) >= stableSessionPeriod {
 				failures = 0
 			}
 			gap := "connection_lost"
@@ -317,9 +340,9 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 		if ctx.Err() != nil {
 			return
 		}
-		l.publish(gen, "reconnecting", room, err, true)
-		delay := min(30*time.Second, l.retryDelay*time.Duration(1<<min(failures, 5)))
-		delay += time.Duration(rand.Int64N(max(1, int64(delay/4))))
+		l.publish(gen, PhaseReconnecting, room, err, true)
+		delay := min(maxReconnectDelay, l.retryDelay*time.Duration(1<<min(failures, maxBackoffExponent)))
+		delay += time.Duration(rand.Int64N(max(1, int64(delay/reconnectJitterParts))))
 		failures++
 		attempt++
 		if !sleep(ctx, delay) {

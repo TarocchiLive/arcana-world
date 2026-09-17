@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"arcana-world/internal/app"
 	"arcana-world/internal/bili"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
@@ -15,6 +16,11 @@ import (
 )
 
 type menuItem struct{ label, action string }
+
+const (
+	recentAreaLimit  = 10
+	recentTitleLimit = 5
+)
 
 func (m *Model) menu() []menuItem {
 	switch m.page {
@@ -49,14 +55,15 @@ func (m *Model) menu() []menuItem {
 			{i18n.T(i18n.TUISettingsOBSURL), "obs-url"},
 			{i18n.T(i18n.TUIMenuOBSPassword), "obs-password"},
 		}
+	case overlayPage, ttsPage:
+		return m.outputMenu()
 	case settingsPage:
 		return []menuItem{
 			{i18n.T(i18n.TUIMenuSetProxy), "proxy"},
 			{i18n.T(i18n.TUIMenuSetProtocol), "protocol"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
-			{toggleLabel(i18n.T(i18n.TUIOverlayEnabled), m.overlayEnabled), "overlay-toggle"},
-			{i18n.T(i18n.TUIOverlaySettings), "overlay-settings"},
+			{i18n.T(i18n.OutputVoice), "tts-voice"},
 			{i18n.T(i18n.TUISettingsReset), "settings-reset-confirm"},
 			{i18n.T(i18n.TUISettingsClearData), "clear-data"},
 		}
@@ -88,21 +95,34 @@ func (m *Model) perform(action string) tea.Cmd {
 	if m.busy {
 		return nil
 	}
+	if action == "output-events" {
+		return m.pickOutputEvents()
+	}
+	if action == "tts-voice" {
+		return m.pickTTSVoice()
+	}
+	if strings.HasPrefix(action, "tts-") {
+		return m.performTTS(action)
+	}
 	if strings.HasPrefix(action, "overlay-") {
 		return m.performOverlay(action)
 	}
 	if strings.HasPrefix(action, "account:") {
-		return m.loadAccount(strings.TrimPrefix(action, "account:"))
+		uid := strings.TrimPrefix(action, "account:")
+		if m.config.ActiveUID != "" && m.config.ActiveUID != uid {
+			return m.confirm(i18n.T(i18n.TUIConfirmSwitchAccount), "switch:"+uid)
+		}
+		return m.loadAccount(uid)
+	}
+	if strings.HasPrefix(action, "switch:") {
+		return m.loadAccount(strings.TrimPrefix(action, "switch:"))
+	}
+	if action == "login-switch" && m.pendingAccount != nil {
+		return m.commitLogin(*m.pendingAccount)
 	}
 	if strings.HasPrefix(action, "delete:") {
-		uid := strings.TrimPrefix(action, "delete:")
-		return m.work("delete", func(ctx context.Context) (any, error) {
-			if err := m.acquireOBS(ctx); err != nil {
-				return nil, err
-			}
-			defer func() { <-m.obsLifecycle }()
-			return uid, m.store.Delete(uid)
-		})
+		uid, client := strings.TrimPrefix(action, "delete:"), m.client
+		return work(m, deleteOperation(), func(ctx context.Context) (app.AccountOutcome, error) { return m.session.Delete(ctx, client, uid) })
 	}
 	switch action {
 	case "settings-reset-confirm":
@@ -131,7 +151,7 @@ func (m *Model) perform(action string) tea.Cmd {
 		cfg.DanmakuDisabled = true
 		return m.saveConfig(cfg, false)
 	case "login":
-		return m.work("qr", func(ctx context.Context) (any, error) { return m.client.GenerateQR(ctx) })
+		return work(m, qrOperation(), func(ctx context.Context) (domain.QR, error) { return m.client.GenerateQR(ctx) })
 	case "refresh":
 		if m.account == nil {
 			m.log(i18n.T(i18n.TUIStatusSignInRequired))
@@ -200,10 +220,10 @@ func (m *Model) perform(action string) tea.Cmd {
 		}
 		roomID := m.room.ID
 		local := m.store.Config().RecentAreas
-		return m.work("areas", func(ctx context.Context) (any, error) {
+		return work(m, areasOperation(), func(ctx context.Context) (areaCatalog, error) {
 			all, err := m.client.Areas(ctx)
 			if err != nil {
-				return nil, err
+				return areaCatalog{}, err
 			}
 			recent, historyErr := m.client.RecentAreas(ctx, roomID, all)
 			return areaCatalog{all: all, recent: append(recent, local...), historyErr: historyErr}, nil
@@ -212,7 +232,7 @@ func (m *Model) perform(action string) tea.Cmd {
 		if !m.requireRoom() {
 			return nil
 		}
-		return m.work("delay", func(ctx context.Context) (any, error) { return m.client.TimeShift(ctx) })
+		return work(m, delayOperation(), func(ctx context.Context) (int, error) { return m.client.TimeShift(ctx) })
 	case "delete-pick":
 		m.choices = nil
 		for _, a := range m.store.Accounts() {
@@ -261,68 +281,26 @@ func (m *Model) perform(action string) tea.Cmd {
 	return nil
 }
 func (m *Model) refresh() tea.Cmd {
-	return m.work("refresh", func(ctx context.Context) (any, error) { return m.client.Room(ctx) })
+	return work(m, refreshOperation(), func(ctx context.Context) (domain.Room, error) { return m.client.Room(ctx) })
 }
 func (m *Model) loadAccount(uid string) tea.Cmd {
-	proxy := m.config.Proxy
-	return m.work("account", func(ctx context.Context) (any, error) {
-		if err := m.acquireOBS(ctx); err != nil {
-			return nil, err
-		}
-		defer func() { <-m.obsLifecycle }()
-		a, err := m.store.Load(uid)
-		if err != nil {
-			return nil, err
-		}
-		c, err := bili.New(proxy)
-		if err != nil {
-			return nil, err
-		}
-		c.SetAccount(a)
-		info, err := c.Validate(ctx)
-		if err != nil {
-			return nil, err
-		}
-		a.Name = info.Name
-		if err = m.store.Save(a); err != nil {
-			return nil, err
-		}
-		cfg := m.store.Config()
-		cfg.ActiveUID = a.UID
-		if err = m.store.SaveConfig(cfg); err != nil {
-			return nil, err
-		}
-		return accountResult{a, c}, nil
-	})
+	client := m.client
+	return work(m, accountOperation(), func(ctx context.Context) (app.AccountOutcome, error) { return m.session.Switch(ctx, client, uid, nil) })
 }
 func (m *Model) saveLogin(a domain.Account) tea.Cmd {
-	proxy := m.config.Proxy
-	return m.work("login-save", func(ctx context.Context) (any, error) {
-		if err := m.acquireOBS(ctx); err != nil {
-			return nil, err
-		}
-		defer func() { <-m.obsLifecycle }()
-		c, err := bili.New(proxy)
-		if err != nil {
-			return nil, err
-		}
-		c.SetAccount(a)
-		info, err := c.Validate(ctx)
-		if err != nil {
-			return nil, err
-		}
-		a.UID = info.UID
-		a.Name = info.Name
-		if err = m.store.Save(a); err != nil {
-			return nil, err
-		}
-		cfg := m.store.Config()
-		cfg.ActiveUID = a.UID
-		if err = m.store.SaveConfig(cfg); err != nil {
-			return nil, err
-		}
-		return accountResult{a, c}, nil
-	})
+	uid := a.UID
+	if uid == "" {
+		uid = a.Cookies["DedeUserID"]
+	}
+	if m.config.ActiveUID != "" && m.config.ActiveUID != uid {
+		m.pendingAccount = &a
+		return m.confirm(i18n.T(i18n.TUIConfirmSwitchAccount), "login-switch")
+	}
+	return m.commitLogin(a)
+}
+func (m *Model) commitLogin(a domain.Account) tea.Cmd {
+	client := m.client
+	return work(m, loginSaveOperation(), func(ctx context.Context) (app.AccountOutcome, error) { return m.session.Switch(ctx, client, "", &a) })
 }
 func (m *Model) form(kind, prompt, value string, secret bool) tea.Cmd {
 	m.mode = "form"
@@ -362,13 +340,24 @@ func (m *Model) choose() tea.Cmd {
 		return nil
 	}
 	ch := m.choices[m.selected]
+	if m.editKind == "output-events" {
+		return m.toggleOutputEvent(ch.value)
+	}
 	m.mode = ""
 	if strings.HasPrefix(m.editKind, "overlay-") {
 		return m.chooseOverlay(ch.value)
 	}
 	switch m.editKind {
+	case "tts-voice":
+		cfg := m.config
+		cfg.TTS.Voice = ch.value
+		return m.saveConfig(cfg, false)
 	case "delete":
-		return m.confirm(fmt.Sprintf(i18n.T(i18n.TUIConfirmRemoveAccount), ch.label), "delete:"+ch.value)
+		prompt := fmt.Sprintf(i18n.T(i18n.TUIConfirmRemoveAccount), ch.label)
+		if m.config.ActiveUID == ch.value {
+			prompt += "\n" + i18n.T(i18n.TUIConfirmDetachAccount)
+		}
+		return m.confirm(prompt, "delete:"+ch.value)
 	case "protocol":
 		cfg := m.config
 		cfg.Protocol = ch.value
@@ -379,18 +368,12 @@ func (m *Model) choose() tea.Cmd {
 func (m *Model) setArea(a domain.Area) tea.Cmd {
 	room := m.room.ID
 	cfg := m.store.Config()
-	return m.work("area", func(ctx context.Context) (any, error) {
+	return work(m, areaOperation(), func(ctx context.Context) (*domain.Area, error) {
 		if err := m.client.SetArea(ctx, room, a.ID); err != nil {
 			return nil, err
 		}
-		recent := []domain.Area{a}
-		for _, old := range cfg.RecentAreas {
-			if old.ID != a.ID && len(recent) < 10 {
-				recent = append(recent, old)
-			}
-		}
-		cfg.RecentAreas = recent
-		return editResult{kind: "area", area: &a}, m.store.SaveConfig(cfg)
+		cfg.RecentAreas = prependRecent(cfg.RecentAreas, a, recentAreaLimit, func(a domain.Area) int64 { return a.ID })
+		return &a, m.store.SaveConfig(cfg)
 	})
 }
 func (m *Model) submitForm() tea.Cmd {
@@ -406,7 +389,7 @@ func (m *Model) submitForm() tea.Cmd {
 			return nil
 		}
 		m.clearDataOnExit = true
-		m.obsClosing.Store(true)
+		m.session.BeginClose()
 		m.input.SetValue("")
 		m.input.Blur()
 		return tea.Quit
@@ -437,10 +420,12 @@ func (m *Model) submitForm() tea.Cmd {
 			return nil
 		}
 	case "proxy":
-		if _, err := bili.New(value); err != nil {
+		client, err := bili.New(value)
+		if err != nil {
 			m.status = clean(err.Error())
 			return nil
 		}
+		client.HTTP.CloseIdleConnections()
 	}
 	m.mode = ""
 	m.input.SetValue("")
@@ -448,41 +433,23 @@ func (m *Model) submitForm() tea.Cmd {
 	switch kind {
 	case "announcement":
 		room := m.room.ID
-		return m.work("announcement", func(ctx context.Context) (any, error) {
+		return work(m, announcementOperation(), func(ctx context.Context) (*string, error) {
 			if err := m.client.SetAnnouncement(ctx, room, value); err != nil {
 				return nil, err
 			}
-			return editResult{kind: "announcement", value: value}, nil
+			return &value, nil
 		})
 	case "cover-path":
 		return m.prepareCover(value)
 	case "delay":
 		n, _ := strconv.Atoi(value)
-		return m.work("delay-set", func(ctx context.Context) (any, error) { return nil, m.client.SetTimeShift(ctx, n) })
+		return work(m, delaySetOperation, func(ctx context.Context) (struct{}, error) { return struct{}{}, m.client.SetTimeShift(ctx, n) })
 	case "obs-password":
-		return m.work("obs-password", func(ctx context.Context) (any, error) {
-			if err := m.acquireOBS(ctx); err != nil {
-				return nil, err
-			}
-			defer func() { <-m.obsLifecycle }()
-			if err := m.store.SetOBSSecret(value); err != nil {
-				return nil, err
-			}
-			return nil, m.obsClient.Disconnect()
-		})
+		return m.saveOBSSetting(obsPasswordOperation, func() error { return m.store.SetOBSSecret(value) })
 	case "obs-url":
 		cfg := m.config
 		cfg.OBSURL = value
-		return m.work("obs-url", func(ctx context.Context) (any, error) {
-			if err := m.acquireOBS(ctx); err != nil {
-				return nil, err
-			}
-			defer func() { <-m.obsLifecycle }()
-			if err := m.store.SaveConfig(cfg); err != nil {
-				return nil, err
-			}
-			return nil, m.obsClient.Disconnect()
-		})
+		return m.saveOBSSetting(obsURLOperation, func() error { return m.store.SaveConfig(cfg) })
 	case "proxy":
 		cfg := m.config
 		cfg.Proxy = value
@@ -491,30 +458,15 @@ func (m *Model) submitForm() tea.Cmd {
 	return nil
 }
 func (m *Model) saveConfig(cfg domain.Config, replaceClient bool) tea.Cmd {
-	account := m.account
-	return m.work("config", func(ctx context.Context) (any, error) {
-		if err := m.acquireOBS(ctx); err != nil {
+	if replaceClient {
+		return m.rebuildClientAndSave(configOperation(), cfg.Proxy, func() error { return m.store.SaveConfig(cfg) })
+	}
+	return work(m, configOperation(), func(ctx context.Context) (*bili.Client, error) {
+		if err := m.session.Lock(ctx); err != nil {
 			return nil, err
 		}
-		defer func() { <-m.obsLifecycle }()
-		var c *bili.Client
-		if replaceClient {
-			var err error
-			c, err = bili.New(cfg.Proxy)
-			if err != nil {
-				return nil, err
-			}
-			if account != nil {
-				c.SetAccount(*account)
-			}
-		}
-		if err := m.store.SaveConfig(cfg); err != nil {
-			return nil, err
-		}
-		if replaceClient {
-			return c, nil
-		}
-		return nil, nil
+		defer m.session.Unlock()
+		return nil, m.store.SaveConfig(cfg)
 	})
 }
 
@@ -544,17 +496,30 @@ func (m *Model) updateSelection(msg tea.Msg) tea.Cmd {
 func (m *Model) setTitle(value string) tea.Cmd {
 	room := m.room.ID
 	cfg := m.store.Config()
-	return m.work("title", func(ctx context.Context) (any, error) {
+	return work(m, titleOperation(), func(ctx context.Context) (*string, error) {
 		if err := m.client.SetTitle(ctx, room, value); err != nil {
 			return nil, err
 		}
-		titles := []string{value}
-		for _, s := range cfg.RecentTitles {
-			if s != value && len(titles) < 5 {
-				titles = append(titles, s)
-			}
-		}
-		cfg.RecentTitles = titles
-		return editResult{kind: "title", value: value}, m.store.SaveConfig(cfg)
+		cfg.RecentTitles = prependRecent(cfg.RecentTitles, value, recentTitleLimit, func(s string) string { return s })
+		return &value, m.store.SaveConfig(cfg)
 	})
+}
+
+// prependRecent preserves all other entries, including their duplicates.
+func prependRecent[T any, K comparable](history []T, value T, limit int, identity func(T) K) []T {
+	if limit <= 0 {
+		return nil
+	}
+	recent := make([]T, 1, min(limit, len(history)+1))
+	recent[0] = value
+	key := identity(value)
+	for _, old := range history {
+		if len(recent) == limit {
+			break
+		}
+		if identity(old) != key {
+			recent = append(recent, old)
+		}
+	}
+	return recent
 }

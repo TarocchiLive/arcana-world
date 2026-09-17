@@ -20,7 +20,7 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          vendorHash = "sha256-WU7NRrYE8n8zjAL9TRBUsUfCknHDJdWMVHRN9hW/hkI=";
+          vendorHash = "sha256-bvZzhgRceIq/YNgDwX7FNNE+tdI6BG/cwrNmzqBLFKk=";
         in
         rec {
           default = arcana-world-desktop;
@@ -45,6 +45,7 @@
             ldflags = [
               "-s"
               "-w"
+              "-buildid="
               "-X main.version=${version}"
             ];
 
@@ -66,11 +67,11 @@
               platforms = systems;
             };
           };
-          arcana-overlay = pkgs.buildGoModule {
-            pname = "arcana-overlay";
+          arcana-world-overlay = pkgs.buildGoModule {
+            pname = "arcana-world-overlay";
             inherit (arcana-world) version src;
             inherit vendorHash;
-            subPackages = [ "cmd/arcana-overlay" ];
+            subPackages = [ "cmd/arcana-world-overlay" ];
             env.CGO_ENABLED = "1";
             tags = pkgs.lib.optionals pkgs.stdenv.isLinux [ "wayland" ];
             nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
@@ -79,25 +80,47 @@
               pkgs.pango
               pkgs.cairo
             ];
-            ldflags = [ "-s" "-w" ];
+            ldflags = [ "-s" "-w" "-buildid=" ];
             postInstall = ''
-              install -Dm644 LICENSE "$out/share/licenses/arcana-overlay/LICENSE"
+              install -Dm644 LICENSE "$out/share/licenses/arcana-world-overlay/LICENSE"
             '';
             meta = {
               description = "Native click-through desktop text overlay";
               homepage = "https://github.com/TarocchiLive/arcana-world";
               license = pkgs.lib.licenses.gpl3Only;
-              mainProgram = "arcana-overlay";
+              mainProgram = "arcana-world-overlay";
               platforms = systems;
+            };
+          };
+          arcana-world-tts = pkgs.buildGoModule {
+            pname = "arcana-world-tts";
+            inherit (arcana-world) version src;
+            inherit vendorHash;
+            subPackages = [ "cmd/arcana-world-tts" ];
+            env.CGO_ENABLED = if pkgs.stdenv.isLinux then "1" else "0";
+            tags = [ "tts_audio" ];
+            nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.alsa-lib ];
+            ldflags = [ "-s" "-w" "-buildid=" ];
+            checkPhase = ''
+              runHook preCheck
+              go test -tags tts_audio ./internal/tts/audio ./cmd/arcana-world-tts
+              runHook postCheck
+            '';
+            meta = arcana-world.meta // {
+              description = "Edge speech synthesis and native MP3 playback helper";
+              mainProgram = "arcana-world-tts";
             };
           };
           arcana-world-desktop = pkgs.runCommand "arcana-world-desktop-${arcana-world.version}" {
             meta = arcana-world.meta // {
-              description = "Arcana World with the optional native desktop overlay";
+              description = "Arcana World with optional desktop overlay and speech helper";
             };
           } ''
+            # Match the portable bundle layout used by scripts/build.sh.
             install -Dm755 ${arcana-world}/bin/arcana-world "$out/bin/arcana-world"
-            install -Dm755 ${arcana-overlay}/bin/arcana-overlay "$out/bin/libexec/arcana-overlay"
+            install -Dm755 ${arcana-world-overlay}/bin/arcana-world-overlay "$out/bin/libexec/arcana-world-overlay"
+            install -Dm755 ${arcana-world-tts}/bin/arcana-world-tts "$out/bin/libexec/arcana-world-tts"
             install -Dm644 ${arcana-world}/share/licenses/arcana-world/LICENSE \
               "$out/share/licenses/arcana-world/LICENSE"
           '';
@@ -116,7 +139,7 @@
             CGO_ENABLED = "0";
             GOFLAGS = "-mod=readonly";
           };
-          arcana-overlay = pkgs.mkShell {
+          arcana-world-overlay = pkgs.mkShell {
             packages = [ pkgs.go ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
             buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [
               pkgs.wayland
@@ -125,6 +148,12 @@
             ];
             CGO_ENABLED = "1";
             GOFLAGS = "-mod=readonly" + pkgs.lib.optionalString pkgs.stdenv.isLinux " -tags=wayland";
+          };
+          arcana-world-tts = pkgs.mkShell {
+            packages = [ pkgs.go ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.alsa-lib ];
+            CGO_ENABLED = if pkgs.stdenv.isLinux then "1" else "0";
+            GOFLAGS = "-mod=readonly";
           };
         }
       );
@@ -135,10 +164,10 @@
           program = "${self.packages.${system}.default}/bin/arcana-world";
           meta.description = self.packages.${system}.default.meta.description;
         };
-        arcana-overlay = {
+        arcana-world-overlay = {
           type = "app";
-          program = "${self.packages.${system}.arcana-overlay}/bin/arcana-overlay";
-          meta.description = self.packages.${system}.arcana-overlay.meta.description;
+          program = "${self.packages.${system}.arcana-world-overlay}/bin/arcana-world-overlay";
+          meta.description = self.packages.${system}.arcana-world-overlay.meta.description;
         };
         arcana-world-desktop = {
           type = "app";
@@ -148,7 +177,7 @@
       });
 
       checks = forAllSystems (system: {
-        inherit (self.packages.${system}) arcana-world arcana-overlay arcana-world-desktop;
+        inherit (self.packages.${system}) arcana-world arcana-world-overlay arcana-world-tts arcana-world-desktop;
       });
     };
 }

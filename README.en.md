@@ -11,36 +11,37 @@
 
 [中文](README.md) · **English**
 
-Arcana World is a Go-based TUI alternative to bilibili LiveHime. It is useful when LiveHime cannot run directly, such as on Linux, or when the official client does not work for you. Sign in and configure the broadcast in the terminal, then stream with OBS.
+Arcana World is a Go-based bilibili live streaming and chat client.
+
+It supports mobile QR-code sign-in, a floating chat overlay, and speech announcements across platforms.
+
+Native support for Windows, Linux, and macOS.
 
 ## Preview
 
-![Main menu](assets/arcana-world-1-en.png)
-![Cover preview](assets/arcana-world-2-en.png)
+<p align="center">
+  <img src="assets/arcana-world-01.webp" alt="Main menu" width="48%">
+  <img src="assets/arcana-world-02.webp" alt="Overlay settings" width="48%">
+  <img src="assets/arcana-world-03.webp" alt="Cover preview" width="48%">
+  <img src="assets/arcana-world-04.webp" alt="Chat overlay" width="48%">
+</p>
 
-## Feature details
+## Highlights
 
-- Scan a QR code to sign in, then save and switch between accounts.
-- Start or stop broadcasts and edit the title, category, announcement, and cover.
-- Automatically crop covers and preview them in the terminal before upload. A compatible terminal emulator is required; kitty or ghostty is recommended.
-- Send stream settings to OBS and optionally start or stop streaming with the broadcast.
-- Automatically listen to your room after sign-in.
-- Support RTMP / SRT, Chinese and English interfaces, and proxies.
-- Runs on macOS, Windows, and Linux.
+- **Scan to sign in, connect OBS, and go live with one click.**
+- **Browse live chat in real time, with a click-through floating overlay that stays out of the way of your mouse and keyboard.**
+- **High-quality chat, gift, and Super Chat announcements powered by Edge TTS, with zero resource overhead.**
+- **Typical memory usage of 40 MB: lightweight, smooth, and stable.**
 
 ## Install
 
-Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest) for your platform, extract the entire archive, and run `arcana-world` at its root (`arcana-world.exe` on Windows):
+### Quick start
 
-| Platform | x64 | ARM64 |
-| --- | --- | --- |
-| macOS | [Intel](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-darwin-amd64.tar.gz) | [Apple Silicon](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-darwin-arm64.tar.gz) |
-| Windows | [Download](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-windows-amd64.zip) | [Download](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-windows-arm64.zip) |
-| Linux | [Download](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-linux-amd64.tar.gz) | [Download](https://github.com/TarocchiLive/arcana-world/releases/latest/download/arcana-world-linux-arm64.tar.gz) |
+Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest) for your platform, such as `arcana-world-windows-amd64.zip`, extract the entire archive, and run `arcana-world` at its root (`arcana-world.exe` on Windows).
 
-The download includes the main program and native overlay. Extract the entire archive and keep the `libexec` directory alongside the main executable. Move the whole folder when relocating the application. Start only `arcana-world`, then enable Native overlay in Settings; you do not need to run the overlay separately.
+### Build from source
 
-Building from source requires Go 1.26+ and the platform's [overlay build dependencies](cmd/arcana-overlay/README.en.md#build-and-launch):
+Building from source requires Go 1.26+ and the platform's [overlay build dependencies](cmd/arcana-world-overlay/README.en.md#build-and-launch). On Linux, the bundled audio helper also requires ALSA development libraries and `pkg-config` (`libasound2-dev pkg-config` on Debian/Ubuntu):
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git
@@ -49,7 +50,7 @@ make desktop
 ./bin/arcana-world
 ```
 
-Run `bin/arcana-world` (`bin/arcana-world.exe` on Windows) and keep the `bin/libexec` directory. For terminal-only use, build with `make build`; graphics development libraries are not required. See [Arcana Overlay](cmd/arcana-overlay/README.en.md#supported-platforms) for overlay platform support.
+After building, run `bin/arcana-world` (`bin/arcana-world.exe` on Windows). For terminal-only use without the overlay, build with `make build`; graphics development libraries are not required. See [Arcana World Overlay](cmd/arcana-world-overlay/README.en.md#supported-platforms) for overlay platform support.
 
 ## Go live
 
@@ -57,27 +58,15 @@ Run `bin/arcana-world` (`bin/arcana-world.exe` on Windows) and keep the `bin/lib
 2. Set your title, category, and cover on the **Room** page.
 3. In OBS Studio's top menu, choose **Tools → WebSocket Server Settings → Enable WebSocket server** (check it) **→ Show Connect Info →** copy the server password **→ OK** ([official setup guide](https://obsproject.com/kb/remote-control-guide)).
 OBS 28 and later include this feature, so no plugin is needed. For older versions, install an [obs-websocket 5.x plugin](https://github.com/obsproject/obs-websocket/releases) compatible with your OBS version.
-4. On Arcana World's **OBS** (`5`) page, enter the server address (for example `ws://127.0.0.1:4455`) and the password you just copied.
-5. Connect on the same page and enable **Auto-stream**. Adjust proxy and streaming protocol options on **Settings** (`6`).
+4. On Arcana World's **OBS** (`7`) page, enter the server address (for example `ws://127.0.0.1:4455`) and the password you just copied.
+5. Connect on the same page and enable **Auto-stream**. Adjust proxy and streaming protocol options on **Settings** (`8`).
 6. Return to **Live** and start your broadcast.
 
-By default, exiting stops OBS streaming and closes the current account's Bilibili room, including broadcasts started from another client. On **Settings** (`6`), **Stop OBS streaming on exit** and **Close live room on exit** can be disabled independently. With both off, exiting performs neither action. These settings do not affect **Stop Bilibili live** on the Live page.
+By default, exiting stops OBS streaming and closes the current account's Bilibili room, including broadcasts started from another client. On **Settings** (`8`), **Stop OBS streaming on exit** and **Close live room on exit** can be disabled independently. With both off, exiting performs neither action. These settings do not affect **Stop Bilibili live** on the Live page.
+
+Switching to a different account (including QR sign-in) or deleting the current account asks for confirmation before stopping the old account's broadcast and associated OBS stream. If stopping fails, the account is not switched or deleted. Exit settings do not control this cleanup.
 
 If Bilibili requests identity verification, complete it and try again.
-
-### Keyboard shortcuts
-
-| Key | Action |
-| --- | --- |
-| `↑↓` / `j k` | Select |
-| `Enter` | Confirm |
-| `Tab` / `1–8` | Switch pages |
-| `PgUp` / `PgDn` | Scroll |
-| `r` | Refresh |
-| `Esc` | Back or cancel |
-| `q` | Quit |
-
-Page order: `1` Live, `2` Chat, `3` Accounts, `4` Room, `5` OBS, `6` Settings, `7` Logs, `8` Help.
 
 ### Chat and history
 
@@ -90,6 +79,12 @@ Press `2` to browse chat and history; listening continues on other pages.
 See the [chat display allowlist](docs/danmaku-whitelist.md) for the default message types. Unlisted messages stay hidden even with `f` enabled, but their original data is still saved.
 
 History is stored per room in `danmaku/history.db` under the data directory; history and operation logs are retained for seven days and cleaned automatically. Messages missed while disconnected are not fetched later to fill in the database.
+
+### Desktop overlay
+
+Provides a focus-free, click-through, semi-transparent desktop text overlay. Overlay and TTS have independent event selections; all events visible without `f` are selected by default. Press `Enter` or `Space` to toggle an event. Output templates currently support Chinese only. Choose a voice in Settings; the TTS tab offers preview, on/off controls, and stopping playback with queue clearing. Only new events are spoken after enabling TTS; history is not replayed. Speech synthesis requires an internet connection.
+
+See [Arcana World Overlay](cmd/arcana-world-overlay/README.en.md) for details.
 
 ### Options
 
@@ -104,17 +99,11 @@ arcana-world --help                     # Show help
 
 Default data directory: `~/.arcana/world`.
 
-### Desktop overlay
-
-Provides a focus-free, click-through, semi-transparent desktop text overlay.
-
-See [Arcana Overlay](cmd/arcana-overlay/README.en.md) for details.
-
 ## TODO
-- [ ] Fetch direct Bilibili stream URLs, connect to OBS, and start broadcasts automatically.
+- [x] Fetch direct Bilibili stream URLs, connect to OBS, and start broadcasts automatically.
 - [x] Receive Bilibili live chat messages and browse gifts and chat history in the TUI.
 - [x] Add a Bilibili live chat overlay.
-- [ ] Add LiveHime support, TTS chat readouts, and gift announcements.
+- [x] Add TTS chat readouts and gift announcements.
 
 ## Development
 
@@ -136,6 +125,6 @@ Licensed under [GPL-3.0-only](LICENSE).
 
 ## Acknowledgments
 
-- Everyone in the community who generously shared explanations and implementation references.
+- Everyone in the community who generously shared API definitions and implementation references for the relevant platforms.
 - [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive): the source of this project's streaming protocol implementation.
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea): the terminal UI framework.

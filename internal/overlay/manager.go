@@ -11,10 +11,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
+
+	"arcana-world/internal/helperpath"
+)
+
+const (
+	defaultStartupTimeout  = 10 * time.Second
+	defaultShutdownTimeout = 2 * time.Second
+	defaultUpdateInterval  = time.Second / 60
+	hostAuthTimeout        = time.Second
+	// Leave room within the Unix socket path limits of all supported platforms.
+	socketPathLimit = 100
 )
 
 // Options 控制独立原生子进程及其有界通信生命周期。
@@ -40,15 +50,10 @@ type Manager struct {
 
 // Resolve the real installation directory, not the working directory or a launcher symlink.
 func bundledExecutable(executable string) (string, error) {
-	executable, err := filepath.EvalSymlinks(executable)
+	path, err := helperpath.Installed(executable, "arcana-world-overlay")
 	if err != nil {
 		return "", fmt.Errorf("overlay: resolving application path: %w", err)
 	}
-	name := "arcana-overlay"
-	if runtime.GOOS == "windows" {
-		name += ".exe"
-	}
-	path := filepath.Join(filepath.Dir(executable), "libexec", name)
 	info, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("overlay: bundled executable %q is missing; extract the complete portable package again: %w", path, err)
@@ -72,13 +77,13 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 		return nil, err
 	}
 	if options.StartupTimeout == 0 {
-		options.StartupTimeout = 10 * time.Second
+		options.StartupTimeout = defaultStartupTimeout
 	}
 	if options.ShutdownTimeout == 0 {
-		options.ShutdownTimeout = 2 * time.Second
+		options.ShutdownTimeout = defaultShutdownTimeout
 	}
 	if options.UpdateInterval == 0 {
-		options.UpdateInterval = time.Second / 60
+		options.UpdateInterval = defaultUpdateInterval
 	}
 	if options.StartupTimeout < 0 || options.ShutdownTimeout < 0 || options.UpdateInterval < 0 {
 		return nil, errors.New("overlay: timeouts and update interval must be positive")
@@ -97,25 +102,30 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+	var listener *net.UnixListener
+	transferred := false
+	defer func() {
+		if transferred {
+			return
+		}
+		if listener != nil {
+			_ = listener.Close()
+		}
+		_ = os.RemoveAll(directory)
+	}()
 	socketPath := filepath.Join(directory, "s")
-	if len(socketPath) >= 100 {
-		_ = os.RemoveAll(directory)
-		return nil, fmt.Errorf("overlay: runtime directory produces a Unix socket path of %d bytes (must be below 100)", len(socketPath))
+	if len(socketPath) >= socketPathLimit {
+		return nil, fmt.Errorf("overlay: runtime directory produces a Unix socket path of %d bytes (must be below %d)", len(socketPath), socketPathLimit)
 	}
-	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socketPath, Net: "unix"})
+	listener, err = net.ListenUnix("unix", &net.UnixAddr{Name: socketPath, Net: "unix"})
 	if err != nil {
-		_ = os.RemoveAll(directory)
 		return nil, fmt.Errorf("overlay: Unix sockets require a supported OS (Windows 10 1803 or newer): %w", err)
 	}
 	if err = secureSocket(socketPath); err != nil {
-		_ = listener.Close()
-		_ = os.RemoveAll(directory)
 		return nil, err
 	}
 	var secret [32]byte
 	if _, err = rand.Read(secret[:]); err != nil {
-		_ = listener.Close()
-		_ = os.RemoveAll(directory)
 		return nil, err
 	}
 	token := hex.EncodeToString(secret[:])
@@ -132,8 +142,6 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 	cmd.Stderr = diagnostics
 	cmd.WaitDelay = options.ShutdownTimeout
 	if err = cmd.Start(); err != nil {
-		_ = listener.Close()
-		_ = os.RemoveAll(directory)
 		return nil, fmt.Errorf("overlay: starting child: %w", err)
 	}
 	childDone := make(chan struct{})
@@ -143,6 +151,7 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 	manager := &Manager{cfg: cfg, done: make(chan struct{}), dirty: make(chan struct{}, 1), cancel: cancel}
 	ready := make(chan struct{})
 	go manager.manage(managedCtx, options, listener, directory, cmd, childDone, &childErr, diagnostics, token, ready)
+	transferred = true // manage now owns the listener, directory, and child.
 	select {
 	case <-ready:
 		if err := ctx.Err(); err != nil {
@@ -312,7 +321,7 @@ func acceptHost(ctx context.Context, listener *net.UnixListener, token string) (
 			return nil, err
 		}
 		stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
-		deadline := time.Now().Add(time.Second)
+		deadline := time.Now().Add(hostAuthTimeout)
 		if limit, ok := ctx.Deadline(); ok && limit.Before(deadline) {
 			deadline = limit
 		}

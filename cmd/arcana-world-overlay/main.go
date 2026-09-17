@@ -1,4 +1,4 @@
-// arcana-overlay 是可选的原生桌面文字浮层，独立于 TUI。
+// arcana-world-overlay 是可选的原生桌面文字浮层，独立于 TUI。
 package main
 
 import (
@@ -22,12 +22,12 @@ import (
 func init() { runtime.LockOSThread() }
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "arcana-overlay:", err)
+		fmt.Fprintln(os.Stderr, "arcana-world-overlay:", err)
 		os.Exit(1)
 	}
 }
 func run() error {
-	flags := flag.NewFlagSet("arcana-overlay", flag.ContinueOnError)
+	flags := flag.NewFlagSet("arcana-world-overlay", flag.ContinueOnError)
 	cfg := overlay.DefaultConfig()
 	flags.StringVar(&cfg.Text, "text", cfg.Text, "text to display")
 	anchor := flags.String("anchor", string(cfg.Position.Anchor), "top-left, top, top-right, left, center, right, bottom-left, bottom, bottom-right")
@@ -35,7 +35,7 @@ func run() error {
 	flags.Float64Var(&cfg.Position.Y, "y", cfg.Position.Y, "vertical anchor offset in logical points; positive points inward at edges")
 	flags.Float64Var(&cfg.Width, "width", cfg.Width, "panel width in logical points")
 	flags.Float64Var(&cfg.Height, "height", cfg.Height, "panel height in logical points")
-	padding := flags.String("padding", "12,16,12,16", "padding: one value, or top,right,bottom,left in logical points")
+	padding := flags.String("padding", fmt.Sprintf("%g,%g,%g,%g", cfg.Padding.Top, cfg.Padding.Right, cfg.Padding.Bottom, cfg.Padding.Left), "padding: one value, or top,right,bottom,left in logical points")
 	flags.StringVar(&cfg.Font.Family, "font", cfg.Font.Family, "font family; empty uses the platform default")
 	flags.Float64Var(&cfg.Font.Size, "font-size", cfg.Font.Size, "font size in logical points")
 	flags.IntVar(&cfg.Font.Weight, "font-weight", cfg.Font.Weight, "font weight (100..900)")
@@ -49,7 +49,7 @@ func run() error {
 	duration := flags.Duration("duration", 0, "close automatically after this duration; 0 waits for Ctrl+C")
 	socket := flags.String("socket", "", "managed host Unix socket; cannot be combined with standalone options")
 	flags.Usage = func() {
-		fmt.Fprintln(flags.Output(), "Usage: arcana-overlay [options]")
+		fmt.Fprintln(flags.Output(), "Usage: arcana-world-overlay [options]")
 		fmt.Fprintln(flags.Output(), "Native click-through overlay: macOS, Windows 10 1803+, KDE/niri Wayland.")
 		fmt.Fprintln(flags.Output(), "Linux: make overlay requires cgo, -tags wayland, wayland-client and pangocairo.")
 		fmt.Fprintln(flags.Output(), "GNOME/Mutter lacks layer-shell. No ordinary-window or X11 fallback.")

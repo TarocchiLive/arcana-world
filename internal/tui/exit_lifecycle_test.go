@@ -135,6 +135,13 @@ func TestExitRefreshesCommittedAccountAndSkipsOfflineOrAbsentAccount(t *testing.
 			var requests, stops atomic.Int32
 			liveURL := exitLiveServer(t, mode != "offline", "", &requests, &stops)
 			m := lifecycleModel(t, context.Background())
+			// This scenario exercises Bilibili cleanup without OBS integration.
+			cfg := m.store.Config()
+			cfg.OBSAutoConnect, cfg.OBSAutoStream = false, false
+			if err := m.store.SaveConfig(cfg); err != nil {
+				t.Fatal(err)
+			}
+			m.config = cfg
 			m.client.LiveBase = liveURL
 			account := exitAccount()
 			switch mode {
@@ -154,10 +161,15 @@ func TestExitRefreshesCommittedAccountAndSkipsOfflineOrAbsentAccount(t *testing.
 				if mode == "deleted" {
 					m.account = &account
 					m.client.SetAccount(account)
-					queued := m.perform("delete:" + account.UID)().(resultMsg)
-					if queued.err != nil {
-						t.Fatal(queued.err)
+					queued := m.perform("delete:" + account.UID)().(taskMessage)
+					if queued.taskError() != nil {
+						t.Fatal(queued.taskError())
 					}
+					// Deletion itself closes the old broadcast before removing identity.
+					if stops.Load() != 1 {
+						t.Fatal("deletion did not stop old broadcast")
+					}
+					requests.Store(0)
 				}
 			case "offline":
 				persistExitAccount(t, m, account)

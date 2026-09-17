@@ -22,7 +22,7 @@ func TestCanceledQRDoesNotReopenFromQueuedSuccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer m.Close()
-	command := m.work("qr", func(context.Context) (any, error) {
+	command := work(m, qrOperation(), func(context.Context) (domain.QR, error) {
 		return domain.QR{Key: "queued-key", URL: "https://passport.bilibili.com/login?token=queued-secret"}, nil
 	})
 	// HTTP 请求已完成，但 Esc 到达时成功消息仍在队列中。

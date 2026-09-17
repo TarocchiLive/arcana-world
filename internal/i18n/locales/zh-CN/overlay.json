@@ -1,6 +1,6 @@
 {
   "overlay.cli.enable": "本次会话启用原生浮层（默认遵循已保存设置；-overlay=false 可禁用）",
-  "overlay.cli.executable": "浮层可执行文件路径（默认使用主程序真实路径旁 libexec/arcana-overlay）",
+  "overlay.cli.executable": "浮层可执行文件路径（默认使用主程序真实路径旁 libexec/arcana-world-overlay）",
   "overlay.log.started": "原生浮层已就绪",
   "overlay.log.startup_failed": "浮层启动失败：%s",
   "overlay.log.stopped": "浮层已退出：%s",
@@ -50,5 +50,5 @@
   "overlay.ui.bottom_left": "左下",
   "overlay.ui.bottom": "下方居中",
   "overlay.ui.bottom_right": "右下",
-  "overlay.log.chat_read_failed": "浮层弹幕读取失败：%s"
+  "overlay.log.chat_read_failed": "浮层事件读取失败：%s"
 }
