@@ -1,4 +1,4 @@
-// go:build linux && cgo && wayland
+//go:build linux && cgo && wayland
 
 #define _GNU_SOURCE
 #include "wayland_linux.h"
