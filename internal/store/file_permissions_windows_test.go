@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"unsafe"
 
 	"github.com/zalando/go-keyring"
 	"golang.org/x/sys/windows"
@@ -84,16 +85,51 @@ func assertWindowsCredentialDACL(t *testing.T, path string, directory bool) {
 	if err != nil {
 		t.Fatalf("read persisted credential DACL: %v", err)
 	}
-	inheritance := ""
-	if directory {
-		inheritance = "OICI"
-	}
-	want := "D:P(A;" + inheritance + ";FA;;;" + user.User.Sid.String() + ")(A;" + inheritance + ";FA;;;SY)"
-	// 自动继承状态不改变授权；保护标志和全部 ACE 必须保持严格一致。
-	if err := applied.SetControl(windows.SE_DACL_AUTO_INHERITED|windows.SE_DACL_AUTO_INHERIT_REQ, 0); err != nil {
+	control, _, err := applied.Control()
+	if err != nil {
 		t.Fatal(err)
 	}
-	if got := applied.String(); got != want {
-		t.Fatalf("persisted credential DACL = %q, want %q", got, want)
+	if control&windows.SE_DACL_PROTECTED == 0 {
+		t.Fatal("credential DACL allows inherited permissions")
+	}
+	acl, _, err := applied.DACL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if acl == nil || acl.AceCount != 2 {
+		t.Fatal("credential DACL must grant access only to the current user and SYSTEM")
+	}
+	system, err := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flags := uint8(0)
+	if directory {
+		flags = windows.SUB_CONTAINERS_AND_OBJECTS_INHERIT
+	}
+	seenUser, seenSystem := false, false
+	for index := uint32(0); index < uint32(acl.AceCount); index++ {
+		var ace *windows.ACCESS_ALLOWED_ACE
+		if err := windows.GetAce(acl, index, &ace); err != nil {
+			t.Fatal(err)
+		}
+		// FILE_ALL_ACCESS：标准权限、同步权限和全部文件专用权限。
+		const fileAllAccess = windows.STANDARD_RIGHTS_REQUIRED | windows.SYNCHRONIZE | 0x1ff
+		if ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE || ace.Header.AceFlags != flags || ace.Mask != fileAllAccess {
+			t.Fatal("credential DACL has unexpected permissions or inheritance")
+		}
+		// 比较 SID 本身，避免 LA 等别名影响权限判断。
+		sid := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
+		switch {
+		case sid.Equals(user.User.Sid):
+			seenUser = true
+		case sid.Equals(system):
+			seenSystem = true
+		default:
+			t.Fatal("credential DACL grants access to an unexpected principal")
+		}
+	}
+	if !seenUser || !seenSystem {
+		t.Fatal("credential DACL is missing the current user or SYSTEM")
 	}
 }
