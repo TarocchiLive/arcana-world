@@ -25,7 +25,12 @@ jobs:
             suffix: ''
           - os: windows-latest
             suffix: .exe
+          - os: windows-latest
+            goarch: '386'
+            suffix: .exe
     runs-on: ${{ matrix.os }}
+    env:
+      GOARCH: ${{ matrix.goarch }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -66,7 +71,7 @@ jobs:
           "./bin/libexec/arcana-world-tts${{ matrix.suffix }}" -help
       - uses: actions/upload-artifact@v7
         with:
-          name: desktop-${{ runner.os }}-${{ runner.arch }}
+          name: desktop-${{ runner.os }}-${{ matrix.goarch || runner.arch }}
           path: bin/
 
   vulnerabilities:

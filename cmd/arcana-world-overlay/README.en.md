@@ -57,7 +57,7 @@ Position names:
 | `left` | `center` | `right` |
 | `bottom-left` | `bottom` | `bottom-right` |
 
-Position, size, and padding use logical units that follow display scaling. Text wraps within the overlay, and content exceeding its height may be clipped. Increase the height or reduce the font size if needed.
+Position, size, and padding use logical units that follow display scaling. All text wraps to the available width with a fixed line height determined by the configured font. On overflow, the overlay shows the last complete lines that fit, even if they begin partway through a message or username. Text is top-aligned; any height left over stays blank below it. No text is drawn if the content area cannot fit one line. Increase the height or reduce the font size to show more lines. Text updates do not move or resize the overlay.
 
 ### Live updates
 
@@ -95,7 +95,7 @@ Extract the entire portable bundle, run `arcana-world` at its root (`arcana-worl
 
 By default, the overlay displays live events and closes when the main program exits. Its content is empty before sign-in or when no events are available. On the Overlay tab, toggle Native overlay or open Overlay content and appearance to change the content mode, position, size, padding, font, opacity, and monitor. Settings persist across launches. Startup failures do not block other features; Overlay and Logs show the reason. Turn the overlay off and on again to retry.
 
-Content modes are listed as Live chat, Room status, and Status and chat. Chat modes show up to six selected events from the signed-in account's live room. All events visible without `f` are selected by default, and templates use Chinese. Selections are independent of TTS, TUI history browsing, selected history room, and active page. Disabling chat listening clears overlay events. Each refresh scans at most 256 recent new records, so heavy notification traffic can skip older events; the saved records remain available on the Chat page.
+Content modes are listed as Live chat, Room status, and Status and chat. Chat modes retain up to six selected events from the signed-in account's live room; the visible portion depends on wrapping and the available height. All events visible without `f` are selected by default, and templates use Chinese. Selections are independent of TTS, TUI history browsing, selected history room, and active page. Disabling chat listening clears overlay events. Each refresh scans at most 256 recent new records, so heavy notification traffic can skip older events; the saved records remain available on the Chat page.
 
 `-overlay` and `-overlay=false` override the switch for this launch without changing saved settings. Using the switch in the TUI saves it. Use `-overlay-executable /path/to/arcana-world-overlay` for an executable in another location. The standalone appearance options above do not apply when the main program manages the overlay.
 

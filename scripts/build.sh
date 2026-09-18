@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Shared by Make, CI, and releases; native helpers require target-platform toolchains.
+# Make、CI 与发行共用此入口；原生 helper 需要目标平台工具链。
 export GOOS="${GOOS:-$(go env GOOS)}"
 export GOARCH="${GOARCH:-$(go env GOARCH)}"
 out_dir="${OUT_DIR:-bin}"
 version="${VERSION:-}"
+if [[ "$GOOS" == windows && "$GOARCH" != 386 && "$GOARCH" != amd64 && "$GOARCH" != arm64 ]]; then
+  case "${1:-build}" in
+    overlay|desktop)
+      echo "overlay: Windows supports only 386, amd64 and arm64" >&2
+      exit 2
+      ;;
+  esac
+fi
 suffix=
 overlay_cgo=1
 audio_cgo=0

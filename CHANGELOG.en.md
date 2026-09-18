@@ -25,13 +25,15 @@ Versions are listed newest first.
 
 ### Changed
 
+- Add Windows 386 desktop builds, CI checks, and release artifacts. The overlay uses standard system calls for 32-bit argument passing without assembly or CGO.
+- Replace the 64-bit Windows overlay's custom ABI bridges and assembly with typed purego bindings, preserving CGO-free builds and rendering behavior.
 - Complete Chinese and English translations for overlay and TTS controls, event options, voice names, and runtime status. Overlay content and speech templates remain Chinese.
 - Enable OBS auto-connect and auto-stream by default for new profiles, preserving explicitly disabled values in existing configurations.
 - Move overlay and TTS event selections into submenus. Enter / Space toggles and saves without closing the menu; Esc returns. The two selections remain independent.
 - Store each history message's raw business payload once and migrate existing storage automatically, preserving paging, deduplication, and deletion semantics.
 - Confirm before switching accounts (including QR sign-in) or deleting the current account, then stop the old broadcast and associated OBS stream. Keep the current account on failure, independently of exit settings.
 - Move account and broadcast orchestration from the TUI into the application layer, consistently reclaim idle client connections, and preserve cancellation causes while reading API and cover responses.
-- Run basic core tests on Linux, macOS, and Windows. Share one build entrypoint across Make, CI, and six-platform releases while keeping the standalone TUI CGO-free and Nix declarative with the same companion layout.
+- Run basic core tests on Linux, macOS, and Windows. Share one build entrypoint across Make, CI, and cross-platform releases while keeping the standalone TUI CGO-free and Nix declarative with the same companion layout.
 - Scan default and native speech-tag dependencies weekly. Retain release SHA-256 checksums and add GitHub build provenance attestations. Move the outdated TTS development plan into the local archive.
 
 - Show a yellow notice when cover previews use text characters, recommending a terminal with Kitty graphics support. The notice wraps in narrow windows.
@@ -47,7 +49,7 @@ Versions are listed newest first.
 
 ### Fixed
 
-- Fix long-message ellipsizing and newer messages being clipped below older content in the Wayland overlay. Wrap text to the available width and show its tail on overflow without moving or resizing the overlay.
+- Unify overlay wrapping and overflow on Linux, macOS, and Windows. Wrap all events to the available width and show the last complete lines that fit, using a fixed line height from the configured font. Leave spare height blank below the text, keeping newer content visible without partial lines at the top. Preserve the overlay's position, size, and existing height settings.
 - Clear credentials referenced by the active account ID even when the account index is incomplete.
 - Close the previous client's idle connections when resetting settings, and close temporary connections used for exit checks.
 - Keep wide characters in the cover preview fallback notice within very narrow terminal bounds.

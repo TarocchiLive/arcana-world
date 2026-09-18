@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows && (386 || amd64 || arm64)
 
 package native
 
@@ -23,15 +23,6 @@ func (state *winState) prepareSurface(size winSize, fontHeight int32) error {
 			return winError("CreateCompatibleDC", err)
 		}
 		state.dc = dc
-		if result, _, err := winSetTextColor.Call(dc, 0xFFFFFF); result == 0xFFFFFFFF {
-			return winError("SetTextColor", err)
-		}
-		if result, _, err := winSetBackgroundColor.Call(dc, 0); result == 0xFFFFFFFF {
-			return winError("SetBkColor", err)
-		}
-		if result, _, err := winSetBackgroundMode.Call(dc, 1); result == 0 {
-			return winError("SetBkMode", err)
-		}
 	}
 	if state.bitmap == 0 || state.size != size {
 		info := winBitmapInfo{Size: 40, Width: size.Width, Height: -size.Height, Planes: 1, BitCount: 32}
@@ -74,11 +65,8 @@ func (state *winState) prepareSurface(size winSize, fontHeight int32) error {
 		if state.cfg.Font.Italic {
 			italic = 1
 		}
-		// ANTIALIASED_QUALITY 可避免半透明表面出现次像素 ClearType 条纹。
-		// DrawText 使用 Windows 字体链接实现 Unicode 回退；
-		// 可用字形仍取决于已安装的字体。
-		// Wine 的 CJK 缺字方框问题通过在
-		// 测试前缀中安装/链接 Noto CJK 解决，而不是替换为其他应用渲染器。
+		// GDI 字体只提供随 DPI 缩放的固定行距；
+		// 文字整形、字体回退和抗锯齿由 DirectWrite / Direct2D 处理。
 		font, _, err := winCreateFont.Call(uintptr(-fontHeight), 0, 0, 0, uintptr(state.cfg.Font.Weight), italic, 0, 0, 1, 0, 0, 4, 0, uintptr(unsafe.Pointer(&face[0])))
 		runtime.KeepAlive(face)
 		if font == 0 {
@@ -101,6 +89,12 @@ func (state *winState) prepareSurface(size winSize, fontHeight int32) error {
 }
 
 func (state *winState) closeResources() {
+	for _, object := range [...]*winCOMObject{state.textBrush, state.drawTarget, state.drawFactory, state.writeFactory} {
+		if object != nil {
+			object.release()
+		}
+	}
+	state.textBrush, state.drawTarget, state.drawFactory, state.writeFactory = nil, nil, nil, nil
 	if state.dc == 0 {
 		return
 	}
@@ -155,23 +149,14 @@ func (state *winState) render() error {
 	text, pixels, dc, rect := state.textBuffer, state.pixels, state.dc, state.textRect
 	clear(pixels)
 	if len(text) > 0 && rect.Right > rect.Left && rect.Bottom > rect.Top {
-		// DT_WORDBREAK | DT_NOPREFIX | DT_EDITCONTROL：保留与号，
-		// 处理原生 Unicode 字体整形、换行和裁剪，而非调整大小。
-		result, _, err := winDrawText.Call(dc, uintptr(unsafe.Pointer(&text[0])), uintptr(len(text)), uintptr(unsafe.Pointer(&rect)), 0x2850)
-		runtime.KeepAlive(text)
-		if result == 0 {
-			return winError("DrawTextW", err)
+		if err := state.drawTextLines(text, rect); err != nil {
+			return err
 		}
 	}
 	if result, _, err := winGDIFlush.Call(); result == 0 {
 		return winError("GdiFlush", err)
 	}
-	// GDI 不会写入有意义的 alpha。其黑底白字 RGB 是覆盖率
-	// 掩码。在预乘 BGRA 中，将白色文本合成到半透明黑色上：
-	// rgb = coverage*textAlpha; a = rgb + backgroundAlpha*(1-rgb).
-	// 要显示此 alpha，Wine 需要 X 合成器：缺少 xcompmgr 时，
-	// 即使像素正确也会产生黑色矩形。该环境问题
-	// 不是将原生面板设为不透明或削弱点击穿透的理由。
+	// 黑底白字的 RGB 是覆盖率；将它合成为预乘 BGRA，GDI 自身不提供有效 alpha。
 	background := uint32(math.Round(state.cfg.BackgroundAlpha * 255))
 	foreground := uint32(math.Round(state.cfg.TextAlpha * 255))
 	for i := 0; i < len(pixels); i += 4 {

@@ -20,8 +20,7 @@
 #include <time.h>
 #include <unistd.h>
 
-// 最多同时存在两个像素存储，每个不超过 64 MiB。忙碌存储即使在 configure、
-// 缩放变化或 surface 重建期间也绝不复用。
+// 最多两个像素存储，每个不超过 64 MiB；忙碌存储在重配置、缩放或重建时也不可复用。
 #define MAX_BUFFER_BYTES (64u * 1024u * 1024u)
 struct arcana_wayland;
 struct output {
@@ -82,7 +81,7 @@ static void destroy_extension(struct wl_proxy **proxy, uint32_t opcode) {
     *proxy = NULL;
 }
 
-// 跨线程 mailbox：只有一个可替换更新，不是已渲染帧的队列。
+// 跨线程邮箱只保留最新快照。
 static void wake(struct arcana_wayland *s) {
     char c = 1;
     // EAGAIN 表示唤醒已在队列中。本线程不调用 Wayland。
@@ -235,8 +234,7 @@ static int synchronize(struct arcana_wayland *s) {
     return result;
 }
 
-// Registry/output 的所有权。移除选中的 output 会清除借用的 active 指针；
-// reconciliation 会在仍存活的 output 上重建 surface。
+// 移除输出时清除借用的 active 指针，再在存活输出上重建表面。
 static void output_geometry(void *data, struct wl_output *p, int32_t x, int32_t y,
         int32_t pw, int32_t ph, int32_t sub, const char *make, const char *model, int32_t transform) {
     (void)p; (void)x; (void)y; (void)pw; (void)ph; (void)sub; (void)make; (void)model;
@@ -366,7 +364,6 @@ static void preferred_scale(void *data, struct wl_proxy *proxy, uint32_t scale) 
 }
 static void (*const fractional_listener[])(void) = {(void (*)(void))preferred_scale};
 
-// Layer surface 生命周期与逻辑几何。
 static void destroy_surface(struct arcana_wayland *s) {
     if (s->frame) { wl_callback_destroy(s->frame); s->frame = NULL; }
     destroy_extension(&s->fractional, 0);
@@ -438,8 +435,8 @@ static void create_surface(struct arcana_wayland *s, struct output *output) {
     if (!s->layer) { fail(s, "cannot allocate layer surface"); return; }
     wl_proxy_add_listener(s->layer, (void (**)(void))layer_listener, s);
     wl_proxy_marshal(s->layer, 1, 1u | 4u); // 上边和左边。
-    wl_proxy_marshal(s->layer, 2, -1); // 整个 output，绝不是工作区。
-    wl_proxy_marshal(s->layer, 4, 0u); // keyboard_interactivity.none
+    wl_proxy_marshal(s->layer, 2, -1); // 使用完整输出区域。
+    wl_proxy_marshal(s->layer, 4, 0u); // 禁用键盘交互。
     apply_geometry(s, true);
     if (s->error[0]) return;
     struct wl_region *empty = wl_compositor_create_region(s->compositor);
@@ -488,8 +485,7 @@ static void reconcile_output(struct arcana_wayland *s) {
 }
 static void buffer_release(void *data, struct wl_buffer *buffer) { (void)buffer; ((struct pixels *)data)->busy = false; }
 
-// 像素存储的生命周期长于 surface。移除 output 后，合成器可能仍持有旧 surface
-// 的 buffer；只有 wl_buffer.release 才允许复用。
+// 像素存储可比表面存活更久；仅在 wl_buffer.release 后复用。
 static const struct wl_buffer_listener buffer_listener = {buffer_release};
 static void free_pixels(struct pixels *p) {
     if (p->buffer) wl_buffer_destroy(p->buffer);
@@ -538,8 +534,12 @@ static bool paint_pixels(struct arcana_wayland *s, struct pixels *p) {
     double width = fmax(0, s->width - left - fmin(c->padding_right, s->width));
     double height = fmax(0, s->height - top - fmin(c->padding_bottom, s->height));
     if (width <= 0 || height <= 0 || !*c->text) goto done;
-    cairo_rectangle(cr, left, top, width, height);
-    cairo_clip(cr);
+    size_t text_length = strlen(c->text);
+    if (text_length > INT_MAX) {
+        fail(s, "overlay text exceeds Pango's signed length limit");
+        cairo_destroy(cr); cairo_surface_destroy(image);
+        return false;
+    }
     PangoLayout *layout = pango_cairo_create_layout(cr);
     PangoFontDescription *font = pango_font_description_new();
     pango_font_description_set_family(font, *c->family ? c->family : "sans");
@@ -547,16 +547,43 @@ static bool paint_pixels(struct arcana_wayland *s, struct pixels *p) {
     pango_font_description_set_weight(font, (PangoWeight)c->weight);
     pango_font_description_set_style(font, c->italic ? PANGO_STYLE_ITALIC : PANGO_STYLE_NORMAL);
     pango_layout_set_font_description(layout, font);
-    pango_layout_set_width(layout, (int)(width * PANGO_SCALE));
+    pango_layout_set_width(layout, (int)fmin(width * PANGO_SCALE, INT_MAX));
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
-    pango_layout_set_text(layout, c->text, -1);
-    // 聊天快照按时间排列，最新内容在末尾。先按宽度完整换行，再在
-    // 固定内容框内显示尾部；Pango 的高度省略会优先保留旧段落。
-    int text_height;
-    pango_layout_get_pixel_size(layout, NULL, &text_height);
-    cairo_move_to(cr, left, top - fmax(0, text_height - height));
-    cairo_set_source_rgba(cr, 1, 1, 1, c->text_alpha);
-    pango_cairo_show_layout(cr, layout);
+    pango_layout_set_text(layout, c->text, (int)text_length);
+    // 配置字体决定行高；先转 double 再相加，避免整数度量溢出。
+    PangoContext *context = pango_layout_get_context(layout);
+    PangoFontMetrics *metrics = pango_context_get_metrics(context, font, pango_context_get_language(context));
+    double ascent = (double)pango_font_metrics_get_ascent(metrics) / PANGO_SCALE;
+    double descent = (double)pango_font_metrics_get_descent(metrics) / PANGO_SCALE;
+    double line_height = ceil(fmax(ascent + descent,
+        (double)pango_font_metrics_get_height(metrics) / PANGO_SCALE));
+    pango_font_metrics_unref(metrics);
+    if (line_height > 0 && height >= line_height) {
+        // 从完整整形布局选取尾部视觉行，避免累计全文高度；回退字形裁剪在本行槽内。
+        GSList *lines = pango_layout_get_lines_readonly(layout);
+        int line_count = pango_layout_get_line_count(layout);
+        int visible = (int)fmin(floor(height / line_height), line_count);
+        for (int skip = line_count - visible; skip > 0; --skip) lines = lines->next;
+        cairo_set_source_rgba(cr, 1, 1, 1, c->text_alpha);
+        double baseline = ascent + (line_height - ascent - descent) / 2;
+        for (int row = 0; row < visible; ++row, lines = lines->next) {
+            PangoLayoutLine *line = lines->data;
+            PangoRectangle logical;
+            pango_layout_line_get_extents(line, NULL, &logical);
+            double x = left;
+            // Pango 的默认 auto-dir 会将 RTL 段落靠右放置。
+            if (line->resolved_dir == PANGO_DIRECTION_RTL)
+                x += (double)pango_layout_get_width(layout) / PANGO_SCALE -
+                    (double)logical.width / PANGO_SCALE;
+            double y = top + row * line_height;
+            cairo_save(cr);
+            cairo_rectangle(cr, left, y, width, line_height);
+            cairo_clip(cr);
+            cairo_move_to(cr, x, y + baseline);
+            pango_cairo_show_layout_line(cr, line);
+            cairo_restore(cr);
+        }
+    }
     pango_font_description_free(font);
     g_object_unref(layout);
 done:
@@ -619,12 +646,7 @@ static void cleanup_native(struct arcana_wayland *s) {
     wl_display_disconnect(s->display); s->display = NULL;
 }
 
-// 非交互式桌面 overlay 必须有 layer-shell，不能仅有 Wayland 连接。用户测试在
-// Debian 13 ARM64 Parallels 虚拟机的完整 KWin 6.3.6 和 niri 26.04 会话中通过；
-// 嵌套 KWin 渲染了中文文本和时钟；niri 检查确认 overlay-layer 放置及 keyboard
-// 模式为 none。嵌套/容器缩放和工作区检查不能证明物理机行为。
-// GNOME 48.7/Mutter 能成功启动 Wayland，但不公布此协议：这不是缺少软件包或
-// 显示管理器配置问题。GNOME 支持需要单独的 Shell 集成，而不是普通窗口/X11 回退。
+// 桌面浮层依赖 layer-shell；缺少协议时明确报错，不回退到普通窗口或 X11。
 const char *arcana_wayland_run(struct arcana_wayland *s) {
     if (consume(s)) return NULL;
     if (s->error[0]) return s->error;

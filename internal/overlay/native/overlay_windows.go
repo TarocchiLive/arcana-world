@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows && (386 || amd64 || arm64)
 
 package native
 
@@ -16,30 +16,29 @@ import (
 // 这是桌面合成器叠加层，而非注入式游戏叠加层。无法保证独占
 // 全屏或安全桌面上的可见性；普通置顶窗口可能遮挡它。它不会激活窗口，
 // 也不会获取输入。
-// 已在 Windows 11 ARM64 的 Parallels 原生会话验证 200% DPI 下的
-// 九宫格、动态尺寸/字体/内边距及不抢焦点；AMD64 本轮仅交叉编译，
-// 早期运行验证使用 Wine 10 加 xcompmgr。物理显示器热插拔与混合 DPI 尚未验证。
 type winState struct {
-	window                                         uintptr
-	cfg                                            overlay.Config
-	selected                                       string
-	monitor                                        uintptr
-	dirty, geometryDirty, closed                   bool
-	ready                                          func()
-	dc, bitmap, font, originalBitmap, originalFont uintptr
-	pixels                                         []byte
-	size                                           winSize
-	position                                       winPoint
-	textRect                                       winRect
-	fontHeight                                     int32
-	fontConfig                                     overlay.Font
-	encodedSource                                  string
-	textBuffer                                     []uint16
-	painted                                        bool
-	paintedConfig                                  overlay.Config
-	paintedSize                                    winSize
-	paintedRect                                    winRect
-	paintedFontHeight                              int32
+	window                                           uintptr
+	cfg                                              overlay.Config
+	selected                                         string
+	monitor                                          uintptr
+	dirty, geometryDirty, closed                     bool
+	ready                                            func()
+	dc, bitmap, font, originalBitmap, originalFont   uintptr
+	writeFactory, drawFactory, drawTarget, textBrush *winCOMObject
+	textMethods                                      winTextMethods
+	pixels                                           []byte
+	size                                             winSize
+	position                                         winPoint
+	textRect                                         winRect
+	fontHeight                                       int32
+	fontConfig                                       overlay.Font
+	encodedSource                                    string
+	textBuffer                                       []uint16
+	painted                                          bool
+	paintedConfig                                    overlay.Config
+	paintedSize                                      winSize
+	paintedRect                                      winRect
+	paintedFontHeight                                int32
 }
 
 // 只有 Run 锁定的原生线程会访问此回调目标。回调函数

@@ -37,16 +37,81 @@ static AWOverlayState *copyState(AWOverlayConfig config) {
 @property(nonatomic, strong) NSFont *font;
 @property(nonatomic, strong) NSColor *color;
 @end
-@implementation AWOverlayText
+@implementation AWOverlayText {
+    NSTextStorage *_storage;
+    NSLayoutManager *_layout;
+    NSTextContainer *_container;
+    NSString *_laidOutText;
+    NSFont *_laidOutFont;
+    NSColor *_laidOutColor;
+    CGFloat _lineHeight;
+    CGFloat _baseline;
+}
 - (BOOL)isFlipped { return YES; }
 - (BOOL)acceptsFirstResponder { return NO; }
 - (void)drawRect:(NSRect)dirtyRect {
-    if (NSWidth(self.bounds) <= 0 || NSHeight(self.bounds) <= 0) return;
+    NSRect bounds = self.bounds;
+    if (NSWidth(bounds) <= 0 || NSHeight(bounds) <= 0 || !self.text.length || !self.font) return;
+    if (!_layout) {
+        _storage = [NSTextStorage new];
+        _layout = [NSLayoutManager new];
+        _layout.usesFontLeading = YES;
+        _container = [[NSTextContainer alloc] initWithContainerSize:NSMakeSize(NSWidth(bounds), CGFLOAT_MAX)];
+        _container.lineFragmentPadding = 0;
+        [_layout addTextContainer:_container];
+        [_storage addLayoutManager:_layout];
+    }
+    if (![_laidOutText isEqualToString:self.text] || ![_laidOutFont isEqual:self.font] ||
+        ![_laidOutColor isEqual:self.color]) {
+        // 按配置字体的逻辑点取整行高，避免回退字体或 Retina 缩放改变行容量。
+        _lineHeight = ceil([_layout defaultLineHeightForFont:self.font]);
+        _baseline = self.font.ascender +
+            MAX(0, (_lineHeight - self.font.ascender + self.font.descender) / 2);
+        NSMutableParagraphStyle *paragraph = [NSMutableParagraphStyle new];
+        paragraph.lineBreakMode = NSLineBreakByWordWrapping;
+        paragraph.minimumLineHeight = _lineHeight;
+        paragraph.maximumLineHeight = _lineHeight;
+        [_storage setAttributedString:[[NSAttributedString alloc] initWithString:self.text attributes:@{
+            NSFontAttributeName:self.font,
+            NSForegroundColorAttributeName:self.color,
+            NSParagraphStyleAttributeName:paragraph
+        }]];
+        _laidOutText = [self.text copy];
+        _laidOutFont = self.font;
+        _laidOutColor = self.color;
+    }
+    if (!(_lineHeight > 0) || NSHeight(bounds) < _lineHeight) return;
+    if (_container.containerSize.width != NSWidth(bounds))
+        _container.containerSize = NSMakeSize(NSWidth(bounds), CGFLOAT_MAX);
+    [_layout ensureLayoutForTextContainer:_container];
+    NSRange allGlyphs = [_layout glyphRangeForTextContainer:_container];
+    __block NSUInteger lineCount = 0;
+    [_layout enumerateLineFragmentsForGlyphRange:allGlyphs usingBlock:
+        ^(NSRect rect, NSRect used, NSTextContainer *container, NSRange glyphs, BOOL *stop) {
+            ++lineCount;
+        }];
+    // TextKit 的末尾空行没有 glyph，但仍是一个完整视觉行。
+    if (_layout.extraLineFragmentTextContainer == _container) ++lineCount;
+    CGFloat capacity = floor(NSHeight(bounds) / _lineHeight);
+    NSUInteger visible = capacity >= (CGFloat)lineCount ? lineCount : (NSUInteger)capacity;
+    NSUInteger first = lineCount - visible;
+    __block NSUInteger index = 0;
     [NSGraphicsContext saveGraphicsState];
-    NSRectClip(self.bounds);
-    [self.text drawWithRect:self.bounds
-        options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading
-        attributes:@{NSFontAttributeName:self.font, NSForegroundColorAttributeName:self.color}];
+    NSRectClip(bounds);
+    [_layout enumerateLineFragmentsForGlyphRange:allGlyphs usingBlock:
+        ^(NSRect rect, NSRect used, NSTextContainer *container, NSRange glyphs, BOOL *stop) {
+            NSUInteger row = index++;
+            if (row < first || !glyphs.length) return;
+            CGFloat top = NSMinY(bounds) + (row - first) * self->_lineHeight;
+            // 保留整形结果并对齐基线；超高回退字形裁剪在本行槽内。
+            NSPoint location = [self->_layout locationForGlyphAtIndex:glyphs.location];
+            NSPoint origin = NSMakePoint(NSMinX(bounds),
+                top + self->_baseline - NSMinY(rect) - location.y);
+            [NSGraphicsContext saveGraphicsState];
+            NSRectClip(NSMakeRect(NSMinX(bounds), top, NSWidth(bounds), self->_lineHeight));
+            [self->_layout drawGlyphsForGlyphRange:glyphs atPoint:origin];
+            [NSGraphicsContext restoreGraphicsState];
+        }];
     [NSGraphicsContext restoreGraphicsState];
 }
 @end
