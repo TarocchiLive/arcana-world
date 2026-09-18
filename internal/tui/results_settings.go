@@ -99,6 +99,17 @@ func (m *Model) handleOverlayRestoreResult(_ struct{}, err error, label i18n.Key
 }
 
 var (
-	obsPasswordOperation = completionOperation(i18n.TUIOperationUpdateOBSPassword)
+	obsPasswordOperation = operation[struct{}]{label: i18n.TUIOperationUpdateOBSPassword, handle: (*Model).handleOBSPasswordResult}
 	obsURLOperation      = completionOperation(i18n.TUIOperationUpdateOBSURL)
 )
+
+func (m *Model) handleOBSPasswordResult(_ struct{}, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
+		return cmd
+	}
+	m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationSucceeded), i18n.T(label)))
+	if notice := m.store.CredentialStorageNotice(); notice != "" {
+		m.log(notice)
+	}
+	return m.finishResult()
+}

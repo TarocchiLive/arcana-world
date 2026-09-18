@@ -55,7 +55,14 @@ func applyConnectionDefaults(c *domain.Config) {
 	}
 }
 
-func Open(dir string) (*Store, error) { return OpenWithBackend(dir, systemBackend{}) }
+func Open(dir string) (*Store, error) {
+	s, err := OpenWithBackend(dir, systemBackend{})
+	if err != nil {
+		return nil, err
+	}
+	s.backend = &automaticBackend{dir: s.dir, system: systemBackend{}, probe: systemKeyringMissing}
+	return s, nil
+}
 func OpenWithBackend(dir string, backend Backend) (*Store, error) {
 	if backend == nil {
 		return nil, errors.New(i18n.T(i18n.StoreCredentialBackendRequired))
