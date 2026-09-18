@@ -3,7 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-struct arcana_wayland_config {
+struct arcana_wayland_config
+{
     char *text, *output, *family;
     int anchor, weight, italic;
     double x, y, width, height, padding_top, padding_right, padding_bottom, padding_left;
