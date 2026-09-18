@@ -82,7 +82,7 @@ History is stored per room in `danmaku/history.db` under the data directory; his
 
 ### Desktop overlay
 
-Provides a focus-free, click-through, semi-transparent desktop text overlay. Overlay and TTS have independent event selections; all events visible without `f` are selected by default. Press `Enter` or `Space` to toggle an event. Output templates currently support Chinese only. Choose a voice in Settings; the TTS tab offers preview, on/off controls, and stopping playback with queue clearing. Only new events are spoken after enabling TTS; history is not replayed. Speech synthesis requires an internet connection.
+Provides a focus-free, click-through, semi-transparent desktop text overlay. Overlay and TTS have independent event selections; all events visible without `f` are selected by default. Press `Enter` or `Space` to toggle an event. Output templates currently support Chinese only. The TTS tab offers voice selection, preview, on/off controls, and stopping playback with queue clearing. Only new events are spoken after enabling TTS; history is not replayed. Speech synthesis requires an internet connection and the bundled companion executable.
 
 See [Arcana World Overlay](cmd/arcana-world-overlay/README.en.md) for details.
 
