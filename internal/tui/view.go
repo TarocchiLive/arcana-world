@@ -249,7 +249,6 @@ func (m *Model) content() string {
 			proxy = u.String()
 		}
 		fmt.Fprintf(&b, i18n.T(i18n.TUISettingsDetails), accent.Render(i18n.T(i18n.TUISettingsTitle)), clean(proxy), m.config.Protocol)
-		fmt.Fprintf(&b, i18n.T(i18n.OutputVoiceDetails), clean(m.ttsVoiceName()))
 	case logsPage:
 		b.WriteString(accent.Render(i18n.T(i18n.TUILogsTitle)) + "\n" + muted.Render(clean(m.journal.Path())) + "\n\n")
 		if len(m.logs) == 0 {

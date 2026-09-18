@@ -63,7 +63,6 @@ func (m *Model) menu() []menuItem {
 			{i18n.T(i18n.TUIMenuSetProtocol), "protocol"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
-			{i18n.T(i18n.OutputVoice), "tts-voice"},
 			{i18n.T(i18n.TUISettingsReset), "settings-reset-confirm"},
 			{i18n.T(i18n.TUISettingsClearData), "clear-data"},
 		}
