@@ -20,8 +20,7 @@ const (
 	overlayTitleLimit       = 200
 )
 
-// Only bounded, already-sanitized lines survive a history read. Neither the
-// viewport's room nor its pagination/read position participates in this state.
+// 只缓存有界、已清理的事件文本，与 TUI 历史页的房间和翻页位置无关。
 type overlayChatState struct {
 	listener      *danmaku.Listener
 	history       *danmaku.History
@@ -56,8 +55,7 @@ type overlayChatMsg struct {
 	err      error
 }
 
-// syncOverlayChatSource is deliberately also called before rendering: an
-// account, room or mode change clears published text before any async read.
+// 渲染前也检查来源，先清除旧账号、房间或模式的文字，再等待异步读取。
 func (m *Model) syncOverlayChatSource() {
 	c := &m.overlayChat
 	mode := m.config.Overlay.Content
@@ -105,8 +103,7 @@ func (m *Model) updateOverlayChat() tea.Cmd {
 	return func() tea.Msg {
 		msg := overlayChatMsg{request: request, revision: revision, latest: after}
 		var before uint64
-		// A broadcast flood cannot turn a refresh into an unbounded
-		// history scan. Previously collected chat lines remain available.
+		// 限制每次扫描量；密集通知下仍保留此前收集的事件。
 		for page := range overlayChatScanPages {
 			events, err := history.Page(room, before, overlayChatScanPageSize)
 			if err != nil {
@@ -200,8 +197,7 @@ func (m *Model) overlayContentText() string {
 	return c.content
 }
 
-// Strip terminal/control and directional format characters; each field is one
-// bounded plain-text line, even if a wire payload contains embedded newlines.
+// 移除控制及方向格式字符，将每个字段限制为有界的单行纯文本。
 func overlayChatPlain(value string, limit int) string {
 	var b strings.Builder
 	count := 0

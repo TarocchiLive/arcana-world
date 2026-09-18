@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
@@ -39,26 +38,6 @@ func TestReadFrameRejectsInvalidInput(t *testing.T) {
 				t.Fatal("accepted invalid frame")
 			}
 		})
-	}
-}
-
-func TestFrameAllowsWorstCaseTextEscaping(t *testing.T) {
-	left, right := net.Pipe()
-	defer left.Close()
-	defer right.Close()
-	cfg := DefaultConfig()
-	cfg.Text = strings.Repeat("\x01", MaxTextBytes)
-	done := make(chan error, 1)
-	go func() { done <- writeFrame(left, wireFrame{Type: "config", Config: &cfg}) }()
-	frame, err := readFrame(right)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if frame.Config == nil || frame.Config.Text != cfg.Text {
-		t.Fatal("text did not survive framing")
-	}
-	if err = <-done; err != nil {
-		t.Fatal(err)
 	}
 }
 

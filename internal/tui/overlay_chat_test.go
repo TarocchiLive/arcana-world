@@ -23,7 +23,7 @@ func TestOverlayChatClearsSourceBeforeAcceptingDelayedResults(t *testing.T) {
 		t.Fatalf("initial chat not shown: %q", got)
 	}
 
-	// The account changes before the previous history request's result arrives.
+	// 旧历史请求尚未返回时切换账号。
 	m.account = &domain.Account{UID: "second"}
 	if got := m.overlayContentText(); got != "" {
 		t.Fatalf("old account remained visible during switch: %q", got)

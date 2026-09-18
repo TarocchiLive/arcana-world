@@ -23,7 +23,7 @@ const (
 	defaultShutdownTimeout = 2 * time.Second
 	defaultUpdateInterval  = time.Second / 60
 	hostAuthTimeout        = time.Second
-	// Leave room within the Unix socket path limits of all supported platforms.
+	// 为各平台的 Unix 套接字路径长度限制预留余量。
 	socketPathLimit = 100
 )
 
@@ -48,7 +48,7 @@ type Manager struct {
 	cancel context.CancelFunc
 }
 
-// Resolve the real installation directory, not the working directory or a launcher symlink.
+// 按真实安装目录定位，避免工作目录或启动器符号链接改变 helper 来源。
 func bundledExecutable(executable string) (string, error) {
 	path, err := helperpath.Installed(executable, "arcana-world-overlay")
 	if err != nil {
@@ -151,7 +151,7 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 	manager := &Manager{cfg: cfg, done: make(chan struct{}), dirty: make(chan struct{}, 1), cancel: cancel}
 	ready := make(chan struct{})
 	go manager.manage(managedCtx, options, listener, directory, cmd, childDone, &childErr, diagnostics, token, ready)
-	transferred = true // manage now owns the listener, directory, and child.
+	transferred = true // 监听器、目录和子进程交由 manage 回收。
 	select {
 	case <-ready:
 		if err := ctx.Err(); err != nil {

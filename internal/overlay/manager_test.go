@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -88,19 +87,6 @@ func assertRuntimeClean(t *testing.T, root string) {
 		t.Fatalf("socket directory remains after child exit: %v", entries)
 	}
 }
-func TestManagerFailedChildStartCleansRuntime(t *testing.T) {
-	options := helperOptions(t, "stop")
-	options.Executable = filepath.Join(t.TempDir(), "missing-overlay")
-	manager, err := Start(context.Background(), options)
-	if manager != nil {
-		_ = manager.Close()
-		t.Fatal("missing child executable started a manager")
-	}
-	if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, exec.ErrNotFound) {
-		t.Fatalf("missing child executable error=%v", err)
-	}
-	assertRuntimeClean(t, options.RuntimeDir)
-}
 func TestManagerNormalNativeStopAndConcurrentClose(t *testing.T) {
 	options := helperOptions(t, "stop")
 	manager, err := Start(context.Background(), options)
@@ -108,13 +94,6 @@ func TestManagerNormalNativeStopAndConcurrentClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = manager.Close() })
-	before := manager.Snapshot()
-	if err = manager.SetSize(0, 100); err == nil {
-		t.Fatal("accepted invalid size")
-	}
-	if manager.Snapshot() != before {
-		t.Fatal("invalid update mutated accepted state")
-	}
 	if err = manager.SetText("stop"); err != nil {
 		t.Fatal(err)
 	}

@@ -18,8 +18,7 @@ type overlaySettingField struct {
 	assign func(*overlay.Settings, string) error
 }
 
-// Ordinary fields own their parser and accessor. A nil assign marks a special
-// interaction handled explicitly by chooseOverlay.
+// 普通字段自行解析和读写；assign 为空的交互由 chooseOverlay 处理。
 var overlayFields = [...]overlaySettingField{
 	{key: "content", label: i18n.TUIOverlayContent, read: func(s overlay.Settings) string { return overlayContentLabel(s.Content) }},
 	{key: "anchor", label: i18n.TUIOverlayAnchor, read: func(s overlay.Settings) string { return overlayAnchorLabel(string(s.Position.Anchor)) }},
@@ -180,7 +179,7 @@ func (m *Model) saveOverlay(settings overlay.Settings, op operation[struct{}]) t
 		if err := ctx.Err(); err != nil {
 			return struct{}{}, err
 		}
-		// Read the latest store snapshot rather than overwriting unrelated account/settings changes.
+		// 基于最新快照保存，避免覆盖其他账号或设置变更。
 		cfg := m.store.Config()
 		cfg.Overlay = s
 		return struct{}{}, m.store.SaveConfig(cfg)

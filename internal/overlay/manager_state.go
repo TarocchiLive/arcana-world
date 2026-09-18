@@ -2,8 +2,7 @@ package overlay
 
 import "errors"
 
-// setLocked 只在持锁时提交值快照。不要改回 func(*Config) 回调：
-// 将局部快照地址传给任意函数会使每次提交逃逸到堆，连重复状态也会分配。
+// 持锁提交值快照，避免回调导致每次更新逃逸分配。
 func (m *Manager) setLocked(cfg Config) error {
 	if m.closed {
 		return errors.New("overlay: manager is closed")

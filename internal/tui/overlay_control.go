@@ -37,7 +37,7 @@ type overlayStoppedMsg struct {
 	err   error
 }
 
-// ConfigureOverlay configures the optional native process before Init; enabling is session-local.
+// ConfigureOverlay 在 Init 前配置原生子进程；开关仅影响本次会话。
 func (m *Model) ConfigureOverlay(options overlay.Options, enabled bool) error {
 	if m.initialized || m.overlay != nil {
 		return errors.New("overlay must be configured once before model initialization")
@@ -98,7 +98,7 @@ func (m *Model) stopOverlay() tea.Cmd {
 	}
 	owner.state = "stopping"
 	owner.cancel()
-	// Startup owns cleanup until its result arrives. Running processes have a Done watcher.
+	// 启动结果到达前由启动流程清理；运行后由 Done 监听回收。
 	manager := owner.manager
 	if manager == nil {
 		return nil
@@ -149,7 +149,7 @@ func (m *Model) handleOverlayStopped(msg overlayStoppedMsg) tea.Cmd {
 		owner.lastError = msg.err
 		m.log(fmt.Sprintf(i18n.T(i18n.TUILogOverlayStopped), msg.err))
 	}
-	// Only an explicit enable received while stopping may start a successor.
+	// 只有停止期间明确收到启用请求，才启动下一进程。
 	if requested && m.overlayEnabled {
 		return m.startOverlay()
 	}
@@ -184,7 +184,7 @@ func (m *Model) closeOverlay() error {
 			return owner.created.Close()
 		}
 	default:
-		// A queued command sees cancellation before it can spawn a child.
+		// 排队中的启动命令会在创建子进程前检查取消状态。
 	}
 	return nil
 }
