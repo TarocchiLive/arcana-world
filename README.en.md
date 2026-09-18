@@ -104,6 +104,12 @@ Default data directory: `~/.arcana/world`.
 - [x] Receive Bilibili live chat messages and browse gifts and chat history in the TUI.
 - [x] Add a Bilibili live chat overlay.
 - [x] Add TTS chat readouts and gift announcements.
+- [ ] Switch the overlay between monitors without restarting.
+- [ ] Add mouse support to the TUI.
+- [ ] Refactor and improve the TUI layout and appearance.
+- [ ] Refactor and improve the overlay layout and appearance.
+- [ ] Support the iTerm2 image protocol.
+- [ ] Support resizing and cropping cover images in the terminal.
 
 ## Development
 
