@@ -41,7 +41,7 @@ Arcana World 是一款基于 Go 的 bilibili 直播姬 + 弹幕姬。
 
 ### 从源码构建
 
-从源码构建需要 Go 1.26+ 和对应平台的[浮层构建依赖](cmd/arcana-world-overlay/README.md#构建与启动)。Linux 下还需安装 ALSA 开发库与 `pkg-config`，用于构建配套音频程序（Debian/Ubuntu：`libasound2-dev pkg-config`）：
+从源码构建需要 Go 1.26.8+ 和对应平台的[浮层构建依赖](cmd/arcana-world-overlay/README.md#构建与启动)。Linux 下还需安装 ALSA 开发库与 `pkg-config`，用于构建配套音频程序（Debian/Ubuntu：`libasound2-dev pkg-config`）：
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git
