@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -257,30 +256,7 @@ func (l *Log) prune(now time.Time) error {
 	if replacement == nil {
 		return nil
 	}
-	if err := replacement.Sync(); err != nil {
-		return err
-	}
-	if err := replacement.Close(); err != nil {
-		return err
-	}
-	// Acquire the append handle before committing the replacement.
-	next, err := openLogFile(replacementPath, os.O_RDWR|os.O_APPEND)
-	if err != nil {
-		return err
-	}
-	if err := os.Rename(replacementPath, l.path); err != nil {
-		return errors.Join(err, next.Close())
-	}
-	previous := l.file
-	l.file = next
-	err = previous.Close()
+	err := l.commitReplacement(replacement)
 	replacement = nil
-	if runtime.GOOS != "windows" {
-		directory, openErr := os.Open(filepath.Dir(l.path))
-		if openErr != nil {
-			return errors.Join(err, openErr)
-		}
-		err = errors.Join(err, directory.Sync(), directory.Close())
-	}
 	return err
 }

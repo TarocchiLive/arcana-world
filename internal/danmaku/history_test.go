@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -194,7 +195,7 @@ func TestClosePermissionsAndLock(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if info.Mode().Perm() != mode {
+		if runtime.GOOS != "windows" && info.Mode().Perm() != mode {
 			t.Fatalf("unsafe permissions: %v", info.Mode())
 		}
 	}

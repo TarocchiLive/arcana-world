@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -95,7 +96,7 @@ func TestManagerFailedChildStartCleansRuntime(t *testing.T) {
 		_ = manager.Close()
 		t.Fatal("missing child executable started a manager")
 	}
-	if !errors.Is(err, os.ErrNotExist) {
+	if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, exec.ErrNotFound) {
 		t.Fatalf("missing child executable error=%v", err)
 	}
 	assertRuntimeClean(t, options.RuntimeDir)

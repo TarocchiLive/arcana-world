@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -137,8 +138,14 @@ func TestHelperCancellationReapsChild(t *testing.T) {
 			}
 			conn.SetReadDeadline(time.Now().Add(time.Second))
 			var b [1]byte
-			if _, err := conn.Read(b[:]); err != io.EOF {
-				t.Fatalf("child connection still open: %v", err)
+			// 终止进程可能重置 TCP 连接，而不是发送 FIN。
+			// Winsock 的 WSAECONNRESET 与 Go 的通用 ECONNRESET 错误码不同。
+			const wsaeconnreset = syscall.Errno(10054)
+			n, err := conn.Read(b[:])
+			reset := errors.Is(err, syscall.ECONNRESET) ||
+				runtime.GOOS == "windows" && errors.Is(err, wsaeconnreset)
+			if n != 0 || !errors.Is(err, io.EOF) && !reset {
+				t.Fatalf("child connection still open: n=%d err=%v", n, err)
 			}
 		})
 	}

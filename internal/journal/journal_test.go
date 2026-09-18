@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -181,7 +182,7 @@ func TestSecuresExistingJournal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if info.Mode().Perm() != mode {
+		if runtime.GOOS != "windows" && info.Mode().Perm() != mode {
 			t.Errorf("%s permissions: %o, want %o", path, info.Mode().Perm(), mode)
 		}
 	}
@@ -269,7 +270,7 @@ func TestRetentionBoundaryAndContinuedWrites(t *testing.T) {
 	if len(events) != 3 || events[2] != "after cleanup" {
 		t.Fatalf("write targeted replaced inode: %q", events)
 	}
-	if info, err := os.Stat(log.Path()); err != nil || info.Mode().Perm() != 0600 {
+	if info, err := os.Stat(log.Path()); err != nil || runtime.GOOS != "windows" && info.Mode().Perm() != 0600 {
 		t.Fatalf("replacement permissions: %v %v", info, err)
 	}
 }
