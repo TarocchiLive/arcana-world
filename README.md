@@ -8,6 +8,7 @@
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/TarocchiLive/arcana-world?sort=semver&cacheSeconds=300)](https://github.com/TarocchiLive/arcana-world/releases/latest)
+[![QQ](https://img.shields.io/badge/Join-QQ_Group-ff69b4)](https://qm.qq.com/q/TkCteIVlOo)
 
 **中文** · [English](README.en.md)
 
@@ -120,6 +121,10 @@ make build  # 构建
 ```
 
 翻译词表位于 [`internal/i18n/locales`](internal/i18n/locales)，按语言和模块划分。欢迎通过 [Issue](https://github.com/TarocchiLive/arcana-world/issues) 或 Pull Request 反馈问题、参与改进。
+
+## 交流与反馈
+
+<img src="assets/qq_group.webp" alt="QQ群" width="33%">
 
 ## 声明
 
