@@ -104,7 +104,11 @@ func (m *Model) handleLoginSaveResult(value app.AccountOutcome, err error, label
 		}
 		return nil
 	}
-	return m.adoptAccount(value)
+	cmd := m.adoptAccount(value)
+	if notice := m.store.CredentialStorageNotice(); notice != "" {
+		m.log(notice)
+	}
+	return cmd
 }
 
 func deleteOperation() operation[app.AccountOutcome] {

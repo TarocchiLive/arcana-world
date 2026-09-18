@@ -147,6 +147,7 @@
   "store.credential_rollback_failed": "%w；凭据回滚失败：请检查凭据存储",
   "store.credential_store_unavailable": "无法%s：凭据存储不可用或访问被拒绝",
   "store.delete_account_credentials": "删除账号凭据",
+  "store.file_storage_fallback": "未找到系统密钥环，已回退至文件存储",
   "store.home_directory_unavailable": "无法定位用户主目录",
   "store.read_account_credentials": "读取账号凭据",
   "store.read_credentials_before_deletion": "在删除前读取账号凭据",

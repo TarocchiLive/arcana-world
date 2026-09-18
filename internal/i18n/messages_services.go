@@ -150,6 +150,7 @@ const (
 	StoreCredentialRollbackFailed        Key = "store.credential_rollback_failed"
 	StoreCredentialStoreUnavailable      Key = "store.credential_store_unavailable"
 	StoreDeleteAccountCredentials        Key = "store.delete_account_credentials"
+	StoreFileStorageFallback             Key = "store.file_storage_fallback"
 	StoreHomeDirectoryUnavailable        Key = "store.home_directory_unavailable"
 	StoreReadAccountCredentials          Key = "store.read_account_credentials"
 	StoreReadCredentialsBeforeDeletion   Key = "store.read_credentials_before_deletion"

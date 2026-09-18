@@ -1,6 +1,6 @@
 {
   "cli.config_dir_usage": "Data directory (default: ~/.arcana/world)",
-  "cli.help": "Arcana World — Bilibili live console / Bubble Tea\n\nUsage: arcana-world [options]\n\nAccount cookies and OBS passwords use the system keyring, never plaintext config.\nLinux requires an unlocked Secret Service; OBS requires WebSocket v5.\n\n",
+  "cli.help": "Arcana World — Bilibili live console / Bubble Tea\n\nUsage: arcana-world [options]\n\n",
   "cli.help_usage": "Show help",
   "cli.invalid_arguments": "invalid arguments; use --help for usage",
   "cli.language_usage": "Display language: auto, zh-CN, en",
