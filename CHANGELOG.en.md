@@ -4,6 +4,30 @@
 
 Versions are listed newest first.
 
+## [v0.2.0]: 2026-09-18
+
+This stable release uses the application code from `v0.2.0-rc.2`. All platform packages are rebuilt with the application version set to `0.2.0`. Prereleases remain available for reference.
+
+### Highlights since v0.1.4
+
+- Automatically listen to your live room after sign-in, with support for chat, gifts, Super Chats (SC), and guard events. Browse local history, pause live following, page through messages, and switch rooms.
+- Add a native, focus-free, click-through desktop overlay with runtime on/off controls, appearance settings, and independent event selection.
+- Add Edge TTS synthesis and MP3 playback. Manage 10 Chinese voices, previews, the playback queue, and spoken events on the dedicated TTS tab.
+- Retain history and operation logs for seven days with automatic cleanup, history storage migration, and message deduplication across restarts. Fix log file replacement failures on Windows.
+- Confirm before switching or deleting accounts and stop the old broadcast and associated OBS stream. Add controls to restore defaults and clear application data.
+- Unify overlay wrapping and overflow behavior on Linux, macOS, and Windows without changing window position or size.
+- Bundle the main application, overlay, and speech helper for macOS / Linux amd64 and arm64, plus Windows 386, amd64, and arm64. Include SHA-256 checksums and GitHub build provenance attestations.
+- Add Nix Flake builds and development environments. The standalone TUI remains independent of graphics and audio runtimes.
+
+See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-rc.1) and [v0.2.0-rc.2](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-rc.2) for the full changes.
+
+### Upgrade and usage notes
+
+- History databases upgrade automatically. Before downgrading, restore a pre-upgrade database backup rather than opening the upgraded database with an older application version.
+- Messages missed while disconnected are not replayed after reconnection. Local history is not a complete financial ledger.
+- Overlay content and speech templates currently support Chinese only. Speech synthesis requires an internet connection.
+- The Windows desktop overlay is not guaranteed to appear over exclusive-fullscreen applications. Use windowed or borderless-fullscreen mode instead.
+
 ## [v0.2.0-rc.2]: 2026-09-18 (prerelease)
 
 ### Added
@@ -154,6 +178,7 @@ Versions are listed newest first.
 - Provide persistent configuration, operation logs, and command-line options including `--config-dir` and `--version`.
 - Establish basic tests and CI, with a Linux x64 release archive and checksums.
 
+[v0.2.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0
 [v0.2.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-rc.2
 [v0.2.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-rc.1
 [v0.2.0-alpha]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-alpha

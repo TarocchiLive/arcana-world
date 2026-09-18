@@ -4,6 +4,30 @@
 
 版本按时间倒序记录。
 
+## [v0.2.0]：2026-09-18
+
+本版本将 `v0.2.0-rc.2` 的应用代码发布为正式版，重新构建所有平台包，程序版本号更新为 `0.2.0`。预发布版本保留供查阅。
+
+### 相比 v0.1.4 的主要变化
+
+- 登录后自动监听直播间，支持弹幕、礼物、醒目留言（SC）和大航海消息，并提供本地历史、暂停跟随、分页及切换房间。
+- 提供无焦点、鼠标穿透的原生桌面浮层，支持运行时启停、外观设置及独立的事件选择。
+- 接入 Edge TTS 语音合成与 MP3 播放，在独立「TTS」页管理 10 种中文音色、试听、播放队列及播报事件。
+- 历史与操作日志保留最近七天并自动清理，支持历史存储自动迁移和跨重启消息去重；修复 Windows 日志文件替换失败的问题。
+- 切换或删除账号前确认并停止旧直播及关联 OBS 推流；增加恢复默认设置和清除应用数据入口。
+- 统一 Linux、macOS、Windows 浮层的自动换行与溢出行为，保持窗口位置和尺寸不变。
+- 发行包包含主程序、浮层和语音程序，覆盖 macOS / Linux 的 amd64、arm64，以及 Windows 的 386、amd64、arm64；提供 SHA-256 校验和与 GitHub 构建来源证明。
+- 提供 Nix Flake 构建和开发环境，独立 TUI 仍不依赖图形或音频运行时。
+
+完整变更见 [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-rc.1) 和 [v0.2.0-rc.2](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-rc.2)。
+
+### 升级与使用注意事项
+
+- 历史数据库会自动升级。降级应用前请恢复升级前的数据库备份，不要用旧版本直接打开已升级的数据库。
+- 断线期间的消息不会在重连后补回，本地历史不能作为完整财务对账依据。
+- 浮层内容和播报模板目前仅支持中文；语音合成需要联网。
+- Windows 桌面浮层不保证覆盖独占全屏应用，建议使用窗口化或无边框全屏。
+
 ## [v0.2.0-rc.2]：2026-09-18（预发布）
 
 ### 新增
@@ -154,6 +178,7 @@
 - 提供持久化配置、操作日志，以及 `--config-dir`、`--version` 等命令行选项。
 - 建立基础测试和 CI，提供 Linux x64 发布包及校验文件。
 
+[v0.2.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0
 [v0.2.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-rc.2
 [v0.2.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-rc.1
 [v0.2.0-alpha]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-alpha
