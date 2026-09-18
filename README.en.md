@@ -41,7 +41,7 @@ Download the [latest release](https://github.com/TarocchiLive/arcana-world/relea
 
 ### Build from source
 
-Building from source requires Go 1.26+ and the platform's [overlay build dependencies](cmd/arcana-world-overlay/README.en.md#build-and-launch). On Linux, the bundled audio helper also requires ALSA development libraries and `pkg-config` (`libasound2-dev pkg-config` on Debian/Ubuntu):
+Building from source requires Go 1.26.8+ and the platform's [overlay build dependencies](cmd/arcana-world-overlay/README.en.md#build-and-launch). On Linux, the bundled audio helper also requires ALSA development libraries and `pkg-config` (`libasound2-dev pkg-config` on Debian/Ubuntu):
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git

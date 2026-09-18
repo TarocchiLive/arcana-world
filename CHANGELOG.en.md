@@ -10,6 +10,12 @@ Versions are listed newest first.
 
 - Automatically save login credentials and OBS passwords to `credentials/secrets.json` under the data directory when Linux has no system keyring or cannot connect to the user credential service, and show a file-storage fallback notice. Locked keyrings and denied access still produce errors. The file stores plaintext, with Unix directory and file permissions restricted to `0700` and `0600`, or a restricted ACL on Windows. Profiles with an existing credential file continue using file storage.
 
+### Fixed
+
+- Fix directory ACL access in the Windows file credential backend while retaining access only for the current user and SYSTEM.
+- Fix a race between socket deadlines and the context timer during overlay startup, consistently reporting a deadline error when the startup budget expires.
+- Raise the minimum Go version to 1.26.8 so CI and release builds use a toolchain with standard-library security fixes.
+
 ## [v0.2.0-rc.2]: 2026-09-18 (prerelease)
 
 ### Added
