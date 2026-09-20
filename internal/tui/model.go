@@ -97,6 +97,7 @@ type Model struct {
 	qrGeneration           int
 	qr                     *domain.QR
 	qrText                 string
+	qrImageOpening         bool
 	faceURL                string
 	pendingAccount         *domain.Account
 	status                 string
@@ -201,6 +202,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer m.publishOverlay()
 	defer m.syncTTS()
 	switch msg := msg.(type) {
+	case qrImageOpened:
+		m.qrImageOpening = false
+		if msg.err != nil {
+			m.log(i18n.T(i18n.TUIQROpenFailed) + msg.err.Error())
+		}
+		return m, nil
 	case overlayStartedMsg:
 		return m, m.handleOverlayStarted(msg)
 	case overlayStoppedMsg:
@@ -256,6 +263,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.previewing {
 			return m, nil
+		}
+		if key == "o" && (m.mode == "qr" || m.mode == "face") {
+			return m, m.openQRImage()
 		}
 		if m.busy {
 			if key == "esc" && m.cancel != nil {
