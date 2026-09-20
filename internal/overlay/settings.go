@@ -18,6 +18,7 @@ type Settings struct {
 	BackgroundAlpha float64  `json:"background_alpha"`
 	DisplayID       uint32   `json:"display_id"`
 	Output          string   `json:"output"`
+	Displays        []string `json:"displays"`
 }
 
 func DefaultSettings() Settings {
@@ -58,10 +59,16 @@ func (s Settings) Normalize() (Settings, error) {
 }
 
 func (s Settings) Config(text string) Config {
+	displays := ""
+	if s.Displays != nil {
+		encoded, _ := json.Marshal(s.Displays)
+		displays = string(encoded)
+	}
 	return Config{
 		Text: text, Position: s.Position,
 		Width: s.Width, Height: s.Height, Padding: s.Padding, Font: s.Font,
 		TextAlpha: s.TextAlpha, BackgroundAlpha: s.BackgroundAlpha,
 		DisplayID: s.DisplayID, Output: s.Output,
+		Displays: displays,
 	}
 }

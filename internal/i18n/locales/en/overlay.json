@@ -26,8 +26,6 @@
   "overlay.ui.italic": "Italic",
   "overlay.ui.text_alpha": "Text opacity (0–1)",
   "overlay.ui.background_alpha": "Background opacity (0–1)",
-  "overlay.ui.display_id": "Display ID (0: default; clears output name)",
-  "overlay.ui.output": "Output/device name (blank: default; clears display ID)",
   "overlay.ui.restore": "Restore appearance defaults",
   "overlay.ui.restore_confirm": "Restore the overlay's default appearance? Position, size, font, and other appearance settings will be reset.",
   "overlay.ui.restore_done": "Overlay appearance restored to defaults",

@@ -26,8 +26,6 @@
   "overlay.ui.italic": "斜体",
   "overlay.ui.text_alpha": "文字不透明度（0–1）",
   "overlay.ui.background_alpha": "背景不透明度（0–1）",
-  "overlay.ui.display_id": "显示器 ID（0 为默认；清除输出名称）",
-  "overlay.ui.output": "输出或设备名称（留空为默认；清除显示器 ID）",
   "overlay.ui.restore": "恢复默认外观",
   "overlay.ui.restore_confirm": "恢复浮层默认外观？位置、尺寸、字体等外观设置将被重置。",
   "overlay.ui.restore_done": "浮层外观已恢复默认",

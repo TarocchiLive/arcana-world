@@ -30,8 +30,6 @@ const (
 	TUIOverlayItalic            Key = "overlay.ui.italic"
 	TUIOverlayTextAlpha         Key = "overlay.ui.text_alpha"
 	TUIOverlayBackgroundAlpha   Key = "overlay.ui.background_alpha"
-	TUIOverlayDisplayID         Key = "overlay.ui.display_id"
-	TUIOverlayOutput            Key = "overlay.ui.output"
 	TUIOverlayRestore           Key = "overlay.ui.restore"
 	TUIOverlayRestoreConfirm    Key = "overlay.ui.restore_confirm"
 	TUIOverlayRestoreDone       Key = "overlay.ui.restore_done"

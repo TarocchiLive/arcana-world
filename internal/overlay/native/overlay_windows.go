@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -19,10 +20,9 @@ import (
 type winState struct {
 	window                                           uintptr
 	cfg                                              overlay.Config
-	selected                                         string
+	target                                           winMonitor
 	monitor                                          uintptr
-	dirty, geometryDirty, closed                     bool
-	ready                                            func()
+	dirty, geometryDirty                             bool
 	dc, bitmap, font, originalBitmap, originalFont   uintptr
 	writeFactory, drawFactory, drawTarget, textBrush *winCOMObject
 	textMethods                                      winTextMethods
@@ -43,7 +43,109 @@ type winState struct {
 
 // 只有 Run 锁定的原生线程会访问此回调目标。回调函数
 // 在 native_windows.go 中仅分配一次，而不是每个窗口分配一次。
-var winActive *winState
+var winActive *winSession
+
+type winSession struct {
+	cfg                          overlay.Config
+	windows                      map[string]*winState
+	className                    []uint16
+	instance                     uintptr
+	legacy                       string
+	dirty, geometryDirty, closed bool
+	ready                        func()
+}
+
+func (session *winSession) close() {
+	for id, state := range session.windows {
+		delete(session.windows, id)
+		winDestroyWindow.Call(state.window)
+		state.closeResources()
+	}
+}
+
+func (session *winSession) render() error {
+	session.dirty = false
+	if session.geometryDirty {
+		session.geometryDirty = false
+		selected, err := session.cfg.SelectedDisplays()
+		if err != nil {
+			return err
+		}
+		monitors, err := winMonitors()
+		if err != nil {
+			return err
+		}
+		wanted := make(map[string]winMonitor)
+		if selected == nil {
+			if session.legacy == "" {
+				monitor, err := winSelectMonitor(session.cfg, monitors)
+				if err != nil {
+					return err
+				}
+				session.legacy = monitor.id
+			}
+			selected = []string{session.legacy}
+			// 旧单屏模式临时回退，保留原始身份以便重连后恢复。
+			if len(monitors) > 0 {
+				found := false
+				for _, monitor := range monitors {
+					found = found || strings.EqualFold(monitor.id, session.legacy)
+				}
+				if !found {
+					selected = []string{winPrimary(monitors).id}
+				}
+			}
+		}
+		for _, monitor := range monitors {
+			for _, id := range selected {
+				if strings.EqualFold(monitor.id, id) {
+					wanted[monitor.id] = monitor
+					break
+				}
+			}
+		}
+		for id, state := range session.windows {
+			if _, keep := wanted[id]; !keep {
+				delete(session.windows, id)
+				winDestroyWindow.Call(state.window)
+				state.closeResources()
+			}
+		}
+		for id, monitor := range wanted {
+			state := session.windows[id]
+			if state == nil {
+				window, _, err := winCreateWindow.Call(0x080800A8, uintptr(unsafe.Pointer(&session.className[0])), 0, 0x80000000,
+					uintptr(monitor.bounds.Left), uintptr(monitor.bounds.Top), 1, 1, 0, 0, session.instance, 0)
+				runtime.KeepAlive(session.className)
+				if window == 0 {
+					return winError("CreateWindowExW", err)
+				}
+				state = &winState{window: window}
+				session.windows[id] = state
+			}
+			state.target, state.geometryDirty, state.dirty = monitor, true, true
+		}
+	}
+	for _, state := range session.windows {
+		if state.cfg != session.cfg {
+			next, prior := session.cfg, state.cfg
+			if next.Position != prior.Position || next.Width != prior.Width || next.Height != prior.Height || next.Padding != prior.Padding || next.Font != prior.Font {
+				state.geometryDirty = true
+			}
+			state.cfg, state.dirty = next, true
+		}
+		if state.dirty {
+			if err := state.render(); err != nil {
+				return err
+			}
+		}
+	}
+	if session.ready != nil {
+		session.ready()
+		session.ready = nil
+	}
+	return nil
+}
 
 func winWindowProc(window uintptr, message uint32, wParam, lParam uintptr) uintptr {
 	switch message {
@@ -51,17 +153,12 @@ func winWindowProc(window uintptr, message uint32, wParam, lParam uintptr) uintp
 		return ^uintptr(0) // HTTRANSPARENT
 	case 0x0021: // WM_MOUSEACTIVATE
 		return 3 // MA_NOACTIVATE
-	case 0x007E, 0x02E0: // WM_DISPLAYCHANGE, WM_DPICHANGED
+	case 0x007E, 0x02E0, 0x0219: // WM_DISPLAYCHANGE, WM_DPICHANGED, WM_DEVICECHANGE
 		if winActive != nil {
 			winActive.dirty, winActive.geometryDirty = true, true
 		}
 		return 0
 	case 0x0010: // WM_CLOSE
-		if winActive != nil {
-			winActive.closed = true
-		}
-		return 0
-	case 0x0002: // WM_DESTROY
 		if winActive != nil {
 			winActive.closed = true
 		}
@@ -91,11 +188,7 @@ func runPlatform(ctx context.Context, cfg overlay.Config, updates <-chan overlay
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	selected, err := winSelectMonitor(cfg)
-	if err != nil {
-		return err
-	}
-	state := &winState{cfg: cfg, selected: selected.name, ready: ready, dirty: true, geometryDirty: true}
+	state := &winSession{cfg: cfg, windows: make(map[string]*winState), ready: ready, dirty: true, geometryDirty: true}
 	className, _ := windows.UTF16FromString("ArcanaWorldNativeOverlay")
 	var instance windows.Handle
 	if err := windows.GetModuleHandleEx(windows.GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, nil, &instance); err != nil {
@@ -112,17 +205,17 @@ func runPlatform(ctx context.Context, cfg overlay.Config, updates <-chan overlay
 	}()
 	winActive = state
 	defer func() { winActive = nil }()
+	state.className, state.instance = className, uintptr(instance)
+	defer state.close()
 	// WS_EX_LAYERED | TRANSPARENT | NOACTIVATE | TOOLWINDOW | TOPMOST;
 	// WS_POPUP 不带 WS_VISIBLE 可使创建过程完全不激活窗口。
 	window, _, err := winCreateWindow.Call(0x080800A8, uintptr(unsafe.Pointer(&className[0])), 0, 0x80000000,
-		uintptr(selected.bounds.Left), uintptr(selected.bounds.Top), 1, 1, 0, 0, uintptr(instance), 0)
+		0, 0, 1, 1, 0, 0, uintptr(instance), 0)
 	runtime.KeepAlive(className)
 	if window == 0 {
 		return winError("CreateWindowExW", err)
 	}
-	state.window, state.monitor = window, selected.handle
 	defer winDestroyWindow.Call(window)
-	defer state.closeResources()
 
 	// 一个自动重置事件承载合并后的配置和取消信号。没有 Go 指针
 	// 跨越消息队列；生产者的生命周期不得超过其事件或 HWND 的生命周期。
@@ -202,15 +295,8 @@ func runPlatform(ctx context.Context, cfg overlay.Config, updates <-chan overlay
 			return wakeErr
 		}
 		if changed && next != state.cfg {
-			if next.Output != state.cfg.Output || next.DisplayID != state.cfg.DisplayID {
-				selected, err := winSelectMonitor(next)
-				if err != nil {
-					return err
-				}
-				state.selected = selected.name
-				state.geometryDirty = true
-			}
-			if next.Position != state.cfg.Position || next.Width != state.cfg.Width || next.Height != state.cfg.Height || next.Padding != state.cfg.Padding || next.Font != state.cfg.Font {
+			if next.Output != state.cfg.Output || next.DisplayID != state.cfg.DisplayID || next.Displays != state.cfg.Displays {
+				state.legacy = ""
 				state.geometryDirty = true
 			}
 			state.cfg, state.dirty = next, true

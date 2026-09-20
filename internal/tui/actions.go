@@ -339,6 +339,9 @@ func (m *Model) choose() tea.Cmd {
 		return nil
 	}
 	ch := m.choices[m.selected]
+	if m.editKind == "overlay-displays" {
+		return m.toggleOverlayDisplay(ch.value)
+	}
 	if m.editKind == "output-events" {
 		return m.toggleOutputEvent(ch.value)
 	}

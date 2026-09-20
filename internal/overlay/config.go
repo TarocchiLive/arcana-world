@@ -1,6 +1,7 @@
 package overlay
 
 import (
+	"encoding/json"
 	"errors"
 	"math"
 	"strings"
@@ -77,7 +78,7 @@ type Font struct {
 }
 
 // Config 是可比较的完整展示快照，不含共享可变内存。
-// 默认显示器按初始选择保留，不跟随前台应用。显示器断开时可临时回退，重连后恢复。
+// 显式显示器选择断开时保持隐藏，重连后恢复；空选择不创建窗口。
 type Config struct {
 	Text            string   `json:"text"`
 	Position        Position `json:"position"`
@@ -91,15 +92,49 @@ type Config struct {
 	DisplayID uint32 `json:"display_id"`
 	// Output 是 Wayland 输出名称或 Windows 设备名称；不能与 DisplayID 同时指定。
 	Output string `json:"output"`
+	// Displays 保存 JSON 编码的稳定 ID 列表，保持 Config 可比较。
+	// 空字符串保留 DisplayID/Output 的旧单屏行为；"[]" 禁用所有显示器。
+	Displays string `json:"displays"`
 }
 
 func DefaultConfig() Config {
 	return Config{Text: "Arcana World", Position: Position{Anchor: Left, X: 0, Y: 0}, Width: 420, Height: 180, Padding: Insets{Top: 12, Right: 16, Bottom: 12, Left: 16}, Font: Font{Size: 16, Weight: 500}, TextAlpha: .9, BackgroundAlpha: .3}
 }
 
+// SelectedDisplays 解码稳定 ID 列表；nil 表示旧单屏模式，空切片表示关闭全部输出。
+func (cfg Config) SelectedDisplays() ([]string, error) {
+	if cfg.Displays == "" {
+		return nil, nil
+	}
+	if len(cfg.Displays) > 64*1024 {
+		return nil, errors.New("overlay: display selection exceeds 64 KiB")
+	}
+	var displays []string
+	if err := json.Unmarshal([]byte(cfg.Displays), &displays); err != nil || displays == nil {
+		return nil, errors.New("overlay: displays must be a JSON array of stable display IDs")
+	}
+	if len(displays) > 128 {
+		return nil, errors.New("overlay: at most 128 displays may be selected")
+	}
+	seen := make(map[string]struct{}, len(displays))
+	for _, id := range displays {
+		if id == "" || len(id) > 512 || strings.ContainsRune(id, '\x00') || !utf8.ValidString(id) {
+			return nil, errors.New("overlay: display IDs must be nonempty UTF-8 without NUL, at most 512 bytes")
+		}
+		if _, duplicate := seen[id]; duplicate {
+			return nil, errors.New("overlay: duplicate display ID")
+		}
+		seen[id] = struct{}{}
+	}
+	return displays, nil
+}
+
 // Normalize 在进入协议或原生代码前校验所有边界，并统一修复用户可见文本。
 // 位置和尺寸在解析显示器后还会被限制；NaN/Inf 不得进入原生数值转换。
 func (cfg Config) Normalize() (Config, error) {
+	if _, err := cfg.SelectedDisplays(); err != nil {
+		return Config{}, err
+	}
 	for _, value := range [...]float64{cfg.Position.X, cfg.Position.Y, cfg.Width, cfg.Height, cfg.Padding.Top, cfg.Padding.Right, cfg.Padding.Bottom, cfg.Padding.Left, cfg.Font.Size, cfg.TextAlpha, cfg.BackgroundAlpha} {
 		if math.IsNaN(value) || math.IsInf(value, 0) {
 			return Config{}, errors.New("overlay: geometry and opacity must be finite")
@@ -120,7 +155,7 @@ func (cfg Config) Normalize() (Config, error) {
 	if cfg.TextAlpha < 0 || cfg.TextAlpha > 1 || cfg.BackgroundAlpha < 0 || cfg.BackgroundAlpha > 1 {
 		return Config{}, errors.New("overlay: opacity must be in 0..1")
 	}
-	if cfg.DisplayID != 0 && cfg.Output != "" {
+	if cfg.Displays == "" && cfg.DisplayID != 0 && cfg.Output != "" {
 		return Config{}, errors.New("overlay: use either display ID or output name, not both")
 	}
 	for _, name := range [...]string{cfg.Output, cfg.Font.Family} {

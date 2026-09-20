@@ -22,3 +22,7 @@ func runPlatform(context.Context, overlay.Config, <-chan overlay.Config, func())
 		return errors.New("overlay: this operating system is not supported")
 	}
 }
+
+func listDisplaysPlatform(ctx context.Context, _ overlay.Config) ([]overlay.Display, error) {
+	return nil, runPlatform(ctx, overlay.Config{}, nil, nil)
+}

@@ -82,6 +82,7 @@ func (m *Manager) SetDisplay(id uint32, output string) error {
 	defer m.mu.Unlock()
 	cfg := m.cfg
 	cfg.DisplayID, cfg.Output = id, output
+	cfg.Displays = ""
 	return m.setLocked(cfg)
 }
 

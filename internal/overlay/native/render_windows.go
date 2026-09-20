@@ -181,9 +181,5 @@ func (state *winState) render() error {
 	state.painted = true
 	state.paintedConfig, state.paintedSize = state.cfg, state.size
 	state.paintedRect, state.paintedFontHeight = state.textRect, state.fontHeight
-	if state.ready != nil {
-		state.ready()
-		state.ready = nil
-	}
 	return nil
 }

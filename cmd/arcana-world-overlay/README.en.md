@@ -85,6 +85,10 @@ By default, the overlay uses the monitor selected at startup. To choose one expl
 
 Do not use `-display` and `-output` together.
 
+In the main program, open Overlay → Select overlay displays to toggle each monitor by name. Click a row or press `Enter` / `Space` to save and apply immediately without restarting the overlay; press `r` to refresh the list. Deselecting every display hides all overlays. A disconnected selected display stays hidden rather than moving to another screen, and reappears when reconnected.
+
+For standalone use, `-list-displays` prints a JSON list of display names and stable IDs. Use `-displays '["ID1","ID2"]'` to show the same content on multiple monitors. Do not combine it with `-display` or `-output`.
+
 ### Launch with Arcana World
 
 Extract the entire portable bundle, run `arcana-world` at its root (`arcana-world.exe` on Windows), and enable Native overlay on the Overlay tab. You do not need to start the helper manually. Keep the main executable, `LICENSE`, and `libexec/arcana-world-overlay` (`.exe` on Windows) in their packaged locations, and move the whole folder together. After building locally with `make desktop`, you can also enable it from the command line:
@@ -93,7 +97,7 @@ Extract the entire portable bundle, run `arcana-world` at its root (`arcana-worl
 ./bin/arcana-world -overlay
 ```
 
-By default, the overlay displays live events and closes when the main program exits. Its content is empty before sign-in or when no events are available. On the Overlay tab, toggle Native overlay or open Overlay content and appearance to change the content mode, position, size, padding, font, opacity, and monitor. Settings persist across launches. Startup failures do not block other features; Overlay and Logs show the reason. Turn the overlay off and on again to retry.
+By default, the overlay displays live events and closes when the main program exits. Its content is empty before sign-in or when no events are available. On the Overlay tab, toggle Native overlay or open Overlay content and appearance to change the content mode, position, size, padding, font, and opacity. Use Select overlay displays to choose the monitors. Settings persist across launches. Startup failures do not block other features; Overlay and Logs show the reason. Turn the overlay off and on again to retry.
 
 Content modes are listed as Live chat, Room status, and Status and chat. Chat modes retain up to six selected events from the signed-in account's live room; the visible portion depends on wrapping and the available height. All events visible without `f` are selected by default, and templates use Chinese. Selections are independent of TTS, TUI history browsing, selected history room, and active page. Disabling chat listening clears overlay events. Each refresh scans at most 256 recent new records, so heavy notification traffic can skip older events; the saved records remain available on the Chat page.
 

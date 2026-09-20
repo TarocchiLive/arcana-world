@@ -12,6 +12,14 @@ import (
 
 var started atomic.Bool
 
+// ListDisplays 枚举原生显示器；调用者与 Run 一样必须锁定主 OS 线程。
+func ListDisplays(ctx context.Context, cfg overlay.Config) ([]overlay.Display, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return listDisplaysPlatform(ctx, cfg)
+}
+
 // Run 每进程仅调用一次，且调用者必须锁定主 OS 线程。
 // updates 是完整状态快照；关闭通道保留最后状态，上下文取消则退出。
 // ready 在初始原生窗口/表面及首帧提交成功后通知，回调不得阻塞 UI 线程。

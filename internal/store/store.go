@@ -150,6 +150,9 @@ func clone(c domain.Config) domain.Config {
 	c.RecentTitles = append([]string(nil), c.RecentTitles...)
 	c.RecentAreas = append([]domain.Area(nil), c.RecentAreas...)
 	c.OverlayDisabledEvents = append([]string(nil), c.OverlayDisabledEvents...)
+	if c.Overlay.Displays != nil {
+		c.Overlay.Displays = append([]string{}, c.Overlay.Displays...)
+	}
 	c.TTS.DisabledEvents = append([]string(nil), c.TTS.DisabledEvents...)
 	return c
 }
