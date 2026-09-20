@@ -15,6 +15,7 @@ import (
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/journal"
 	"arcana-world/internal/obs"
+	"arcana-world/internal/overlay"
 	"arcana-world/internal/store"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -89,6 +90,8 @@ type Model struct {
 	input                  textinput.Model
 	choices                []choice
 	selected               int
+	pickerTop              int
+	overlayDisplays        []overlay.Display
 	confirmAction          string
 	busy                   bool
 	canceled               bool
@@ -249,6 +252,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			key := m.qr.Key
 			return m, work(m, pollOperation(), func(ctx context.Context) (domain.LoginPoll, error) { return m.client.PollQR(ctx, key) })
 		}
+	case tea.MouseMsg:
+		return m, m.overlayDisplayMouse(msg)
 	case tea.KeyMsg:
 		key := msg.String()
 		if key == "ctrl+c" || (key == "q" && m.mode == "") {
@@ -277,6 +282,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.qrText = ""
 				m.faceURL = ""
 				m.status = i18n.T(i18n.TUIStatusCancelRequested)
+				if m.editKind == "overlay-displays" {
+					return m, tea.DisableMouse
+				}
 			}
 			return m, nil
 		}
@@ -367,6 +375,9 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		m.input.SetValue("")
 		m.input.Blur()
 		m.view.GotoTop()
+		if m.editKind == "overlay-displays" {
+			return tea.DisableMouse
+		}
 		return nil
 	}
 	switch m.mode {
@@ -379,6 +390,10 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		return cmd
 	case "pick":
 		switch key {
+		case "r":
+			if m.editKind == "overlay-displays" {
+				return m.pickOverlayDisplays()
+			}
 		case "up", "k":
 			m.selected = max(0, m.selected-1)
 		case "down", "j":
@@ -394,7 +409,7 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		case "enter":
 			return m.choose()
 		case " ":
-			if m.editKind == "output-events" {
+			if m.editKind == "output-events" || m.editKind == "overlay-displays" {
 				return m.choose()
 			}
 		}

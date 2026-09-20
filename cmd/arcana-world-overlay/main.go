@@ -4,9 +4,11 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"runtime"
@@ -44,6 +46,9 @@ func run() error {
 	flags.Float64Var(&cfg.BackgroundAlpha, "background-alpha", cfg.BackgroundAlpha, "background opacity (0..1)")
 	display := flags.Uint("display", 0, "macOS display ID or one-based Windows monitor index; 0 selects the default")
 	flags.StringVar(&cfg.Output, "output", "", "Wayland output name or Windows display device name; alternative to -display")
+	flags.StringVar(&cfg.Displays, "displays", "", "JSON array of stable display IDs; [] hides all; cannot combine with -display/-output")
+	listDisplays := flags.Bool("list-displays", false, "print connected display IDs and names as JSON")
+	displayConfigStdin := flags.Bool("display-config-stdin", false, "read display selection config from stdin; requires -list-displays")
 	clock := flags.Bool("clock", false, "append a live clock to demonstrate updates")
 	stdin := flags.Bool("stdin", false, "replace text with each input line; EOF retains the last line")
 	duration := flags.Duration("duration", 0, "close automatically after this duration; 0 waits for Ctrl+C")
@@ -64,8 +69,55 @@ func run() error {
 	if flags.NArg() != 0 {
 		return errors.New("positional arguments are not supported")
 	}
+	var explicitDisplays, legacyDisplay bool
+	flags.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "displays":
+			explicitDisplays = true
+		case "display", "output":
+			legacyDisplay = true
+		}
+	})
+	if explicitDisplays && legacyDisplay {
+		return errors.New("-displays cannot be combined with -display or -output")
+	}
+	if explicitDisplays && cfg.Displays == "" {
+		return errors.New("-displays requires a JSON array; use [] to hide all displays")
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	if *listDisplays {
+		if flags.NFlag() != 1 && !(flags.NFlag() == 2 && *displayConfigStdin) {
+			return errors.New("-list-displays cannot be combined with other options")
+		}
+		if *displayConfigStdin {
+			data, err := io.ReadAll(io.LimitReader(os.Stdin, 512*1024+1))
+			if err != nil {
+				return fmt.Errorf("display selection: %w", err)
+			}
+			if len(data) > 512*1024 {
+				return errors.New("display selection exceeds 512 KiB")
+			}
+			if err := json.Unmarshal(data, &cfg); err != nil {
+				return fmt.Errorf("display selection: %w", err)
+			}
+			cfg, err = cfg.Normalize()
+			if err != nil {
+				return err
+			}
+		}
+		displays, err := native.ListDisplays(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		if displays == nil {
+			displays = []overlay.Display{}
+		}
+		return json.NewEncoder(os.Stdout).Encode(displays)
+	}
+	if *displayConfigStdin {
+		return errors.New("-display-config-stdin requires -list-displays")
+	}
 	if *socket != "" {
 		if flags.NFlag() != 1 {
 			return errors.New("-socket cannot be combined with standalone options")

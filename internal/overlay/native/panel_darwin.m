@@ -3,12 +3,15 @@
 #import <Cocoa/Cocoa.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import "panel_darwin.h"
+#include <string.h>
 
 // 所有窗口、字体和绘制状态只由主线程持有；生产者只写最新快照。
 @interface AWOverlayState : NSObject
 @property AWOverlayConfig config;
 @property(nonatomic, copy) NSString *text;
 @property(nonatomic, copy) NSString *family;
+@property(nonatomic, copy) NSArray<NSString *> *displays;
+@property(nonatomic, strong) NSFont *font;
 @end
 @implementation AWOverlayState
 @end
@@ -17,6 +20,15 @@ static AWOverlayState *copyState(AWOverlayConfig config) {
     AWOverlayState *state = [AWOverlayState new];
     state.text = [NSString stringWithUTF8String:config.text];
     state.family = [NSString stringWithUTF8String:config.family];
+    if (config.displays) {
+        NSData *data = [[NSString stringWithUTF8String:config.displays] dataUsingEncoding:NSUTF8StringEncoding];
+        id displays = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if (![displays isKindOfClass:NSArray.class]) return nil;
+        for (id display in displays)
+            if (![display isKindOfClass:NSString.class] || ![display length]) return nil;
+        state.displays = displays;
+    }
+    config.displays = NULL;
     config.text = NULL;
     config.family = NULL;
     state.config = config;
@@ -124,6 +136,34 @@ static NSScreen *screenForID(unsigned int display) {
     return nil;
 }
 
+static NSString *screenUUID(NSScreen *screen) {
+    CGDirectDisplayID display = [screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue];
+    CFUUIDRef uuid = CGDisplayCreateUUIDFromDisplayID(display);
+    if (!uuid) return nil;
+    NSString *identifier = CFBridgingRelease(CFUUIDCreateString(kCFAllocatorDefault, uuid));
+    CFRelease(uuid);
+    return identifier;
+}
+
+char *overlay_list_displays(unsigned int legacyDisplay) {
+    @autoreleasepool {
+        if (![NSThread isMainThread]) return NULL;
+        [NSApplication sharedApplication];
+        if (!NSScreen.screens.count) return NULL;
+        NSMutableArray *displays = [NSMutableArray new];
+        NSScreen *legacy = screenForID(legacyDisplay);
+        for (NSScreen *screen in NSScreen.screens) {
+            NSString *identifier = screenUUID(screen);
+            if (!identifier) return NULL;
+            [displays addObject:@{@"id":identifier, @"name":screen.localizedName,
+                @"selected":screen == legacy ? @YES : @NO}];
+        }
+        NSData *data = [NSJSONSerialization dataWithJSONObject:displays options:0 error:nil];
+        if (!data) return NULL;
+        return strdup([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding].UTF8String);
+    }
+}
+
 static CGFloat axisOffset(int anchor, double offset, CGFloat available) {
     double value = anchor == 0 ? offset : anchor == 1 ? available / 2 + offset : available - offset;
     return MAX(0, MIN(available, value));
@@ -148,7 +188,7 @@ static NSFont *fontForState(AWOverlayState *state) {
 @interface AWOverlay : NSObject
 @property(nonatomic, strong) AWOverlayPanel *panel;
 @property(nonatomic, strong) AWOverlayText *label;
-@property(nonatomic, strong) NSNumber *displayID;
+@property(nonatomic, strong) NSScreen *screen;
 @property(nonatomic, strong) AWOverlayState *state;
 - (BOOL)apply:(AWOverlayState *)state;
 - (void)reposition:(NSNotification *)notification;
@@ -162,7 +202,6 @@ static NSFont *fontForState(AWOverlayState *state) {
     CGFloat left = MIN(c.left, size.width), top = MIN(c.top, size.height);
     CGFloat width = MAX(0, size.width - left - MIN(c.right, size.width - left));
     CGFloat height = MAX(0, size.height - top - MIN(c.bottom, size.height - top));
-    // 手动饱和布局允许内边距超过窗口，不创建互相冲突的约束。
     NSRect frame = NSMakeRect(left, size.height - top - height, width, height);
     if (!NSEqualRects(self.label.frame, frame)) {
         self.label.frame = frame;
@@ -170,11 +209,9 @@ static NSFont *fontForState(AWOverlayState *state) {
     }
 }
 - (void)reposition:(NSNotification *)notification {
-    NSScreen *screen = screenForID(self.displayID.unsignedIntValue) ?: screenForID(0);
-    // 临时回退不覆盖原始显示器身份，重连后自动恢复。
-    if (!screen) { [self.panel orderOut:nil]; return; }
+    if (!self.screen) { [self.panel orderOut:nil]; return; }
     AWOverlayConfig c = self.state.config;
-    NSRect bounds = screen.frame;
+    NSRect bounds = self.screen.frame;
     CGFloat width = MIN(c.width, NSWidth(bounds)), height = MIN(c.height, NSHeight(bounds));
     CGFloat x = axisOffset(c.anchor % 3, c.x, NSWidth(bounds) - width);
     CGFloat y = axisOffset(c.anchor / 3, c.y, NSHeight(bounds) - height);
@@ -186,27 +223,20 @@ static NSFont *fontForState(AWOverlayState *state) {
 - (BOOL)apply:(AWOverlayState *)state {
     AWOverlayState *old = self.state;
     AWOverlayConfig c = state.config, prior = old.config;
-    BOOL selection = !old || c.display != prior.display;
-    NSScreen *screen = selection ? screenForID(c.display) : nil;
-    if (selection && !screen) return NO;
-    BOOL fontChanged = !old || c.font_size != prior.font_size || c.weight != prior.weight ||
-        c.italic != prior.italic || ![state.family isEqualToString:old.family];
-    NSFont *font = fontChanged ? fontForState(state) : nil;
-    if (fontChanged && !font) return NO;
+    BOOL fontChanged = !old || ![state.font isEqual:old.font];
     self.state = state;
-    if (selection) self.displayID = screen.deviceDescription[@"NSScreenNumber"];
     if (!old || ![state.text isEqualToString:old.text]) {
         self.label.text = state.text;
         self.label.needsDisplay = YES;
     }
-    if (fontChanged) { self.label.font = font; self.label.needsDisplay = YES; }
+    if (fontChanged) { self.label.font = state.font; self.label.needsDisplay = YES; }
     if (!old || c.text_alpha != prior.text_alpha) {
         self.label.color = [NSColor colorWithWhite:1 alpha:c.text_alpha];
         self.label.needsDisplay = YES;
     }
     if (!old || c.background_alpha != prior.background_alpha)
         self.panel.backgroundColor = [NSColor colorWithWhite:0 alpha:c.background_alpha];
-    if (selection || c.anchor != prior.anchor || c.x != prior.x || c.y != prior.y ||
+    if (!old || c.anchor != prior.anchor || c.x != prior.x || c.y != prior.y ||
         c.width != prior.width || c.height != prior.height) {
         [self reposition:nil];
     } else if (c.top != prior.top || c.right != prior.right || c.bottom != prior.bottom || c.left != prior.left) {
@@ -216,13 +246,128 @@ static NSFont *fontForState(AWOverlayState *state) {
 }
 @end
 
-static AWOverlay *overlay;
+static int runStatus;
+@interface AWOverlayGroup : NSObject
+@property(nonatomic, strong) NSMutableDictionary<NSString *, AWOverlay *> *windows;
+@property(nonatomic, strong) AWOverlayState *state;
+@property(nonatomic, copy) NSString *legacyDisplay;
+- (BOOL)apply:(AWOverlayState *)state;
+- (BOOL)apply:(AWOverlayState *)state reconcile:(BOOL)reconcile;
+- (void)reposition:(NSNotification *)notification;
+- (void)close;
+@end
+
+static AWOverlayPanel *newPanel(void) {
+    AWOverlayPanel *panel = [[AWOverlayPanel alloc]
+        initWithContentRect:NSMakeRect(0, 0, 1, 1)
+        styleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel
+        backing:NSBackingStoreBuffered defer:NO];
+    panel.title = @"Arcana World Overlay";
+    panel.releasedWhenClosed = NO;
+    panel.opaque = NO;
+    panel.backgroundColor = NSColor.clearColor;
+    panel.hasShadow = NO;
+    panel.ignoresMouseEvents = YES;
+    panel.hidesOnDeactivate = NO;
+    panel.movable = NO;
+    panel.animationBehavior = NSWindowAnimationBehaviorNone;
+    panel.level = NSStatusWindowLevel + 1;
+    panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
+        NSWindowCollectionBehaviorFullScreenAuxiliary | NSWindowCollectionBehaviorStationary |
+        NSWindowCollectionBehaviorIgnoresCycle;
+    return panel;
+}
+
+@implementation AWOverlayGroup
+- (BOOL)apply:(AWOverlayState *)state {
+    return [self apply:state reconcile:NO];
+}
+- (BOOL)apply:(AWOverlayState *)state reconcile:(BOOL)reconcile {
+    if (!state) return NO;
+    AWOverlayConfig c = state.config, prior = self.state.config;
+    if (self.state && c.font_size == prior.font_size && c.weight == prior.weight &&
+        c.italic == prior.italic && [state.family isEqualToString:self.state.family])
+        state.font = self.state.font;
+    else
+        state.font = fontForState(state);
+    if (!state.font) return NO;
+    BOOL sameSelection = self.state &&
+        ((state.displays && [state.displays isEqualToArray:self.state.displays]) ||
+         (!state.displays && !self.state.displays && c.display == prior.display));
+    if (!sameSelection && !state.displays) {
+        NSScreen *screen = screenForID(c.display);
+        NSString *identifier = screen ? screenUUID(screen) : nil;
+        if (!identifier) return NO;
+        self.legacyDisplay = identifier;
+    }
+    self.state = state;
+    if (!reconcile && sameSelection) {
+        for (NSString *identifier in self.windows)
+            [self.windows[identifier] apply:state];
+        return YES;
+    }
+    if (!self.windows) self.windows = [NSMutableDictionary new];
+    NSMutableDictionary<NSString *, NSScreen *> *wanted = [NSMutableDictionary new];
+    if (state.displays) {
+        NSSet *selected = [NSSet setWithArray:state.displays];
+        for (NSScreen *screen in NSScreen.screens) {
+            NSString *identifier = screenUUID(screen);
+            if (identifier && [selected containsObject:identifier]) wanted[identifier] = screen;
+        }
+    } else {
+        NSScreen *screen = nil;
+        for (NSScreen *candidate in NSScreen.screens) {
+            if ([screenUUID(candidate) isEqualToString:self.legacyDisplay]) {
+                screen = candidate;
+                break;
+            }
+        }
+        // 旧单屏模式临时回退，保留原始身份以便重连后恢复。
+        if (!screen) screen = screenForID(0);
+        NSString *identifier = screen ? screenUUID(screen) : nil;
+        if (screen && !identifier) return NO;
+        if (identifier) wanted[identifier] = screen;
+    }
+    for (NSString *identifier in self.windows.allKeys) {
+        if (!wanted[identifier]) {
+            [self.windows[identifier].panel close];
+            [self.windows removeObjectForKey:identifier];
+        }
+    }
+    for (NSString *identifier in wanted) {
+        AWOverlay *window = self.windows[identifier];
+        BOOL created = !window;
+        if (created) {
+            window = [AWOverlay new];
+            window.panel = newPanel();
+            if (!window.panel) return NO;
+            window.label = [[AWOverlayText alloc] initWithFrame:NSZeroRect];
+            [window.panel.contentView addSubview:window.label];
+            self.windows[identifier] = window;
+        }
+        window.screen = wanted[identifier];
+        [window apply:state];
+        [window reposition:nil];
+    }
+    return YES;
+}
+- (void)reposition:(NSNotification *)notification {
+    if (![self apply:self.state reconcile:YES]) {
+        runStatus = 0;
+        overlay_stop();
+    }
+}
+- (void)close {
+    for (AWOverlay *window in self.windows.allValues) [window.panel close];
+    [self.windows removeAllObjects];
+}
+@end
+
+static AWOverlayGroup *overlay;
 static NSLock *updateLock;
 static AWOverlayState *pendingState;
 static BOOL updateScheduled;
 static BOOL acceptingUpdates;
-static unsigned int submittedDisplay;
-static int runStatus;
 
 static void stopApplication(void) {
     [NSApp stop:nil];
@@ -234,35 +379,15 @@ static void stopApplication(void) {
 
 int overlay_create(AWOverlayConfig config) {
     @autoreleasepool {
+        if (![NSThread isMainThread]) return 0;
         [NSApplication sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
-        if (!screenForID(config.display)) return 0;
-        overlay = [AWOverlay new];
-        AWOverlayPanel *panel = [[AWOverlayPanel alloc]
-            initWithContentRect:NSMakeRect(0, 0, 1, 1)
-            styleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel
-            backing:NSBackingStoreBuffered defer:NO];
-        if (!panel) { overlay = nil; return 0; }
-        overlay.panel = panel;
-        panel.title = @"Arcana World Overlay";
-        panel.releasedWhenClosed = NO;
-        panel.opaque = NO;
-        panel.hasShadow = NO;
-        panel.ignoresMouseEvents = YES;
-        panel.hidesOnDeactivate = NO;
-        panel.movable = NO;
-        panel.animationBehavior = NSWindowAnimationBehaviorNone;
-        panel.level = NSStatusWindowLevel + 1;
-        panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
-            NSWindowCollectionBehaviorFullScreenAuxiliary | NSWindowCollectionBehaviorStationary |
-            NSWindowCollectionBehaviorIgnoresCycle;
-        overlay.label = [[AWOverlayText alloc] initWithFrame:NSZeroRect];
-        [panel.contentView addSubview:overlay.label];
-        if (![overlay apply:copyState(config)]) { [panel close]; overlay = nil; return 0; }
+        if (!NSScreen.screens.count) return 0;
+        overlay = [AWOverlayGroup new];
+        if (![overlay apply:copyState(config)]) { [overlay close]; overlay = nil; return 0; }
         updateLock = [NSLock new];
         acceptingUpdates = YES;
         updateScheduled = NO;
-        submittedDisplay = config.display;
         runStatus = 1;
         [NSNotificationCenter.defaultCenter addObserver:overlay selector:@selector(reposition:)
             name:NSApplicationDidChangeScreenParametersNotification object:nil];
@@ -270,7 +395,6 @@ int overlay_create(AWOverlayConfig config) {
             name:NSWorkspaceActiveSpaceDidChangeNotification object:nil];
         [NSWorkspace.sharedWorkspace.notificationCenter addObserver:overlay selector:@selector(reposition:)
             name:NSWorkspaceDidWakeNotification object:nil];
-        [panel displayIfNeeded];
         return 1;
     }
 }
@@ -278,14 +402,9 @@ int overlay_create(AWOverlayConfig config) {
 int overlay_update(AWOverlayConfig config) {
     @autoreleasepool {
         AWOverlayState *state = copyState(config);
+        if (!state) return 0;
         [updateLock lock];
         if (!acceptingUpdates) { [updateLock unlock]; return 1; }
-        // CoreGraphics 的显示器查询可在生产者线程执行，拒绝被后续快照覆盖的无效选择。
-        if (config.display != submittedDisplay && config.display && !CGDisplayIsOnline(config.display)) {
-            [updateLock unlock];
-            return 0;
-        }
-        submittedDisplay = config.display;
         pendingState = state;
         if (updateScheduled) { [updateLock unlock]; return 1; }
         updateScheduled = YES;
@@ -322,7 +441,7 @@ int overlay_run(void) {
         [updateLock unlock];
         [NSNotificationCenter.defaultCenter removeObserver:overlay];
         [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:overlay];
-        [overlay.panel close];
+        [overlay close];
         overlay = nil;
         return runStatus;
     }

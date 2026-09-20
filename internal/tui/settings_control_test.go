@@ -65,7 +65,7 @@ func TestResetSettingsRequiresConfirmationAndKeepsOBS(t *testing.T) {
 	}
 	m.Update(msg)
 	got, defaults := m.store.Config(), store.DefaultConfig()
-	if got.Proxy != defaults.Proxy || got.Protocol != defaults.Protocol || got.Overlay != defaults.Overlay || got.ExitOBSStopDisabled || got.ExitLiveStopDisabled || m.overlayEnabled {
+	if got.Proxy != defaults.Proxy || got.Protocol != defaults.Protocol || !reflect.DeepEqual(got.Overlay, defaults.Overlay) || got.ExitOBSStopDisabled || got.ExitLiveStopDisabled || m.overlayEnabled {
 		t.Fatal("settings reset did not apply to the persisted and running model")
 	}
 	if got.OBSURL != endpoint || !got.OBSAutoConnect || !m.obsClient.Snapshot().Connected || !state.active.Load() || state.stops.Load() != 0 {

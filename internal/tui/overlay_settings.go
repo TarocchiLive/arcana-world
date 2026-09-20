@@ -39,12 +39,6 @@ var overlayFields = [...]overlaySettingField{
 	{key: "italic", label: i18n.TUIOverlayItalic, read: func(s overlay.Settings) string { return toggleLabel("", s.Font.Italic) }},
 	overlayNumberField("text-alpha", i18n.TUIOverlayTextAlpha, func(s overlay.Settings) float64 { return s.TextAlpha }, func(s *overlay.Settings, n float64) { s.TextAlpha = n }),
 	overlayNumberField("background-alpha", i18n.TUIOverlayBackgroundAlpha, func(s overlay.Settings) float64 { return s.BackgroundAlpha }, func(s *overlay.Settings, n float64) { s.BackgroundAlpha = n }),
-	{key: "display-id", label: i18n.TUIOverlayDisplayID, read: func(s overlay.Settings) string { return strconv.FormatUint(uint64(s.DisplayID), 10) }, assign: func(s *overlay.Settings, value string) error {
-		n, err := strconv.ParseUint(value, 10, 32)
-		s.DisplayID, s.Output = uint32(n), ""
-		return err
-	}},
-	{key: "output", label: i18n.TUIOverlayOutput, read: func(s overlay.Settings) string { return s.Output }, assign: func(s *overlay.Settings, value string) error { s.Output, s.DisplayID = value, 0; return nil }},
 }
 
 func overlayNumberField(key string, label i18n.Key, get func(overlay.Settings) float64, set func(*overlay.Settings, float64)) overlaySettingField {
@@ -100,6 +94,8 @@ func (m *Model) performOverlay(action string) tea.Cmd {
 	case "overlay-toggle":
 		s.Enabled = !m.overlayEnabled
 		return m.saveOverlay(s, overlayToggleOperation())
+	case "overlay-displays":
+		return m.pickOverlayDisplays()
 	case "overlay-settings":
 		m.choices = nil
 		for _, f := range overlayFields {

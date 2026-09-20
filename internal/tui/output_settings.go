@@ -13,6 +13,7 @@ func (m *Model) outputMenu() []menuItem {
 	if m.page == overlayPage {
 		return []menuItem{
 			{toggleLabel(i18n.T(i18n.TUIOverlayEnabled), m.overlayEnabled), "overlay-toggle"},
+			{i18n.T(i18n.OutputDisplays), "overlay-displays"},
 			{i18n.T(i18n.TUIOverlaySettings), "overlay-settings"},
 			{i18n.T(i18n.OutputEvents), "output-events"},
 		}

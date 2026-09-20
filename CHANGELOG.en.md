@@ -11,9 +11,11 @@ Versions are listed newest first.
 - Automatically save login credentials and OBS passwords to `credentials/secrets.json` under the data directory when Linux has no system keyring or cannot connect to the user credential service, and show a file-storage fallback notice. Locked keyrings and denied access still produce errors. The file stores plaintext, with Unix directory and file permissions restricted to `0700` and `0600`, or a restricted ACL on Windows. Profiles with an existing credential file continue using file storage.
 - Add CLI options for credential storage (including memory-only mode), proxy, OBS auto-connect/auto-stream, and TTS. Explicit overrides apply only to the current run and are not saved. See `--help` for usage.
 - Add `--doctor` read-only diagnostics for configuration, credential services, and optional helpers, without reading secrets or starting graphics, audio, or business services.
+- Select multiple overlay displays by name, with mouse or keyboard changes saved and applied immediately. Displays share content snapshots; disconnected selections stay hidden instead of moving to another monitor and return when reconnected.
 
 ### Fixed
 
+- Fix the macOS overlay background covering the entire display. Draw it only within the configured overlay position and size, leaving the rest transparent.
 - Fix directory ACL access in the Windows file credential backend while retaining access only for the current user and SYSTEM.
 - Fix a race between socket deadlines and the context timer during overlay startup, consistently reporting a deadline error when the startup budget expires.
 - Raise the minimum Go version to 1.26.8 so CI and release builds use a toolchain with standard-library security fixes.
