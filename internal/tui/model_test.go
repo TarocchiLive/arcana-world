@@ -13,7 +13,7 @@ import (
 )
 
 func TestCanceledQRDoesNotReopenFromQueuedSuccess(t *testing.T) {
-	s, err := store.Open(t.TempDir())
+	s, err := store.Open(t.TempDir(), store.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestCanceledQRDoesNotReopenFromQueuedSuccess(t *testing.T) {
 }
 
 func TestDiskJournalRedactsAccountAndStreamSecrets(t *testing.T) {
-	s, err := store.Open(t.TempDir())
+	s, err := store.Open(t.TempDir(), store.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestEnglishUIKeepsCredentialsHiddenAndUserTitlesIntact(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = i18n.SetLanguage("zh-CN") })
-	s, err := store.Open(t.TempDir())
+	s, err := store.Open(t.TempDir(), store.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

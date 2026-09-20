@@ -104,7 +104,9 @@ func (m *Model) handleLoginSaveResult(value app.AccountOutcome, err error, label
 		}
 		return nil
 	}
-	return m.adoptAccount(value)
+	cmd := m.adoptAccount(value)
+	m.logCredentialStorage()
+	return cmd
 }
 
 func deleteOperation() operation[app.AccountOutcome] {

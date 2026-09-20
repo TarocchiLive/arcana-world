@@ -11,4 +11,11 @@ const (
 	CLILicense                        Key = "cli.license"
 	CLIPositionalArgumentsUnsupported Key = "cli.positional_arguments_unsupported"
 	LanguageUnsupported               Key = "language.unsupported"
+	CLICredentialBackendUsage         Key = "cli.credential_backend_usage"
+	CLICredentialBackendInvalid       Key = "cli.credential_backend_invalid"
+	CLIProxyUsage                     Key = "cli.proxy_usage"
+	CLIOBSAutoConnectUsage            Key = "cli.obs_auto_connect_usage"
+	CLIOBSAutoStreamUsage             Key = "cli.obs_auto_stream_usage"
+	CLITTSUsage                       Key = "cli.tts_usage"
+	CLIDoctorUsage                    Key = "cli.doctor_usage"
 )

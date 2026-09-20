@@ -190,6 +190,12 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 			}
 		} else if !becameReady && startup.Err() != nil {
 			failure = startup.Err()
+		} else if !becameReady && errors.Is(failure, os.ErrDeadlineExceeded) {
+			// 套接字可能先于 context 定时器报告超时；仅在启动预算已耗尽时归一化。
+			// 保留上面的主动取消优先级，也不改写更早发生的独立 I/O 超时。
+			if deadline, ok := startup.Deadline(); ok && !time.Now().Before(deadline) {
+				failure = context.DeadlineExceeded
+			}
 		}
 		m.mu.Lock()
 		m.closed = true

@@ -59,3 +59,33 @@ func TestOutputCannotLeakDeletedTextOrTerminalControls(t *testing.T) {
 		t.Fatal("additional event escaped default event selection")
 	}
 }
+
+func TestGuardDurationPreservesAnnualAndExplicitUnits(t *testing.T) {
+	for _, test := range []struct {
+		name, raw, duration string
+	}{
+		{"annual", `{"cmd":"USER_TOAST_MSG_V2","data":{"sender_uinfo":{"uid":42,"base":{"name":"观众"}},"guard_info":{"guard_level":2},"pay_info":{"num":1,"unit":"年"}}}`, "1年"},
+		{"explicit duration", `{"cmd":"LIVE_OPEN_PLATFORM_GUARD","data":{"user_info":{"uname":"观众"},"guard_level":3,"guard_num":99,"guard_unit":"*3天"}}`, "3天"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			history, err := danmaku.Open(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer history.Close()
+			if _, err := history.Append(1, []byte(test.raw)); err != nil {
+				t.Fatal(err)
+			}
+			events, err := history.Page(1, 0, 1)
+			if err != nil || len(events) != 1 {
+				t.Fatalf("read purchase: %v %v", events, err)
+			}
+			for _, render := range []func(danmaku.Event) string{RenderOverlay, RenderTTS} {
+				text := render(events[0])
+				if !strings.Contains(text, test.duration) || strings.Contains(text, "个月") || strings.Contains(text, "99") {
+					t.Fatalf("subscription duration misrepresented: %q", text)
+				}
+			}
+		})
+	}
+}

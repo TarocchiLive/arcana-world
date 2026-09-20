@@ -19,25 +19,34 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// Backend 存储机密；条目不存在时必须返回 keyring.ErrNotFound。
+// Backend 存储当前作用域内的机密；条目不存在时必须返回 keyring.ErrNotFound。
 type Backend interface {
-	Get(service, user string) (string, error)
-	Set(service, user, password string) error
-	Delete(service, user string) error
+	Get(key string) (string, error)
+	Set(key, value string) error
+	Delete(key string) error
+	Storage() StorageKind
 }
-type systemBackend struct{}
+type systemBackend struct {
+	service string
+}
 
-func (systemBackend) Get(s, u string) (string, error) { return keyring.Get(s, u) }
-func (systemBackend) Set(s, u, p string) error        { return keyring.Set(s, u, p) }
-func (systemBackend) Delete(s, u string) error        { return keyring.Delete(s, u) }
+func newSystemBackend(dir string) Backend {
+	sum := sha256.Sum256([]byte(dir))
+	return systemBackend{service: "arcana-world/" + hex.EncodeToString(sum[:16])}
+}
+
+func (b systemBackend) Get(key string) (string, error) { return keyring.Get(b.service, key) }
+func (b systemBackend) Set(key, value string) error    { return keyring.Set(b.service, key, value) }
+func (b systemBackend) Delete(key string) error        { return keyring.Delete(b.service, key) }
+func (systemBackend) Storage() StorageKind             { return StorageSystem }
 
 type Store struct {
-	mu      sync.Mutex
-	dir     string
-	service string
-	backend Backend
-	config  domain.Config
-	closed  bool
+	mu        sync.Mutex
+	dir       string
+	backend   Backend
+	config    domain.Config
+	overrides ConfigOverrides
+	closed    bool
 }
 
 // DefaultConfig returns the defaults used for new profiles and settings resets.
@@ -55,21 +64,63 @@ func applyConnectionDefaults(c *domain.Config) {
 	}
 }
 
-func Open(dir string) (*Store, error) { return OpenWithBackend(dir, systemBackend{}) }
+// Open opens a profile with auto, system, file, or memory credential storage.
+// Explicit backends never fall back or migrate credentials between stores.
+func Open(dir string, options Options) (*Store, error) {
+	switch options.CredentialBackend {
+	case "", "auto", "system", "file", "memory":
+	default:
+		return nil, errors.New("unsupported credential backend")
+	}
+	s, err := openStore(dir)
+	if err != nil {
+		return nil, err
+	}
+	s.overrides = options.Overrides.detached()
+	switch options.CredentialBackend {
+	case "system":
+		s.backend = newSystemBackend(s.dir)
+	case "file":
+		s.backend = newFileBackend(s.dir)
+	case "memory":
+		s.backend = memoryBackend(make(map[string]string))
+	default:
+		s.backend = &automaticBackend{dir: s.dir, system: newSystemBackend(s.dir), probe: systemKeyringMissing}
+	}
+	return s, nil
+}
 func OpenWithBackend(dir string, backend Backend) (*Store, error) {
 	if backend == nil {
 		return nil, errors.New(i18n.T(i18n.StoreCredentialBackendRequired))
 	}
+	s, err := openStore(dir)
+	if err != nil {
+		return nil, err
+	}
+	s.backend = backend
+	return s, nil
+}
+
+// ResolveDir resolves the profile path without accessing or creating its files.
+func ResolveDir(dir string) (string, error) {
 	if dir == "" {
 		base, err := os.UserHomeDir()
 		if err != nil {
-			return nil, errors.New(i18n.T(i18n.StoreHomeDirectoryUnavailable))
+			return "", errors.New(i18n.T(i18n.StoreHomeDirectoryUnavailable))
 		}
 		dir = filepath.Join(base, ".arcana", "world")
 	}
 	dir, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, errors.New(i18n.T(i18n.StoreConfigDirectoryResolveFailed))
+		return "", errors.New(i18n.T(i18n.StoreConfigDirectoryResolveFailed))
+	}
+	return dir, nil
+}
+
+func openStore(dir string) (*Store, error) {
+	dir, err := ResolveDir(dir)
+	if err != nil {
+		return nil, err
 	}
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return nil, errors.New(i18n.T(i18n.StoreConfigDirectoryCreateFailed))
@@ -81,44 +132,74 @@ func OpenWithBackend(dir string, backend Backend) (*Store, error) {
 	if err = os.Chmod(dir, 0700); err != nil {
 		return nil, errors.New(i18n.T(i18n.StoreConfigDirectorySecureFailed))
 	}
-	sum := sha256.Sum256([]byte(dir))
-	s := &Store{dir: dir, service: "arcana-world/" + hex.EncodeToString(sum[:16]), backend: backend, config: DefaultConfig()}
-	path := filepath.Join(dir, "config.json")
-	info, err = os.Lstat(path)
-	if errors.Is(err, os.ErrNotExist) {
-		if err = s.persist(s.config); err != nil {
+	c, missing, err := readConfig(dir, true)
+	if err != nil {
+		return nil, err
+	}
+	s := &Store{dir: dir, config: c}
+	if missing {
+		if err := s.persist(c); err != nil {
 			return nil, err
 		}
-		return s, nil
+	}
+	return s, nil
+}
+
+// ReadConfig loads and validates settings without creating files, changing
+// permissions, or consulting credential storage. Missing profiles use defaults.
+func ReadConfig(dir string) (domain.Config, error) {
+	dir, err := ResolveDir(dir)
+	if err != nil {
+		return domain.Config{}, err
+	}
+	info, err := os.Lstat(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return DefaultConfig(), nil
+	}
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return domain.Config{}, errors.New(i18n.T(i18n.StoreConfigDirectoryRequired))
+	}
+	c, _, err := readConfig(dir, false)
+	return c, err
+}
+
+func readConfig(dir string, secure bool) (domain.Config, bool, error) {
+	c := DefaultConfig()
+	path := filepath.Join(dir, "config.json")
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return c, true, nil
 	}
 	if err != nil || !info.Mode().IsRegular() {
-		return nil, errors.New(i18n.T(i18n.StoreConfigRegularFileRequired))
+		return domain.Config{}, false, errors.New(i18n.T(i18n.StoreConfigRegularFileRequired))
 	}
-	if err = os.Chmod(path, 0600); err != nil {
-		return nil, errors.New(i18n.T(i18n.StoreConfigFileSecureFailed))
+	if secure {
+		if err := os.Chmod(path, 0600); err != nil {
+			return domain.Config{}, false, errors.New(i18n.T(i18n.StoreConfigFileSecureFailed))
+		}
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, errors.New(i18n.T(i18n.StoreConfigReadFailed))
+		return domain.Config{}, false, errors.New(i18n.T(i18n.StoreConfigReadFailed))
 	}
-	if err = json.Unmarshal(data, &s.config); err != nil {
-		return nil, errors.New(i18n.T(i18n.StoreConfigJsonInvalid))
+	if err = json.Unmarshal(data, &c); err != nil {
+		return domain.Config{}, false, errors.New(i18n.T(i18n.StoreConfigJsonInvalid))
 	}
-	if s.config.Overlay, err = s.config.Overlay.Normalize(); err != nil {
-		return nil, err
+	if c.Overlay, err = c.Overlay.Normalize(); err != nil {
+		return domain.Config{}, false, err
 	}
-	if s.config.TTS, err = s.config.TTS.Normalize(); err != nil {
-		return nil, err
+	if c.TTS, err = c.TTS.Normalize(); err != nil {
+		return domain.Config{}, false, err
 	}
-	applyConnectionDefaults(&s.config)
-	seen := make(map[string]bool, len(s.config.Accounts))
-	for _, a := range s.config.Accounts {
+	applyConnectionDefaults(&c)
+	seen := make(map[string]bool, len(c.Accounts))
+	for _, a := range c.Accounts {
 		if strings.TrimSpace(a.UID) == "" || seen[a.UID] {
-			return nil, errors.New(i18n.T(i18n.StoreAccountIndexInvalid))
+			return domain.Config{}, false, errors.New(i18n.T(i18n.StoreAccountIndexInvalid))
 		}
 		seen[a.UID] = true
 	}
-	return s, nil
+	return c, false, nil
 }
 
 func (s *Store) Dir() string { return s.dir }
@@ -127,10 +208,17 @@ func clone(c domain.Config) domain.Config {
 	c.RecentTitles = append([]string(nil), c.RecentTitles...)
 	c.RecentAreas = append([]domain.Area(nil), c.RecentAreas...)
 	c.OverlayDisabledEvents = append([]string(nil), c.OverlayDisabledEvents...)
+	if c.Overlay.Displays != nil {
+		c.Overlay.Displays = append([]string{}, c.Overlay.Displays...)
+	}
 	c.TTS.DisabledEvents = append([]string(nil), c.TTS.DisabledEvents...)
 	return c
 }
-func (s *Store) Config() domain.Config          { s.mu.Lock(); defer s.mu.Unlock(); return clone(s.config) }
+func (s *Store) Config() domain.Config {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.overrides.Apply(s.config)
+}
 func (s *Store) Accounts() []domain.AccountInfo { return s.Config().Accounts }
 
 // SaveConfig 保留由凭据存储支持的账号索引；请使用 Save/Delete 修改索引。
@@ -142,6 +230,15 @@ func (s *Store) SaveConfig(c domain.Config) error {
 	}
 	c.Accounts = s.config.Accounts
 	c = clone(c)
+	if s.overrides.Proxy != nil {
+		c.Proxy = s.config.Proxy
+	}
+	if s.overrides.OBSAutoConnect != nil {
+		c.OBSAutoConnect = s.config.OBSAutoConnect
+	}
+	if s.overrides.OBSAutoStream != nil {
+		c.OBSAutoStream = s.config.OBSAutoStream
+	}
 	applyConnectionDefaults(&c)
 	var err error
 	if c.TTS, err = c.TTS.Normalize(); err != nil {
@@ -166,7 +263,7 @@ func (s *Store) Load(uid string) (domain.Account, error) {
 	if info == nil {
 		return domain.Account{}, errors.New(i18n.T(i18n.StoreAccountNotSaved))
 	}
-	raw, err := s.backend.Get(s.service, "account:"+uid)
+	raw, err := s.backend.Get("account:" + uid)
 	if err != nil {
 		return domain.Account{}, secretError(i18n.T(i18n.StoreReadAccountCredentials), err)
 	}
@@ -190,7 +287,7 @@ func (s *Store) Save(a domain.Account) error {
 		return errors.New(i18n.T(i18n.StoreAccountCredentialsEncodeFailed))
 	}
 	user := "account:" + a.UID
-	old, err := s.backend.Get(s.service, user)
+	old, err := s.backend.Get(user)
 	exists := err == nil
 	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return secretError(i18n.T(i18n.StoreReadExistingCredentials), err)
@@ -208,7 +305,7 @@ func (s *Store) Save(a domain.Account) error {
 		c.Accounts = append(c.Accounts, domain.AccountInfo{UID: a.UID, Name: a.Name})
 	}
 	return s.commitCredentialsLocked(c, user, old, exists, func() error {
-		if err := s.backend.Set(s.service, user, string(data)); err != nil {
+		if err := s.backend.Set(user, string(data)); err != nil {
 			return secretError(i18n.T(i18n.StoreSaveAccountCredentials), err)
 		}
 		return nil
@@ -232,7 +329,7 @@ func (s *Store) Delete(uid string) error {
 		return errors.New(i18n.T(i18n.StoreAccountNotSaved))
 	}
 	user := "account:" + uid
-	old, err := s.backend.Get(s.service, user)
+	old, err := s.backend.Get(user)
 	exists := err == nil
 	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return secretError(i18n.T(i18n.StoreReadCredentialsBeforeDeletion), err)
@@ -240,7 +337,7 @@ func (s *Store) Delete(uid string) error {
 	var change func() error
 	if exists {
 		change = func() error {
-			if err := s.backend.Delete(s.service, user); err != nil {
+			if err := s.backend.Delete(user); err != nil {
 				return secretError(i18n.T(i18n.StoreDeleteAccountCredentials), err)
 			}
 			return nil
@@ -273,9 +370,9 @@ func (s *Store) commitCredentialsLocked(c domain.Config, user, old string, exist
 func (s *Store) rollback(user, old string, exists bool, cause error) error {
 	var err error
 	if exists {
-		err = s.backend.Set(s.service, user, old)
+		err = s.backend.Set(user, old)
 	} else {
-		err = s.backend.Delete(s.service, user)
+		err = s.backend.Delete(user)
 		if errors.Is(err, keyring.ErrNotFound) {
 			err = nil
 		}
@@ -288,7 +385,7 @@ func (s *Store) rollback(user, old string, exists bool, cause error) error {
 func (s *Store) OBSSecret() (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	v, err := s.backend.Get(s.service, "obs-password")
+	v, err := s.backend.Get("obs-password")
 	if err != nil {
 		return "", secretError(i18n.T(i18n.StoreReadObsPassword), err)
 	}
@@ -300,16 +397,10 @@ func (s *Store) SetOBSSecret(password string) error {
 	if s.closed {
 		return errors.New(i18n.T(i18n.StoreCleared))
 	}
-	if err := s.backend.Set(s.service, "obs-password", password); err != nil {
+	if err := s.backend.Set("obs-password", password); err != nil {
 		return secretError(i18n.T(i18n.StoreSaveObsPassword), err)
 	}
 	return nil
-}
-func secretError(action string, err error) error {
-	if errors.Is(err, keyring.ErrNotFound) {
-		return fmt.Errorf(i18n.T(i18n.StoreCredentialNotFound), action, keyring.ErrNotFound)
-	}
-	return fmt.Errorf(i18n.T(i18n.StoreCredentialStoreUnavailable), action)
 }
 
 // 重命名是提交点：此前发生的错误不会影响原有索引。

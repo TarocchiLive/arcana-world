@@ -3,6 +3,7 @@
 package native
 
 import (
+	"arcana-world/internal/overlay"
 	"fmt"
 	"math"
 	"runtime"
@@ -89,6 +90,16 @@ func (state *winState) prepareSurface(size winSize, fontHeight int32) error {
 }
 
 func (state *winState) closeResources() {
+	if state.textLayout != nil {
+		state.textLayout.release()
+		state.textLayout = nil
+	}
+	for _, brush := range state.colorBrushes {
+		brush.release()
+	}
+	state.colorBrushes = nil
+	state.coverage = nil
+	state.outline, state.outlineScratch = nil, nil
 	for _, object := range [...]*winCOMObject{state.textBrush, state.drawTarget, state.drawFactory, state.writeFactory} {
 		if object != nil {
 			object.release()
@@ -118,6 +129,42 @@ func (state *winState) closeResources() {
 	state.pixels = nil
 }
 
+// Cache a half-logical-point outline with the glyph mask, not on color changes.
+func (state *winState) updateTextOutline(rect winRect) {
+	for _, mask := range [...]*[]byte{&state.outline, &state.outlineScratch} {
+		if cap(*mask) < len(state.coverage) {
+			*mask = make([]byte, len(state.coverage))
+		} else {
+			*mask = (*mask)[:len(state.coverage)]
+			clear(*mask)
+		}
+	}
+	width, height := int(state.size.Width), int(state.size.Height)
+	left, right := max(0, int(rect.Left)), min(width, int(rect.Right))
+	top, bottom := max(0, int(rect.Top)), min(height, int(rect.Bottom))
+	radius := state.outlineRadius
+	// Two bounded max-filter passes keep the mask independent of text color.
+	for y := top; y < bottom; y++ {
+		row := y * width
+		for x := left; x < right; x++ {
+			var value byte
+			for nx := max(left, x-radius); nx < min(right, x+radius+1); nx++ {
+				value = max(value, state.coverage[row+nx])
+			}
+			state.outlineScratch[row+x] = value
+		}
+	}
+	for y := top; y < bottom; y++ {
+		for x := left; x < right; x++ {
+			var value byte
+			for ny := max(top, y-radius); ny < min(bottom, y+radius+1); ny++ {
+				value = max(value, state.outlineScratch[ny*width+x])
+			}
+			state.outline[y*width+x] = value
+		}
+	}
+}
+
 func (state *winState) render() error {
 	state.dirty = false
 	if state.geometryDirty {
@@ -131,6 +178,7 @@ func (state *winState) render() error {
 	// 仅移动窗口时复用已提交的像素，不重新整形文字、扫描 alpha 或上传位图。
 	prior := state.paintedConfig
 	if state.painted && prior.Text == state.cfg.Text && prior.Font == state.cfg.Font &&
+		prior.TextRoles == state.cfg.TextRoles && prior.Colors == state.cfg.Colors && prior.Outline == state.cfg.Outline &&
 		prior.TextAlpha == state.cfg.TextAlpha && prior.BackgroundAlpha == state.cfg.BackgroundAlpha &&
 		state.paintedSize == state.size && state.paintedRect == state.textRect && state.paintedFontHeight == state.fontHeight {
 		ok, _, err := winSetWindowPos.Call(state.window, ^uintptr(0), uintptr(state.position.X), uintptr(state.position.Y), 0, 0, 0x0051)
@@ -148,7 +196,8 @@ func (state *winState) render() error {
 	}
 	text, pixels, dc, rect := state.textBuffer, state.pixels, state.dc, state.textRect
 	clear(pixels)
-	if len(text) > 0 && rect.Right > rect.Left && rect.Bottom > rect.Top {
+	hasText := len(text) > 0 && rect.Right > rect.Left && rect.Bottom > rect.Top
+	if hasText {
 		if err := state.drawTextLines(text, rect); err != nil {
 			return err
 		}
@@ -156,14 +205,35 @@ func (state *winState) render() error {
 	if result, _, err := winGDIFlush.Call(); result == 0 {
 		return winError("GdiFlush", err)
 	}
-	// 黑底白字的 RGB 是覆盖率；将它合成为预乘 BGRA，GDI 自身不提供有效 alpha。
+	// The separate white mask supplies coverage even for black glyphs.
+	// The colored pass supplies RGB already multiplied by glyph coverage.
+	backgroundRGB, err := overlay.ParseColor(state.cfg.Colors.Background)
+	if err != nil {
+		return err
+	}
 	background := uint32(math.Round(state.cfg.BackgroundAlpha * 255))
 	foreground := uint32(math.Round(state.cfg.TextAlpha * 255))
+	backgroundChannels := [3]uint32{backgroundRGB & 255, backgroundRGB >> 8 & 255, backgroundRGB >> 16 & 255}
+	outlineChannels := [3]uint32{24, 19, 16}
 	for i := 0; i < len(pixels); i += 4 {
-		coverage := max(pixels[i], pixels[i+1], pixels[i+2])
-		value := (uint32(coverage)*foreground + 127) / 255
-		alpha := value + (background*(255-value)+127)/255
-		pixels[i], pixels[i+1], pixels[i+2], pixels[i+3] = byte(value), byte(value), byte(value), byte(alpha)
+		var coverage, outlined uint32
+		if hasText && state.coverageValid {
+			coverage = uint32(state.coverage[i/4])
+			outlined = coverage
+			if state.cfg.Outline {
+				outlined = uint32(state.outline[i/4])
+			}
+		}
+		value := (coverage*foreground + 127) / 255
+		total := (outlined*foreground + 127) / 255
+		edge := total - value
+		behind := (background*(255-total) + 127) / 255
+		alpha := total + behind
+		for channel, rgb := range backgroundChannels {
+			color := (uint32(pixels[i+channel])*foreground + 127) / 255
+			pixels[i+channel] = byte(min(alpha, color+(outlineChannels[channel]*edge+127)/255+(rgb*behind+127)/255))
+		}
+		pixels[i+3] = byte(alpha)
 	}
 	destination, source := state.position, winPoint{}
 	size := state.size
@@ -181,9 +251,5 @@ func (state *winState) render() error {
 	state.painted = true
 	state.paintedConfig, state.paintedSize = state.cfg, state.size
 	state.paintedRect, state.paintedFontHeight = state.textRect, state.fontHeight
-	if state.ready != nil {
-		state.ready()
-		state.ready = nil
-	}
 	return nil
 }

@@ -4,9 +4,12 @@ package native
 
 import (
 	"arcana-world/internal/overlay"
+	"context"
 	"fmt"
 	"math"
 	"strings"
+	"sync"
+	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -14,13 +17,15 @@ import (
 
 // 在 Run 锁定的原生线程上同步枚举显示器。
 type winMonitor struct {
-	handle  uintptr
-	bounds  winRect
-	name    string
-	primary bool
+	handle       uintptr
+	bounds       winRect
+	name         string
+	id, friendly string
+	primary      bool
 }
 
 var winEnumerated []winMonitor
+var winEnumerationMutex sync.Mutex
 var winEnumerationError error
 
 func winCollectMonitor(handle, dc, rect, data uintptr) uintptr {
@@ -30,11 +35,27 @@ func winCollectMonitor(handle, dc, rect, data uintptr) uintptr {
 		winEnumerationError = winError("GetMonitorInfoW", err)
 		return 0
 	}
-	winEnumerated = append(winEnumerated, winMonitor{handle, info.Monitor, windows.UTF16ToString(info.Device[:]), info.Flags&1 != 0})
+	device := winDisplayDevice{Size: uint32(unsafe.Sizeof(winDisplayDevice{}))}
+	ok, _, err = winEnumDisplayDevices.Call(uintptr(unsafe.Pointer(&info.Device[0])), 0, uintptr(unsafe.Pointer(&device)), 1)
+	if ok == 0 {
+		winEnumerationError = winError("EnumDisplayDevicesW", err)
+		return 0
+	}
+	id := windows.UTF16ToString(device.DeviceID[:])
+	if id == "" {
+		winEnumerationError = fmt.Errorf("overlay: Windows monitor has no device interface ID")
+		return 0
+	}
+	winEnumerated = append(winEnumerated, winMonitor{
+		handle: handle, bounds: info.Monitor, name: windows.UTF16ToString(info.Device[:]),
+		id: id, friendly: windows.UTF16ToString(device.DeviceString[:]), primary: info.Flags&1 != 0,
+	})
 	return 1
 }
 
 func winMonitors() ([]winMonitor, error) {
+	winEnumerationMutex.Lock()
+	defer winEnumerationMutex.Unlock()
 	winEnumerated = nil
 	winEnumerationError = nil
 	ok, _, err := winEnumMonitors.Call(0, 0, winMonitorCallback, 0)
@@ -49,6 +70,88 @@ func winMonitors() ([]winMonitor, error) {
 	return monitors, nil
 }
 
+func listDisplaysPlatform(ctx context.Context, cfg overlay.Config) ([]overlay.Display, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	monitors, err := winMonitors()
+	if err != nil {
+		return nil, err
+	}
+	names, err := winFriendlyNames(ctx)
+	if err != nil {
+		return nil, err
+	}
+	selected, err := cfg.SelectedDisplays()
+	if err != nil {
+		return nil, err
+	}
+	if selected == nil && len(monitors) > 0 {
+		monitor, err := winSelectMonitor(cfg, monitors)
+		if err != nil {
+			return nil, err
+		}
+		selected = []string{monitor.id}
+	}
+	displays := make([]overlay.Display, 0, len(monitors))
+	for _, monitor := range monitors {
+		if name := names[strings.ToLower(monitor.name)]; name != "" {
+			monitor.friendly = name
+		}
+		chosen := false
+		for _, id := range selected {
+			chosen = chosen || strings.EqualFold(id, monitor.id)
+		}
+		displays = append(displays, overlay.Display{ID: monitor.id, Name: monitor.friendly, Selected: chosen})
+	}
+	return displays, ctx.Err()
+}
+
+func winFriendlyNames(ctx context.Context) (map[string]string, error) {
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		var pathCount, modeCount uint32
+		result, _, _ := winDisplayBufferSizes.Call(2, uintptr(unsafe.Pointer(&pathCount)), uintptr(unsafe.Pointer(&modeCount)))
+		if result != 0 {
+			return nil, winError("GetDisplayConfigBufferSizes", syscall.Errno(result))
+		}
+		if pathCount == 0 {
+			return nil, nil
+		}
+		paths := make([]winDisplayPath, pathCount)
+		modes := make([]winDisplayMode, max(modeCount, 1))
+		result, _, _ = winQueryDisplayConfig.Call(2, uintptr(unsafe.Pointer(&pathCount)), uintptr(unsafe.Pointer(&paths[0])),
+			uintptr(unsafe.Pointer(&modeCount)), uintptr(unsafe.Pointer(&modes[0])), 0)
+		if result == 122 { // ERROR_INSUFFICIENT_BUFFER: topology changed between calls.
+			continue
+		}
+		if result != 0 {
+			return nil, winError("QueryDisplayConfig", syscall.Errno(result))
+		}
+		names := make(map[string]string, pathCount)
+		for _, path := range paths[:pathCount] {
+			source := winDisplaySourceName{Header: winDisplayHeader{
+				Type: 1, Size: uint32(unsafe.Sizeof(winDisplaySourceName{})), Adapter: path.SourceAdapter, ID: path.SourceID,
+			}}
+			target := winDisplayTargetName{Header: winDisplayHeader{
+				Type: 2, Size: uint32(unsafe.Sizeof(winDisplayTargetName{})), Adapter: path.TargetAdapter, ID: path.TargetID,
+			}}
+			result, _, _ = winDisplayDeviceInfo.Call(uintptr(unsafe.Pointer(&source)))
+			if result != 0 {
+				return nil, winError("DisplayConfigGetDeviceInfo (source)", syscall.Errno(result))
+			}
+			result, _, _ = winDisplayDeviceInfo.Call(uintptr(unsafe.Pointer(&target)))
+			if result != 0 {
+				return nil, winError("DisplayConfigGetDeviceInfo (target)", syscall.Errno(result))
+			}
+			names[strings.ToLower(windows.UTF16ToString(source.Name[:]))] = windows.UTF16ToString(target.Friendly[:])
+		}
+		return names, nil
+	}
+}
+
 // 调用者必须先确认枚举结果至少包含一台显示器。
 func winPrimary(monitors []winMonitor) winMonitor {
 	for _, monitor := range monitors {
@@ -59,11 +162,7 @@ func winPrimary(monitors []winMonitor) winMonitor {
 	return monitors[0]
 }
 
-func winSelectMonitor(cfg overlay.Config) (winMonitor, error) {
-	monitors, err := winMonitors()
-	if err != nil {
-		return winMonitor{}, err
-	}
+func winSelectMonitor(cfg overlay.Config, monitors []winMonitor) (winMonitor, error) {
 	if len(monitors) == 0 {
 		return winMonitor{}, fmt.Errorf("overlay: no Windows desktop monitors available")
 	}
@@ -76,7 +175,7 @@ func winSelectMonitor(cfg overlay.Config) (winMonitor, error) {
 		return winMonitor{}, fmt.Errorf("overlay: Windows output %q not found", cfg.Output)
 	}
 	if cfg.DisplayID != 0 {
-		// 枚举编号只在选择时解析；后续热插拔按设备名称恢复。
+		// 枚举编号只在选择时解析；后续热插拔按稳定设备 ID 恢复。
 		if uint64(cfg.DisplayID) > uint64(len(monitors)) {
 			return winMonitor{}, fmt.Errorf("overlay: Windows display ID %d not found", cfg.DisplayID)
 		}
@@ -87,23 +186,11 @@ func winSelectMonitor(cfg overlay.Config) (winMonitor, error) {
 
 func (state *winState) refreshGeometry() error {
 	state.geometryDirty = false
-	monitors, err := winMonitors()
-	if err != nil {
-		return err
-	}
-	if len(monitors) == 0 {
+	monitor := state.target
+	if monitor.handle == 0 {
 		winShowWindow.Call(state.window, 0)
 		state.monitor = 0
 		return nil
-	}
-	// 显示器拔出时保留请求的设备名称：暂时使用主显示器，
-	// 显示器变更恢复该设备后再切回。
-	monitor := winPrimary(monitors)
-	for _, candidate := range monitors {
-		if strings.EqualFold(candidate.name, state.selected) {
-			monitor = candidate
-			break
-		}
 	}
 	currentMonitor, _, _ := winMonitorFromWindow.Call(state.window, 0)
 	if state.monitor != monitor.handle || currentMonitor != monitor.handle {
@@ -120,6 +207,10 @@ func (state *winState) refreshGeometry() error {
 		return winError("GetDpiForWindow", err)
 	}
 	scale := float64(dpi) / 96
+	if radius := max(1, int(math.Round(.5*scale))); state.outlineRadius != radius {
+		state.outlineRadius = radius
+		state.coverageValid, state.painted = false, false
+	}
 	bounds := monitor.bounds
 	availableWidth := int64(bounds.Right) - int64(bounds.Left)
 	availableHeight := int64(bounds.Bottom) - int64(bounds.Top)

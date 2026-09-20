@@ -17,6 +17,9 @@ func (m *Model) resetSettings() tea.Cmd {
 
 // Rebuild and commit under the session gate; ownership transfers only after save succeeds.
 func (m *Model) rebuildClientAndSave(op operation[*bili.Client], proxy string, save func() error) tea.Cmd {
+	if override := m.store.Overrides().Proxy; override != nil {
+		proxy = *override
+	}
 	account := m.account
 	return work(m, op, func(ctx context.Context) (*bili.Client, error) {
 		if err := m.session.Lock(ctx); err != nil {

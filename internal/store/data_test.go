@@ -89,7 +89,7 @@ func TestClearDataRemovesUnlistedActiveAccountCredentials(t *testing.T) {
 	if err := s.ClearData(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := backend.Get(s.service, "account:42"); !errors.Is(err, keyring.ErrNotFound) {
+	if _, err := backend.Get("account:42"); !errors.Is(err, keyring.ErrNotFound) {
 		t.Fatalf("clearing left known active-account credentials behind: %v", err)
 	}
 }
@@ -107,7 +107,7 @@ func TestClearDataRemovesOwnedFilesAndRejectsStaleWrites(t *testing.T) {
 	if err := s.SetOBSSecret("obs secret"); err != nil {
 		t.Fatal(err)
 	}
-	other, err := OpenWithBackend(t.TempDir(), backend)
+	other, err := OpenWithBackend(t.TempDir(), memoryBackend{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestClearDataRemovesOwnedFilesAndRejectsStaleWrites(t *testing.T) {
 		}
 	}
 	for _, user := range []string{"account:42", "obs-password"} {
-		if _, err := backend.Get(s.service, user); !errors.Is(err, keyring.ErrNotFound) {
+		if _, err := backend.Get(user); !errors.Is(err, keyring.ErrNotFound) {
 			t.Fatalf("credential %s remains", user)
 		}
 	}
@@ -172,14 +172,14 @@ type deleteFailureBackend struct {
 	failUser string
 }
 
-func (b *deleteFailureBackend) Delete(service, user string) error {
+func (b *deleteFailureBackend) Delete(user string) error {
 	if user == b.failUser {
 		return errors.New("keyring locked")
 	}
-	if _, err := b.Get(service, user); err != nil {
+	if _, err := b.Get(user); err != nil {
 		return err
 	}
-	return b.memoryBackend.Delete(service, user)
+	return b.memoryBackend.Delete(user)
 }
 
 func TestClearDataRetainsRetryIndexOnCredentialFailure(t *testing.T) {

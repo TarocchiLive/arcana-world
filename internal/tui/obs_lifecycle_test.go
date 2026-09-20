@@ -18,20 +18,23 @@ import (
 
 type lifecycleSecrets map[string]string
 
-func (s lifecycleSecrets) Get(service, user string) (string, error) {
-	value, ok := s[service+"/"+user]
+func (s lifecycleSecrets) Get(key string) (string, error) {
+	value, ok := s[key]
 	if !ok {
 		return "", keyring.ErrNotFound
 	}
 	return value, nil
 }
-func (s lifecycleSecrets) Set(service, user, value string) error {
-	s[service+"/"+user] = value
+func (s lifecycleSecrets) Set(key, value string) error {
+	s[key] = value
 	return nil
 }
-func (s lifecycleSecrets) Delete(service, user string) error {
-	delete(s, service+"/"+user)
+func (s lifecycleSecrets) Delete(key string) error {
+	delete(s, key)
 	return nil
+}
+func (s lifecycleSecrets) Storage() store.StorageKind {
+	return store.StorageUnknown
 }
 
 type lifecycleOBS struct {

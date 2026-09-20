@@ -2,6 +2,7 @@ package i18n
 
 // 服务层消息按业务语义命名，文案保存在语言词表中。
 const (
+	StoreMemoryStorage                   Key = "store.memory_storage"
 	BiliApiHttpStatus                    Key = "bili.api_http_status"
 	BiliApiOperationFailed               Key = "bili.api_operation_failed"
 	BiliApiRequestFailed                 Key = "bili.api_request_failed"
@@ -150,6 +151,7 @@ const (
 	StoreCredentialRollbackFailed        Key = "store.credential_rollback_failed"
 	StoreCredentialStoreUnavailable      Key = "store.credential_store_unavailable"
 	StoreDeleteAccountCredentials        Key = "store.delete_account_credentials"
+	StoreFileStorageFallback             Key = "store.file_storage_fallback"
 	StoreHomeDirectoryUnavailable        Key = "store.home_directory_unavailable"
 	StoreReadAccountCredentials          Key = "store.read_account_credentials"
 	StoreReadCredentialsBeforeDeletion   Key = "store.read_credentials_before_deletion"

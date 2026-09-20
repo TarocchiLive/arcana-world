@@ -13,7 +13,7 @@ import (
 
 func chatTestModel(t *testing.T) *Model {
 	t.Helper()
-	s, err := store.Open(t.TempDir())
+	s, err := store.Open(t.TempDir(), store.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestChatTogglePersistsWithoutDeletingHistory(t *testing.T) {
 	if !m.store.Config().DanmakuDisabled {
 		t.Fatal("disabled state was not persisted")
 	}
-	reopened, err := store.Open(m.store.Dir())
+	reopened, err := store.Open(m.store.Dir(), store.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

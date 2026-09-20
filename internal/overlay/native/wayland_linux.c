@@ -20,20 +20,10 @@
 #include <time.h>
 #include <unistd.h>
 
-// 最多两个像素存储，每个不超过 64 MiB；忙碌存储在重配置、缩放或重建时也不可复用。
+// Each output owns two bounded pixel stores and independent frame throttling.
 #define MAX_BUFFER_BYTES (64u * 1024u * 1024u)
 struct arcana_wayland;
-struct output
-{
-    struct output *next;
-    struct arcana_wayland *state;
-    struct wl_output *proxy;
-    struct wl_proxy *xdg;
-    uint32_t id;
-    int scale, mode_width, mode_height, transform, logical_width, logical_height;
-    char *name;
-    bool ready;
-};
+struct output;
 struct pixels
 {
     struct wl_buffer *buffer;
@@ -42,33 +32,49 @@ struct pixels
     int width, height, stride;
     bool busy;
 };
+struct view
+{
+    struct arcana_wayland *state;
+    struct output *active;
+    int width, height, effective_left, effective_top, effective_width, effective_height;
+    struct wl_surface *surface;
+    struct wl_proxy *layer, *viewport, *fractional;
+    struct wl_callback *frame;
+    struct pixels pixels[2];
+    uint32_t fractional_scale;
+    bool configured, dirty, closed;
+};
+struct output
+{
+    struct output *next;
+    struct arcana_wayland *state;
+    struct wl_output *proxy;
+    struct wl_proxy *xdg;
+    uint32_t id;
+    int scale, mode_width, mode_height, transform, logical_width, logical_height;
+    char *name, *description;
+    bool ready;
+    struct view view;
+};
 struct arcana_wayland
 {
-    // 只有 mailbox 和 stop 标志由 Go 的生产者 goroutine 共享。
+    // Only the mailbox and stop flag are shared with the Go producer.
     pthread_mutex_t mutex;
     int wake[2];
     bool stop;
     struct arcana_wayland_config *pending;
-    // 以下内容仅限于 arcana_wayland_run 的分发线程。
+    // All remaining state belongs to the Wayland dispatch thread.
     struct arcana_wayland_config *config;
     char *wanted;
     char error[384];
-    uintptr_t ready_handle;
-    bool ready_sent, updated, settle_outputs;
-    int width, height;
-    int effective_left, effective_top, effective_width, effective_height;
+    uintptr_t ready_handle, list_handle;
+    bool ready_sent, updated, settle_outputs, argb, listing;
     struct wl_display *display;
     struct wl_registry *registry;
     struct wl_compositor *compositor;
     struct wl_shm *shm;
     struct wl_proxy *shell, *viewporter, *fractional_manager, *xdg_manager;
-    struct wl_surface *surface;
-    struct wl_proxy *layer, *viewport, *fractional;
-    struct wl_callback *frame;
-    struct output *outputs, *active;
-    struct pixels pixels[2];
-    uint32_t fractional_scale;
-    bool configured, dirty, closed, initial, argb;
+    struct output *outputs;
 };
 static void fail(struct arcana_wayland *s, const char *format, ...)
 {
@@ -104,6 +110,8 @@ static void free_config(struct arcana_wayland_config *config)
     free(config->text);
     free(config->output);
     free(config->family);
+    free(config->displays);
+    free(config->text_runs);
     free(config);
 }
 static struct arcana_wayland_config *copy_config(const struct arcana_wayland_config *value)
@@ -115,18 +123,31 @@ static struct arcana_wayland_config *copy_config(const struct arcana_wayland_con
     copy->text = strdup(value->text);
     copy->output = strdup(value->output);
     copy->family = strdup(value->family);
-    if (!copy->text || !copy->output || !copy->family)
+    copy->displays = value->displays_size ? malloc(value->displays_size) : NULL;
+    copy->text_runs = value->text_run_count ? calloc(value->text_run_count, sizeof(*copy->text_runs)) : NULL;
+    if (copy->text_runs)
+        memcpy(copy->text_runs, value->text_runs, value->text_run_count * sizeof(*copy->text_runs));
+    if (copy->displays)
+        memcpy(copy->displays, value->displays, value->displays_size);
+    if (!copy->text || !copy->output || !copy->family || (value->displays_size && !copy->displays) ||
+        (value->text_run_count && !copy->text_runs))
     {
         free_config(copy);
         return NULL;
     }
     return copy;
 }
-// 位置和输出变化只需更新合成器状态，不必重新整形文字或绘制像素。
 static bool equal_paint_config(const struct arcana_wayland_config *a, const struct arcana_wayland_config *b)
 {
+    if (a->text_rgb != b->text_rgb || a->background_rgb != b->background_rgb ||
+        a->text_run_count != b->text_run_count)
+        return false;
+    for (size_t i = 0; i < a->text_run_count; ++i)
+        if (a->text_runs[i].start != b->text_runs[i].start ||
+            a->text_runs[i].end != b->text_runs[i].end || a->text_runs[i].rgb != b->text_runs[i].rgb)
+            return false;
     return !strcmp(a->text, b->text) && !strcmp(a->family, b->family) &&
-           a->weight == b->weight && a->italic == b->italic &&
+           a->weight == b->weight && a->italic == b->italic && a->outline == b->outline &&
            a->padding_top == b->padding_top && a->padding_right == b->padding_right &&
            a->padding_bottom == b->padding_bottom && a->padding_left == b->padding_left &&
            a->font_size == b->font_size && a->text_alpha == b->text_alpha && a->background_alpha == b->background_alpha;
@@ -134,6 +155,8 @@ static bool equal_paint_config(const struct arcana_wayland_config *a, const stru
 static bool equal_config(const struct arcana_wayland_config *a, const struct arcana_wayland_config *b)
 {
     return equal_paint_config(a, b) && !strcmp(a->output, b->output) &&
+           a->explicit_displays == b->explicit_displays && a->displays_size == b->displays_size &&
+           (!a->displays_size || !memcmp(a->displays, b->displays, a->displays_size)) &&
            a->anchor == b->anchor && a->x == b->x && a->y == b->y &&
            a->width == b->width && a->height == b->height;
 }
@@ -161,7 +184,6 @@ struct arcana_wayland *arcana_wayland_new(const struct arcana_wayland_config *co
         return NULL;
     }
     s->ready_handle = ready_handle;
-    s->initial = true;
     return s;
 }
 int arcana_wayland_update(struct arcana_wayland *s, const struct arcana_wayland_config *config)
@@ -206,12 +228,11 @@ static bool consume(struct arcana_wayland *s)
             {
                 free(s->wanted);
                 s->wanted = wanted;
-                s->initial = true;
                 s->settle_outputs = true;
             }
         }
-        if (!equal_paint_config(next, s->config))
-            s->dirty = true;
+        for (struct output *o = s->outputs; o; o = o->next)
+            o->view.dirty = true;
         free_config(s->config);
         s->config = next;
         s->updated = true;
@@ -348,7 +369,7 @@ static int synchronize(struct arcana_wayland *s)
     return result;
 }
 
-// 移除输出时清除借用的 active 指针，再在存活输出上重建表面。
+// Output callbacks update only their own surface geometry and scale.
 static void output_geometry(void *data, struct wl_output *p, int32_t x, int32_t y,
                             int32_t pw, int32_t ph, int32_t sub, const char *make, const char *model, int32_t transform)
 {
@@ -358,11 +379,18 @@ static void output_geometry(void *data, struct wl_output *p, int32_t x, int32_t 
     (void)pw;
     (void)ph;
     (void)sub;
-    (void)make;
-    (void)model;
+    // Connector identity comes from output.name; make/model are descriptive only.
     struct output *o = data;
+    if (!o->description && (make || model))
+    {
+        char *description;
+        if (asprintf(&description, "%s%s%s", make ? make : "", make && model ? " " : "", model ? model : "") < 0)
+            fail(o->state, "cannot allocate output description");
+        else
+            o->description = description;
+    }
     o->transform = transform;
-    o->state->dirty = true;
+    o->view.dirty = true;
 }
 static void output_mode(void *data, struct wl_output *p, uint32_t flags, int32_t w, int32_t h, int32_t refresh)
 {
@@ -378,7 +406,7 @@ static void output_mode(void *data, struct wl_output *p, uint32_t flags, int32_t
     }
     o->mode_width = w;
     o->mode_height = h;
-    o->state->dirty = true;
+    o->view.dirty = true;
 }
 static void output_done(void *data, struct wl_output *p)
 {
@@ -395,7 +423,7 @@ static void output_scale(void *data, struct wl_output *p, int32_t scale)
         return;
     }
     o->scale = scale;
-    o->state->dirty = true;
+    o->view.dirty = true;
 }
 static void set_output_name(struct output *o, const char *name)
 {
@@ -415,9 +443,16 @@ static void output_name(void *data, struct wl_output *p, const char *name)
 }
 static void output_description(void *data, struct wl_output *p, const char *description)
 {
-    (void)data;
     (void)p;
-    (void)description;
+    struct output *o = data;
+    char *copy = strdup(description);
+    if (!copy)
+    {
+        fail(o->state, "cannot allocate output description");
+        return;
+    }
+    free(o->description);
+    o->description = copy;
 }
 static const struct wl_output_listener output_listener = {
     output_geometry, output_mode, output_done, output_scale, output_name, output_description};
@@ -439,7 +474,7 @@ static void xdg_size(void *data, struct wl_proxy *p, int32_t w, int32_t h)
     }
     o->logical_width = w;
     o->logical_height = h;
-    o->state->dirty = true;
+    o->view.dirty = true;
 }
 static void xdg_done(void *data, struct wl_proxy *p)
 {
@@ -453,9 +488,8 @@ static void xdg_name(void *data, struct wl_proxy *p, const char *name)
 }
 static void xdg_description(void *data, struct wl_proxy *p, const char *description)
 {
-    (void)data;
+    output_description(data, NULL, description);
     (void)p;
-    (void)description;
 }
 static void (*const xdg_listener[])(void) = {
     (void (*)(void))xdg_position, (void (*)(void))xdg_size, (void (*)(void))xdg_done,
@@ -483,7 +517,7 @@ static const struct wl_shm_listener shm_listener = {shm_format};
 static void registry_global(void *data, struct wl_registry *registry, uint32_t id, const char *name, uint32_t version)
 {
     struct arcana_wayland *s = data;
-    if (!strcmp(name, "wl_compositor") && !s->compositor)
+    if (!s->listing && !strcmp(name, "wl_compositor") && !s->compositor)
     {
         if (version < 3)
         {
@@ -492,7 +526,7 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
         }
         s->compositor = wl_registry_bind(registry, id, &wl_compositor_interface, version < 4 ? version : 4);
     }
-    else if (!strcmp(name, "wl_shm") && !s->shm)
+    else if (!s->listing && !strcmp(name, "wl_shm") && !s->shm)
     {
         s->shm = wl_registry_bind(registry, id, &wl_shm_interface, 1);
         if (!s->shm)
@@ -502,15 +536,15 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
         }
         wl_shm_add_listener(s->shm, &shm_listener, s);
     }
-    else if (!strcmp(name, "zwlr_layer_shell_v1") && !s->shell)
+    else if (!s->listing && !strcmp(name, "zwlr_layer_shell_v1") && !s->shell)
     {
         s->shell = wl_registry_bind(registry, id, &zwlr_layer_shell_v1_interface, version < 4 ? version : 4);
     }
-    else if (!strcmp(name, "wp_viewporter") && !s->viewporter)
+    else if (!s->listing && !strcmp(name, "wp_viewporter") && !s->viewporter)
     {
         s->viewporter = wl_registry_bind(registry, id, &wp_viewporter_interface, 1);
     }
-    else if (!strcmp(name, "wp_fractional_scale_manager_v1") && !s->fractional_manager)
+    else if (!s->listing && !strcmp(name, "wp_fractional_scale_manager_v1") && !s->fractional_manager)
     {
         s->fractional_manager = wl_registry_bind(registry, id, &wp_fractional_scale_manager_v1_interface, 1);
     }
@@ -535,7 +569,9 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
             return;
         }
         o->state = s;
-        o->id = id;
+    o->view.state = s;
+    o->view.active = o;
+    o->id = id;
         o->scale = 1;
         o->proxy = wl_registry_bind(registry, id, &wl_output_interface, version < 4 ? version : 4);
         if (!o->proxy)
@@ -554,14 +590,20 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
         s->settle_outputs = true;
     }
 }
+static void destroy_surface(struct view *s);
+static void free_pixels(struct pixels *p);
 static void free_output(struct output *o)
 {
+    destroy_surface(&o->view);
+    for (int i = 0; i < 2; ++i)
+        free_pixels(&o->view.pixels[i]);
     destroy_extension(&o->xdg, 0);
     if (wl_output_get_version(o->proxy) >= 3)
         wl_output_release(o->proxy);
     else
         wl_output_destroy(o->proxy);
     free(o->name);
+    free(o->description);
     free(o);
 }
 static void registry_remove(void *data, struct wl_registry *registry, uint32_t id)
@@ -574,8 +616,7 @@ static void registry_remove(void *data, struct wl_registry *registry, uint32_t i
         struct output *o = *link;
         if (o->id == id)
         {
-            if (s->active == o)
-                s->active = NULL;
+            s->settle_outputs = true;
             *link = o->next;
             free_output(o);
             return;
@@ -586,11 +627,11 @@ static void registry_remove(void *data, struct wl_registry *registry, uint32_t i
 static const struct wl_registry_listener registry_listener = {registry_global, registry_remove};
 static void layer_configure(void *data, struct wl_proxy *layer, uint32_t serial, uint32_t width, uint32_t height)
 {
-    struct arcana_wayland *s = data;
+    struct view *s = data;
     wl_proxy_marshal(layer, 6, serial);
     if (width > 32768 || height > 32768)
     {
-        fail(s, "compositor configured an excessive overlay size");
+        fail(s->state, "compositor configured an excessive overlay size");
         return;
     }
     int configured_width = width ? (int)width : s->effective_width;
@@ -604,16 +645,16 @@ static void layer_configure(void *data, struct wl_proxy *layer, uint32_t serial,
 static void layer_closed(void *data, struct wl_proxy *layer)
 {
     (void)layer;
-    ((struct arcana_wayland *)data)->closed = true;
+    ((struct view *)data)->closed = true;
 }
 static void (*const layer_listener[])(void) = {(void (*)(void))layer_configure, (void (*)(void))layer_closed};
 static void preferred_scale(void *data, struct wl_proxy *proxy, uint32_t scale)
 {
     (void)proxy;
-    struct arcana_wayland *s = data;
+    struct view *s = data;
     if (!scale || scale > 7680)
     {
-        fail(s, "invalid or excessive fractional scale: %u", scale);
+        fail(s->state, "invalid or excessive fractional scale: %u", scale);
         return;
     }
     s->fractional_scale = scale;
@@ -621,7 +662,7 @@ static void preferred_scale(void *data, struct wl_proxy *proxy, uint32_t scale)
 }
 static void (*const fractional_listener[])(void) = {(void (*)(void))preferred_scale};
 
-static void destroy_surface(struct arcana_wayland *s)
+static void destroy_surface(struct view *s)
 {
     if (s->frame)
     {
@@ -644,12 +685,13 @@ static void surface_output_changed(void *data, struct wl_surface *surface, struc
 {
     (void)surface;
     (void)output;
-    ((struct arcana_wayland *)data)->dirty = true;
+    ((struct view *)data)->dirty = true;
 }
 static const struct wl_surface_listener surface_listener = {
     .enter = surface_output_changed, .leave = surface_output_changed};
-static bool output_bounds(struct output *o, int *width, int *height)
+static bool output_bounds(struct view *s, int *width, int *height)
 {
+    struct output *o = s->active;
     // xdg-output 的逻辑尺寸已包含旋转和分数缩放。
     // 核心 wl_output 模式是物理像素，需应用这两项变换。
     if (o->logical_width > 0 && o->logical_height > 0)
@@ -663,8 +705,13 @@ static bool output_bounds(struct output *o, int *width, int *height)
                        o->transform == WL_OUTPUT_TRANSFORM_270 ||
                        o->transform == WL_OUTPUT_TRANSFORM_FLIPPED_90 ||
                        o->transform == WL_OUTPUT_TRANSFORM_FLIPPED_270;
-        *width = (swapped ? o->mode_height : o->mode_width) / o->scale;
-        *height = (swapped ? o->mode_width : o->mode_height) / o->scale;
+        double scale = s->viewport && s->fractional_scale ? s->fractional_scale / 120.0 : o->scale;
+        double w = round((swapped ? o->mode_height : o->mode_width) / scale);
+        double h = round((swapped ? o->mode_width : o->mode_height) / scale);
+        if (w > INT_MAX || h > INT_MAX)
+            return false;
+        *width = (int)w;
+        *height = (int)h;
     }
     return *width > 0 && *height > 0;
 }
@@ -676,20 +723,20 @@ static double anchor_offset(int axis, double offset, double available)
         offset = available - offset;
     return fmax(0, fmin(offset, available));
 }
-static bool apply_geometry(struct arcana_wayland *s, bool initial)
+static bool apply_geometry(struct view *s, bool initial)
 {
     int output_width, output_height;
-    if (!s->active || !output_bounds(s->active, &output_width, &output_height))
+    if (!output_bounds(s, &output_width, &output_height))
     {
-        fail(s, "selected output has no usable full-output geometry");
+        fail(s->state, "selected output has no usable full-output geometry");
         return false;
     }
-    const struct arcana_wayland_config *c = s->config;
+    const struct arcana_wayland_config *c = s->state->config;
     double bounded_width = fmin(c->width, output_width);
     double bounded_height = fmin(c->height, output_height);
     if (bounded_width > 32768 || bounded_height > 32768)
     {
-        fail(s, "output-clamped overlay size exceeds native rendering limits");
+        fail(s->state, "output-clamped overlay size exceeds native rendering limits");
         return false;
     }
     int width = (int)fmax(1, round(bounded_width)), height = (int)fmax(1, round(bounded_height));
@@ -699,11 +746,11 @@ static bool apply_geometry(struct arcana_wayland *s, bool initial)
         left == s->effective_left && top == s->effective_top)
         return false;
     bool resized = initial || width != s->effective_width || height != s->effective_height;
-    s->effective_width = width;
-    s->effective_height = height;
     s->effective_left = left;
     s->effective_top = top;
-    // 统一使用左上锚点表达九宫格解析后的完整输出坐标，避免中心边距语义差异。
+    s->effective_width = width;
+    s->effective_height = height;
+    // Resolve all nine anchors against the full output, not its usable work area.
     wl_proxy_marshal(s->layer, 0, (uint32_t)width, (uint32_t)height);
     wl_proxy_marshal(s->layer, 3, top, 0, 0, left);
     if (resized)
@@ -713,48 +760,48 @@ static bool apply_geometry(struct arcana_wayland *s, bool initial)
     }
     return true;
 }
-static void create_surface(struct arcana_wayland *s, struct output *output)
+static void create_surface(struct view *s, struct output *output)
 {
     s->active = output;
-    s->surface = wl_compositor_create_surface(s->compositor);
+    s->surface = wl_compositor_create_surface(s->state->compositor);
     if (!s->surface)
     {
-        fail(s, "cannot allocate surface");
+        fail(s->state, "cannot allocate surface");
         return;
     }
     wl_surface_add_listener(s->surface, &surface_listener, s);
-    s->layer = (struct wl_proxy *)wl_proxy_marshal_constructor_versioned(s->shell, 0,
-                                                                         &zwlr_layer_surface_v1_interface, wl_proxy_get_version(s->shell), NULL,
+    s->layer = (struct wl_proxy *)wl_proxy_marshal_constructor_versioned(s->state->shell, 0,
+                                                                         &zwlr_layer_surface_v1_interface, wl_proxy_get_version(s->state->shell), NULL,
                                                                          s->surface, output->proxy, 3u, "arcana-world-overlay");
     if (!s->layer)
     {
-        fail(s, "cannot allocate layer surface");
+        fail(s->state, "cannot allocate layer surface");
         return;
     }
     wl_proxy_add_listener(s->layer, (void (**)(void))layer_listener, s);
-    wl_proxy_marshal(s->layer, 1, 1u | 4u); // 上边和左边。
+    wl_proxy_marshal(s->layer, 1, 1u | 4u); // Top and left; margins carry the resolved position.
     wl_proxy_marshal(s->layer, 2, -1);      // 使用完整输出区域。
     wl_proxy_marshal(s->layer, 4, 0u);      // 禁用键盘交互。
     apply_geometry(s, true);
-    if (s->error[0])
+    if (s->state->error[0])
         return;
-    struct wl_region *empty = wl_compositor_create_region(s->compositor);
+    struct wl_region *empty = wl_compositor_create_region(s->state->compositor);
     if (!empty)
     {
-        fail(s, "cannot allocate empty input region");
+        fail(s->state, "cannot allocate empty input region");
         return;
     }
     wl_surface_set_input_region(s->surface, empty); // NULL 会接受输入。
     wl_region_destroy(empty);
-    if (s->viewporter && s->fractional_manager)
+    if (s->state->viewporter && s->state->fractional_manager)
     {
-        s->viewport = (struct wl_proxy *)wl_proxy_marshal_constructor_versioned(s->viewporter, 1,
+        s->viewport = (struct wl_proxy *)wl_proxy_marshal_constructor_versioned(s->state->viewporter, 1,
                                                                                 &wp_viewport_interface, 1, NULL, s->surface);
-        s->fractional = (struct wl_proxy *)wl_proxy_marshal_constructor_versioned(s->fractional_manager, 1,
+        s->fractional = (struct wl_proxy *)wl_proxy_marshal_constructor_versioned(s->state->fractional_manager, 1,
                                                                                   &wp_fractional_scale_v1_interface, 1, NULL, s->surface);
         if (!s->viewport || !s->fractional)
         {
-            fail(s, "cannot allocate fractional scaling objects");
+            fail(s->state, "cannot allocate fractional scaling objects");
             return;
         }
         wl_proxy_add_listener(s->fractional, (void (**)(void))fractional_listener, s);
@@ -762,65 +809,77 @@ static void create_surface(struct arcana_wayland *s, struct output *output)
     s->dirty = true;
     wl_surface_commit(s->surface); // 初始空提交，在确认前不带 buffer。
 }
+static bool explicitly_selected(const struct arcana_wayland_config *c, const char *name)
+{
+    if (!name)
+        return false;
+    for (size_t offset = 0; offset < c->displays_size; offset += strlen(c->displays + offset) + 1)
+        if (!strcmp(name, c->displays + offset))
+            return true;
+    return false;
+}
 static void reconcile_output(struct arcana_wayland *s)
 {
-    struct output *selected = NULL, *fallback = NULL;
+    struct output *legacy = NULL, *fallback = NULL;
     for (struct output *o = s->outputs; o; o = o->next)
     {
         if (!o->ready)
             continue;
-        if (!fallback)
-            fallback = o;
-        if (o->name && !strcmp(o->name, s->wanted))
-            selected = o;
-    }
-    if (s->initial)
-    {
-        if (*s->wanted && !selected)
-        {
-            fail(s, "output '%s' was not found (requires wl_output v4 or xdg-output v2 names)", s->wanted);
-            return;
-        }
-        if (!selected)
-            selected = fallback;
-        if (!selected)
-        {
-            fail(s, "no Wayland output is available");
-            return;
-        }
-        if (!selected->name || !*selected->name)
+        if (!o->name || !*o->name)
         {
             fail(s, "stable output names require wl_output v4 or xdg-output v2");
             return;
         }
-        if (!*s->wanted && selected->name)
-        {
-            char *name = strdup(selected->name);
-            if (!name)
-            {
-                fail(s, "cannot capture default output identity");
-                return;
-            }
-            free(s->wanted);
-            s->wanted = name;
-        }
-        s->initial = false;
+        if (!fallback)
+            fallback = o;
+        if (!strcmp(o->name, s->wanted))
+            legacy = o;
     }
-    if (!selected)
-        selected = s->active ? s->active : fallback;
-    if (s->surface && (!s->active || s->active != selected))
-        destroy_surface(s);
-    // 合成器可能在移除 output 时关闭 layer。事件循环会先同步，
-    // 以便观察到相关的 registry 移除。
-    if (s->closed)
+    if (!s->config->explicit_displays && !s->ready_sent && !legacy && *s->config->output)
     {
-        fail(s, "compositor closed the overlay layer surface");
+        fail(s, "output '%s' was not found (requires wl_output v4 or xdg-output v2 names)", s->config->output);
         return;
     }
-    if (!s->surface && selected)
-        create_surface(s, selected);
-    else if (s->surface && s->active && apply_geometry(s, false))
-        wl_surface_commit(s->surface);
+    if (!s->config->explicit_displays && !s->ready_sent && !fallback)
+    {
+        fail(s, "no Wayland output is available");
+        return;
+    }
+    if (!s->config->explicit_displays && !*s->wanted && fallback)
+    {
+        char *name = strdup(fallback->name);
+        if (!name)
+        {
+            fail(s, "cannot capture default output identity");
+            return;
+        }
+        free(s->wanted);
+        s->wanted = name;
+        legacy = fallback;
+    }
+    // Only the legacy automatic selector may fall back to another output.
+    if (!s->config->explicit_displays && !*s->config->output && !legacy)
+        legacy = fallback;
+    for (struct output *o = s->outputs; o; o = o->next)
+    {
+        struct view *v = &o->view;
+        bool selected = o->ready && (s->config->explicit_displays ? explicitly_selected(s->config, o->name) : o == legacy);
+        if (!selected)
+        {
+            if (v->surface)
+                destroy_surface(v);
+            continue;
+        }
+        if (v->closed)
+        {
+            fail(s, "compositor closed the overlay layer surface on %s", o->name);
+            return;
+        }
+        if (!v->surface)
+            create_surface(v, o);
+        else if (apply_geometry(v, false))
+            wl_surface_commit(v->surface);
+    }
 }
 static void buffer_release(void *data, struct wl_buffer *buffer)
 {
@@ -891,33 +950,37 @@ static bool allocate_pixels(struct arcana_wayland *s, struct pixels *p, int widt
 static void frame_done(void *data, struct wl_callback *callback, uint32_t time)
 {
     (void)time;
-    struct arcana_wayland *s = data;
+    struct view *s = data;
     wl_callback_destroy(callback);
     s->frame = NULL;
 }
 static const struct wl_callback_listener frame_listener = {frame_done};
 
 // 仅绘制到已释放的存储；呈现与帧节流在后续处理。
-static bool paint_pixels(struct arcana_wayland *s, struct pixels *p)
+static bool paint_pixels(struct view *s, struct pixels *p)
 {
     // Cairo ARGB32 是本机字节序的预乘格式，与 wl_shm ARGB8888 匹配。
     cairo_surface_t *image = cairo_image_surface_create_for_data(p->data, CAIRO_FORMAT_ARGB32, p->width, p->height, p->stride);
     cairo_t *cr = cairo_create(image);
+    const struct arcana_wayland_config *c = s->state->config;
     cairo_scale(cr, (double)p->width / s->width, (double)p->height / s->height);
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-    cairo_set_source_rgba(cr, 0, 0, 0, s->config->background_alpha);
+    cairo_set_source_rgba(cr, ((c->background_rgb >> 16) & 255) / 255.0,
+                          ((c->background_rgb >> 8) & 255) / 255.0,
+                          (c->background_rgb & 255) / 255.0, c->background_alpha);
     cairo_paint(cr);
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
-    const struct arcana_wayland_config *c = s->config;
     double left = fmin(c->padding_left, s->width), top = fmin(c->padding_top, s->height);
     double width = fmax(0, s->width - left - fmin(c->padding_right, s->width));
     double height = fmax(0, s->height - top - fmin(c->padding_bottom, s->height));
-    if (width <= 0 || height <= 0 || !*c->text)
+    // Pango 将 alpha=0 解释为未指定；完全透明时不提交文字绘制。
+    guint16 text_alpha = (guint16)round(c->text_alpha * 65535);
+    if (width <= 0 || height <= 0 || !*c->text || !text_alpha)
         goto done;
     size_t text_length = strlen(c->text);
     if (text_length > INT_MAX)
     {
-        fail(s, "overlay text exceeds Pango's signed length limit");
+        fail(s->state, "overlay text exceeds Pango's signed length limit");
         cairo_destroy(cr);
         cairo_surface_destroy(image);
         return false;
@@ -932,6 +995,22 @@ static bool paint_pixels(struct arcana_wayland *s, struct pixels *p)
     pango_layout_set_width(layout, (int)fmin(width * PANGO_SCALE, INT_MAX));
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_text(layout, c->text, (int)text_length);
+    // Pango 区间使用原始 UTF-8 字节偏移；完整布局保留换行、包裹和尾部裁切的颜色。
+    PangoAttrList *attributes = pango_attr_list_new();
+    for (size_t i = 0; i < c->text_run_count; ++i)
+    {
+        const struct arcana_wayland_text_run *run = &c->text_runs[i];
+        PangoAttribute *foreground = pango_attr_foreground_new(
+            ((run->rgb >> 16) & 255) * 257, ((run->rgb >> 8) & 255) * 257, (run->rgb & 255) * 257);
+        foreground->start_index = (guint)run->start;
+        foreground->end_index = (guint)run->end;
+        pango_attr_list_insert(attributes, foreground);
+    }
+    // foreground 会替换 Cairo 源颜色；透明度必须作为独立属性应用于全部文本。
+    PangoAttribute *alpha = pango_attr_foreground_alpha_new(text_alpha);
+    pango_attr_list_insert(attributes, alpha);
+    pango_layout_set_attributes(layout, attributes);
+    pango_attr_list_unref(attributes);
     // 配置字体决定行高；先转 double 再相加，避免整数度量溢出。
     PangoContext *context = pango_layout_get_context(layout);
     PangoFontMetrics *metrics = pango_context_get_metrics(context, font, pango_context_get_language(context));
@@ -948,7 +1027,9 @@ static bool paint_pixels(struct arcana_wayland *s, struct pixels *p)
         int visible = (int)fmin(floor(height / line_height), line_count);
         for (int skip = line_count - visible; skip > 0; --skip)
             lines = lines->next;
-        cairo_set_source_rgba(cr, 1, 1, 1, c->text_alpha);
+        cairo_set_source_rgba(cr, ((c->text_rgb >> 16) & 255) / 255.0,
+                              ((c->text_rgb >> 8) & 255) / 255.0,
+                              (c->text_rgb & 255) / 255.0, c->text_alpha);
         double baseline = ascent + (line_height - ascent - descent) / 2;
         for (int row = 0; row < visible; ++row, lines = lines->next)
         {
@@ -964,6 +1045,17 @@ static bool paint_pixels(struct arcana_wayland *s, struct pixels *p)
             cairo_save(cr);
             cairo_rectangle(cr, left, y, width, line_height);
             cairo_clip(cr);
+            if (c->outline)
+            {
+                cairo_save(cr);
+                cairo_move_to(cr, x, y + baseline);
+                pango_cairo_layout_line_path(cr, line);
+                cairo_set_source_rgba(cr, 16.0 / 255, 19.0 / 255, 24.0 / 255, c->text_alpha);
+                cairo_set_line_width(cr, 1.0);
+                cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+                cairo_stroke(cr);
+                cairo_restore(cr);
+            }
             cairo_move_to(cr, x, y + baseline);
             pango_cairo_show_layout_line(cr, line);
             cairo_restore(cr);
@@ -980,16 +1072,16 @@ done:
     cairo_surface_destroy(image);
     if (status != CAIRO_STATUS_SUCCESS)
     {
-        fail(s, "Cairo drawing failed: %s", cairo_status_to_string(status));
+        fail(s->state, "Cairo drawing failed: %s", cairo_status_to_string(status));
         return false;
     }
     return true;
 }
 
 // 渲染按帧节流，并且还需等待已释放的像素存储。
-static void draw(struct arcana_wayland *s)
+static void draw(struct view *s)
 {
-    if (!s->dirty || !s->configured || s->frame || !s->active || s->error[0])
+    if (!s->dirty || !s->configured || s->frame || !s->active || s->state->error[0])
         return;
     struct pixels *p = NULL;
     for (int i = 0; i < 2; ++i)
@@ -1007,7 +1099,7 @@ static void draw(struct arcana_wayland *s)
     int height = (int)fmax(1, round(s->height * scale));
     if (width != p->width || height != p->height || !p->buffer)
     {
-        if (!allocate_pixels(s, p, width, height))
+        if (!allocate_pixels(s->state, p, width, height))
             return;
     }
     if (!paint_pixels(s, p))
@@ -1020,26 +1112,19 @@ static void draw(struct arcana_wayland *s)
     s->frame = wl_surface_frame(s->surface);
     if (!s->frame)
     {
-        fail(s, "cannot allocate frame callback");
+        fail(s->state, "cannot allocate frame callback");
         return;
     }
     wl_callback_add_listener(s->frame, &frame_listener, s);
     p->busy = true;
     s->dirty = false;
     wl_surface_commit(s->surface);
-    if (!s->ready_sent)
-    {
-        s->ready_sent = true;
-        arcanaWaylandReady(s->ready_handle);
-    }
 }
 static void cleanup_native(struct arcana_wayland *s)
 {
     if (!s->display)
         return;
-    destroy_surface(s);
-    for (int i = 0; i < 2; ++i)
-        free_pixels(&s->pixels[i]);
+    // Output destruction also releases its surface and pixel stores.
     while (s->outputs)
     {
         struct output *next = s->outputs->next;
@@ -1098,6 +1183,19 @@ const char *arcana_wayland_run(struct arcana_wayland *s)
     for (int i = 0; i < 3; ++i)
         if (synchronize(s))
             goto done;
+    if (s->listing)
+    {
+        for (struct output *o = s->outputs; o; o = o->next)
+        {
+            if (!o->ready || !o->name || !*o->name)
+            {
+                fail(s, "stable output names require wl_output v4 or xdg-output v2");
+                goto done;
+            }
+            arcanaWaylandDisplay(s->list_handle, o->name, o->description && *o->description ? o->description : o->name);
+        }
+        goto done;
+    }
     if (!s->shell)
     {
         fail(s, "Wayland compositor lacks required zwlr_layer_shell_v1; GNOME/Mutter needs separate Shell integration; no normal-window or X11 fallback");
@@ -1117,7 +1215,10 @@ const char *arcana_wayland_run(struct arcana_wayland *s)
     {
         if (consume(s) || s->error[0])
             break;
-        if (s->closed && synchronize(s))
+        bool closed = false;
+        for (struct output *o = s->outputs; o; o = o->next)
+            closed = closed || o->view.closed;
+        if (closed && synchronize(s))
             break;
         // 输出公告先于 bind 后的名称/尺寸事件。按需等待协议栅栏，
         // 不把尚未收齐元数据的新显示器误判为不存在，也不做定时轮询。
@@ -1132,13 +1233,30 @@ const char *arcana_wayland_run(struct arcana_wayland *s)
         reconcile_output(s);
         if (s->error[0])
             break;
-        draw(s);
+        bool ready = true;
+        for (struct output *o = s->outputs; o; o = o->next)
+        {
+            draw(&o->view);
+            if (o->view.surface && (!o->view.configured || o->view.dirty))
+                ready = false;
+        }
+        if (ready && !s->ready_sent && !s->error[0])
+        {
+            s->ready_sent = true;
+            arcanaWaylandReady(s->ready_handle);
+        }
         if (s->error[0] || pump(s, -1))
             break;
     }
 done:
     cleanup_native(s);
     return s->error[0] ? s->error : NULL;
+}
+const char *arcana_wayland_list(struct arcana_wayland *s, uintptr_t handle)
+{
+    s->listing = true;
+    s->list_handle = handle;
+    return arcana_wayland_run(s);
 }
 void arcana_wayland_free(struct arcana_wayland *s)
 {

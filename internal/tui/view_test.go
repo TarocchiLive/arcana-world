@@ -12,7 +12,7 @@ import (
 )
 
 func TestLongStatusRemainsCompleteAcrossResize(t *testing.T) {
-	s, err := store.Open(t.TempDir())
+	s, err := store.Open(t.TempDir(), store.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

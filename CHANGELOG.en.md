@@ -4,6 +4,34 @@
 
 Versions are listed newest first.
 
+## [v0.2.1]: 2026-09-20
+
+### Added
+
+- Automatically save login credentials and OBS passwords to `credentials/secrets.json` under the data directory when Linux has no system keyring or cannot connect to the user credential service, and show a file-storage fallback notice. Locked keyrings and denied access still produce errors. The file stores plaintext, with Unix directory and file permissions restricted to `0700` and `0600`, or a restricted ACL on Windows. Profiles with an existing credential file continue using file storage.
+- Add CLI options for credential storage (including memory-only mode), proxy, OBS auto-connect/auto-stream, and TTS. Explicit overrides apply only to the current run and are not saved. See `--help` for usage.
+- Add `--doctor` read-only diagnostics for configuration, credential services, and optional helpers, without reading secrets or starting graphics, audio, or business services.
+- Press `o` on sign-in and identity-verification screens to open the QR code in the system image viewer without interrupting login polling.
+- Select multiple overlay displays by name, with mouse or keyboard changes saved and applied immediately. Displays share content snapshots; disconnected selections stay hidden instead of moving to another monitor and return when reconnected.
+- Add separate overlay colors for ordinary text, background, Captain, Admiral, Governor, and Super Chat. Preview `#RRGGBB` input live, save on confirmation, or cancel to restore the saved color. The default palette uses pure white text, muted coral guard purchases, warm gold Super Chats, and a dark blue-gray background.
+
+### Changed
+
+- Display and speak guard subscriptions by duration, such as “张三开通了1个月的舰长”, preserving annual and short-term subscriptions. Gifts continue to show quantities.
+- Add a thin dark outline to overlay text, enabled by default and toggleable in Overlay content & appearance. Changes are saved and applied immediately. Default text opacity is 1.0 and background opacity is 0.35 for readability over light backgrounds.
+
+### Fixed
+
+- Return to the same appearance option after saving or canceling an edit, preserving the list position for consecutive changes. Press Esc from the appearance list to return to the overlay menu.
+- Fix the macOS overlay background covering the entire display. Draw it only within the configured overlay position and size, leaving the rest transparent.
+- Fix directory ACL access in the Windows file credential backend while retaining access only for the current user and SYSTEM.
+- Fix a race between socket deadlines and the context timer during overlay startup, consistently reporting a deadline error when the startup budget expires.
+- Raise the minimum Go version to 1.26.8 so CI and release builds use a toolchain with standard-library security fixes.
+
+### Upgrade notes
+
+- Extract the complete release archive and update both the main executable and the `libexec` directory. Do not mix files from different versions.
+
 ## [v0.2.0]: 2026-09-18
 
 This stable release uses the application code from `v0.2.0-rc.2`. All platform packages are rebuilt with the application version set to `0.2.0`. Prereleases remain available for reference.
@@ -178,6 +206,7 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 - Provide persistent configuration, operation logs, and command-line options including `--config-dir` and `--version`.
 - Establish basic tests and CI, with a Linux x64 release archive and checksums.
 
+[v0.2.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.1
 [v0.2.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0
 [v0.2.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-rc.2
 [v0.2.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-rc.1

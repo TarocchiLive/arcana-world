@@ -18,11 +18,11 @@ type switchSecrets struct {
 	reject bool
 }
 
-func (s *switchSecrets) Set(service, user, value string) error {
-	if s.reject && user == "account:7" {
+func (s *switchSecrets) Set(key, value string) error {
+	if s.reject && key == "account:7" {
 		return fmt.Errorf("credential store rejected target")
 	}
-	return s.lifecycleSecrets.Set(service, user, value)
+	return s.lifecycleSecrets.Set(key, value)
 }
 
 func switchModel(t *testing.T, failure string) (*Model, domain.Account, *atomic.Int32, *switchSecrets) {

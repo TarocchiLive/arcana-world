@@ -2,6 +2,7 @@ package i18n
 
 // TUI 消息键按界面语义组织，文案由语言词表提供。
 const (
+	TUISessionOverride                 Key = "tui.session_override"
 	TUIAccountSignedOut                Key = "tui.account.signed_out"
 	TUIAccountsDescription             Key = "tui.accounts.description"
 	TUIAccountsTitle                   Key = "tui.accounts.title"
@@ -155,6 +156,7 @@ const (
 	TUIProtocolSRTOnly                 Key = "tui.protocol.srt_only"
 	TUIQRIdentityTitle                 Key = "tui.qr.identity_title"
 	TUIQRLinkTooLong                   Key = "tui.qr.link_too_long"
+	TUIQROpenFailed                    Key = "tui.qr.open_failed"
 	TUIQRSignInTitle                   Key = "tui.qr.sign_in_title"
 	TUIQRTokenWarning                  Key = "tui.qr.token_warning"
 	TUIQRVisibilityHint                Key = "tui.qr.visibility_hint"

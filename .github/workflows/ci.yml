@@ -19,14 +19,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
+            goarch: amd64
             suffix: ''
-          - os: macos-latest
+          - os: ubuntu-24.04-arm
+            goarch: arm64
+            suffix: ''
+          - os: macos-15-intel
+            goarch: amd64
+            suffix: ''
+          - os: macos-15
+            goarch: arm64
             suffix: ''
           - os: windows-latest
+            goarch: amd64
             suffix: .exe
           - os: windows-latest
             goarch: '386'
+            suffix: .exe
+          - os: windows-11-arm
+            goarch: arm64
             suffix: .exe
     runs-on: ${{ matrix.os }}
     env:
@@ -71,7 +83,7 @@ jobs:
           "./bin/libexec/arcana-world-tts${{ matrix.suffix }}" -help
       - uses: actions/upload-artifact@v7
         with:
-          name: desktop-${{ runner.os }}-${{ matrix.goarch || runner.arch }}
+          name: desktop-${{ runner.os }}-${{ matrix.goarch }}
           path: bin/
 
   vulnerabilities:

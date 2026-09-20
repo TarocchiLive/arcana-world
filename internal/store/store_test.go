@@ -7,23 +7,7 @@ import (
 	"testing"
 
 	"arcana-world/internal/domain"
-	"github.com/zalando/go-keyring"
 )
-
-type memoryBackend map[string]string
-
-func (b memoryBackend) Get(service, user string) (string, error) {
-	v, ok := b[service+user]
-	if !ok {
-		return "", keyring.ErrNotFound
-	}
-	return v, nil
-}
-func (b memoryBackend) Set(service, user, password string) error {
-	b[service+user] = password
-	return nil
-}
-func (b memoryBackend) Delete(service, user string) error { delete(b, service+user); return nil }
 
 func TestFailedIndexCommitRestoresPreviousCredential(t *testing.T) {
 	dir := t.TempDir()
@@ -114,11 +98,11 @@ type unavailableBackend struct {
 	unavailable bool
 }
 
-func (b *unavailableBackend) Get(s, u string) (string, error) {
+func (b *unavailableBackend) Get(user string) (string, error) {
 	if b.unavailable {
 		return "", errors.New("service locked")
 	}
-	return b.memoryBackend.Get(s, u)
+	return b.memoryBackend.Get(user)
 }
 func TestTransientKeyringFailurePreservesAccount(t *testing.T) {
 	backend := &unavailableBackend{memoryBackend: memoryBackend{}}

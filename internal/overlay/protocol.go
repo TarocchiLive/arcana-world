@@ -12,8 +12,8 @@ import (
 
 // 每帧为四字节大端长度加 UTF-8 JSON；不依赖控制台编码，
 // 文本中的换行不会被误当作消息边界。接收前先限制长度，再解析内容。
-const protocolVersion = 1
-const maxFrameBytes = 6*MaxTextBytes + 16*1024
+const protocolVersion = 3
+const maxFrameBytes = 6*(MaxTextBytes+64*1024) + 16*1024
 const tokenEnvironment = "ARCANA_OVERLAY_TOKEN"
 const writeTimeout = 2 * time.Second
 

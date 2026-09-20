@@ -25,6 +25,9 @@ func (m *Model) handleSettingsResetResult(value *bili.Client, err error, label i
 	if err := m.closeTTS(); err != nil {
 		m.log(fmt.Sprintf(i18n.T(i18n.TTSLogStopFailed), err))
 	}
+	if m.ttsOverride != nil {
+		m.tts.enabled = *m.ttsOverride
+	}
 	m.syncChat()
 	m.log(i18n.T(i18n.TUISettingsResetDone))
 	return tea.Batch(m.stopOverlay(), m.updateOverlayChat())
@@ -68,6 +71,16 @@ func (m *Model) applyOverlaySettings(notice i18n.Key) {
 }
 
 func (m *Model) handleOverlayConfigResult(_ struct{}, err error, label i18n.Key) tea.Cmd {
+	defer func() {
+		if m.overlaySettings != nil {
+			m.showOverlaySettings()
+		}
+	}()
+	if err != nil {
+		m.clearOverlayColorPreview()
+	} else {
+		m.overlayColorPreview = nil
+	}
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
@@ -91,6 +104,11 @@ func (m *Model) handleOverlayToggleResult(_ struct{}, err error, label i18n.Key)
 }
 
 func (m *Model) handleOverlayRestoreResult(_ struct{}, err error, label i18n.Key) tea.Cmd {
+	defer func() {
+		if m.overlaySettings != nil {
+			m.showOverlaySettings()
+		}
+	}()
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
@@ -99,6 +117,15 @@ func (m *Model) handleOverlayRestoreResult(_ struct{}, err error, label i18n.Key
 }
 
 var (
-	obsPasswordOperation = completionOperation(i18n.TUIOperationUpdateOBSPassword)
+	obsPasswordOperation = operation[struct{}]{label: i18n.TUIOperationUpdateOBSPassword, handle: (*Model).handleOBSPasswordResult}
 	obsURLOperation      = completionOperation(i18n.TUIOperationUpdateOBSURL)
 )
+
+func (m *Model) handleOBSPasswordResult(_ struct{}, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
+		return cmd
+	}
+	m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationSucceeded), i18n.T(label)))
+	m.logCredentialStorage()
+	return m.finishResult()
+}

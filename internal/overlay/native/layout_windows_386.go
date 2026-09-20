@@ -34,9 +34,14 @@ func winRegisterMethod(method any, address uintptr) {
 			hr, _, _ := syscall.SyscallN(address, uintptr(unsafe.Pointer(object)), uintptr(value))
 			return int32(hr)
 		}
-	case *func(*winCOMObject, *winTextLayoutMetrics) int32:
-		*method = func(object *winCOMObject, metrics *winTextLayoutMetrics) int32 {
-			hr, _, _ := syscall.SyscallN(address, uintptr(unsafe.Pointer(object)), uintptr(unsafe.Pointer(metrics)))
+	case *func(*winCOMObject, *winLineMetrics, uint32, *uint32) int32:
+		*method = func(object *winCOMObject, metrics *winLineMetrics, capacity uint32, count *uint32) int32 {
+			hr, _, _ := syscall.SyscallN(address, uintptr(unsafe.Pointer(object)), uintptr(unsafe.Pointer(metrics)), uintptr(capacity), uintptr(unsafe.Pointer(count)))
+			return int32(hr)
+		}
+	case *func(*winCOMObject, *winCOMObject, winTextRange) int32:
+		*method = func(object, effect *winCOMObject, span winTextRange) int32 {
+			hr, _, _ := syscall.SyscallN(address, uintptr(unsafe.Pointer(object)), uintptr(unsafe.Pointer(effect)), uintptr(span.Start), uintptr(span.Length))
 			return int32(hr)
 		}
 	case *func(*winCOMObject, *winD2DProperties, **winCOMObject) int32:

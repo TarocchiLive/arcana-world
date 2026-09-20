@@ -251,6 +251,10 @@ func (m *Model) perform(action string) tea.Cmd {
 		}
 		return m.form("obs-password", i18n.T(i18n.TUIFormOBSPassword), "", true)
 	case "proxy":
+		if m.store.Overrides().Proxy != nil {
+			m.log(i18n.T(i18n.TUISessionOverride))
+			return nil
+		}
 		return m.form("proxy", i18n.T(i18n.TUIFormProxy), m.config.Proxy, false)
 	case "protocol":
 		m.choices = []choice{{"RTMP", "rtmp"}, {i18n.T(i18n.TUIProtocolSRTFallback), "srt-fallback"}, {i18n.T(i18n.TUIProtocolSRTOnly), "srt"}}
@@ -265,6 +269,11 @@ func (m *Model) perform(action string) tea.Cmd {
 	case "obs-disconnect":
 		return m.disconnectOBS()
 	case "obs-auto-connect", "obs-auto-stream":
+		overrides := m.store.Overrides()
+		if action == "obs-auto-connect" && overrides.OBSAutoConnect != nil || action == "obs-auto-stream" && overrides.OBSAutoStream != nil {
+			m.log(i18n.T(i18n.TUISessionOverride))
+			return nil
+		}
 		if m.obsBusy {
 			m.log(i18n.T(i18n.TUIStatusWaitOBS))
 			return nil
@@ -339,6 +348,9 @@ func (m *Model) choose() tea.Cmd {
 		return nil
 	}
 	ch := m.choices[m.selected]
+	if m.editKind == "overlay-displays" {
+		return m.toggleOverlayDisplay(ch.value)
+	}
 	if m.editKind == "output-events" {
 		return m.toggleOutputEvent(ch.value)
 	}
@@ -394,6 +406,9 @@ func (m *Model) submitForm() tea.Cmd {
 		return tea.Quit
 	}
 	if strings.HasPrefix(kind, "overlay-") {
+		if m.editingOverlayColor() != nil {
+			value = m.input.Value()
+		}
 		return m.submitOverlay(kind, value)
 	}
 	// 密码保留原始字节，不去除首尾空白。
@@ -419,6 +434,10 @@ func (m *Model) submitForm() tea.Cmd {
 			return nil
 		}
 	case "proxy":
+		if m.store.Overrides().Proxy != nil {
+			m.log(i18n.T(i18n.TUISessionOverride))
+			return nil
+		}
 		client, err := bili.New(value)
 		if err != nil {
 			m.status = clean(err.Error())

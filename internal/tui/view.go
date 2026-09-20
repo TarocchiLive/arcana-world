@@ -76,6 +76,9 @@ func (m *Model) View() string {
 	if m.mode == "pick" && m.editKind == "output-events" {
 		footer = i18n.T(i18n.OutputEventsFooter)
 	}
+	if m.mode == "pick" && m.editKind == "overlay-displays" {
+		footer = i18n.T(i18n.OutputDisplaysFooter)
+	}
 	if m.busy {
 		footer = i18n.T(i18n.TUIFooterBusy)
 	}
@@ -88,6 +91,7 @@ func (m *Model) View() string {
 		m.view.Height = max(1, m.view.Height-lipgloss.Height(chatHeader))
 		chatHeader += "\n"
 	}
+	m.pickerTop = 4 + lipgloss.Height(tabBar)
 	content := m.content()
 	m.view.SetContent(content)
 	if m.mode == "pick" || (m.mode == "" && len(m.menu()) > 0 && m.page != chatPage) {
@@ -113,7 +117,7 @@ func (m *Model) View() string {
 	}
 	return lipgloss.NewStyle().Padding(1, 2).Render(
 		ansi.Truncate(header, width, "") + "\n" +
-			muted.Render(i18n.T(i18n.TUIViewAccountLabel)+account) + "\n" + tabBar + "\n\n" +
+			muted.Render(ansi.Truncate(strings.ReplaceAll(i18n.T(i18n.TUIViewAccountLabel)+account, "\n", " "), width, "")) + "\n" + tabBar + "\n\n" +
 			chatHeader + m.view.View() + "\n" +
 			status + "\n" +
 			lipgloss.NewStyle().MaxWidth(width).Render(muted.Render(footer)))
@@ -138,7 +142,7 @@ func (m *Model) content() string {
 		if m.editKind == "clear-data" {
 			promptStyle = danger
 		}
-		return promptStyle.Render(ansi.Wrap(clean(m.prompt), m.view.Width, "")) + "\n\n" + m.input.View() + "\n\n" + muted.Render(i18n.T(i18n.TUIFormControls))
+		return promptStyle.Render(ansi.Wrap(clean(m.prompt), m.view.Width, "")) + "\n\n" + m.input.View() + m.overlayColorSample() + "\n\n" + muted.Render(i18n.T(i18n.TUIFormControls))
 	case "confirm":
 		no, yes := i18n.T(i18n.TUIConfirmCancelLabel), i18n.T(i18n.TUIConfirmExecuteLabel)
 		if m.selected == 0 {
@@ -157,6 +161,8 @@ func (m *Model) content() string {
 			text := m.choices[i].label
 			if m.editKind == "output-events" {
 				text = m.outputEventLabel(m.choices[i])
+			} else if m.editKind == "overlay-displays" {
+				text = m.overlayDisplayLabel(m.choices[i])
 			}
 			label := ansi.Truncate(clean(text), max(1, m.view.Width-3), "…")
 			if i == m.selected {
@@ -168,6 +174,9 @@ func (m *Model) content() string {
 		controls := i18n.TUISelectionPickerControls
 		if m.editKind == "output-events" {
 			controls = i18n.OutputEventsControls
+		}
+		if m.editKind == "overlay-displays" {
+			controls = i18n.OutputDisplaysControls
 		}
 		fmt.Fprintf(&b, i18n.T(controls), m.selected+1, len(m.choices))
 		return b.String()

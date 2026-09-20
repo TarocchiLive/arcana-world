@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -20,9 +21,9 @@ func TestReadFrameRejectsInvalidInput(t *testing.T) {
 		{name: "oversize", size: maxFrameBytes + 1},
 		{name: "empty"},
 		{name: "truncated", body: "{}", size: 20},
-		{name: "version", body: `{"version":2,"type":"hello"}`},
-		{name: "unknown field", body: `{"version":1,"type":"hello","extra":true}`},
-		{name: "trailing value", body: `{"version":1,"type":"hello"}{}`},
+		{name: "version", body: fmt.Sprintf(`{"version":%d,"type":"hello"}`, protocolVersion+1)},
+		{name: "unknown field", body: fmt.Sprintf(`{"version":%d,"type":"hello","extra":true}`, protocolVersion)},
+		{name: "trailing value", body: fmt.Sprintf(`{"version":%d,"type":"hello"}{}`, protocolVersion)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			size := test.size

@@ -18,10 +18,53 @@ type Event struct {
 	Kind, User, UID, Text, Gift, CoinType string
 	Count                                 int64
 	Amount                                int64
+	GuardUnit                             string `json:",omitempty"`
 	Time                                  time.Time
 	Deleted                               bool
 	Title                                 string       `json:",omitempty"`
 	Fields                                []EventField `json:",omitempty"`
+}
+
+// GuardPeriod returns a duration, not a gift quantity. A self-contained unit
+// such as "*3天" overrides the protocol's quantity.
+func (e Event) GuardPeriod() (int64, string) {
+	count, unit := e.Count, e.GuardUnit
+	if e.Kind == "detail" {
+		countKey, unitKey := "num", "unit"
+		if e.Text == "LIVE_OPEN_PLATFORM_GUARD" {
+			countKey, unitKey = "guard_num", "guard_unit"
+		}
+		for _, field := range e.Fields {
+			switch field.Name {
+			case countKey:
+				count, _ = strconv.ParseInt(field.Value, 10, 64)
+			case unitKey:
+				unit = field.Value
+			}
+		}
+	}
+	unit = strings.TrimSpace(unit)
+	switch unit {
+	case "", "月", "个月":
+		if count > 0 {
+			return count, "月"
+		}
+	case "年", "天":
+		if count > 0 {
+			return count, unit
+		}
+	default:
+		unit = strings.TrimLeft(unit, "*×")
+		for _, suffix := range [...]string{"个月", "月", "年", "天"} {
+			if value, ok := strings.CutSuffix(unit, suffix); ok {
+				if n, err := strconv.ParseInt(value, 10, 64); err == nil && n > 0 {
+					return n, strings.TrimPrefix(suffix, "个")
+				}
+			}
+		}
+		return 0, unit
+	}
+	return 0, ""
 }
 
 // EventField retains a named, decoded protocol value without selecting a UI language.
@@ -155,6 +198,7 @@ func project(room int64, raw []byte) projection {
 		}
 		p.event.Kind, p.event.User, p.event.UID = "guard", stringValue(data["username"]), stringValue(data["uid"])
 		p.event.Gift, p.event.Count = stringValue(data["gift_name"]), number(data["num"])
+		p.event.GuardUnit = "月"
 		// No documented transaction ID: retain ambiguous guard representations.
 	case "USER_TOAST_MSG_V2", "USER_TOAST_V2":
 		if data == nil {
@@ -167,6 +211,7 @@ func project(room int64, raw []byte) projection {
 		p.event.Kind, p.event.User, p.event.UID = "guard", stringValue(object(sender["base"])["name"]), stringValue(sender["uid"])
 		p.event.Count, p.event.Text = number(pay["num"]), stringValue(data["toast_msg"])
 		p.event.Gift = guardName(number(guard["guard_level"]))
+		p.event.GuardUnit = stringValue(pay["unit"])
 	default:
 		p = projectRoomEvent(p, cmd, root)
 		if p.event.Kind == "unknown" {

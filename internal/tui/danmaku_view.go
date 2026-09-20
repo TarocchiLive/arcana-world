@@ -153,7 +153,22 @@ func chatEventText(e danmaku.Event) string {
 	case "sc":
 		return fmt.Sprintf(i18n.T(i18n.DanmakuSC), e.Amount, user, text)
 	case "guard":
-		return fmt.Sprintf(i18n.T(i18n.DanmakuGuard), user, chatText(e.Gift, 128), e.Count)
+		count, unit := e.GuardPeriod()
+		duration := chatText(unit, 32)
+		if count > 0 {
+			key := i18n.DanmakuGuardMonths
+			switch unit {
+			case "年":
+				key = i18n.DanmakuGuardYears
+			case "天":
+				key = i18n.DanmakuGuardDays
+			}
+			duration = fmt.Sprintf(i18n.T(key), count)
+		}
+		if duration != "" {
+			duration = fmt.Sprintf(i18n.T(i18n.DanmakuGuardDuration), duration)
+		}
+		return fmt.Sprintf(i18n.T(i18n.DanmakuGuard), user, duration, chatText(e.Gift, 128))
 	case "enter":
 		return fmt.Sprintf(i18n.T(i18n.DanmakuEnter), user)
 	case "follow":

@@ -23,7 +23,7 @@ var specs = []EventSpec{
 	{"chat", i18n.OutputEventChat, `{{.User}}：{{.Text}}`, `{{.User}}说：{{.Text}}`},
 	{"gift", i18n.OutputEventGift, `{{.User}}赠送{{.Gift}}{{if gt .Count 0}} × {{.Count}}{{end}}{{.Coins}}`, `感谢{{.User}}赠送{{if gt .Count 0}}{{.Count}}个{{end}}{{.Gift}}`},
 	{"sc", i18n.OutputEventSC, `{{.User}}的醒目留言{{if gt .Amount 0}}（{{.Amount}}元）{{end}}：{{.Text}}`, `{{.User}}发送了{{if gt .Amount 0}}{{.Amount}}元的{{end}}醒目留言：{{.Text}}`},
-	{"guard", i18n.OutputEventGuard, `{{.User}}开通{{.Gift}}{{if gt .Count 0}} × {{.Count}}{{end}}`, `感谢{{.User}}开通{{.Gift}}{{if gt .Count 0}}，数量{{.Count}}{{end}}`},
+	{"guard", i18n.OutputEventGuard, `{{.User}}开通了{{with .GuardDuration}}{{.}}的{{end}}{{.Gift}}`, `感谢{{.User}}开通了{{with .GuardDuration}}{{.}}的{{end}}{{.Gift}}`},
 	{"enter", i18n.OutputEventEnter, `欢迎{{.User}}进入直播间`, `欢迎{{.User}}来到直播间`},
 	{"follow", i18n.OutputEventFollow, `{{.User}}关注了主播`, `感谢{{.User}}的关注`},
 	{"like", i18n.OutputEventLike, `{{.User}}点赞了直播间`, `感谢{{.User}}的点赞`},
@@ -33,10 +33,10 @@ var specs = []EventSpec{
 	{"room_block", i18n.OutputEventRoomBlock, `{{.User}}已被禁言`, `{{.User}}已被直播间禁言`},
 	{"cut_off", i18n.OutputEventCutOff, `直播已被切断：{{.Text}}`, `直播已被切断。{{.Text}}`},
 	{"delete", i18n.OutputEventDelete, `醒目留言已删除`, `有醒目留言被删除`},
-	{"USER_TOAST_MSG", i18n.OutputEventGuardPurchase, `{{.F "data.username" "观众"}}开通{{.Guard}}{{with .N "data.num"}} × {{.}}{{end}}{{with .F "data.unit" ""}}{{.}}{{end}}`, `感谢{{.F "data.username" "观众"}}开通{{.Guard}}{{with .N "data.num"}}，数量{{.}}{{end}}`},
+	{"USER_TOAST_MSG", i18n.OutputEventGuardPurchase, `{{.F "data.username" "观众"}}开通了{{with .GuardDuration}}{{.}}的{{end}}{{.Guard}}`, `感谢{{.F "data.username" "观众"}}开通了{{with .GuardDuration}}{{.}}的{{end}}{{.Guard}}`},
 	{"GUIARD_MSG", i18n.OutputEventGuardNotice, `大航海通知：{{.F "msg" "有人开通了大航海"}}`, `收到大航海通知。{{.F "msg" "有人开通了大航海"}}`},
 	{"LIVE_OPEN_PLATFORM_SEND_GIFT", i18n.OutputEventInteractiveGift, `{{.F "data.uname" "观众"}}赠送{{.F "data.gift_name" "礼物"}}{{with .N "data.gift_num"}} × {{.}}{{end}}`, `感谢{{.F "data.uname" "观众"}}赠送{{with .N "data.gift_num"}}{{.}}个{{end}}{{.F "data.gift_name" "礼物"}}`},
-	{"LIVE_OPEN_PLATFORM_GUARD", i18n.OutputEventInteractiveGuard, `{{.F "data.user_info.uname" "观众"}}开通{{.Guard}}{{with .N "data.guard_num"}} × {{.}}{{end}}`, `感谢{{.F "data.user_info.uname" "观众"}}开通{{.Guard}}{{with .N "data.guard_num"}}，数量{{.}}{{end}}`},
+	{"LIVE_OPEN_PLATFORM_GUARD", i18n.OutputEventInteractiveGuard, `{{.F "data.user_info.uname" "观众"}}开通了{{with .GuardDuration}}{{.}}的{{end}}{{.Guard}}`, `感谢{{.F "data.user_info.uname" "观众"}}开通了{{with .GuardDuration}}{{.}}的{{end}}{{.Guard}}`},
 	{"RECALL_DANMU_MSG", i18n.OutputEventRecall, `弹幕已撤回{{with .N "data.target_id"}}（编号{{.}}）{{end}}`, `有一条弹幕被撤回`},
 	{"WARNING", i18n.OutputEventWarning, `直播警告：{{.F "msg" "请遵守直播规范"}}`, `收到直播警告。{{.F "msg" "请遵守直播规范"}}`},
 	{"ROOM_SILENT_ON", i18n.OutputEventSilentOn, `直播间已开启{{.Silent}}{{with .N "data.level"}}，等级门槛{{.}}{{end}}{{with .N "data.second"}}，时长{{.}}秒{{end}}{{with .F "data.msg" ""}}：{{.}}{{end}}`, `直播间已开启{{.Silent}}{{with .F "data.msg" ""}}。{{.}}{{end}}`},
@@ -86,6 +86,28 @@ func Enabled(disabled []string, e danmaku.Event) bool {
 func RenderOverlay(e danmaku.Event) string { return render(e, false) }
 func RenderTTS(e danmaku.Event) string     { return render(e, true) }
 
+// OverlayRole identifies the purchase category without inspecting rendered text.
+func OverlayRole(e danmaku.Event) byte {
+	if e.Kind == "sc" {
+		return 's'
+	}
+	var guard string
+	if e.Kind == "guard" {
+		guard = e.Gift
+	} else if id := ID(e); id == "USER_TOAST_MSG" || id == "LIVE_OPEN_PLATFORM_GUARD" {
+		guard = (eventData{e}).Guard()
+	}
+	switch guard {
+	case "舰长":
+		return 'c'
+	case "提督":
+		return 'a'
+	case "总督":
+		return 'g'
+	}
+	return 'n'
+}
+
 func render(e danmaku.Event, spoken bool) string {
 	t, exists := compiled[ID(e)]
 	if !exists {
@@ -103,6 +125,17 @@ func render(e danmaku.Event, spoken bool) string {
 }
 
 type eventData struct{ danmaku.Event }
+
+func (d eventData) GuardDuration() string {
+	count, unit := d.Event.GuardPeriod()
+	if count <= 0 {
+		return clean(unit, 32)
+	}
+	if unit == "月" {
+		unit = "个月"
+	}
+	return strconv.FormatInt(count, 10) + unit
+}
 
 func (d eventData) User() string { return fallback(clean(d.Event.User, 80), "观众") }
 func (d eventData) Text() string {

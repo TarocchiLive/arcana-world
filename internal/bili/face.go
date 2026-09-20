@@ -20,7 +20,7 @@ import (
 // ResolveFace 返回 B 站的真实验证页面，不会将用户标记为已验证。
 // 用户完成页面验证后，必须明确重试开播操作。
 // V1 已携带二维码 URL；V2 会注册并解码风控质询，
-// 随后严格按照 StartLive 的方式构建经过两次 URL 转义的令牌链接。
+// 随后构建经过两次 URL 转义的令牌链接。
 func (c *Client) ResolveFace(ctx context.Context, challenge *domain.FaceChallenge) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err

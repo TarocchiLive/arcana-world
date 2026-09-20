@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,7 +66,7 @@ func TestResetSettingsRequiresConfirmationAndKeepsOBS(t *testing.T) {
 	}
 	m.Update(msg)
 	got, defaults := m.store.Config(), store.DefaultConfig()
-	if got.Proxy != defaults.Proxy || got.Protocol != defaults.Protocol || got.Overlay != defaults.Overlay || got.ExitOBSStopDisabled || got.ExitLiveStopDisabled || m.overlayEnabled {
+	if got.Proxy != defaults.Proxy || got.Protocol != defaults.Protocol || !reflect.DeepEqual(got.Overlay, defaults.Overlay) || got.ExitOBSStopDisabled || got.ExitLiveStopDisabled || m.overlayEnabled {
 		t.Fatal("settings reset did not apply to the persisted and running model")
 	}
 	if got.OBSURL != endpoint || !got.OBSAutoConnect || !m.obsClient.Snapshot().Connected || !state.active.Load() || state.stops.Load() != 0 {
@@ -240,5 +241,96 @@ func TestRestoreOverlayAppearanceRequiresConfirmationAndKeepsContent(t *testing.
 	want.Overlay.Enabled, want.Overlay.Content = cfg.Overlay.Enabled, cfg.Overlay.Content
 	if !reflect.DeepEqual(m.store.Config(), want) || !m.overlayEnabled {
 		t.Fatal("appearance restore changed content, enable state or unrelated settings")
+	}
+}
+
+func TestOverlayAppearanceEditsReturnToTheirListPosition(t *testing.T) {
+	m := lifecycleModel(t, context.Background())
+	m.page = overlayPage
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	m.perform("overlay-settings")
+	selectField := func(key string) {
+		t.Helper()
+		for i, ch := range m.choices {
+			if ch.value == key {
+				m.selected = i
+				m.View()
+				return
+			}
+		}
+		t.Fatalf("missing appearance option %q", key)
+	}
+	assertReturned := func(key string, offset int) {
+		t.Helper()
+		m.View()
+		if m.mode != "pick" || m.editKind != "overlay-fields" || m.choices[m.selected].value != key {
+			t.Fatalf("editor did not return to %q: mode=%s kind=%s selected=%d", key, m.mode, m.editKind, m.selected)
+		}
+		if m.view.YOffset != offset {
+			t.Fatalf("list scrolled on return: got %d, want %d", m.view.YOffset, offset)
+		}
+	}
+
+	selectField("super-chat-color")
+	offset := m.view.YOffset
+	before := m.config.Overlay.Colors
+	m.choose()
+	m.input.SetValue("#123456")
+	m.updateOverlayColorPreview()
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	assertReturned("super-chat-color", offset)
+	if m.overlayColorPreview != nil || m.store.Config().Overlay.Colors != before {
+		t.Fatal("canceling color edit retained preview or saved a color")
+	}
+
+	selectField("font-size")
+	offset = m.view.YOffset
+	m.choose()
+	m.input.SetValue("24")
+	_, save := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if save == nil {
+		t.Fatal("font change did not start saving")
+	}
+	assertReturned("font-size", offset)
+	m.Update(save())
+	assertReturned("font-size", offset)
+	if m.store.Config().Overlay.Font.Size != 24 || !strings.Contains(m.choices[m.selected].label, "24") {
+		t.Fatal("saved font size was not reflected in the appearance list")
+	}
+
+	selectField("background-color")
+	offset = m.view.YOffset
+	m.choose()
+	m.input.SetValue("#123456")
+	m.updateOverlayColorPreview()
+	_, pending := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if pending == nil {
+		t.Fatal("background change did not start saving")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m.Update(pending())
+	assertReturned("background-color", offset)
+	if m.overlayColorPreview != nil || m.store.Config().Overlay.Colors != before {
+		t.Fatal("canceling pending save changed the palette")
+	}
+
+	selectField("anchor")
+	offset = m.view.YOffset
+	m.choose()
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	assertReturned("anchor", offset)
+
+	selectField("restore")
+	offset = m.view.YOffset
+	m.choose()
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter}) // Default confirmation choice is Cancel.
+	assertReturned("restore", offset)
+	if m.store.Config().Overlay.Font.Size != 24 {
+		t.Fatal("canceling appearance restore changed the saved font")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.mode != "" || m.overlaySettings != nil {
+		t.Fatal("Escape from the appearance list did not leave it")
 	}
 }

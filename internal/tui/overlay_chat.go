@@ -36,14 +36,18 @@ type overlayChatState struct {
 	revision      uint64
 	latest        uint64
 	lines         [overlayChatLimit]string
+	lineRoles     [overlayChatLimit]byte
 	count         int
 	readError     string
 	text          string
+	roles         string
 	cached        bool
 	cachedSummary overlaySummary
 	cachedMode    string
 	cachedChat    string
+	cachedRoles   string
 	content       string
+	contentRoles  string
 }
 
 type overlayChatMsg struct {
@@ -51,6 +55,7 @@ type overlayChatMsg struct {
 	revision uint64
 	latest   uint64
 	lines    [overlayChatLimit]string
+	roles    [overlayChatLimit]byte
 	count    int
 	err      error
 }
@@ -128,6 +133,7 @@ func (m *Model) updateOverlayChat() tea.Cmd {
 					continue
 				}
 				msg.lines[msg.count] = text
+				msg.roles[msg.count] = presentation.OverlayRole(event)
 				msg.count++
 				if msg.count == overlayChatLimit {
 					return msg
@@ -164,15 +170,24 @@ func (m *Model) handleOverlayChat(msg overlayChatMsg) tea.Cmd {
 	keep := min(c.count, overlayChatLimit-msg.count)
 	copy(c.lines[msg.count:], c.lines[:keep])
 	copy(c.lines[:msg.count], msg.lines[:msg.count])
+	copy(c.lineRoles[msg.count:], c.lineRoles[:keep])
+	copy(c.lineRoles[:msg.count], msg.roles[:msg.count])
 	c.count = msg.count + keep
 	var b strings.Builder
+	var roles [overlayChatLimit]byte
 	for i := c.count - 1; i >= 0; i-- {
 		if b.Len() != 0 {
 			b.WriteByte('\n')
 		}
 		b.WriteString(c.lines[i])
+		role := c.lineRoles[i]
+		if role == 0 {
+			role = 'n'
+		}
+		roles[c.count-1-i] = role
 	}
 	c.text = b.String()
+	c.roles = string(roles[:c.count])
 	return nil
 }
 
@@ -181,18 +196,22 @@ func (m *Model) overlayContentText() string {
 	c := &m.overlayChat
 	summary := m.overlaySummary()
 	mode := m.config.Overlay.Content
-	if c.cached && c.cachedSummary == summary && c.cachedMode == mode && c.cachedChat == c.text {
+	if c.cached && c.cachedSummary == summary && c.cachedMode == mode && c.cachedChat == c.text && c.cachedRoles == c.roles {
 		return c.content
 	}
 	c.cached, c.cachedSummary, c.cachedMode, c.cachedChat = true, summary, mode, c.text
+	c.cachedRoles = c.roles
 	if mode == "danmaku" {
 		c.content = c.text
+		c.contentRoles = c.roles
 		return c.content
 	}
 	summary.title = overlayChatPlain(summary.title, overlayTitleLimit)
 	c.content = overlayText(summary)
+	c.contentRoles = strings.Repeat("n", strings.Count(c.content, "\n")+1)
 	if mode == "combined" && c.text != "" {
 		c.content += "\n\n" + c.text
+		c.contentRoles += "n" + c.roles
 	}
 	return c.content
 }

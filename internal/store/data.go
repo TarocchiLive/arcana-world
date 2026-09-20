@@ -29,7 +29,7 @@ func (s *Store) ResetSettings() (domain.Config, error) {
 		return domain.Config{}, err
 	}
 	s.config = c
-	return clone(c), nil
+	return s.overrides.Apply(c), nil
 }
 
 // ClearData requires the caller to close speech, overlay, listener/history, OBS,
@@ -43,7 +43,7 @@ func (s *Store) ClearData() error {
 	s.closed = true
 	var failures []error
 	deleteAccount := func(uid string) {
-		if err := s.backend.Delete(s.service, "account:"+uid); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		if err := s.backend.Delete("account:" + uid); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 			failures = append(failures, secretError(i18n.T(i18n.StoreDeleteAccountCredentials), err))
 		}
 	}
@@ -58,7 +58,7 @@ func (s *Store) ClearData() error {
 	if unlistedActiveUID != "" {
 		deleteAccount(unlistedActiveUID)
 	}
-	if err := s.backend.Delete(s.service, "obs-password"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+	if err := s.backend.Delete("obs-password"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		failures = append(failures, secretError(i18n.T(i18n.StoreDeleteObsPassword), err))
 	}
 	if err := errors.Join(failures...); err != nil {
@@ -103,6 +103,7 @@ func (s *Store) clearFiles() error {
 	}{
 		{"danmaku", []string{"history.db"}, ""},
 		{"logs", []string{"arcana-world.log", "journal.lock"}, ".journal-"},
+		{"credentials", []string{"secrets.json"}, ".secrets-"},
 	} {
 		info, err := root.Lstat(child.name)
 		if errors.Is(err, os.ErrNotExist) {

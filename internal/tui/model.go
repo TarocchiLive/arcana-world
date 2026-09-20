@@ -15,6 +15,7 @@ import (
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/journal"
 	"arcana-world/internal/obs"
+	"arcana-world/internal/overlay"
 	"arcana-world/internal/store"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -76,7 +77,10 @@ type Model struct {
 	initialized            bool
 	overlay                *overlayRuntime
 	tts                    *ttsRuntime
+	ttsOverride            *bool
 	overlayEnabled         bool
+	overlayColorPreview    *overlay.Colors
+	overlaySettings        *overlaySettingsNavigation
 	overlayChat            overlayChatState
 	selection              *roomSelection
 	cover                  *coverimage.Prepared
@@ -88,6 +92,8 @@ type Model struct {
 	input                  textinput.Model
 	choices                []choice
 	selected               int
+	pickerTop              int
+	overlayDisplays        []overlay.Display
 	confirmAction          string
 	busy                   bool
 	canceled               bool
@@ -96,6 +102,7 @@ type Model struct {
 	qrGeneration           int
 	qr                     *domain.QR
 	qrText                 string
+	qrImageOpening         bool
 	faceURL                string
 	pendingAccount         *domain.Account
 	status                 string
@@ -128,6 +135,7 @@ func New(ctx context.Context, s *store.Store) (*Model, error) {
 	m := &Model{ctx: ctx, store: s, config: cfg, client: c, journal: disk, obsClient: obs.NewClient(), width: 100, height: 32, input: in, status: i18n.T(i18n.TUIStatusReady), view: viewport.New(96, 24)}
 	m.session = app.New(s, m.obsClient, c)
 	m.openChat()
+	m.logCredentialStorage()
 	return m, nil
 }
 func (m *Model) Init() tea.Cmd {
@@ -146,6 +154,15 @@ func (m *Model) Init() tea.Cmd {
 		cmds = append(cmds, m.loadAccount(m.config.ActiveUID))
 	}
 	return tea.Batch(cmds...)
+}
+
+func (m *Model) logCredentialStorage() {
+	switch m.store.CredentialStorage() {
+	case store.StorageFile:
+		m.log(i18n.T(i18n.StoreFileStorageFallback))
+	case store.StorageMemory:
+		m.log(i18n.T(i18n.StoreMemoryStorage))
+	}
 }
 
 func (m *Model) log(s string) {
@@ -190,6 +207,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer m.publishOverlay()
 	defer m.syncTTS()
 	switch msg := msg.(type) {
+	case qrImageOpened:
+		m.qrImageOpening = false
+		if msg.err != nil {
+			m.log(i18n.T(i18n.TUIQROpenFailed) + msg.err.Error())
+		}
+		return m, nil
 	case overlayStartedMsg:
 		return m, m.handleOverlayStarted(msg)
 	case overlayStoppedMsg:
@@ -231,6 +254,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			key := m.qr.Key
 			return m, work(m, pollOperation(), func(ctx context.Context) (domain.LoginPoll, error) { return m.client.PollQR(ctx, key) })
 		}
+	case tea.MouseMsg:
+		return m, m.overlayDisplayMouse(msg)
 	case tea.KeyMsg:
 		key := msg.String()
 		if key == "ctrl+c" || (key == "q" && m.mode == "") {
@@ -246,6 +271,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.previewing {
 			return m, nil
 		}
+		if key == "o" && (m.mode == "qr" || m.mode == "face") {
+			return m, m.openQRImage()
+		}
 		if m.busy {
 			if key == "esc" && m.cancel != nil {
 				m.canceled = true
@@ -256,6 +284,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.qrText = ""
 				m.faceURL = ""
 				m.status = i18n.T(i18n.TUIStatusCancelRequested)
+				m.clearOverlayColorPreview()
+				if m.overlaySettings != nil {
+					return m, m.showOverlaySettings()
+				}
+				if m.editKind == "overlay-displays" {
+					return m, tea.DisableMouse
+				}
 			}
 			return m, nil
 		}
@@ -319,6 +354,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
+	m.updateOverlayColorPreview()
 	return m, cmd
 }
 func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
@@ -336,6 +372,14 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		return m.updateSelection(msg)
 	}
 	key := msg.String()
+	if key == "esc" && m.overlaySettings != nil {
+		if m.mode == "pick" && m.editKind == "overlay-fields" {
+			m.overlaySettings = nil
+		} else {
+			m.clearOverlayColorPreview()
+			return m.showOverlaySettings()
+		}
+	}
 	if key == "esc" {
 		m.mode = ""
 		m.qrGeneration++
@@ -346,6 +390,10 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		m.input.SetValue("")
 		m.input.Blur()
 		m.view.GotoTop()
+		m.clearOverlayColorPreview()
+		if m.editKind == "overlay-displays" {
+			return tea.DisableMouse
+		}
 		return nil
 	}
 	switch m.mode {
@@ -355,9 +403,14 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		}
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
+		m.updateOverlayColorPreview()
 		return cmd
 	case "pick":
 		switch key {
+		case "r":
+			if m.editKind == "overlay-displays" {
+				return m.pickOverlayDisplays()
+			}
 		case "up", "k":
 			m.selected = max(0, m.selected-1)
 		case "down", "j":
@@ -373,7 +426,7 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		case "enter":
 			return m.choose()
 		case " ":
-			if m.editKind == "output-events" {
+			if m.editKind == "output-events" || m.editKind == "overlay-displays" {
 				return m.choose()
 			}
 		}
@@ -388,6 +441,9 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 				return m.perform(action)
 			}
 			m.pendingAccount = nil
+			if m.overlaySettings != nil {
+				return m.showOverlaySettings()
+			}
 		}
 	case "login-save":
 		if key == "enter" && m.pendingAccount != nil {
