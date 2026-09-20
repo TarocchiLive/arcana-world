@@ -4,7 +4,7 @@
   "cli.help_usage": "Show help",
   "cli.invalid_arguments": "invalid arguments; use --help for usage",
   "cli.language_usage": "Display language: auto, zh-CN, en",
-  "cli.license": "GPL-3.0-only · Based on Radekyspec/StartLive",
+  "cli.license": "GPL-3.0-only",
   "cli.positional_arguments_unsupported": "positional arguments are not supported; use --help for usage",
   "cli.version_usage": "Show version and license",
   "language.unsupported": "unsupported language %q; choose auto, zh-CN, or en"

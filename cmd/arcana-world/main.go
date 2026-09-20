@@ -1,4 +1,4 @@
-// Arcana World 是基于 Radekyspec/StartLive、采用 GPL-3.0 的 Go/TUI 实现。
+// Arcana World 是采用 GPL-3.0-only 的 Go/TUI 直播控制台。
 package main
 
 import (

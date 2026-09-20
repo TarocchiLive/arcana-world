@@ -1,6 +1,6 @@
 {
   "tui.account.signed_out": "未登录",
-  "tui.accounts.description": "\n\n扫码登录 · 多账号切换 · 优先使用系统密钥环，不可用时回退到明文存储。",
+  "tui.accounts.description": "\n\n扫码登录 · 多账号切换",
   "tui.accounts.title": "账号管理",
   "tui.confirm.cancel_label": " 取消 ",
   "tui.confirm.controls": "← → / Tab 切换 · Enter 确认",

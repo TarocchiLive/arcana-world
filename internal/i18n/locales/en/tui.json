@@ -1,6 +1,6 @@
 {
   "tui.account.signed_out": "Not signed in",
-  "tui.accounts.description": "\n\nQR sign-in · Multiple accounts · Prefer the system keyring; fall back to plaintext storage when unavailable.",
+  "tui.accounts.description": "\n\nQR sign-in · Multiple accounts",
   "tui.accounts.title": "Account management",
   "tui.confirm.cancel_label": " Cancel ",
   "tui.confirm.controls": "← → / Tab Switch · Enter Confirm",

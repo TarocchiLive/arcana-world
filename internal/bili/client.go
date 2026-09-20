@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// 移植自 StartLive 的 src/core/workers 和 src/core/sign 协议实现。
 package bili
 
 import (
