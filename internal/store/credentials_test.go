@@ -21,8 +21,8 @@ func TestFileFallbackSurvivesKeyringRecoveryAndDeletion(t *testing.T) {
 	if err := s.Save(a); err != nil {
 		t.Fatal(err)
 	}
-	if s.CredentialStorageNotice() == "" {
-		t.Fatal("successful fallback did not notify user")
+	if s.CredentialStorage() != StorageFile {
+		t.Fatal("successful fallback did not select file storage")
 	}
 	if err := s.SetOBSSecret("obs-secret"); err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func TestFileFallbackSurvivesKeyringRecoveryAndDeletion(t *testing.T) {
 	if err := reopened.Delete(a.UID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := recovered.Get("", "account:42"); !errors.Is(err, keyring.ErrNotFound) {
+	if _, err := recovered.Get("account:42"); !errors.Is(err, keyring.ErrNotFound) {
 		t.Fatalf("deleted login remains: %v", err)
 	}
 	if err := reopened.ClearData(); err != nil {
@@ -67,8 +67,8 @@ func TestAvailableOrLockedKeyringNeverCreatesPlaintext(t *testing.T) {
 			if (err != nil) != locked {
 				t.Fatalf("unexpected save result: %v", err)
 			}
-			if s.CredentialStorageNotice() != "" {
-				t.Fatal("keyring operation reported plaintext success")
+			if s.CredentialStorage() == StorageFile {
+				t.Fatal("keyring operation selected plaintext storage")
 			}
 			if _, err := os.Lstat(filepath.Join(dir, "credentials")); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("keyring operation created plaintext directory: %v", err)
@@ -87,7 +87,7 @@ func TestKeyringProbeFailureDoesNotDowngrade(t *testing.T) {
 	dir := t.TempDir()
 	denied := errors.New("access denied")
 	backend := &automaticBackend{dir: dir, system: memoryBackend{}, probe: func() (bool, error) { return false, denied }}
-	if err := backend.Set("service", "user", "secret"); !errors.Is(err, denied) {
+	if err := backend.Set("user", "secret"); !errors.Is(err, denied) {
 		t.Fatalf("probe error lost: %v", err)
 	}
 	if _, err := os.Lstat(filepath.Join(dir, "credentials")); !errors.Is(err, os.ErrNotExist) {

@@ -15,10 +15,10 @@ func TestWindowsFileBackendProtectedPermissions(t *testing.T) {
 	dir := t.TempDir()
 	backend := newFileBackend(dir)
 	for _, value := range []string{"initial-secret", "updated-secret"} {
-		if err := backend.Set("service", "user", value); err != nil {
+		if err := backend.Set("user", value); err != nil {
 			t.Fatalf("file backend Set: %v", err)
 		}
-		got, err := backend.Get("service", "user")
+		got, err := backend.Get("user")
 		if err != nil {
 			t.Fatalf("file backend Get: %v", err)
 		}
@@ -28,10 +28,10 @@ func TestWindowsFileBackendProtectedPermissions(t *testing.T) {
 		assertWindowsCredentialDACL(t, filepath.Join(dir, "credentials"), true)
 		assertWindowsCredentialDACL(t, filepath.Join(dir, "credentials", credentialFile), false)
 	}
-	if err := backend.Delete("service", "user"); err != nil {
+	if err := backend.Delete("user"); err != nil {
 		t.Fatalf("file backend Delete: %v", err)
 	}
-	if _, err := backend.Get("service", "user"); !errors.Is(err, keyring.ErrNotFound) {
+	if _, err := backend.Get("user"); !errors.Is(err, keyring.ErrNotFound) {
 		t.Fatalf("deleted credential lookup: %v", err)
 	}
 }

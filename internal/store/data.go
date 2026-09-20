@@ -43,7 +43,7 @@ func (s *Store) ClearData() error {
 	s.closed = true
 	var failures []error
 	deleteAccount := func(uid string) {
-		if err := s.backend.Delete(s.service, "account:"+uid); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		if err := s.backend.Delete("account:" + uid); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 			failures = append(failures, secretError(i18n.T(i18n.StoreDeleteAccountCredentials), err))
 		}
 	}
@@ -58,7 +58,7 @@ func (s *Store) ClearData() error {
 	if unlistedActiveUID != "" {
 		deleteAccount(unlistedActiveUID)
 	}
-	if err := s.backend.Delete(s.service, "obs-password"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+	if err := s.backend.Delete("obs-password"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		failures = append(failures, secretError(i18n.T(i18n.StoreDeleteObsPassword), err))
 	}
 	if err := errors.Join(failures...); err != nil {

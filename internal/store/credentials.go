@@ -3,8 +3,15 @@ package store
 import (
 	"os"
 	"path/filepath"
+)
 
-	"arcana-world/internal/i18n"
+// StorageKind 标识当前选中的凭据存储类型。
+type StorageKind uint8
+
+const (
+	StorageUnknown StorageKind = iota
+	StorageSystem
+	StorageFile
 )
 
 // automaticBackend 在进程内只选择一次后端；已有凭据文件时继续使用文件，
@@ -13,8 +20,6 @@ type automaticBackend struct {
 	dir      string
 	system   Backend
 	selected Backend
-	file     bool
-	saved    bool
 	probe    func() (bool, error)
 }
 
@@ -22,61 +27,60 @@ func (b *automaticBackend) backend() (Backend, error) {
 	if b.selected != nil {
 		return b.selected, nil
 	}
-	_, err := os.Lstat(filepath.Join(b.dir, "credentials", "secrets.json"))
-	if err != nil && !os.IsNotExist(err) {
+	_, err := os.Lstat(filepath.Join(b.dir, "credentials", credentialFile))
+	if err == nil {
+		b.selected = newFileBackend(b.dir)
+		return b.selected, nil
+	}
+	if !os.IsNotExist(err) {
 		return nil, err
 	}
-	missing := err == nil
-	if !missing {
-		missing, err = b.probe()
-		if err != nil {
-			return nil, err
-		}
+	missing, err := b.probe()
+	if err != nil {
+		return nil, err
 	}
 	if missing {
 		b.selected = newFileBackend(b.dir)
-		b.file = true
 	} else {
 		b.selected = b.system
 	}
 	return b.selected, nil
 }
 
-func (b *automaticBackend) Get(service, user string) (string, error) {
+func (b *automaticBackend) Get(key string) (string, error) {
 	backend, err := b.backend()
 	if err != nil {
 		return "", err
 	}
-	return backend.Get(service, user)
+	return backend.Get(key)
 }
 
-func (b *automaticBackend) Set(service, user, value string) error {
-	b.saved = false
+func (b *automaticBackend) Set(key, value string) error {
 	backend, err := b.backend()
 	if err != nil {
 		return err
 	}
-	if err := backend.Set(service, user, value); err != nil {
-		return err
-	}
-	b.saved = b.file
-	return nil
+	return backend.Set(key, value)
 }
 
-func (b *automaticBackend) Delete(service, user string) error {
+func (b *automaticBackend) Delete(key string) error {
 	backend, err := b.backend()
 	if err != nil {
 		return err
 	}
-	return backend.Delete(service, user)
+	return backend.Delete(key)
 }
 
-// CredentialStorageNotice 返回明文凭据成功写入后的提示。
-func (s *Store) CredentialStorageNotice() string {
+func (b *automaticBackend) Storage() StorageKind {
+	if b.selected == nil {
+		return StorageUnknown
+	}
+	return b.selected.Storage()
+}
+
+// CredentialStorage 返回当前选中的凭据存储类型，不触发后端选择。
+func (s *Store) CredentialStorage() StorageKind {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if b, ok := s.backend.(*automaticBackend); ok && b.saved {
-		return i18n.T(i18n.StoreFileStorageFallback)
-	}
-	return ""
+	return s.backend.Storage()
 }

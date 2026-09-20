@@ -147,7 +147,7 @@
   "store.credential_rollback_failed": "%w; credential rollback failed: the credential store needs attention",
   "store.credential_store_unavailable": "cannot %s: credential store unavailable or access denied",
   "store.delete_account_credentials": "delete account credentials",
-  "store.file_storage_fallback": "System keyring not found; fell back to file storage",
+  "store.file_storage_fallback": "Credentials are stored in plaintext in a local file",
   "store.home_directory_unavailable": "cannot locate user home directory",
   "store.read_account_credentials": "read account credentials",
   "store.read_credentials_before_deletion": "read account credentials before deletion",

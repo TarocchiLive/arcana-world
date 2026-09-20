@@ -21,7 +21,9 @@ type fileBackend struct {
 
 func newFileBackend(dir string) Backend { return &fileBackend{dir: dir} }
 
-func (b *fileBackend) Get(_, user string) (string, error) {
+func (*fileBackend) Storage() StorageKind { return StorageFile }
+
+func (b *fileBackend) Get(user string) (string, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	root, err := b.open(false)
@@ -40,7 +42,7 @@ func (b *fileBackend) Get(_, user string) (string, error) {
 	return value, nil
 }
 
-func (b *fileBackend) Set(_, user, password string) error {
+func (b *fileBackend) Set(user, password string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	root, err := b.open(true)
@@ -58,7 +60,7 @@ func (b *fileBackend) Set(_, user, password string) error {
 	return writeCredentials(root, values)
 }
 
-func (b *fileBackend) Delete(_, user string) error {
+func (b *fileBackend) Delete(user string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	root, err := b.open(false)
@@ -203,7 +205,7 @@ func readCredentials(root *os.Root) (map[string]string, error) {
 
 func invalidCredentialData() error {
 	// 解码错误可能包含输入片段，不能把凭据内容带入错误信息。
-	return errors.New("credential storage contains invalid data")
+	return ErrCredentialCorrupt
 }
 
 func writeCredentials(root *os.Root, values map[string]string) error {

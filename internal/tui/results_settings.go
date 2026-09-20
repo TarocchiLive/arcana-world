@@ -5,6 +5,7 @@ import (
 
 	"arcana-world/internal/bili"
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/store"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -108,8 +109,8 @@ func (m *Model) handleOBSPasswordResult(_ struct{}, err error, label i18n.Key) t
 		return cmd
 	}
 	m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationSucceeded), i18n.T(label)))
-	if notice := m.store.CredentialStorageNotice(); notice != "" {
-		m.log(notice)
+	if m.store.CredentialStorage() == store.StorageFile {
+		m.log(i18n.T(i18n.StoreFileStorageFallback))
 	}
 	return m.finishResult()
 }

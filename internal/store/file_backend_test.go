@@ -17,13 +17,13 @@ func TestCredentialFileRejectsSymlinksAndSecuresExistingFiles(t *testing.T) {
 	}
 	dir := t.TempDir()
 	backend := newFileBackend(dir)
-	if _, err := backend.Get("", "account"); !errors.Is(err, keyring.ErrNotFound) {
+	if _, err := backend.Get("account"); !errors.Is(err, keyring.ErrNotFound) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "credentials")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("reading absent credentials created a directory")
 	}
-	if err := backend.Set("", "account", "old-secret"); err != nil {
+	if err := backend.Set("account", "old-secret"); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(dir, "credentials", "secrets.json")
@@ -33,7 +33,7 @@ func TestCredentialFileRejectsSymlinksAndSecuresExistingFiles(t *testing.T) {
 	if err := os.Chmod(path, 0644); err != nil {
 		t.Fatal(err)
 	}
-	if value, err := backend.Get("", "account"); err != nil || value != "old-secret" {
+	if value, err := backend.Get("account"); err != nil || value != "old-secret" {
 		t.Fatalf("read failed: %v", err)
 	}
 	for _, check := range []struct {
@@ -55,10 +55,10 @@ func TestCredentialFileRejectsSymlinksAndSecuresExistingFiles(t *testing.T) {
 	if err := os.Symlink(target, path); err != nil {
 		t.Fatal(err)
 	}
-	if err := backend.Set("", "account", "replacement"); err == nil {
+	if err := backend.Set("account", "replacement"); err == nil {
 		t.Fatal("write followed a credential symlink")
 	}
-	if _, err := backend.Get("", "account"); err == nil {
+	if _, err := backend.Get("account"); err == nil {
 		t.Fatal("read followed a credential symlink")
 	}
 	data, err := os.ReadFile(target)
