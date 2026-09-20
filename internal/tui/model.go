@@ -76,6 +76,7 @@ type Model struct {
 	initialized            bool
 	overlay                *overlayRuntime
 	tts                    *ttsRuntime
+	ttsOverride            *bool
 	overlayEnabled         bool
 	overlayChat            overlayChatState
 	selection              *roomSelection
@@ -128,6 +129,7 @@ func New(ctx context.Context, s *store.Store) (*Model, error) {
 	m := &Model{ctx: ctx, store: s, config: cfg, client: c, journal: disk, obsClient: obs.NewClient(), width: 100, height: 32, input: in, status: i18n.T(i18n.TUIStatusReady), view: viewport.New(96, 24)}
 	m.session = app.New(s, m.obsClient, c)
 	m.openChat()
+	m.logCredentialStorage()
 	return m, nil
 }
 func (m *Model) Init() tea.Cmd {
@@ -146,6 +148,15 @@ func (m *Model) Init() tea.Cmd {
 		cmds = append(cmds, m.loadAccount(m.config.ActiveUID))
 	}
 	return tea.Batch(cmds...)
+}
+
+func (m *Model) logCredentialStorage() {
+	switch m.store.CredentialStorage() {
+	case store.StorageFile:
+		m.log(i18n.T(i18n.StoreFileStorageFallback))
+	case store.StorageMemory:
+		m.log(i18n.T(i18n.StoreMemoryStorage))
+	}
 }
 
 func (m *Model) log(s string) {

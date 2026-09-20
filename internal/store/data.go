@@ -29,7 +29,7 @@ func (s *Store) ResetSettings() (domain.Config, error) {
 		return domain.Config{}, err
 	}
 	s.config = c
-	return clone(c), nil
+	return s.overrides.Apply(c), nil
 }
 
 // ClearData requires the caller to close speech, overlay, listener/history, OBS,

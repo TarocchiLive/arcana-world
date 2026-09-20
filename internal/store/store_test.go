@@ -7,24 +7,7 @@ import (
 	"testing"
 
 	"arcana-world/internal/domain"
-	"github.com/zalando/go-keyring"
 )
-
-type memoryBackend map[string]string
-
-func (b memoryBackend) Get(user string) (string, error) {
-	v, ok := b[user]
-	if !ok {
-		return "", keyring.ErrNotFound
-	}
-	return v, nil
-}
-func (b memoryBackend) Set(user, password string) error {
-	b[user] = password
-	return nil
-}
-func (b memoryBackend) Delete(user string) error { delete(b, user); return nil }
-func (memoryBackend) Storage() StorageKind       { return StorageUnknown }
 
 func TestFailedIndexCommitRestoresPreviousCredential(t *testing.T) {
 	dir := t.TempDir()

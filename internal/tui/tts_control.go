@@ -74,6 +74,19 @@ func (m *Model) ttsError(err error) {
 	}
 }
 
+// ConfigureTTS sets a session override before model initialization.
+func (m *Model) ConfigureTTS(enabled bool) error {
+	if m.initialized || m.ttsOverride != nil {
+		return errors.New("TTS must be configured once before model initialization")
+	}
+	m.ttsOverride = &enabled
+	if m.tts == nil {
+		m.tts = &ttsRuntime{}
+	}
+	m.tts.enabled = enabled
+	return nil
+}
+
 func (m *Model) syncTTS() {
 	r := m.tts
 	if r == nil {
@@ -121,6 +134,9 @@ func (m *Model) syncTTS() {
 }
 
 func (m *Model) startTTSManager() {
+	if m.ttsOverride != nil && !*m.ttsOverride {
+		return
+	}
 	r := m.tts
 	if r.manager != nil || r.failed || len(r.retired) != 0 || (!r.preview && (!r.enabled || m.config.DanmakuDisabled)) {
 		return
@@ -150,6 +166,10 @@ func (m *Model) startTTSManager() {
 }
 
 func (m *Model) performTTS(action string) tea.Cmd {
+	if m.ttsOverride != nil && (action == "tts-toggle" || action == "tts-preview" && !*m.ttsOverride) {
+		m.log(i18n.T(i18n.TUISessionOverride))
+		return nil
+	}
 	if m.tts == nil {
 		m.tts = &ttsRuntime{}
 	}

@@ -3,6 +3,8 @@ package store
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/zalando/go-keyring"
 )
 
 // StorageKind 标识当前选中的凭据存储类型。
@@ -12,7 +14,33 @@ const (
 	StorageUnknown StorageKind = iota
 	StorageSystem
 	StorageFile
+	StorageMemory
 )
+
+type memoryBackend map[string]string
+
+func (b memoryBackend) Get(key string) (string, error) {
+	value, ok := b[key]
+	if !ok {
+		return "", keyring.ErrNotFound
+	}
+	return value, nil
+}
+
+func (b memoryBackend) Set(key, value string) error {
+	b[key] = value
+	return nil
+}
+
+func (b memoryBackend) Delete(key string) error {
+	if _, ok := b[key]; !ok {
+		return keyring.ErrNotFound
+	}
+	delete(b, key)
+	return nil
+}
+
+func (memoryBackend) Storage() StorageKind { return StorageMemory }
 
 // automaticBackend 在进程内只选择一次后端；已有凭据文件时继续使用文件，
 // 避免重启后因密钥环恢复而无法读取原有凭据。

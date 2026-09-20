@@ -1,4 +1,5 @@
 {
+  "tui.session_override": "此设置已由命令行选项固定，仅对本次会话生效；已保存的设置不变。",
   "tui.account.signed_out": "未登录",
   "tui.accounts.description": "\n\n扫码登录 · 多账号切换",
   "tui.accounts.title": "账号管理",

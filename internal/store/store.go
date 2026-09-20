@@ -41,11 +41,12 @@ func (b systemBackend) Delete(key string) error        { return keyring.Delete(b
 func (systemBackend) Storage() StorageKind             { return StorageSystem }
 
 type Store struct {
-	mu      sync.Mutex
-	dir     string
-	backend Backend
-	config  domain.Config
-	closed  bool
+	mu        sync.Mutex
+	dir       string
+	backend   Backend
+	config    domain.Config
+	overrides ConfigOverrides
+	closed    bool
 }
 
 // DefaultConfig returns the defaults used for new profiles and settings resets.
@@ -63,12 +64,29 @@ func applyConnectionDefaults(c *domain.Config) {
 	}
 }
 
-func Open(dir string) (*Store, error) {
+// Open opens a profile with auto, system, file, or memory credential storage.
+// Explicit backends never fall back or migrate credentials between stores.
+func Open(dir string, options Options) (*Store, error) {
+	switch options.CredentialBackend {
+	case "", "auto", "system", "file", "memory":
+	default:
+		return nil, errors.New("unsupported credential backend")
+	}
 	s, err := openStore(dir)
 	if err != nil {
 		return nil, err
 	}
-	s.backend = &automaticBackend{dir: s.dir, system: newSystemBackend(s.dir), probe: systemKeyringMissing}
+	s.overrides = options.Overrides.detached()
+	switch options.CredentialBackend {
+	case "system":
+		s.backend = newSystemBackend(s.dir)
+	case "file":
+		s.backend = newFileBackend(s.dir)
+	case "memory":
+		s.backend = memoryBackend(make(map[string]string))
+	default:
+		s.backend = &automaticBackend{dir: s.dir, system: newSystemBackend(s.dir), probe: systemKeyringMissing}
+	}
 	return s, nil
 }
 func OpenWithBackend(dir string, backend Backend) (*Store, error) {
@@ -83,17 +101,26 @@ func OpenWithBackend(dir string, backend Backend) (*Store, error) {
 	return s, nil
 }
 
-func openStore(dir string) (*Store, error) {
+// ResolveDir resolves the profile path without accessing or creating its files.
+func ResolveDir(dir string) (string, error) {
 	if dir == "" {
 		base, err := os.UserHomeDir()
 		if err != nil {
-			return nil, errors.New(i18n.T(i18n.StoreHomeDirectoryUnavailable))
+			return "", errors.New(i18n.T(i18n.StoreHomeDirectoryUnavailable))
 		}
 		dir = filepath.Join(base, ".arcana", "world")
 	}
 	dir, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, errors.New(i18n.T(i18n.StoreConfigDirectoryResolveFailed))
+		return "", errors.New(i18n.T(i18n.StoreConfigDirectoryResolveFailed))
+	}
+	return dir, nil
+}
+
+func openStore(dir string) (*Store, error) {
+	dir, err := ResolveDir(dir)
+	if err != nil {
+		return nil, err
 	}
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return nil, errors.New(i18n.T(i18n.StoreConfigDirectoryCreateFailed))
@@ -105,43 +132,74 @@ func openStore(dir string) (*Store, error) {
 	if err = os.Chmod(dir, 0700); err != nil {
 		return nil, errors.New(i18n.T(i18n.StoreConfigDirectorySecureFailed))
 	}
-	s := &Store{dir: dir, config: DefaultConfig()}
-	path := filepath.Join(dir, "config.json")
-	info, err = os.Lstat(path)
-	if errors.Is(err, os.ErrNotExist) {
-		if err = s.persist(s.config); err != nil {
+	c, missing, err := readConfig(dir, true)
+	if err != nil {
+		return nil, err
+	}
+	s := &Store{dir: dir, config: c}
+	if missing {
+		if err := s.persist(c); err != nil {
 			return nil, err
 		}
-		return s, nil
+	}
+	return s, nil
+}
+
+// ReadConfig loads and validates settings without creating files, changing
+// permissions, or consulting credential storage. Missing profiles use defaults.
+func ReadConfig(dir string) (domain.Config, error) {
+	dir, err := ResolveDir(dir)
+	if err != nil {
+		return domain.Config{}, err
+	}
+	info, err := os.Lstat(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return DefaultConfig(), nil
+	}
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return domain.Config{}, errors.New(i18n.T(i18n.StoreConfigDirectoryRequired))
+	}
+	c, _, err := readConfig(dir, false)
+	return c, err
+}
+
+func readConfig(dir string, secure bool) (domain.Config, bool, error) {
+	c := DefaultConfig()
+	path := filepath.Join(dir, "config.json")
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return c, true, nil
 	}
 	if err != nil || !info.Mode().IsRegular() {
-		return nil, errors.New(i18n.T(i18n.StoreConfigRegularFileRequired))
+		return domain.Config{}, false, errors.New(i18n.T(i18n.StoreConfigRegularFileRequired))
 	}
-	if err = os.Chmod(path, 0600); err != nil {
-		return nil, errors.New(i18n.T(i18n.StoreConfigFileSecureFailed))
+	if secure {
+		if err := os.Chmod(path, 0600); err != nil {
+			return domain.Config{}, false, errors.New(i18n.T(i18n.StoreConfigFileSecureFailed))
+		}
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, errors.New(i18n.T(i18n.StoreConfigReadFailed))
+		return domain.Config{}, false, errors.New(i18n.T(i18n.StoreConfigReadFailed))
 	}
-	if err = json.Unmarshal(data, &s.config); err != nil {
-		return nil, errors.New(i18n.T(i18n.StoreConfigJsonInvalid))
+	if err = json.Unmarshal(data, &c); err != nil {
+		return domain.Config{}, false, errors.New(i18n.T(i18n.StoreConfigJsonInvalid))
 	}
-	if s.config.Overlay, err = s.config.Overlay.Normalize(); err != nil {
-		return nil, err
+	if c.Overlay, err = c.Overlay.Normalize(); err != nil {
+		return domain.Config{}, false, err
 	}
-	if s.config.TTS, err = s.config.TTS.Normalize(); err != nil {
-		return nil, err
+	if c.TTS, err = c.TTS.Normalize(); err != nil {
+		return domain.Config{}, false, err
 	}
-	applyConnectionDefaults(&s.config)
-	seen := make(map[string]bool, len(s.config.Accounts))
-	for _, a := range s.config.Accounts {
+	applyConnectionDefaults(&c)
+	seen := make(map[string]bool, len(c.Accounts))
+	for _, a := range c.Accounts {
 		if strings.TrimSpace(a.UID) == "" || seen[a.UID] {
-			return nil, errors.New(i18n.T(i18n.StoreAccountIndexInvalid))
+			return domain.Config{}, false, errors.New(i18n.T(i18n.StoreAccountIndexInvalid))
 		}
 		seen[a.UID] = true
 	}
-	return s, nil
+	return c, false, nil
 }
 
 func (s *Store) Dir() string { return s.dir }
@@ -153,7 +211,11 @@ func clone(c domain.Config) domain.Config {
 	c.TTS.DisabledEvents = append([]string(nil), c.TTS.DisabledEvents...)
 	return c
 }
-func (s *Store) Config() domain.Config          { s.mu.Lock(); defer s.mu.Unlock(); return clone(s.config) }
+func (s *Store) Config() domain.Config {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.overrides.Apply(s.config)
+}
 func (s *Store) Accounts() []domain.AccountInfo { return s.Config().Accounts }
 
 // SaveConfig 保留由凭据存储支持的账号索引；请使用 Save/Delete 修改索引。
@@ -165,6 +227,15 @@ func (s *Store) SaveConfig(c domain.Config) error {
 	}
 	c.Accounts = s.config.Accounts
 	c = clone(c)
+	if s.overrides.Proxy != nil {
+		c.Proxy = s.config.Proxy
+	}
+	if s.overrides.OBSAutoConnect != nil {
+		c.OBSAutoConnect = s.config.OBSAutoConnect
+	}
+	if s.overrides.OBSAutoStream != nil {
+		c.OBSAutoStream = s.config.OBSAutoStream
+	}
 	applyConnectionDefaults(&c)
 	var err error
 	if c.TTS, err = c.TTS.Normalize(); err != nil {

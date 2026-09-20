@@ -5,7 +5,6 @@ import (
 
 	"arcana-world/internal/bili"
 	"arcana-world/internal/i18n"
-	"arcana-world/internal/store"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -25,6 +24,9 @@ func (m *Model) handleSettingsResetResult(value *bili.Client, err error, label i
 	}
 	if err := m.closeTTS(); err != nil {
 		m.log(fmt.Sprintf(i18n.T(i18n.TTSLogStopFailed), err))
+	}
+	if m.ttsOverride != nil {
+		m.tts.enabled = *m.ttsOverride
 	}
 	m.syncChat()
 	m.log(i18n.T(i18n.TUISettingsResetDone))
@@ -109,8 +111,6 @@ func (m *Model) handleOBSPasswordResult(_ struct{}, err error, label i18n.Key) t
 		return cmd
 	}
 	m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationSucceeded), i18n.T(label)))
-	if m.store.CredentialStorage() == store.StorageFile {
-		m.log(i18n.T(i18n.StoreFileStorageFallback))
-	}
+	m.logCredentialStorage()
 	return m.finishResult()
 }

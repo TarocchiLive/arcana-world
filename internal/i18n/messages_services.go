@@ -2,6 +2,7 @@ package i18n
 
 // 服务层消息按业务语义命名，文案保存在语言词表中。
 const (
+	StoreMemoryStorage                   Key = "store.memory_storage"
 	BiliApiHttpStatus                    Key = "bili.api_http_status"
 	BiliApiOperationFailed               Key = "bili.api_operation_failed"
 	BiliApiRequestFailed                 Key = "bili.api_request_failed"

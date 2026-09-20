@@ -148,6 +148,7 @@
   "store.credential_store_unavailable": "cannot %s: credential store unavailable or access denied",
   "store.delete_account_credentials": "delete account credentials",
   "store.file_storage_fallback": "Credentials are stored in plaintext in a local file",
+  "store.memory_storage": "Credentials are stored only in memory and disappear at exit",
   "store.home_directory_unavailable": "cannot locate user home directory",
   "store.read_account_credentials": "read account credentials",
   "store.read_credentials_before_deletion": "read account credentials before deletion",

@@ -1,4 +1,5 @@
 {
+  "tui.session_override": "This setting is fixed by a command-line option for this session; saved settings are unchanged.",
   "tui.account.signed_out": "Not signed in",
   "tui.accounts.description": "\n\nQR sign-in · Multiple accounts",
   "tui.accounts.title": "Account management",

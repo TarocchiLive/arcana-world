@@ -4,7 +4,6 @@ import (
 	"arcana-world/internal/app"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
-	"arcana-world/internal/store"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -106,9 +105,7 @@ func (m *Model) handleLoginSaveResult(value app.AccountOutcome, err error, label
 		return nil
 	}
 	cmd := m.adoptAccount(value)
-	if m.store.CredentialStorage() == store.StorageFile {
-		m.log(i18n.T(i18n.StoreFileStorageFallback))
-	}
+	m.logCredentialStorage()
 	return cmd
 }
 
