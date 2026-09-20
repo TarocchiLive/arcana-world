@@ -42,6 +42,7 @@ func run() error {
 	flags.Float64Var(&cfg.Font.Size, "font-size", cfg.Font.Size, "font size in logical points")
 	flags.IntVar(&cfg.Font.Weight, "font-weight", cfg.Font.Weight, "font weight (100..900)")
 	flags.BoolVar(&cfg.Font.Italic, "italic", false, "use italic font")
+	flags.BoolVar(&cfg.Outline, "outline", cfg.Outline, "draw a thin text outline")
 	flags.Float64Var(&cfg.TextAlpha, "text-alpha", cfg.TextAlpha, "text opacity (0..1)")
 	flags.Float64Var(&cfg.BackgroundAlpha, "background-alpha", cfg.BackgroundAlpha, "background opacity (0..1)")
 	display := flags.Uint("display", 0, "macOS display ID or one-based Windows monitor index; 0 selects the default")

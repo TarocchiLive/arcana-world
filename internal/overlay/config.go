@@ -80,12 +80,16 @@ type Font struct {
 // Config 是可比较的完整展示快照，不含共享可变内存。
 // 显式显示器选择断开时保持隐藏，重连后恢复；空选择不创建窗口。
 type Config struct {
-	Text            string   `json:"text"`
+	Text string `json:"text"`
+	// TextRoles has one role per logical line: n/c/a/g/s; empty means ordinary text.
+	TextRoles       string   `json:"text_roles,omitempty"`
+	Colors          Colors   `json:"colors"`
 	Position        Position `json:"position"`
 	Width           float64  `json:"width"`
 	Height          float64  `json:"height"`
 	Padding         Insets   `json:"padding"`
 	Font            Font     `json:"font"`
+	Outline         bool     `json:"outline"`
 	TextAlpha       float64  `json:"text_alpha"`
 	BackgroundAlpha float64  `json:"background_alpha"`
 	// DisplayID 是 macOS 原生 ID 或 Windows 从 1 开始的枚举序号；Wayland 使用 Output。
@@ -98,7 +102,7 @@ type Config struct {
 }
 
 func DefaultConfig() Config {
-	return Config{Text: "Arcana World", Position: Position{Anchor: Left, X: 0, Y: 0}, Width: 420, Height: 180, Padding: Insets{Top: 12, Right: 16, Bottom: 12, Left: 16}, Font: Font{Size: 16, Weight: 500}, TextAlpha: .9, BackgroundAlpha: .3}
+	return Config{Text: "Arcana World", Colors: DefaultColors(), Position: Position{Anchor: Left, X: 0, Y: 0}, Width: 420, Height: 180, Padding: Insets{Top: 12, Right: 16, Bottom: 12, Left: 16}, Font: Font{Size: 16, Weight: 500}, Outline: true, TextAlpha: 1, BackgroundAlpha: .35}
 }
 
 // SelectedDisplays 解码稳定 ID 列表；nil 表示旧单屏模式，空切片表示关闭全部输出。
@@ -132,6 +136,10 @@ func (cfg Config) SelectedDisplays() ([]string, error) {
 // Normalize 在进入协议或原生代码前校验所有边界，并统一修复用户可见文本。
 // 位置和尺寸在解析显示器后还会被限制；NaN/Inf 不得进入原生数值转换。
 func (cfg Config) Normalize() (Config, error) {
+	var err error
+	if cfg.Colors, err = cfg.Colors.Normalize(); err != nil {
+		return Config{}, err
+	}
 	if _, err := cfg.SelectedDisplays(); err != nil {
 		return Config{}, err
 	}
@@ -170,6 +178,18 @@ func (cfg Config) Normalize() (Config, error) {
 	cfg.Text = strings.ToValidUTF8(strings.ReplaceAll(cfg.Text, "\x00", ""), "�")
 	if len(cfg.Text) > MaxTextBytes {
 		return Config{}, errors.New("overlay: repaired text exceeds the 1 MiB rendering limit")
+	}
+	if cfg.TextRoles != "" {
+		if len(cfg.TextRoles) != strings.Count(cfg.Text, "\n")+1 {
+			return Config{}, errors.New("overlay: text roles must match logical lines")
+		}
+		for i := range cfg.TextRoles {
+			switch cfg.TextRoles[i] {
+			case 'n', 'c', 'a', 'g', 's':
+			default:
+				return Config{}, errors.New("overlay: invalid text role")
+			}
+		}
 	}
 	return cfg, nil
 }

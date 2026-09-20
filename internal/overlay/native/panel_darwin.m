@@ -11,6 +11,7 @@
 @property(nonatomic, copy) NSString *text;
 @property(nonatomic, copy) NSString *family;
 @property(nonatomic, copy) NSArray<NSString *> *displays;
+@property(nonatomic, copy) NSData *runs;
 @property(nonatomic, strong) NSFont *font;
 @end
 @implementation AWOverlayState
@@ -18,8 +19,30 @@
 
 static AWOverlayState *copyState(AWOverlayConfig config) {
     AWOverlayState *state = [AWOverlayState new];
-    state.text = [NSString stringWithUTF8String:config.text];
+    state.text = [[NSString alloc] initWithBytes:config.text length:config.text_length encoding:NSUTF8StringEncoding];
     state.family = [NSString stringWithUTF8String:config.family];
+    if (!state.text || !state.family) return nil;
+    if (config.run_count > NSUIntegerMax / sizeof(AWOverlayTextRun) ||
+        (config.run_count && !config.runs)) return nil;
+    NSMutableData *runs = [NSMutableData dataWithLength:config.run_count * sizeof(AWOverlayTextRun)];
+    AWOverlayTextRun *converted = runs.mutableBytes;
+    const unsigned char *text = (const unsigned char *)config.text;
+    size_t byteOffset = 0, utf16Offset = 0;
+    for (size_t i = 0; i < config.run_count; ++i) {
+        AWOverlayTextRun run = config.runs[i];
+        if (run.start != byteOffset || run.end < run.start || run.end > config.text_length ||
+            (run.end < config.text_length && (text[run.end] & 0xC0) == 0x80)) return nil;
+        converted[i].start = utf16Offset;
+        // NSString 已验证 UTF-8；每个非续字节对应一个标量，非 BMP 标量占两个 UTF-16 单元。
+        while (byteOffset < run.end) {
+            unsigned char byte = text[byteOffset++];
+            if ((byte & 0xC0) != 0x80) utf16Offset += byte >= 0xF0 ? 2 : 1;
+        }
+        converted[i].end = utf16Offset;
+        converted[i].rgb = run.rgb;
+    }
+    if (config.run_count && byteOffset != config.text_length) return nil;
+    state.runs = runs;
     if (config.displays) {
         NSData *data = [[NSString stringWithUTF8String:config.displays] dataUsingEncoding:NSUTF8StringEncoding];
         id displays = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
@@ -31,6 +54,7 @@ static AWOverlayState *copyState(AWOverlayConfig config) {
     config.displays = NULL;
     config.text = NULL;
     config.family = NULL;
+    config.runs = NULL;
     state.config = config;
     return state;
 }
@@ -44,10 +68,17 @@ static AWOverlayState *copyState(AWOverlayConfig config) {
 - (NSRect)constrainFrameRect:(NSRect)frame toScreen:(NSScreen *)screen { return frame; }
 @end
 
+static NSColor *colorForRGB(uint32_t rgb, CGFloat alpha) {
+    return [NSColor colorWithSRGBRed:((rgb >> 16) & 0xFF) / 255.0
+        green:((rgb >> 8) & 0xFF) / 255.0 blue:(rgb & 0xFF) / 255.0 alpha:alpha];
+}
+
 @interface AWOverlayText : NSView
 @property(nonatomic, copy) NSString *text;
 @property(nonatomic, strong) NSFont *font;
 @property(nonatomic, strong) NSColor *color;
+@property(nonatomic, copy) NSData *runs;
+@property(nonatomic) BOOL outline;
 @end
 @implementation AWOverlayText {
     NSTextStorage *_storage;
@@ -56,6 +87,7 @@ static AWOverlayState *copyState(AWOverlayConfig config) {
     NSString *_laidOutText;
     NSFont *_laidOutFont;
     NSColor *_laidOutColor;
+    NSData *_laidOutRuns;
     CGFloat _lineHeight;
     CGFloat _baseline;
 }
@@ -74,7 +106,7 @@ static AWOverlayState *copyState(AWOverlayConfig config) {
         [_storage addLayoutManager:_layout];
     }
     if (![_laidOutText isEqualToString:self.text] || ![_laidOutFont isEqual:self.font] ||
-        ![_laidOutColor isEqual:self.color]) {
+        ![_laidOutColor isEqual:self.color] || ![_laidOutRuns isEqualToData:self.runs]) {
         // 按配置字体的逻辑点取整行高，避免回退字体或 Retina 缩放改变行容量。
         _lineHeight = ceil([_layout defaultLineHeightForFont:self.font]);
         _baseline = self.font.ascender +
@@ -83,14 +115,25 @@ static AWOverlayState *copyState(AWOverlayConfig config) {
         paragraph.lineBreakMode = NSLineBreakByWordWrapping;
         paragraph.minimumLineHeight = _lineHeight;
         paragraph.maximumLineHeight = _lineHeight;
+        [_storage beginEditing];
         [_storage setAttributedString:[[NSAttributedString alloc] initWithString:self.text attributes:@{
             NSFontAttributeName:self.font,
             NSForegroundColorAttributeName:self.color,
             NSParagraphStyleAttributeName:paragraph
         }]];
+        const AWOverlayTextRun *runs = self.runs.bytes;
+        NSUInteger count = self.runs.length / sizeof(AWOverlayTextRun);
+        for (NSUInteger i = 0; i < count; ++i) {
+            AWOverlayTextRun run = runs[i];
+            [_storage addAttribute:NSForegroundColorAttributeName
+                value:colorForRGB(run.rgb, self.color.alphaComponent)
+                range:NSMakeRange(run.start, run.end - run.start)];
+        }
+        [_storage endEditing];
         _laidOutText = [self.text copy];
         _laidOutFont = self.font;
         _laidOutColor = self.color;
+        _laidOutRuns = self.runs;
     }
     if (!(_lineHeight > 0) || NSHeight(bounds) < _lineHeight) return;
     if (_container.containerSize.width != NSWidth(bounds))
@@ -107,23 +150,37 @@ static AWOverlayState *copyState(AWOverlayConfig config) {
     CGFloat capacity = floor(NSHeight(bounds) / _lineHeight);
     NSUInteger visible = capacity >= (CGFloat)lineCount ? lineCount : (NSUInteger)capacity;
     NSUInteger first = lineCount - visible;
-    __block NSUInteger index = 0;
     [NSGraphicsContext saveGraphicsState];
     NSRectClip(bounds);
-    [_layout enumerateLineFragmentsForGlyphRange:allGlyphs usingBlock:
-        ^(NSRect rect, NSRect used, NSTextContainer *container, NSRange glyphs, BOOL *stop) {
-            NSUInteger row = index++;
-            if (row < first || !glyphs.length) return;
-            CGFloat top = NSMinY(bounds) + (row - first) * self->_lineHeight;
-            // 保留整形结果并对齐基线；超高回退字形裁剪在本行槽内。
-            NSPoint location = [self->_layout locationForGlyphAtIndex:glyphs.location];
-            NSPoint origin = NSMakePoint(NSMinX(bounds),
-                top + self->_baseline - NSMinY(rect) - location.y);
-            [NSGraphicsContext saveGraphicsState];
-            NSRectClip(NSMakeRect(NSMinX(bounds), top, NSWidth(bounds), self->_lineHeight));
-            [self->_layout drawGlyphsForGlyphRange:glyphs atPoint:origin];
-            [NSGraphicsContext restoreGraphicsState];
-        }];
+    NSRange textRange = NSMakeRange(0, _storage.length);
+    // Paint the outline first; a separate fill pass preserves thin CJK strokes.
+    for (NSUInteger pass = self.outline ? 0 : 1; pass < 2; ++pass) {
+        [_storage beginEditing];
+        if (pass == 0) {
+            [_storage addAttributes:@{
+                NSStrokeColorAttributeName:colorForRGB(0x101318, self.color.alphaComponent),
+                NSStrokeWidthAttributeName:@(100.0 / self.font.pointSize)
+            } range:textRange];
+        } else {
+            [_storage removeAttribute:NSStrokeWidthAttributeName range:textRange];
+            [_storage removeAttribute:NSStrokeColorAttributeName range:textRange];
+        }
+        [_storage endEditing];
+        __block NSUInteger index = 0;
+        [_layout enumerateLineFragmentsForGlyphRange:allGlyphs usingBlock:
+            ^(NSRect rect, NSRect used, NSTextContainer *container, NSRange glyphs, BOOL *stop) {
+                NSUInteger row = index++;
+                if (row < first || !glyphs.length) return;
+                CGFloat top = NSMinY(bounds) + (row - first) * self->_lineHeight;
+                NSPoint location = [self->_layout locationForGlyphAtIndex:glyphs.location];
+                NSPoint origin = NSMakePoint(NSMinX(bounds),
+                    top + self->_baseline - NSMinY(rect) - location.y);
+                [NSGraphicsContext saveGraphicsState];
+                NSRectClip(NSMakeRect(NSMinX(bounds), top, NSWidth(bounds), self->_lineHeight));
+                [self->_layout drawGlyphsForGlyphRange:glyphs atPoint:origin];
+                [NSGraphicsContext restoreGraphicsState];
+            }];
+    }
     [NSGraphicsContext restoreGraphicsState];
 }
 @end
@@ -230,12 +287,20 @@ static NSFont *fontForState(AWOverlayState *state) {
         self.label.needsDisplay = YES;
     }
     if (fontChanged) { self.label.font = state.font; self.label.needsDisplay = YES; }
-    if (!old || c.text_alpha != prior.text_alpha) {
-        self.label.color = [NSColor colorWithWhite:1 alpha:c.text_alpha];
+    if (!old || ![state.runs isEqualToData:old.runs]) {
+        self.label.runs = state.runs;
         self.label.needsDisplay = YES;
     }
-    if (!old || c.background_alpha != prior.background_alpha)
-        self.panel.backgroundColor = [NSColor colorWithWhite:0 alpha:c.background_alpha];
+    if (!old || c.text_alpha != prior.text_alpha || c.text_rgb != prior.text_rgb) {
+        self.label.color = colorForRGB(c.text_rgb, c.text_alpha);
+        self.label.needsDisplay = YES;
+    }
+    if (!old || c.outline != prior.outline) {
+        self.label.outline = c.outline != 0;
+        self.label.needsDisplay = YES;
+    }
+    if (!old || c.background_alpha != prior.background_alpha || c.background_rgb != prior.background_rgb)
+        self.panel.backgroundColor = colorForRGB(c.background_rgb, c.background_alpha);
     if (!old || c.anchor != prior.anchor || c.x != prior.x || c.y != prior.y ||
         c.width != prior.width || c.height != prior.height) {
         [self reposition:nil];

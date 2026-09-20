@@ -406,6 +406,9 @@ func (m *Model) submitForm() tea.Cmd {
 		return tea.Quit
 	}
 	if strings.HasPrefix(kind, "overlay-") {
+		if m.editingOverlayColor() != nil {
+			value = m.input.Value()
+		}
 		return m.submitOverlay(kind, value)
 	}
 	// 密码保留原始字节，不去除首尾空白。

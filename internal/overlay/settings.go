@@ -14,8 +14,10 @@ type Settings struct {
 	Height          float64  `json:"height"`
 	Padding         Insets   `json:"padding"`
 	Font            Font     `json:"font"`
+	Outline         bool     `json:"outline"`
 	TextAlpha       float64  `json:"text_alpha"`
 	BackgroundAlpha float64  `json:"background_alpha"`
+	Colors          Colors   `json:"colors"`
 	DisplayID       uint32   `json:"display_id"`
 	Output          string   `json:"output"`
 	Displays        []string `json:"displays"`
@@ -26,7 +28,9 @@ func DefaultSettings() Settings {
 	return Settings{
 		Content: "danmaku", Position: cfg.Position,
 		Width: cfg.Width, Height: cfg.Height, Padding: cfg.Padding, Font: cfg.Font,
+		Outline:   cfg.Outline,
 		TextAlpha: cfg.TextAlpha, BackgroundAlpha: cfg.BackgroundAlpha,
+		Colors:    cfg.Colors,
 		DisplayID: cfg.DisplayID, Output: cfg.Output,
 	}
 }
@@ -52,9 +56,11 @@ func (s Settings) Normalize() (Settings, error) {
 	default:
 		return Settings{}, errors.New("overlay: invalid content mode")
 	}
-	if _, err := s.Config("").Normalize(); err != nil {
+	cfg, err := s.Config("").Normalize()
+	if err != nil {
 		return Settings{}, err
 	}
+	s.Colors = cfg.Colors
 	return s, nil
 }
 
@@ -67,7 +73,9 @@ func (s Settings) Config(text string) Config {
 	return Config{
 		Text: text, Position: s.Position,
 		Width: s.Width, Height: s.Height, Padding: s.Padding, Font: s.Font,
+		Outline:   s.Outline,
 		TextAlpha: s.TextAlpha, BackgroundAlpha: s.BackgroundAlpha,
+		Colors:    s.Colors,
 		DisplayID: s.DisplayID, Output: s.Output,
 		Displays: displays,
 	}

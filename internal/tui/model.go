@@ -79,6 +79,8 @@ type Model struct {
 	tts                    *ttsRuntime
 	ttsOverride            *bool
 	overlayEnabled         bool
+	overlayColorPreview    *overlay.Colors
+	overlaySettings        *overlaySettingsNavigation
 	overlayChat            overlayChatState
 	selection              *roomSelection
 	cover                  *coverimage.Prepared
@@ -282,6 +284,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.qrText = ""
 				m.faceURL = ""
 				m.status = i18n.T(i18n.TUIStatusCancelRequested)
+				m.clearOverlayColorPreview()
+				if m.overlaySettings != nil {
+					return m, m.showOverlaySettings()
+				}
 				if m.editKind == "overlay-displays" {
 					return m, tea.DisableMouse
 				}
@@ -348,6 +354,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
+	m.updateOverlayColorPreview()
 	return m, cmd
 }
 func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
@@ -365,6 +372,14 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		return m.updateSelection(msg)
 	}
 	key := msg.String()
+	if key == "esc" && m.overlaySettings != nil {
+		if m.mode == "pick" && m.editKind == "overlay-fields" {
+			m.overlaySettings = nil
+		} else {
+			m.clearOverlayColorPreview()
+			return m.showOverlaySettings()
+		}
+	}
 	if key == "esc" {
 		m.mode = ""
 		m.qrGeneration++
@@ -375,6 +390,7 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		m.input.SetValue("")
 		m.input.Blur()
 		m.view.GotoTop()
+		m.clearOverlayColorPreview()
 		if m.editKind == "overlay-displays" {
 			return tea.DisableMouse
 		}
@@ -387,6 +403,7 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		}
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
+		m.updateOverlayColorPreview()
 		return cmd
 	case "pick":
 		switch key {
@@ -424,6 +441,9 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 				return m.perform(action)
 			}
 			m.pendingAccount = nil
+			if m.overlaySettings != nil {
+				return m.showOverlaySettings()
+			}
 		}
 	case "login-save":
 		if key == "enter" && m.pendingAccount != nil {

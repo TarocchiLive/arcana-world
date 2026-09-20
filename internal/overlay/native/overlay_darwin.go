@@ -36,18 +36,47 @@ func darwinConfig(cfg overlay.Config, apply func(C.AWOverlayConfig) C.int) C.int
 	text, family := C.CString(cfg.Text), C.CString(cfg.Font.Family)
 	defer C.free(unsafe.Pointer(text))
 	defer C.free(unsafe.Pointer(family))
+	textRGB, err := overlay.ParseColor(cfg.Colors.Text)
+	if err != nil {
+		return 0
+	}
+	backgroundRGB, err := overlay.ParseColor(cfg.Colors.Background)
+	if err != nil {
+		return 0
+	}
+	runs := cfg.TextRuns()
+	var nativeRuns *C.AWOverlayTextRun
+	if len(runs) != 0 {
+		nativeRuns = (*C.AWOverlayTextRun)(C.calloc(C.size_t(len(runs)), C.size_t(C.sizeof_AWOverlayTextRun)))
+		if nativeRuns == nil {
+			return 0
+		}
+		defer C.free(unsafe.Pointer(nativeRuns))
+		for i, run := range runs {
+			unsafe.Slice(nativeRuns, len(runs))[i] = C.AWOverlayTextRun{
+				start: C.size_t(run.Start), end: C.size_t(run.End), rgb: C.uint32_t(run.RGB),
+			}
+		}
+	}
 	italic := C.int(0)
 	if cfg.Font.Italic {
 		italic = 1
 	}
+	outline := C.int(0)
+	if cfg.Outline {
+		outline = 1
+	}
 	return apply(C.AWOverlayConfig{
-		displays: displays,
-		text:     text, family: family, x: C.double(cfg.Position.X), y: C.double(cfg.Position.Y),
+		displays:    displays,
+		text_length: C.size_t(len(cfg.Text)), runs: nativeRuns, run_count: C.size_t(len(runs)),
+		text_rgb: C.uint32_t(textRGB), background_rgb: C.uint32_t(backgroundRGB),
+		text: text, family: family, x: C.double(cfg.Position.X), y: C.double(cfg.Position.Y),
 		width: C.double(cfg.Width), height: C.double(cfg.Height),
 		top: C.double(cfg.Padding.Top), right: C.double(cfg.Padding.Right), bottom: C.double(cfg.Padding.Bottom), left: C.double(cfg.Padding.Left),
 		font_size: C.double(cfg.Font.Size), weight: C.int(cfg.Font.Weight), italic: italic,
 		text_alpha: C.double(cfg.TextAlpha), background_alpha: C.double(cfg.BackgroundAlpha),
-		anchor: C.int(cfg.Position.Anchor.Index()), display: C.uint(cfg.DisplayID),
+		outline: outline,
+		anchor:  C.int(cfg.Position.Anchor.Index()), display: C.uint(cfg.DisplayID),
 	})
 }
 

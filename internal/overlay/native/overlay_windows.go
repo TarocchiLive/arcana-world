@@ -26,6 +26,19 @@ type winState struct {
 	dc, bitmap, font, originalBitmap, originalFont   uintptr
 	writeFactory, drawFactory, drawTarget, textBrush *winCOMObject
 	textMethods                                      winTextMethods
+	textLayout                                       *winCOMObject
+	layoutSource                                     string
+	layoutFont                                       overlay.Font
+	layoutFontHeight, layoutWidth                    int32
+	layoutLines                                      []winLineMetrics
+	coverage                                         []byte
+	outline, outlineScratch                          []byte
+	outlineRadius                                    int
+	coverageValid                                    bool
+	coverageRect                                     winRect
+	coverageSize                                     winSize
+	colorBrushes                                     map[uint32]*winCOMObject
+	brushColors                                      overlay.Colors
 	pixels                                           []byte
 	size                                             winSize
 	position                                         winPoint

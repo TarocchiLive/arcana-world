@@ -76,6 +76,8 @@ func (m *Model) startOverlay() tea.Cmd {
 	m.overlay = owner
 	options := owner.options
 	options.Config.Text = m.overlayContentText()
+	options.Config.TextRoles = m.overlayChat.contentRoles
+	options.Config = m.previewOverlayColors(options.Config)
 	return func() tea.Msg {
 		close(owner.started)
 		defer close(owner.startDone)
@@ -162,6 +164,8 @@ func (m *Model) publishOverlay() {
 	}
 	cfg := owner.options.Config
 	cfg.Text = m.overlayContentText()
+	cfg.TextRoles = m.overlayChat.contentRoles
+	cfg = m.previewOverlayColors(cfg)
 	if owner.published && owner.last == cfg {
 		return
 	}

@@ -254,6 +254,9 @@ func (h *History) Page(roomID int64, before uint64, limit int) ([]Event, error) 
 					event = p.event
 				}
 			}
+			if event.Kind == "guard" && event.GuardUnit == "" {
+				event.GuardUnit = project(roomID, rawForEvent(room, k)).event.GuardUnit
+			}
 			result = append(result, event)
 		}
 		return nil

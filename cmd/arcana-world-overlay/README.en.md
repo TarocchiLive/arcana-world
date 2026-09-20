@@ -46,8 +46,9 @@ By default, the overlay is vertically centered on the left edge with zero horizo
 | `-font 'Font name'` | Font family; omit to use the system default |
 | `-font-size 16 -font-weight 500` | Font size and weight; weight ranges from 100 to 900 |
 | `-italic` | Use italic text |
-| `-text-alpha 0.9` | Text opacity: 0 is fully transparent, 1 is opaque |
-| `-background-alpha 0.3` | Background opacity; set to 0 to show text only |
+| `-outline=false` | Disable the text outline; enabled by default |
+| `-text-alpha 1` | Text opacity: 0 is fully transparent, 1 is opaque |
+| `-background-alpha 0.35` | Background opacity; set to 0 to show text only |
 
 Position names:
 

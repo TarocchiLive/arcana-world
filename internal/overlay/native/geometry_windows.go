@@ -207,6 +207,10 @@ func (state *winState) refreshGeometry() error {
 		return winError("GetDpiForWindow", err)
 	}
 	scale := float64(dpi) / 96
+	if radius := max(1, int(math.Round(.5*scale))); state.outlineRadius != radius {
+		state.outlineRadius = radius
+		state.coverageValid, state.painted = false, false
+	}
 	bounds := monitor.bounds
 	availableWidth := int64(bounds.Right) - int64(bounds.Left)
 	availableHeight := int64(bounds.Bottom) - int64(bounds.Top)

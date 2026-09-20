@@ -111,6 +111,7 @@ static void free_config(struct arcana_wayland_config *config)
     free(config->output);
     free(config->family);
     free(config->displays);
+    free(config->text_runs);
     free(config);
 }
 static struct arcana_wayland_config *copy_config(const struct arcana_wayland_config *value)
@@ -123,9 +124,13 @@ static struct arcana_wayland_config *copy_config(const struct arcana_wayland_con
     copy->output = strdup(value->output);
     copy->family = strdup(value->family);
     copy->displays = value->displays_size ? malloc(value->displays_size) : NULL;
+    copy->text_runs = value->text_run_count ? calloc(value->text_run_count, sizeof(*copy->text_runs)) : NULL;
+    if (copy->text_runs)
+        memcpy(copy->text_runs, value->text_runs, value->text_run_count * sizeof(*copy->text_runs));
     if (copy->displays)
         memcpy(copy->displays, value->displays, value->displays_size);
-    if (!copy->text || !copy->output || !copy->family || (value->displays_size && !copy->displays))
+    if (!copy->text || !copy->output || !copy->family || (value->displays_size && !copy->displays) ||
+        (value->text_run_count && !copy->text_runs))
     {
         free_config(copy);
         return NULL;
@@ -134,8 +139,15 @@ static struct arcana_wayland_config *copy_config(const struct arcana_wayland_con
 }
 static bool equal_paint_config(const struct arcana_wayland_config *a, const struct arcana_wayland_config *b)
 {
+    if (a->text_rgb != b->text_rgb || a->background_rgb != b->background_rgb ||
+        a->text_run_count != b->text_run_count)
+        return false;
+    for (size_t i = 0; i < a->text_run_count; ++i)
+        if (a->text_runs[i].start != b->text_runs[i].start ||
+            a->text_runs[i].end != b->text_runs[i].end || a->text_runs[i].rgb != b->text_runs[i].rgb)
+            return false;
     return !strcmp(a->text, b->text) && !strcmp(a->family, b->family) &&
-           a->weight == b->weight && a->italic == b->italic &&
+           a->weight == b->weight && a->italic == b->italic && a->outline == b->outline &&
            a->padding_top == b->padding_top && a->padding_right == b->padding_right &&
            a->padding_bottom == b->padding_bottom && a->padding_left == b->padding_left &&
            a->font_size == b->font_size && a->text_alpha == b->text_alpha && a->background_alpha == b->background_alpha;
@@ -950,16 +962,20 @@ static bool paint_pixels(struct view *s, struct pixels *p)
     // Cairo ARGB32 是本机字节序的预乘格式，与 wl_shm ARGB8888 匹配。
     cairo_surface_t *image = cairo_image_surface_create_for_data(p->data, CAIRO_FORMAT_ARGB32, p->width, p->height, p->stride);
     cairo_t *cr = cairo_create(image);
+    const struct arcana_wayland_config *c = s->state->config;
     cairo_scale(cr, (double)p->width / s->width, (double)p->height / s->height);
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-    cairo_set_source_rgba(cr, 0, 0, 0, s->state->config->background_alpha);
+    cairo_set_source_rgba(cr, ((c->background_rgb >> 16) & 255) / 255.0,
+                          ((c->background_rgb >> 8) & 255) / 255.0,
+                          (c->background_rgb & 255) / 255.0, c->background_alpha);
     cairo_paint(cr);
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
-    const struct arcana_wayland_config *c = s->state->config;
     double left = fmin(c->padding_left, s->width), top = fmin(c->padding_top, s->height);
     double width = fmax(0, s->width - left - fmin(c->padding_right, s->width));
     double height = fmax(0, s->height - top - fmin(c->padding_bottom, s->height));
-    if (width <= 0 || height <= 0 || !*c->text)
+    // Pango 将 alpha=0 解释为未指定；完全透明时不提交文字绘制。
+    guint16 text_alpha = (guint16)round(c->text_alpha * 65535);
+    if (width <= 0 || height <= 0 || !*c->text || !text_alpha)
         goto done;
     size_t text_length = strlen(c->text);
     if (text_length > INT_MAX)
@@ -979,6 +995,22 @@ static bool paint_pixels(struct view *s, struct pixels *p)
     pango_layout_set_width(layout, (int)fmin(width * PANGO_SCALE, INT_MAX));
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_text(layout, c->text, (int)text_length);
+    // Pango 区间使用原始 UTF-8 字节偏移；完整布局保留换行、包裹和尾部裁切的颜色。
+    PangoAttrList *attributes = pango_attr_list_new();
+    for (size_t i = 0; i < c->text_run_count; ++i)
+    {
+        const struct arcana_wayland_text_run *run = &c->text_runs[i];
+        PangoAttribute *foreground = pango_attr_foreground_new(
+            ((run->rgb >> 16) & 255) * 257, ((run->rgb >> 8) & 255) * 257, (run->rgb & 255) * 257);
+        foreground->start_index = (guint)run->start;
+        foreground->end_index = (guint)run->end;
+        pango_attr_list_insert(attributes, foreground);
+    }
+    // foreground 会替换 Cairo 源颜色；透明度必须作为独立属性应用于全部文本。
+    PangoAttribute *alpha = pango_attr_foreground_alpha_new(text_alpha);
+    pango_attr_list_insert(attributes, alpha);
+    pango_layout_set_attributes(layout, attributes);
+    pango_attr_list_unref(attributes);
     // 配置字体决定行高；先转 double 再相加，避免整数度量溢出。
     PangoContext *context = pango_layout_get_context(layout);
     PangoFontMetrics *metrics = pango_context_get_metrics(context, font, pango_context_get_language(context));
@@ -995,7 +1027,9 @@ static bool paint_pixels(struct view *s, struct pixels *p)
         int visible = (int)fmin(floor(height / line_height), line_count);
         for (int skip = line_count - visible; skip > 0; --skip)
             lines = lines->next;
-        cairo_set_source_rgba(cr, 1, 1, 1, c->text_alpha);
+        cairo_set_source_rgba(cr, ((c->text_rgb >> 16) & 255) / 255.0,
+                              ((c->text_rgb >> 8) & 255) / 255.0,
+                              (c->text_rgb & 255) / 255.0, c->text_alpha);
         double baseline = ascent + (line_height - ascent - descent) / 2;
         for (int row = 0; row < visible; ++row, lines = lines->next)
         {
@@ -1011,6 +1045,17 @@ static bool paint_pixels(struct view *s, struct pixels *p)
             cairo_save(cr);
             cairo_rectangle(cr, left, y, width, line_height);
             cairo_clip(cr);
+            if (c->outline)
+            {
+                cairo_save(cr);
+                cairo_move_to(cr, x, y + baseline);
+                pango_cairo_layout_line_path(cr, line);
+                cairo_set_source_rgba(cr, 16.0 / 255, 19.0 / 255, 24.0 / 255, c->text_alpha);
+                cairo_set_line_width(cr, 1.0);
+                cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+                cairo_stroke(cr);
+                cairo_restore(cr);
+            }
             cairo_move_to(cr, x, y + baseline);
             pango_cairo_show_layout_line(cr, line);
             cairo_restore(cr);

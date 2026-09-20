@@ -12,9 +12,16 @@ Versions are listed newest first.
 - Add CLI options for credential storage (including memory-only mode), proxy, OBS auto-connect/auto-stream, and TTS. Explicit overrides apply only to the current run and are not saved. See `--help` for usage.
 - Add `--doctor` read-only diagnostics for configuration, credential services, and optional helpers, without reading secrets or starting graphics, audio, or business services.
 - Select multiple overlay displays by name, with mouse or keyboard changes saved and applied immediately. Displays share content snapshots; disconnected selections stay hidden instead of moving to another monitor and return when reconnected.
+- Add separate overlay colors for ordinary text, background, Captain, Admiral, Governor, and Super Chat. Preview `#RRGGBB` input live, save on confirmation, or cancel to restore the saved color. The default palette uses pure white text, muted coral guard purchases, warm gold Super Chats, and a dark blue-gray background.
+
+### Changed
+
+- Display and speak guard subscriptions by duration, such as “张三开通了1个月的舰长”, preserving annual and short-term subscriptions. Gifts continue to show quantities.
+- Add a thin dark outline to overlay text, enabled by default and toggleable in Overlay content & appearance. Changes are saved and applied immediately. Default text opacity is 1.0 and background opacity is 0.35 for readability over light backgrounds.
 
 ### Fixed
 
+- Return to the same appearance option after saving or canceling an edit, preserving the list position for consecutive changes. Press Esc from the appearance list to return to the overlay menu.
 - Fix the macOS overlay background covering the entire display. Draw it only within the configured overlay position and size, leaving the rest transparent.
 - Fix directory ACL access in the Windows file credential backend while retaining access only for the current user and SYSTEM.
 - Fix a race between socket deadlines and the context timer during overlay startup, consistently reporting a deadline error when the startup budget expires.

@@ -142,7 +142,7 @@ func (m *Model) content() string {
 		if m.editKind == "clear-data" {
 			promptStyle = danger
 		}
-		return promptStyle.Render(ansi.Wrap(clean(m.prompt), m.view.Width, "")) + "\n\n" + m.input.View() + "\n\n" + muted.Render(i18n.T(i18n.TUIFormControls))
+		return promptStyle.Render(ansi.Wrap(clean(m.prompt), m.view.Width, "")) + "\n\n" + m.input.View() + m.overlayColorSample() + "\n\n" + muted.Render(i18n.T(i18n.TUIFormControls))
 	case "confirm":
 		no, yes := i18n.T(i18n.TUIConfirmCancelLabel), i18n.T(i18n.TUIConfirmExecuteLabel)
 		if m.selected == 0 {

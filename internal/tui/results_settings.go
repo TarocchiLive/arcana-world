@@ -71,6 +71,16 @@ func (m *Model) applyOverlaySettings(notice i18n.Key) {
 }
 
 func (m *Model) handleOverlayConfigResult(_ struct{}, err error, label i18n.Key) tea.Cmd {
+	defer func() {
+		if m.overlaySettings != nil {
+			m.showOverlaySettings()
+		}
+	}()
+	if err != nil {
+		m.clearOverlayColorPreview()
+	} else {
+		m.overlayColorPreview = nil
+	}
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
@@ -94,6 +104,11 @@ func (m *Model) handleOverlayToggleResult(_ struct{}, err error, label i18n.Key)
 }
 
 func (m *Model) handleOverlayRestoreResult(_ struct{}, err error, label i18n.Key) tea.Cmd {
+	defer func() {
+		if m.overlaySettings != nil {
+			m.showOverlaySettings()
+		}
+	}()
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}

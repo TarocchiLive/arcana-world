@@ -43,12 +43,40 @@ func waylandConfig(cfg overlay.Config) (C.struct_arcana_wayland_config, func(), 
 			return C.struct_arcana_wayland_config{}, nil, errors.New("Wayland display IDs cannot contain NUL")
 		}
 	}
+	colors, err := cfg.Colors.Normalize()
+	if err != nil {
+		return C.struct_arcana_wayland_config{}, nil, err
+	}
+	cfg.Colors = colors
+	textRGB, err := overlay.ParseColor(colors.Text)
+	if err != nil {
+		return C.struct_arcana_wayland_config{}, nil, err
+	}
+	backgroundRGB, err := overlay.ParseColor(colors.Background)
+	if err != nil {
+		return C.struct_arcana_wayland_config{}, nil, err
+	}
+	runs := cfg.TextRuns()
+	var nativeRuns *C.struct_arcana_wayland_text_run
+	if len(runs) > 0 {
+		nativeRuns = (*C.struct_arcana_wayland_text_run)(C.calloc(C.size_t(len(runs)), C.size_t(C.sizeof_struct_arcana_wayland_text_run)))
+		if nativeRuns == nil {
+			return C.struct_arcana_wayland_config{}, nil, errors.New("Wayland overlay: cannot allocate text color runs")
+		}
+		for i, run := range runs {
+			unsafe.Slice(nativeRuns, len(runs))[i] = C.struct_arcana_wayland_text_run{
+				start: C.size_t(run.Start), end: C.size_t(run.End), rgb: C.uint32_t(run.RGB),
+			}
+		}
+	}
 	value := C.struct_arcana_wayland_config{
 		text: C.CString(cfg.Text), output: C.CString(cfg.Output), family: C.CString(cfg.Font.Family),
 		anchor: C.int(cfg.Position.Anchor.Index()), weight: C.int(cfg.Font.Weight),
 		x: C.double(cfg.Position.X), y: C.double(cfg.Position.Y), width: C.double(cfg.Width), height: C.double(cfg.Height),
 		padding_top: C.double(cfg.Padding.Top), padding_right: C.double(cfg.Padding.Right), padding_bottom: C.double(cfg.Padding.Bottom), padding_left: C.double(cfg.Padding.Left),
 		font_size: C.double(cfg.Font.Size), text_alpha: C.double(cfg.TextAlpha), background_alpha: C.double(cfg.BackgroundAlpha),
+		text_runs: nativeRuns, text_run_count: C.size_t(len(runs)),
+		text_rgb: C.uint32_t(textRGB), background_rgb: C.uint32_t(backgroundRGB),
 	}
 	if selected != nil {
 		value.explicit_displays = 1
@@ -61,11 +89,15 @@ func waylandConfig(cfg overlay.Config) (C.struct_arcana_wayland_config, func(), 
 	if cfg.Font.Italic {
 		value.italic = 1
 	}
+	if cfg.Outline {
+		value.outline = 1
+	}
 	return value, func() {
 		C.free(unsafe.Pointer(value.text))
 		C.free(unsafe.Pointer(value.output))
 		C.free(unsafe.Pointer(value.family))
 		C.free(unsafe.Pointer(value.displays))
+		C.free(unsafe.Pointer(value.text_runs))
 	}, nil
 }
 
