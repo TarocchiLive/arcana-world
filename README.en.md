@@ -110,6 +110,10 @@ Default data directory: `~/.arcana/world`.
 - [ ] Refactor and improve the overlay layout and appearance.
 - [ ] Support the iTerm2 image protocol.
 - [ ] Support resizing and cropping cover images in the terminal.
+- [ ] Check for new versions.
+- [ ] Support package repositories such as Scoop, Homebrew, and nixpkgs.
+- [ ] Add a bot protocol interface.
+- [?] GUI / WebUI support (under consideration).
 
 ## Development
 
