@@ -22,7 +22,10 @@ const (
 
 // Run decodes and plays a single MP3. It must only be called once per process:
 // Oto does not support creating a second context or closing the first one.
-func Run(ctx context.Context, in io.Reader) error {
+func Run(ctx context.Context, in io.Reader, volume int) error {
+	if volume < 0 || volume > 100 {
+		return errors.New("audio: volume must be between 0 and 100")
+	}
 	if ctx == nil {
 		return errors.New("audio: nil context")
 	}
@@ -63,6 +66,7 @@ func Run(ctx context.Context, in io.Reader) error {
 	stream := &trackedPCM{source: decoder}
 	player := device.NewPlayer(stream)
 	player.SetBufferSize(playbackBufferBytes)
+	player.SetVolume(float64(volume) / 100)
 	player.Play()
 	return waitPlayback(ctx, player, device.Err, stream, playbackDrainTail)
 }

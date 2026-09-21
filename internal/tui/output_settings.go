@@ -21,6 +21,7 @@ func (m *Model) outputMenu() []menuItem {
 	return []menuItem{
 		{i18n.T(i18n.OutputTTSToggle), "tts-toggle"},
 		{i18n.T(i18n.OutputVoice), "tts-voice"},
+		{i18n.T(i18n.OutputVolume), "tts-volume"},
 		{i18n.T(i18n.OutputTTSStop), "tts-stop"},
 		{i18n.T(i18n.OutputTTSPreview), "tts-preview"},
 		{i18n.T(i18n.OutputEvents), "output-events"},

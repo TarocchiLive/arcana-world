@@ -18,6 +18,8 @@ const (
 	OutputVoice                 Key = "output.voice.menu"
 	OutputVoicePicker           Key = "output.voice.picker"
 	OutputVoiceDetails          Key = "output.voice.details"
+	OutputVolume                Key = "output.volume.menu"
+	OutputVolumeInvalid         Key = "output.volume.invalid"
 	OutputOverlayDescription    Key = "output.overlay.description"
 	OutputTTSDescription        Key = "output.tts.description"
 	OutputFooter                Key = "output.footer"
