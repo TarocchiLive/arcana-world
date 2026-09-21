@@ -13,6 +13,15 @@ import (
 
 type qrImageOpened struct{ err error }
 
+func (m *Model) prepareQR(link string) tea.Cmd {
+	m.qrText = ""
+	if preferQRImage() {
+		return m.openQRImage()
+	}
+	m.qrText = renderQR(link)
+	return nil
+}
+
 func (m *Model) openQRImage() tea.Cmd {
 	if m.qrImageOpening {
 		return nil

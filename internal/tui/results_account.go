@@ -20,10 +20,9 @@ func (m *Model) handleQRResult(value domain.QR, err error, label i18n.Key) tea.C
 	m.qr = &qr
 	m.mode = "qr"
 	m.qrGeneration++
-	m.qrText = renderQR(qr.URL)
 	m.view.GotoTop()
 	m.status = i18n.T(i18n.TUIStatusScanQR)
-	return m.nextPoll()
+	return tea.Batch(m.prepareQR(qr.URL), m.nextPoll())
 }
 
 func pollOperation() operation[domain.LoginPoll] {
@@ -141,11 +140,11 @@ func (m *Model) handleFaceResult(value string, err error, label i18n.Key) tea.Cm
 		return cmd
 	}
 	m.faceURL = value
-	m.qrText = renderQR(m.faceURL)
 	m.mode = "face"
 	m.view.GotoTop()
 	m.status = i18n.T(i18n.TUIStatusIdentityRequired)
-	return m.finishResult()
+	open := m.prepareQR(m.faceURL)
+	return tea.Batch(open, m.finishResult())
 }
 
 // A switch/delete can stop the old broadcast before a later local step fails.
