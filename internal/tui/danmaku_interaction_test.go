@@ -20,7 +20,7 @@ func TestChatInteractionVisibilityFollowsActionAndOtherToggle(t *testing.T) {
 		if m.chat.showOther != other {
 			chatKeyRun(m, "f")
 		}
-		rendered := m.chatView()
+		rendered := m.chatView(m.view.Width())
 		for action := 1; action <= 5; action++ {
 			want := action <= 2 || (action == 3 || action == 4) && other
 			if got := strings.Contains(rendered, fmt.Sprintf("interaction-user-%d", action)); got != want {

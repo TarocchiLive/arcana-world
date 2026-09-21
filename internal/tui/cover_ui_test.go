@@ -14,7 +14,7 @@ import (
 
 	"arcana-world/internal/domain"
 	"arcana-world/internal/store"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func coverTestModel(t *testing.T) (*Model, string) {
@@ -79,21 +79,21 @@ func TestCoverRequiresConfirmationBeforePublishing(t *testing.T) {
 	m.client.APIBase = server.URL
 	m.client.LiveBase = server.URL
 	m.perform("cover")
-	m.coverKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}})
+	m.coverKey(tea.KeyPressMsg{Code: 'u', Text: "u"})
 	m.input.SetValue(path)
 	prepare := m.submitForm()
 	m.Update(prepare())
 	if requests.Load() != 0 {
 		t.Fatal("preparing cover mutated remote room")
 	}
-	cancel := tea.KeyMsg{Type: tea.KeyEsc}
+	cancel := tea.KeyPressMsg{Code: tea.KeyEsc}
 	m.Update(cancel)
 	if requests.Load() != 0 || m.room.CoverURL != "https://i0.hdslb.com/old.png" {
 		t.Fatal("canceling candidate changed published cover")
 	}
 	prepare = m.prepareCover(path)
 	m.Update(prepare())
-	_, upload := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, upload := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if upload == nil {
 		t.Fatal("confirmation did not upload")
 	}
@@ -106,7 +106,7 @@ func TestCanceledCoverPreparationDoesNotReopenReview(t *testing.T) {
 	m, path := coverTestModel(t)
 	prepare := m.prepareCover(path)
 	queued := prepare()
-	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	_, next := m.Update(queued)
 	if next != nil || m.cover != nil || m.mode != "" {
 		t.Fatal("canceled preparation reopened a stale review")

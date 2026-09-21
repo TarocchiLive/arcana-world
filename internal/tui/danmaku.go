@@ -6,7 +6,7 @@ import (
 
 	"arcana-world/internal/danmaku"
 	"arcana-world/internal/i18n"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 const (
@@ -35,6 +35,7 @@ type danmakuUI struct {
 	newMessages    bool
 	scrollToLatest bool
 	shown          bool
+	actionsOffset  int
 }
 type chatTick struct{}
 type chatPageMsg struct {
@@ -48,8 +49,8 @@ type chatPageMsg struct {
 	newMessages, showOther bool
 }
 
-// Room changes discard read positions and unread state together. Keep any
-// in-flight request: applyChatPage rejects its old room and starts a fresh read.
+// 切换房间时同时清除阅读位置与未读状态，但保留正在执行的请求；
+// applyChatPage 会拒绝旧房间结果并发起新的读取。
 func (c *danmakuUI) resetRoom(room int64) {
 	c.room = room
 	c.before, c.newer, c.entries = 0, nil, nil
@@ -101,6 +102,7 @@ func (m *Model) updateChat() tea.Cmd {
 	}
 	return tea.Batch(chatTickCmd(), read)
 }
+
 func (m *Model) readChat() tea.Cmd {
 	c := m.chat
 	if c == nil || c.history == nil || c.loading {
@@ -138,8 +140,8 @@ func (m *Model) readChat() tea.Cmd {
 	}
 }
 
-// Check only arrivals not previously inspected. Hidden broadcasts cannot create
-// the banner, and already-read newer pages are not mistaken for new arrivals.
+// 只检查尚未查看的新消息，隐藏广播不会触发提示，
+// 已读的较新分页也不会被误判为新消息。
 func newerChatEvents(h *danmaku.History, room int64, after uint64, showOther bool) (uint64, bool, error) {
 	var before, latest uint64
 	limit := 1
@@ -187,7 +189,7 @@ func (m *Model) applyChatPage(msg chatPageMsg) tea.Cmd {
 	if len(msg.entries) == 0 && msg.before != 0 && len(c.newer) > 0 {
 		c.before = c.newer[len(c.newer)-1]
 		c.newer = c.newer[:len(c.newer)-1]
-		m.status = i18n.T(i18n.DanmakuNoOlder)
+		m.setStatus(i18n.T(i18n.DanmakuNoOlder))
 		return m.readChat()
 	}
 	c.entries = msg.entries
@@ -212,6 +214,8 @@ func (m *Model) chatKey(key string) (bool, tea.Cmd) {
 		return false, nil
 	}
 	switch key {
+	case "a":
+		return true, m.pickChatActions()
 	case "down", "j", "pgdown":
 		if !m.view.AtBottom() {
 			return false, nil
@@ -244,16 +248,16 @@ func (m *Model) chatKey(key string) (bool, tea.Cmd) {
 				c.listener.Retry()
 			}
 		}
-		m.status = i18n.T(i18n.DanmakuRetry)
+		m.progressStatus(i18n.T(i18n.DanmakuRetry))
 		return true, m.readChat()
-	case " ", "space":
+	case "space":
 		c.follow = !c.follow
 		c.scrollToLatest = false
 		if c.follow {
 			c.before, c.newer = 0, nil
 			m.view.GotoTop()
 		} else if c.before == 0 {
-			// Freeze an exclusive high-water mark, including an empty history.
+			// 冻结不包含边界值的高水位，空历史也适用。
 			c.before = 1
 			if len(c.entries) > 0 {
 				c.before = c.entries[0].Sequence + 1

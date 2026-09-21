@@ -8,7 +8,7 @@ import (
 
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/overlay"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func (m *Model) pickOverlayDisplays() tea.Cmd {
@@ -28,7 +28,7 @@ func (m *Model) handleOverlayDisplays(displays []overlay.Display, err error, lab
 	m.overlayDisplays = displays
 	m.choices = nil
 	for _, display := range displays {
-		// A display name is one picker row, even if the OS supplies control characters.
+		// 系统提供的名称即使含控制字符，也只能占一个选项行。
 		name := strings.ReplaceAll(clean(display.Name), "\n", " ")
 		m.choices = append(m.choices, choice{name, display.ID})
 	}
@@ -41,10 +41,9 @@ func (m *Model) handleOverlayDisplays(displays []overlay.Display, err error, lab
 	if len(m.choices) == 0 {
 		m.mode = ""
 		m.log(i18n.T(i18n.TUIStatusNoEntries))
-		return tea.DisableMouse
+		return nil
 	}
-	m.pick("overlay-displays", i18n.T(i18n.OutputDisplays))
-	return tea.EnableMouseCellMotion
+	return m.pick("overlay-displays", i18n.T(i18n.OutputDisplays))
 }
 
 func (m *Model) selectedOverlayDisplays() []string {
@@ -89,28 +88,4 @@ func (m *Model) toggleOverlayDisplay(id string) tea.Cmd {
 		cfg.Overlay = settings
 		return struct{}{}, m.store.SaveConfig(cfg)
 	})
-}
-
-func (m *Model) overlayDisplayMouse(msg tea.MouseMsg) tea.Cmd {
-	if m.busy || m.mode != "pick" || m.editKind != "overlay-displays" {
-		return nil
-	}
-	if msg.Button == tea.MouseButtonWheelUp {
-		m.selected = max(0, m.selected-1)
-		return nil
-	}
-	if msg.Button == tea.MouseButtonWheelDown {
-		m.selected = min(len(m.choices)-1, m.selected+1)
-		return nil
-	}
-	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft || msg.X < 2 || msg.X >= 2+m.view.Width {
-		return nil
-	}
-	row := msg.Y - m.pickerTop + m.view.YOffset - 2
-	start := max(0, m.selected-m.pickerWindow()+1)
-	if row < 0 || row >= m.pickerWindow() || start+row >= len(m.choices) || msg.Y < m.pickerTop || msg.Y >= m.pickerTop+m.view.Height {
-		return nil
-	}
-	m.selected = start + row
-	return m.choose()
 }

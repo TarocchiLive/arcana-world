@@ -4,8 +4,8 @@ import (
 	"arcana-world/internal/app"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
+	tea "charm.land/bubbletea/v2"
 	"fmt"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 func qrOperation() operation[domain.QR] {
@@ -21,7 +21,7 @@ func (m *Model) handleQRResult(value domain.QR, err error, label i18n.Key) tea.C
 	m.mode = "qr"
 	m.qrGeneration++
 	m.view.GotoTop()
-	m.status = i18n.T(i18n.TUIStatusScanQR)
+	m.progressStatus(i18n.T(i18n.TUIStatusScanQR))
 	return tea.Batch(m.prepareQR(qr.URL), m.nextPoll())
 }
 
@@ -47,7 +47,7 @@ func (m *Model) handlePollResult(value domain.LoginPoll, err error, label i18n.K
 	switch poll.Code {
 	case 0:
 		if poll.Account == nil {
-			m.log(i18n.T(i18n.TUILogLoginCredentialsMissing))
+			m.warn(i18n.T(i18n.TUILogLoginCredentialsMissing))
 			m.mode = ""
 			return nil
 		}
@@ -57,17 +57,17 @@ func (m *Model) handlePollResult(value domain.LoginPoll, err error, label i18n.K
 		m.qrGeneration++
 		return m.saveLogin(*poll.Account)
 	case 86101:
-		m.status = i18n.T(i18n.TUIStatusWaitingQR)
+		m.progressStatus(i18n.T(i18n.TUIStatusWaitingQR))
 	case 86090:
-		m.status = i18n.T(i18n.TUIStatusConfirmLogin)
+		m.progressStatus(i18n.T(i18n.TUIStatusConfirmLogin))
 	case 86038:
-		m.log(i18n.T(i18n.TUILogQRExpired))
+		m.warn(i18n.T(i18n.TUILogQRExpired))
 		m.mode = ""
 		m.qr = nil
 		m.qrText = ""
 		return nil
 	default:
-		m.log(fmt.Sprintf(i18n.T(i18n.TUILogLoginStatusUnexpected), poll.Code))
+		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogLoginStatusUnexpected), poll.Code))
 		m.mode = ""
 		return nil
 	}
@@ -142,12 +142,12 @@ func (m *Model) handleFaceResult(value string, err error, label i18n.Key) tea.Cm
 	m.faceURL = value
 	m.mode = "face"
 	m.view.GotoTop()
-	m.status = i18n.T(i18n.TUIStatusIdentityRequired)
+	m.warnStatus(i18n.T(i18n.TUIStatusIdentityRequired))
 	open := m.prepareQR(m.faceURL)
 	return tea.Batch(open, m.finishResult())
 }
 
-// A switch/delete can stop the old broadcast before a later local step fails.
+// 切换或删除账号可能已停止旧直播，但后续本地操作仍可能失败。
 func (m *Model) applyOldRoom(value app.AccountOutcome) {
 	if value.OldRoom != nil {
 		m.room = value.OldRoom

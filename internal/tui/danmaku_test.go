@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"arcana-world/internal/store"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func chatTestModel(t *testing.T) *Model {
@@ -126,7 +127,7 @@ func TestChatDeletionUpdatesPausedHistoryAndStripsTerminalControls(t *testing.T)
 		}
 	}
 	runChatCommand(m, m.readChat())
-	chatKeyRun(m, " ")
+	chatKeyRun(m, "space")
 	if _, err := m.chat.history.Append(1, json.RawMessage(`{"cmd":"SUPER_CHAT_MESSAGE_DELETE","data":{"ids":[42]}}`)); err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +170,7 @@ func TestChatPauseRejectsAnInflightLivePage(t *testing.T) {
 	appendChat(t, m, "arrived during refresh")
 	pending := m.readChat()
 	queued := pending().(chatPageMsg)
-	chatKeyRun(m, " ")
+	chatKeyRun(m, "space")
 	runChatCommand(m, m.applyChatPage(queued))
 	if m.chat.follow || len(m.chat.entries) != 1 || m.chat.entries[0].Text != "already displayed" {
 		t.Fatal("in-flight history refresh defeated the user's pause")
@@ -179,18 +180,18 @@ func TestChatPauseRejectsAnInflightLivePage(t *testing.T) {
 func TestChatScrollingDoesNotHideIncomingMessages(t *testing.T) {
 	m := chatTestModel(t)
 	runChatCommand(m, m.readChat())
-	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	appendChat(t, m, "arrived after scrolling")
 	runChatCommand(m, m.readChat())
-	if !strings.Contains(m.chatView(), "arrived after scrolling") {
+	if !strings.Contains(m.chatView(m.view.Width()), "arrived after scrolling") {
 		t.Fatal("scrolling an empty page hid incoming chat")
 	}
 	appendChat(t, m, "arrived during refresh")
 	pending := m.readChat()
 	queued := pending().(chatPageMsg)
-	m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
 	runChatCommand(m, m.applyChatPage(queued))
-	if !strings.Contains(m.chatView(), "arrived during refresh") {
+	if !strings.Contains(m.chatView(m.view.Width()), "arrived during refresh") {
 		t.Fatal("scrolling discarded an incoming chat refresh")
 	}
 }
@@ -237,7 +238,8 @@ func TestChatAllowlistCannotBeBypassedByOtherToggle(t *testing.T) {
 		if m.chat.showOther != other {
 			chatKeyRun(m, "f")
 		}
-		rendered := m.chatView()
+		// 工作区宽度变化时，换行可能拆分事件文本。
+		rendered := strings.Join(strings.Fields(ansi.Strip(m.chatView(m.view.Width()))), "")
 		if !strings.Contains(rendered, "allowed-chat") || !strings.Contains(rendered, "allowed-guard-purchase") {
 			t.Fatal("essential room activity was hidden")
 		}

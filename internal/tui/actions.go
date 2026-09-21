@@ -11,8 +11,8 @@ import (
 	"arcana-world/internal/bili"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 )
 
 type menuItem struct{ label, action string }
@@ -29,7 +29,7 @@ func (m *Model) menu() []menuItem {
 		if m.room != nil && m.room.Live {
 			liveAction = menuItem{i18n.T(i18n.TUIMenuStopLive), "stop-confirm"}
 		}
-		return []menuItem{{i18n.T(i18n.TUIMenuRefreshRoom), "refresh"}, liveAction, {i18n.T(i18n.TUIMenuRevealStreamKey), "reveal"}}
+		return []menuItem{liveAction, {i18n.T(i18n.TUIMenuRefreshRoom), "refresh"}, {i18n.T(i18n.TUIMenuRevealStreamKey), "reveal"}}
 	case accountsPage:
 		items := []menuItem{{i18n.T(i18n.TUIMenuAddAccount), "login"}}
 		for _, a := range m.store.Accounts() {
@@ -59,12 +59,23 @@ func (m *Model) menu() []menuItem {
 		return m.outputMenu()
 	case settingsPage:
 		return []menuItem{
+			{i18n.T(i18n.LumenTheme) + " · " + m.themeName(), "theme"},
+			{i18n.T(i18n.LumenAppearance), "appearance"},
 			{i18n.T(i18n.TUIMenuSetProxy), "proxy"},
 			{i18n.T(i18n.TUIMenuSetProtocol), "protocol"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
 			{i18n.T(i18n.TUISettingsReset), "settings-reset-confirm"},
 			{i18n.T(i18n.TUISettingsClearData), "clear-data"},
+		}
+	case helpPage:
+		return []menuItem{
+			{i18n.T(i18n.TUIHelpGettingStartedTitle), "help:" + string(i18n.TUIHelpGettingStarted)},
+			{i18n.T(i18n.TUIHelpOBSTitle), "help:" + string(i18n.TUIHelpOBS)},
+			{i18n.T(i18n.TUIHelpStreamTitle), "help:" + string(i18n.TUIHelpStream)},
+			{i18n.T(i18n.TUIHelpChatTitle), "help:" + string(i18n.TUIHelpChat)},
+			{i18n.T(i18n.TUIHelpOutputTitle), "help:" + string(i18n.TUIHelpOutput)},
+			{i18n.T(i18n.TUIHelpControlsTitle), "help:" + string(i18n.TUIHelpControls)},
 		}
 	case chatPage:
 		return []menuItem{{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"}}
@@ -81,17 +92,24 @@ func (m *Model) activate() tea.Cmd {
 }
 func (m *Model) requireRoom() bool {
 	if m.account == nil {
-		m.log(i18n.T(i18n.TUIStatusAccountRequired))
+		m.warn(i18n.T(i18n.TUIStatusAccountRequired))
 		return false
 	}
 	if m.room == nil {
-		m.log(i18n.T(i18n.TUIStatusRoomRequired))
+		m.warn(i18n.T(i18n.TUIStatusRoomRequired))
 		return false
 	}
 	return true
 }
 func (m *Model) perform(action string) tea.Cmd {
 	if m.busy {
+		return nil
+	}
+	if strings.HasPrefix(action, "help:") {
+		// 保留帮助目录的光标，返回时仍选中刚才阅读的主题。
+		m.mode = "help"
+		m.editKind = strings.TrimPrefix(action, "help:")
+		m.view.GotoTop()
 		return nil
 	}
 	if action == "output-events" {
@@ -127,6 +145,10 @@ func (m *Model) perform(action string) tea.Cmd {
 		return work(m, deleteOperation(), func(ctx context.Context) (app.AccountOutcome, error) { return m.session.Delete(ctx, client, uid) })
 	}
 	switch action {
+	case "theme":
+		return m.pickTheme()
+	case "appearance":
+		return m.pickAppearance()
 	case "settings-reset-confirm":
 		return m.confirm(i18n.T(i18n.TUISettingsResetConfirm), "settings-reset")
 	case "settings-reset":
@@ -156,7 +178,7 @@ func (m *Model) perform(action string) tea.Cmd {
 		return work(m, qrOperation(), func(ctx context.Context) (domain.QR, error) { return m.client.GenerateQR(ctx) })
 	case "refresh":
 		if m.account == nil {
-			m.log(i18n.T(i18n.TUIStatusSignInRequired))
+			m.warn(i18n.T(i18n.TUIStatusSignInRequired))
 			return nil
 		}
 		return m.refresh()
@@ -165,11 +187,11 @@ func (m *Model) perform(action string) tea.Cmd {
 			return nil
 		}
 		if m.room.AreaID == 0 {
-			m.log(i18n.T(i18n.TUIStatusCategoryRequired))
+			m.warn(i18n.T(i18n.TUIStatusCategoryRequired))
 			return nil
 		}
 		if m.obsBusy {
-			m.log(i18n.T(i18n.TUIStatusWaitOBSConnection))
+			m.warn(i18n.T(i18n.TUIStatusWaitOBSConnection))
 			return nil
 		}
 		return m.confirm(m.startPrompt(), "start")
@@ -178,7 +200,7 @@ func (m *Model) perform(action string) tea.Cmd {
 			return nil
 		}
 		if m.obsBusy {
-			m.log(i18n.T(i18n.TUIStatusWaitOBSConnection))
+			m.warn(i18n.T(i18n.TUIStatusWaitOBSConnection))
 			return nil
 		}
 		return m.confirm(m.stopPrompt(), "stop")
@@ -188,7 +210,7 @@ func (m *Model) perform(action string) tea.Cmd {
 		return m.stopLive()
 	case "reveal":
 		if m.stream == nil {
-			m.log(i18n.T(i18n.TUIStatusStreamUnavailable))
+			m.warn(i18n.T(i18n.TUIStatusStreamUnavailable))
 		} else {
 			m.reveal = !m.reveal
 		}
@@ -199,7 +221,7 @@ func (m *Model) perform(action string) tea.Cmd {
 		}
 		m.selection = newTitleSelection(m.room.Title, m.store.Config().RecentTitles)
 		m.mode = "selection"
-		m.status = i18n.T(i18n.TUIStatusTitleEditHint)
+		m.progressStatus(i18n.T(i18n.TUIStatusTitleEditHint))
 		m.view.GotoTop()
 		return m.selection.Init()
 	case "announcement":
@@ -213,7 +235,7 @@ func (m *Model) perform(action string) tea.Cmd {
 		}
 		m.cover = nil
 		m.mode = "cover"
-		m.status = i18n.T(i18n.TUIStatusCoverActions)
+		m.progressStatus(i18n.T(i18n.TUIStatusCoverActions))
 		m.view.GotoTop()
 		return nil
 	case "areas":
@@ -243,19 +265,19 @@ func (m *Model) perform(action string) tea.Cmd {
 		return m.pick("delete", i18n.T(i18n.TUIFormRemoveAccount))
 	case "obs-url":
 		if m.obsBusy {
-			m.log(i18n.T(i18n.TUIStatusWaitOBSSettings))
+			m.warn(i18n.T(i18n.TUIStatusWaitOBSSettings))
 			return nil
 		}
 		return m.form("obs-url", i18n.T(i18n.TUISettingsOBSURL), m.config.OBSURL, false)
 	case "obs-password":
 		if m.obsBusy {
-			m.log(i18n.T(i18n.TUIStatusWaitOBSSettings))
+			m.warn(i18n.T(i18n.TUIStatusWaitOBSSettings))
 			return nil
 		}
 		return m.form("obs-password", i18n.T(i18n.TUIFormOBSPassword), "", true)
 	case "proxy":
 		if m.store.Overrides().Proxy != nil {
-			m.log(i18n.T(i18n.TUISessionOverride))
+			m.warn(i18n.T(i18n.TUISessionOverride))
 			return nil
 		}
 		return m.form("proxy", i18n.T(i18n.TUIFormProxy), m.config.Proxy, false)
@@ -274,11 +296,11 @@ func (m *Model) perform(action string) tea.Cmd {
 	case "obs-auto-connect", "obs-auto-stream":
 		overrides := m.store.Overrides()
 		if action == "obs-auto-connect" && overrides.OBSAutoConnect != nil || action == "obs-auto-stream" && overrides.OBSAutoStream != nil {
-			m.log(i18n.T(i18n.TUISessionOverride))
+			m.warn(i18n.T(i18n.TUISessionOverride))
 			return nil
 		}
 		if m.obsBusy {
-			m.log(i18n.T(i18n.TUIStatusWaitOBS))
+			m.warn(i18n.T(i18n.TUIStatusWaitOBS))
 			return nil
 		}
 		cfg := m.config
@@ -357,11 +379,20 @@ func (m *Model) choose() tea.Cmd {
 	if m.editKind == "output-events" {
 		return m.toggleOutputEvent(ch.value)
 	}
+	if m.editKind == "appearance" {
+		return m.toggleAppearance(ch.value)
+	}
 	m.mode = ""
 	if strings.HasPrefix(m.editKind, "overlay-") {
 		return m.chooseOverlay(ch.value)
 	}
 	switch m.editKind {
+	case "chat-actions":
+		return m.chooseChatAction(ch.value)
+	case "theme":
+		cfg := m.config
+		cfg.TUITheme = ch.value
+		return m.saveConfig(cfg, false)
 	case "tts-voice":
 		cfg := m.config
 		cfg.TTS.Voice = ch.value
@@ -399,7 +430,7 @@ func (m *Model) submitForm() tea.Cmd {
 			m.input.SetValue("")
 			m.input.Blur()
 			m.view.GotoTop()
-			m.log(i18n.T(i18n.TUISettingsClearDataMismatch))
+			m.warn(i18n.T(i18n.TUISettingsClearDataMismatch))
 			return nil
 		}
 		m.clearDataOnExit = true
@@ -422,34 +453,34 @@ func (m *Model) submitForm() tea.Cmd {
 	case "tts-volume":
 		n, err := strconv.Atoi(value)
 		if err != nil || n < 0 || n > 100 {
-			m.status = i18n.T(i18n.OutputVolumeInvalid)
+			m.warnStatus(i18n.T(i18n.OutputVolumeInvalid))
 			return nil
 		}
 	case "cover-path":
 		if value == "" {
-			m.status = i18n.T(i18n.TUIValidationImagePath)
+			m.warnStatus(i18n.T(i18n.TUIValidationImagePath))
 			return nil
 		}
 	case "delay":
 		n, err := strconv.Atoi(value)
 		if err != nil || n < 0 {
-			m.status = i18n.T(i18n.TUIValidationDelay)
+			m.warnStatus(i18n.T(i18n.TUIValidationDelay))
 			return nil
 		}
 	case "obs-url":
 		u, err := url.Parse(value)
 		if err != nil || (u.Scheme != "ws" && u.Scheme != "wss") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-			m.status = i18n.T(i18n.TUIValidationOBSURL)
+			m.warnStatus(i18n.T(i18n.TUIValidationOBSURL))
 			return nil
 		}
 	case "proxy":
 		if m.store.Overrides().Proxy != nil {
-			m.log(i18n.T(i18n.TUISessionOverride))
+			m.warn(i18n.T(i18n.TUISessionOverride))
 			return nil
 		}
 		client, err := bili.New(value)
 		if err != nil {
-			m.status = clean(err.Error())
+			m.warnStatus(clean(err.Error()))
 			return nil
 		}
 		client.HTTP.CloseIdleConnections()
@@ -536,7 +567,7 @@ func (m *Model) setTitle(value string) tea.Cmd {
 	})
 }
 
-// prependRecent preserves all other entries, including their duplicates.
+// prependRecent 保留其他所有条目，包括它们之间的重复项。
 func prependRecent[T any, K comparable](history []T, value T, limit int, identity func(T) K) []T {
 	if limit <= 0 {
 		return nil

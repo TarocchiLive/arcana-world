@@ -4,7 +4,7 @@ import (
 	"arcana-world/internal/bili"
 	"arcana-world/internal/coverimage"
 	"arcana-world/internal/i18n"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"image"
 )
 
@@ -23,7 +23,7 @@ func (m *Model) handleCoverPrepareResult(value *coverimage.Prepared, err error, 
 	m.cover = value
 	m.mode = "cover-review"
 	m.view.GotoTop()
-	m.status = i18n.T(i18n.TUIStatusCoverProcessed)
+	m.setStatus(i18n.T(i18n.TUIStatusCoverProcessed))
 	return m.finishResult()
 }
 

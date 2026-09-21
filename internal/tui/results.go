@@ -7,7 +7,7 @@ import (
 
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func (r taskResult[T]) apply(m *Model) tea.Cmd {
@@ -29,9 +29,9 @@ func (m *Model) resultError(label i18n.Key, err error) (tea.Cmd, bool) {
 		return work(m, faceOperation(), func(ctx context.Context) (string, error) { return m.client.ResolveFace(ctx, face) }), true
 	}
 	if errors.Is(err, context.Canceled) {
-		m.log(i18n.T(i18n.TUIStatusRemoteCancelWarning))
+		m.warn(i18n.T(i18n.TUIStatusRemoteCancelWarning))
 	} else {
-		m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationFailed), i18n.T(label), err.Error()))
+		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOperationFailed), i18n.T(label), err.Error()))
 	}
 	return nil, true
 }
@@ -40,7 +40,7 @@ func (m *Model) finishResult() tea.Cmd {
 	return m.updateOverlayChat()
 }
 
-// Completion-only operations share error reporting and the normal success notice.
+// 仅返回完成状态的操作共用错误处理与成功提示。
 func completionOperation(label i18n.Key) operation[struct{}] {
 	return operation[struct{}]{
 		label: label,

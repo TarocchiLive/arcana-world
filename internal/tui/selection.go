@@ -6,8 +6,8 @@ import (
 
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -26,6 +26,7 @@ type selectionItem struct {
 }
 
 type roomSelection struct {
+	theme     tuiTheme
 	titleMode bool
 	input     textinput.Model
 	history   []string
@@ -45,11 +46,13 @@ func selectionText(s string) string {
 
 func newTitleSelection(current string, recent []string) *roomSelection {
 	in := textinput.New()
+	in.SetVirtualCursor(true)
 	in.Prompt = i18n.T(i18n.TUISelectionTitlePrompt)
+	themeFor("", true).styleInput(&in)
 	in.SetValue(selectionText(current))
 	in.CursorEnd()
 	in.Focus()
-	s := &roomSelection{titleMode: true, input: in, selected: -1, window: initialSelectionWindow}
+	s := &roomSelection{theme: themeFor("", true), titleMode: true, input: in, selected: -1, window: initialSelectionWindow}
 	seen := make(map[string]bool)
 	for _, title := range recent {
 		title = selectionText(title)
@@ -62,7 +65,7 @@ func newTitleSelection(current string, recent []string) *roomSelection {
 }
 
 func newAreaSelection(all, recent []domain.Area, currentID int64) *roomSelection {
-	s := &roomSelection{currentID: currentID, window: initialSelectionWindow}
+	s := &roomSelection{theme: themeFor("", true), currentID: currentID, window: initialSelectionWindow}
 	canonical := make(map[int64]domain.Area, len(all))
 	for _, area := range all {
 		if area.ID <= 0 {
@@ -144,7 +147,16 @@ func (s *roomSelection) move(key string, count, first int) {
 }
 
 func (s *roomSelection) Update(msg tea.Msg) (*selectionResult, tea.Cmd) {
-	key, isKey := msg.(tea.KeyMsg)
+	if paste, ok := msg.(tea.PasteMsg); ok {
+		if s.titleMode {
+			s.selected = -1
+		} else {
+			s.query = append(s.query, []rune(selectionText(paste.Content))...)
+			s.rebuild()
+			return nil, nil
+		}
+	}
+	key, isKey := msg.(tea.KeyPressMsg)
 	if s.titleMode {
 		if isKey {
 			switch key.String() {
@@ -214,29 +226,52 @@ func (s *roomSelection) Update(msg tea.Msg) (*selectionResult, tea.Cmd) {
 			s.rebuild()
 		}
 	default:
-		if key.Type == tea.KeyRunes || key.Type == tea.KeySpace {
-			text := string(key.Runes)
-			if key.Type == tea.KeySpace {
-				text = " "
-			}
-			s.query = append(s.query, []rune(selectionText(text))...)
+		if key.Text != "" {
+			s.query = append(s.query, []rune(selectionText(key.Text))...)
 			s.rebuild()
 		}
 	}
 	return nil, nil
 }
 
+// resize 负责编辑器尺寸，渲染过程不得改变横向滚动偏移。
+func (s *roomSelection) resize(width, height int) {
+	width = max(1, width)
+	if s.titleMode {
+		s.input.Prompt = ansi.Truncate(i18n.T(i18n.TUISelectionTitlePrompt), max(0, width-2), "")
+		s.input.SetWidth(max(1, width-ansi.StringWidth(s.input.Prompt)-1))
+	}
+	_, _, s.window = s.layout(width, height)
+}
+
+func (s *roomSelection) layout(width, height int) (header, footer, window int) {
+	width, height = max(1, width), max(1, height)
+	header = 2
+	if height < 4 {
+		header = 1
+		if height == 1 && s.selected >= 0 {
+			header = 0
+		}
+	}
+	controls := i18n.T(i18n.TUISelectionCategoryControls)
+	if s.titleMode {
+		controls = i18n.T(i18n.TUISelectionTitleControls)
+	}
+	footer = min(strings.Count(s.theme.hintText(controls, width), "\n")+1, max(0, height-header-1))
+	return header, footer, max(1, height-header-footer)
+}
+
 func (s *roomSelection) View(width, height int) string {
 	width, height = max(1, width), max(1, height)
-	var lines []string
+	header, footer, window := s.layout(width, height)
+	var heading, editor, controls, empty string
 	var labels []string
 	if s.titleMode {
-		s.input.Width = max(1, width-ansi.StringWidth(s.input.Prompt)-1)
-		lines = append(lines, accent.Render(i18n.T(i18n.TUISelectionTitleHeading)), s.input.View(), muted.Render(i18n.T(i18n.TUISelectionTitleControls)))
+		heading = i18n.T(i18n.TUISelectionTitleHeading)
+		editor = s.input.View()
+		controls = i18n.T(i18n.TUISelectionTitleControls)
+		empty = i18n.T(i18n.TUISelectionTitleEmpty)
 		labels = s.history
-		if len(labels) == 0 {
-			lines = append(lines, muted.Render(i18n.T(i18n.TUISelectionTitleEmpty)))
-		}
 	} else {
 		location := i18n.T(i18n.TUISelectionCategoryRoot)
 		if s.parent != "" {
@@ -245,7 +280,16 @@ func (s *roomSelection) View(width, height int) string {
 		if len(s.query) > 0 {
 			location = i18n.T(i18n.TUISelectionCategorySearch)
 		}
-		lines = append(lines, accent.Render(i18n.T(i18n.TUISelectionCategoryHeading)+selectionText(location)), i18n.T(i18n.TUISelectionSearchPrompt)+selectionText(string(s.query)), muted.Render(i18n.T(i18n.TUISelectionCategoryControls)))
+		heading = i18n.T(i18n.TUISelectionCategoryHeading) + selectionText(location)
+		prompt := ansi.Truncate(i18n.T(i18n.TUISelectionSearchPrompt), max(0, width-1), "")
+		query := selectionText(string(s.query))
+		available := max(1, width-ansi.StringWidth(prompt))
+		if ansi.StringWidth(query) > available {
+			query = ansi.TruncateLeft(query, ansi.StringWidth(query)-available, "")
+		}
+		editor = s.theme.accent.Render(prompt) + s.theme.textStyle.Render(query)
+		controls = i18n.T(i18n.TUISelectionCategoryControls)
+		empty = i18n.T(i18n.TUISelectionCategoryEmpty)
 		for _, item := range s.items {
 			label := selectionText(item.parent) + " →"
 			if item.area != nil {
@@ -260,33 +304,27 @@ func (s *roomSelection) View(width, height int) string {
 			}
 			labels = append(labels, label)
 		}
-		if len(labels) == 0 {
-			lines = append(lines, muted.Render(i18n.T(i18n.TUISelectionCategoryEmpty)))
-		}
 	}
-	// 在较矮终端中保持编辑器或搜索框及一个可选行可见。
-	if height < 4 {
-		if height == 1 && len(labels) > 0 && s.selected >= 0 {
-			lines = nil
-		} else {
-			lines = lines[1:2]
-		}
+	var lines []string
+	if header == 2 {
+		lines = append(lines, s.theme.sectionTitle(heading, width))
 	}
-	s.window = max(1, height-len(lines))
-	start := max(0, s.selected-s.window+1)
-	end := min(len(labels), start+s.window)
+	if header > 0 {
+		lines = append(lines, ansi.Truncate(editor, width, ""))
+	}
+	start := max(0, s.selected-window+1)
+	end := min(len(labels), start+window)
 	for i := start; i < end; i++ {
-		label := "  " + selectionText(labels[i])
-		if i == s.selected {
-			label = selectedStyle.Render(ansi.Truncate("› "+selectionText(labels[i]), width, "…"))
-		}
-		lines = append(lines, label)
+		lines = append(lines, s.theme.listRow(labels[i], width, i == s.selected))
 	}
-	if len(lines) > height {
-		lines = lines[:height]
+	if len(labels) == 0 {
+		lines = append(lines, s.theme.hintText(empty, width))
 	}
-	for i := range lines {
-		lines[i] = ansi.Truncate(lines[i], width, "…")
+	if footer > 0 {
+		help := strings.Split(s.theme.hintText(controls, width), "\n")
+		lines = append(lines, help[:min(footer, len(help))]...)
 	}
-	return strings.Join(lines, "\n")
+	// 窄终端中的空状态换行后可能超过可用高度。
+	lines = strings.Split(strings.Join(lines, "\n"), "\n")
+	return strings.Join(lines[:min(height, len(lines))], "\n")
 }

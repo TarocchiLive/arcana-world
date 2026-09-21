@@ -8,7 +8,7 @@ import (
 	"arcana-world/internal/danmaku"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/presentation"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -17,6 +17,9 @@ func (m *Model) chatStatus() string {
 		return i18n.T(i18n.DanmakuWaiting)
 	}
 	c := m.chat
+	if c.err != nil {
+		return fmt.Sprintf(i18n.T(i18n.DanmakuHistoryError), m.safe(c.err.Error()))
+	}
 	if c.history == nil {
 		return i18n.T(i18n.DanmakuError)
 	}
@@ -41,68 +44,94 @@ func (m *Model) chatHeader(more bool) string {
 	if m.chat == nil {
 		return i18n.T(i18n.DanmakuNoRoom)
 	}
-	c := m.chat
-	var b strings.Builder
-	toggle := func(key i18n.Key, enabled bool) string {
-		state := i18n.T(i18n.TUIToggleOff)
-		if enabled {
-			state = i18n.T(i18n.TUIToggleOn)
-		}
-		return i18n.T(key) + strings.TrimSpace(state)
+	follow := i18n.T(i18n.DanmakuPaused)
+	if m.chat.follow {
+		follow = i18n.T(i18n.DanmakuFollowing)
 	}
-	b.WriteString(strings.Join([]string{
-		toggle(i18n.DanmakuListening, c.state.Phase == danmaku.PhaseConnected),
-		toggle(i18n.DanmakuOther, c.showOther),
-		toggle(i18n.DanmakuFollowing, c.follow),
-		toggle(i18n.DanmakuToggle, !m.config.DanmakuDisabled),
-	}, " ") + "\n")
-	room := fmt.Sprintf(i18n.T(i18n.DanmakuDetails), c.room)
+	status := fmt.Sprintf(i18n.T(i18n.DanmakuDetails), m.chat.room) + " · " + m.chatStatus() + " · " + follow
 	if more {
-		room += " " + i18n.T(i18n.DanmakuNewMessages)
+		status = i18n.T(i18n.DanmakuNewMessages) + " · " + status
 	}
-	b.WriteString(ansi.Truncate(room, max(12, m.view.Width), "…") + "\n")
-	if c.state.Phase != danmaku.PhaseConnected && c.state.Phase != danmaku.PhaseDisabled && c.state.Phase != "" {
-		b.WriteString(m.chatStatus() + "\n")
+	style := m.theme.muted
+	if m.chat.err != nil || m.chat.state.Err != nil {
+		style = m.theme.warning
 	}
-	if c.state.Err != nil {
-		b.WriteString(warning.Render(m.safe(c.state.Err.Error())) + "\n")
-	}
-	if c.err != nil {
-		fmt.Fprintf(&b, i18n.T(i18n.DanmakuHistoryError), m.safe(c.err.Error()))
-		b.WriteByte('\n')
-	}
-	if c.loading {
-		b.WriteString(i18n.T(i18n.DanmakuLoading) + "\n")
-	}
-	if c.room == 0 {
-		b.WriteString(i18n.T(i18n.DanmakuNoRoom) + "\n")
-	}
-	return lipgloss.NewStyle().Width(max(12, m.view.Width)).Render(strings.TrimSuffix(b.String(), "\n"))
+	return style.Render(status)
 }
 
-func (m *Model) chatView() string {
+func (m *Model) chatView(width int) string {
+	width = max(1, width)
+	surface := lipgloss.NewStyle().Background(m.theme.surfaceColor).Width(width)
 	if m.chat == nil {
-		return i18n.T(i18n.DanmakuNoRoom)
+		return surface.Render(m.theme.hintText(i18n.T(i18n.DanmakuNoRoom), width))
 	}
 	c := m.chat
 	var b strings.Builder
-	// Storage stays newest-first for stable exclusive cursors; render chronologically.
+	// 存储以新消息优先确保排他游标稳定，显示时按时间正序排列。
 	for index := len(c.entries) - 1; index >= 0; index-- {
 		e := c.entries[index]
 		if !chatEventVisible(e, c.showOther) {
 			continue
 		}
 		line := chatEventText(e)
-		fmt.Fprintf(&b, "%s  %s\n", e.Time.Local().Format("01-02 15:04:05"), line)
+		style := m.theme.textStyle
+		switch e.Kind {
+		case "sc", "guard":
+			style = m.theme.accent
+		case "gift", "follow", "mutual_follow", "special_follow", "live":
+			style = m.theme.positive
+		case "cut_off", "room_block":
+			style = m.theme.warning
+		case "gap":
+			style = m.theme.muted
+			if e.Text == "connection_lost" {
+				style = m.theme.warning
+			}
+		case "enter", "like", "likes", "watched", "detail", "preparing":
+			style = m.theme.muted
+		}
+		if e.Kind == "chat" {
+			user := chatText(e.User, 128)
+			line = m.theme.textStyle.Bold(true).Render(user) + m.theme.textStyle.Render(line[len(user):])
+		} else {
+			line = style.Render(line)
+		}
+		if b.Len() > 0 {
+			b.WriteByte('\n')
+		}
+		stamp := m.theme.muted.Render(e.Time.Local().Format("01-02 15:04:05"))
+		if width >= 32 {
+			b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
+				m.theme.muted.Width(16).Render(stamp),
+				lipgloss.NewStyle().Width(width-16).Render(line)))
+		} else {
+			b.WriteString(lipgloss.JoinVertical(lipgloss.Left,
+				ansi.Wrap(stamp, width, ""), lipgloss.NewStyle().Width(width).Render(line)))
+		}
 	}
 	if b.Len() == 0 {
-		b.WriteString(i18n.T(i18n.DanmakuEmpty))
+		state := i18n.T(i18n.DanmakuEmpty)
+		switch {
+		case c.room == 0:
+			state = i18n.T(i18n.DanmakuNoRoom)
+		case c.loading:
+			state = i18n.T(i18n.DanmakuLoading)
+		case c.before != 0:
+			state = i18n.T(i18n.DanmakuNoOlder)
+		}
+		b.WriteString(m.theme.hintText(state, width))
 	}
-	return lipgloss.NewStyle().Width(max(12, m.view.Width)).Render(strings.TrimSuffix(b.String(), "\n"))
+	if c.err != nil {
+		return surface.Render(m.theme.warning.Render(ansi.Wrap(fmt.Sprintf(i18n.T(i18n.DanmakuHistoryError), m.safe(c.err.Error())), width, "")) + "\n" + b.String())
+	}
+	if c.state.Err != nil {
+		return surface.Render(m.theme.warning.Render(ansi.Wrap(m.safe(c.state.Err.Error()), width, "")) + "\n" + b.String())
+	}
+	return surface.Render(b.String())
 }
 
-// This is a display allowlist, not an ingestion filter. Unknown/new event kinds
-// and commands stay hidden even with Other enabled; durable history is unchanged.
+// 这是显示白名单而非入库过滤。即使开启其他消息，未知或新增事件
+// 及命令仍保持隐藏，持久化历史不受影响。
 func chatEventVisible(e danmaku.Event, showOther bool) bool {
 	if presentation.Enabled(nil, e) {
 		return true
@@ -112,18 +141,18 @@ func chatEventVisible(e danmaku.Event, showOther bool) bool {
 		return showOther
 	case "detail":
 		switch e.Text {
-		// Local interaction effects and gift-combo summaries.
+		// 本地互动特效与礼物连击汇总。
 		case "WELCOME", "WELCOME_GUARD", "ENTRY_EFFECT", "USER_VIRTUAL_MVP",
 			"EFFECT_DANMAKU_MSG", "DM_INTERACTION", "COMBO_SEND", "COMBO_END",
-			// Room membership/statistics, excluding every ranking feed.
+			// 房间成员与统计数据，不包含任何榜单推送。
 			"ROOM_ADMINS", "ROOM_REAL_TIME_MESSAGE_UPDATE", "ROOM_REAL_TIME_MESSAGE_UPDATE_V2",
-			// Lotteries and red envelopes held in the listening room.
+			// 当前监听房间的抽奖与红包。
 			"ANCHOR_LOT_CHECKSTATUS", "ANCHOR_LOT_START", "ANCHOR_LOT_END", "ANCHOR_LOT_AWARD",
 			"POPULARITY_RED_POCKET_START", "POPULARITY_RED_POCKET_V2_START",
 			"POPULARITY_RED_POCKET_NEW", "POPULARITY_RED_POCKET_WINNER_LIST",
 			"POPULARITY_RED_POCKET_V2_WINNER_LIST",
 			"DANMU_GIFT_LOTTERY_START", "DANMU_GIFT_LOTTERY_END", "DANMU_GIFT_LOTTERY_AWARD",
-			// Current-room PK progress/results and voice/video connections.
+			// 当前房间的 PK 进度、结果与音视频连线。
 			"PK_BATTLE_PRE", "PK_BATTLE_START", "PK_BATTLE_PROCESS", "PK_BATTLE_END",
 			"PK_BATTLE_SETTLE", "PK_BATTLE_SETTLE_USER", "PK_BATTLE_GIFT",
 			"PK_BATTLE_CRIT", "PK_BATTLE_SPECIAL_GIFT", "PK_BATTLE_MATCH_TIMEOUT",
@@ -239,8 +268,8 @@ func chatEventText(e danmaku.Event) string {
 	}
 }
 
-// Bound rendering work without changing the durable event. Control characters
-// cannot inject terminal commands or forge a second timestamped record.
+// 限制渲染开销，不改动持久化事件。控制字符不能注入终端命令，
+// 也不能伪造带独立时间戳的第二条记录。
 func chatText(value string, limit int) string {
 	var b strings.Builder
 	b.Grow(min(len(value), limit*3))

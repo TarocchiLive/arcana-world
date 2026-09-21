@@ -4,8 +4,8 @@ import (
 	"arcana-world/internal/app"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
+	tea "charm.land/bubbletea/v2"
 	"fmt"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 func refreshOperation() operation[domain.Room] {
@@ -48,10 +48,10 @@ func (m *Model) handleStartResult(value app.StartOutcome, err error, label i18n.
 		m.log(i18n.T(i18n.TUILogLiveOBSConfigured))
 	}
 	if outcome.OBSErr != nil {
-		m.log(i18n.T(i18n.TUILogLiveOBSFailed) + outcome.OBSErr.Error())
+		m.warn(i18n.T(i18n.TUILogLiveOBSFailed) + outcome.OBSErr.Error())
 	}
 	if s.Warning != "" {
-		m.log(s.Warning)
+		m.warn(s.Warning)
 	}
 	return m.finishResult()
 }
@@ -88,9 +88,9 @@ func (m *Model) handleAreasResult(value areaCatalog, err error, label i18n.Key) 
 	m.selection = newAreaSelection(catalog.all, catalog.recent, m.room.AreaID)
 	m.mode = "selection"
 	m.view.GotoTop()
-	m.status = i18n.T(i18n.TUIStatusCategorySelectHint)
+	m.progressStatus(i18n.T(i18n.TUIStatusCategorySelectHint))
 	if catalog.historyErr != nil {
-		m.log(i18n.T(i18n.TUILogRecentCategoriesFailed) + catalog.historyErr.Error())
+		m.warn(i18n.T(i18n.TUILogRecentCategoriesFailed) + catalog.historyErr.Error())
 	}
 	return m.selection.Init()
 }
