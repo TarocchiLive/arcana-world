@@ -31,6 +31,7 @@ type ttsRuntime struct {
 	room                      int64
 	generation                uint64
 	voice, proxy              string
+	volume                    int
 	disabled                  []string
 	request, latest, revision uint64
 	loaded, loading           bool
@@ -110,10 +111,11 @@ func (m *Model) syncTTS() {
 			}
 		}
 	}
-	if r.listener != listener || r.history != history || r.account != account || r.room != room || r.generation != generation || r.voice != m.config.TTS.Voice || r.proxy != m.config.Proxy || r.listeningDisabled != m.config.DanmakuDisabled || !slices.Equal(r.disabled, m.config.TTS.DisabledEvents) {
+	if r.listener != listener || r.history != history || r.account != account || r.room != room || r.generation != generation || r.voice != m.config.TTS.Voice || r.volume != m.config.TTS.Volume || r.proxy != m.config.Proxy || r.listeningDisabled != m.config.DanmakuDisabled || !slices.Equal(r.disabled, m.config.TTS.DisabledEvents) {
 		r.retire()
 		r.listener, r.history, r.account, r.room, r.generation = listener, history, account, room, generation
 		r.voice, r.proxy = m.config.TTS.Voice, m.config.Proxy
+		r.volume = m.config.TTS.Volume
 		r.listeningDisabled = m.config.DanmakuDisabled
 		r.disabled = slices.Clone(m.config.TTS.DisabledEvents)
 		r.request++
@@ -147,7 +149,7 @@ func (m *Model) startTTSManager() {
 		m.ttsError(fmt.Errorf(i18n.T(i18n.TTSSynthesisBackendUnavailable), err))
 		return
 	}
-	player, err := tts.NewPlayer(tts.PlayerOptions{})
+	player, err := tts.NewPlayer(tts.PlayerOptions{Volume: m.config.TTS.Volume})
 	if err != nil {
 		r.failed = true
 		m.ttsError(fmt.Errorf(i18n.T(i18n.TTSPlaybackBackendUnavailable), err))

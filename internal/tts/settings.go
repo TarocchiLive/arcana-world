@@ -9,6 +9,7 @@ import (
 
 type Settings struct {
 	Voice          string   `json:"voice"`
+	Volume         int      `json:"volume"`
 	DisabledEvents []string `json:"disabled_events,omitempty"`
 }
 
@@ -32,9 +33,12 @@ var chineseVoices = []Voice{
 
 func Voices() []Voice { return append([]Voice(nil), chineseVoices...) }
 
-func DefaultSettings() Settings { return Settings{Voice: chineseVoices[0].ID} }
+func DefaultSettings() Settings { return Settings{Voice: chineseVoices[0].ID, Volume: 80} }
 
 func (s Settings) Normalize() (Settings, error) {
+	if s.Volume < 0 || s.Volume > 100 {
+		return Settings{}, errors.New(i18n.T(i18n.OutputVolumeInvalid))
+	}
 	s.Voice = strings.TrimSpace(s.Voice)
 	if s.Voice == "" {
 		s.Voice = DefaultSettings().Voice

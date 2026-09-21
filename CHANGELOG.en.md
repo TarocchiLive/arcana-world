@@ -4,6 +4,12 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+### Added
+
+- Set and save TTS volume from 0 to 100 on the TTS tab, with a default of 80 and 0 for mute. Previews and event announcements use the same volume.
+
 ## [v0.2.1]: 2026-09-20
 
 ### Added

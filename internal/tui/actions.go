@@ -100,6 +100,9 @@ func (m *Model) perform(action string) tea.Cmd {
 	if action == "tts-voice" {
 		return m.pickTTSVoice()
 	}
+	if action == "tts-volume" {
+		return m.form("tts-volume", i18n.T(i18n.OutputVolume), strconv.Itoa(m.config.TTS.Volume), false)
+	}
 	if strings.HasPrefix(action, "tts-") {
 		return m.performTTS(action)
 	}
@@ -416,6 +419,12 @@ func (m *Model) submitForm() tea.Cmd {
 		value = m.input.Value()
 	}
 	switch kind {
+	case "tts-volume":
+		n, err := strconv.Atoi(value)
+		if err != nil || n < 0 || n > 100 {
+			m.status = i18n.T(i18n.OutputVolumeInvalid)
+			return nil
+		}
 	case "cover-path":
 		if value == "" {
 			m.status = i18n.T(i18n.TUIValidationImagePath)
@@ -449,6 +458,10 @@ func (m *Model) submitForm() tea.Cmd {
 	m.input.SetValue("")
 	m.input.Blur()
 	switch kind {
+	case "tts-volume":
+		cfg := m.config
+		cfg.TTS.Volume, _ = strconv.Atoi(value)
+		return m.saveConfig(cfg, false)
 	case "announcement":
 		room := m.room.ID
 		return work(m, announcementOperation(), func(ctx context.Context) (*string, error) {

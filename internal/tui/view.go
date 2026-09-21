@@ -248,7 +248,7 @@ func (m *Model) content() string {
 	case ttsPage:
 		b.WriteString(accent.Render(i18n.T(i18n.OutputTTSTitle)) + "\n\n")
 		b.WriteString(m.ttsStateText())
-		fmt.Fprintf(&b, i18n.T(i18n.OutputTTSDescription), clean(m.ttsVoiceName()))
+		fmt.Fprintf(&b, i18n.T(i18n.OutputTTSDescription), clean(m.ttsVoiceName()), m.config.TTS.Volume)
 	case settingsPage:
 		proxy := m.config.Proxy
 		if proxy == "" {
