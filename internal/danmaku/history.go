@@ -13,8 +13,8 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// History serializes close against transactions. Bolt's default synchronous
-// commits atomically retain raw bytes, receive metadata, indexes and tombstones.
+// History 将关闭操作与事务串行化。Bolt 默认同步提交，
+// 原子地保留原始字节、接收元数据、索引和删除标记。
 type History struct {
 	mu       sync.RWMutex
 	db       *bolt.DB
@@ -75,9 +75,9 @@ func Open(dir string) (*History, error) {
 	if err := db.Update(migrateHistory); err != nil {
 		return nil, errors.Join(err, db.Close())
 	}
-	// File fsync alone does not persist a newly created directory entry on Unix.
-	// Windows has no portable directory fsync through os.File; Bolt flushes the
-	// database there using its platform implementation.
+	// 在 Unix 上，仅对文件执行 fsync 不会持久化新建的目录项。
+	// Windows 无法通过 os.File 可移植地对目录执行 fsync；Bolt
+	// 会使用其平台实现刷新数据库。
 	if runtime.GOOS != "windows" {
 		for _, directory := range []string{dir, base, filepath.Dir(base)} {
 			f, err := os.Open(directory)
@@ -109,8 +109,8 @@ func (h *History) Close() error {
 }
 func key(n uint64) []byte { var b [8]byte; binary.BigEndian.PutUint64(b[:], n); return b[:] }
 
-// Append accepts business payloads only; callers must never supply auth frames,
-// HTTP headers or connection credentials. Malformed business bytes are retained.
+// Append 仅接受业务载荷；调用方绝不能传入认证帧、
+// HTTP 请求头或连接凭据。格式错误的业务字节也会保留。
 func (h *History) Append(roomID int64, raw json.RawMessage) (bool, error) {
 	return h.append(roomID, raw, projectMany(roomID, raw)...)
 }
@@ -213,8 +213,8 @@ func (h *History) append(roomID int64, raw []byte, projections ...projection) (b
 	return inserted, nil
 }
 
-// Page returns newest-first records strictly below before; zero starts at latest.
-// A nonpositive limit returns an empty page without allocating a large buffer.
+// Page 按从新到旧的顺序返回序号严格小于 before 的记录；零表示从最新记录开始。
+// limit 非正时返回空页，不分配大缓冲区。
 func (h *History) Page(roomID int64, before uint64, limit int) ([]Event, error) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -245,8 +245,8 @@ func (h *History) Page(roomID int64, before uint64, limit int) ([]Event, error) 
 			if err := json.Unmarshal(v, &event); err != nil {
 				return err
 			}
-			// Reinterpret old unknown records without changing their receive time,
-			// stable pagination cursor, or the retained raw payload.
+			// 重新解释旧的未知记录，不改变其接收时间、
+			// 稳定的分页游标或已保留的原始载荷。
 			if event.Kind == "unknown" && !event.Deleted {
 				p := project(roomID, rawForEvent(room, k))
 				if p.event.Kind != "unknown" && len(p.batch) == 0 && p.scID == "" && len(p.deletes) == 0 {
@@ -264,7 +264,7 @@ func (h *History) Page(roomID int64, before uint64, limit int) ([]Event, error) 
 	return result, err
 }
 func (h *History) RecordGap(roomID int64, text string) error {
-	// Only caller-authored status text, never a raw connection error containing credentials.
+	// 仅接受调用方编写的状态文本，绝不接受含凭据的原始连接错误。
 	raw, err := json.Marshal(struct {
 		Kind string `json:"kind"`
 		Text string `json:"text"`
@@ -313,8 +313,8 @@ func (h *History) retain() {
 	}
 }
 
-// prune removes raw payloads and their projections in one transaction. Bolt
-// reuses the freed pages; no live database is replaced or rewritten in place.
+// prune 在同一事务中删除原始载荷及其映射结果。Bolt
+// 复用释放的页；不会替换正在使用的数据库或将其原地重写。
 func (h *History) prune(now time.Time) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -331,8 +331,8 @@ func (h *History) prune(now time.Time) error {
 			room := rooms.Bucket(roomKey)
 			events := room.Bucket(eventsBucket)
 			tombstones := room.Bucket(tombstonesBucket)
-			// Older databases stored a one-byte flag instead of a deletion
-			// sequence. Recover those references from retained business bytes.
+			// 旧数据库存储的是单字节标记，而非删除序号。
+			// 从保留的业务字节中恢复这些引用。
 			legacy := false
 			if err := tombstones.ForEach(func(_, v []byte) error {
 				legacy = legacy || len(v) != 8

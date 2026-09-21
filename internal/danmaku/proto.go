@@ -9,9 +9,9 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
-// Field numbers follow blivedm dev blivedm/models/pb.py's SendGiftBroadcast
-// and SendGiftV2GiftItem (https://github.com/xfgryujk/blivedm/blob/dev/blivedm/models/pb.py).
-// Unknown fields are skipped using the protobuf wire decoder, not guessed.
+// 字段编号遵循 blivedm dev 的 blivedm/models/pb.py 中的 SendGiftBroadcast
+// 和 SendGiftV2GiftItem（https://github.com/xfgryujk/blivedm/blob/dev/blivedm/models/pb.py）。
+// 使用 protobuf 线格式解码器跳过未知字段，不作猜测。
 func wireFields(raw []byte, field func(protowire.Number, protowire.Type, []byte, uint64) bool) bool {
 	for len(raw) != 0 {
 		num, typ, n := protowire.ConsumeTag(raw)
@@ -104,7 +104,7 @@ func projectGiftV2(base Event, encoded string) []projection {
 			}
 			return true
 		})
-		// An invalid batch remains one raw unknown record: do not silently omit bad items.
+		// 无效批次保留为一条原始未知记录：不得静默忽略损坏的条目。
 		if !valid || p.event.Count <= 0 {
 			return nil
 		}

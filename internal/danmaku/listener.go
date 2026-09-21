@@ -22,8 +22,8 @@ const (
 	stableSessionPeriod  = time.Minute
 )
 
-// Phase identifies a listener status without imposing a separate transition engine.
-// The string values remain stable for status consumers.
+// Phase 标识监听器状态，不额外引入状态转换引擎。
+// 字符串值保持稳定，供状态使用方依赖。
 type Phase string
 
 const (
@@ -36,14 +36,14 @@ const (
 	PhaseError        Phase = "error"
 )
 
-// Snapshot contains status only: message delivery never depends on the UI.
+// Snapshot 仅包含状态：消息交付绝不依赖 UI。
 type Snapshot struct {
 	Phase    Phase
 	RoomID   int64
 	Revision uint64
 	Err      error
-	// AccountUID and Generation identify the desired source even while the
-	// previous session is stopping. RoomID is zero until this source publishes.
+	// AccountUID 和 Generation 标识期望的数据源，即使
+	// 上一个会话仍在停止。此数据源发布状态前，RoomID 为零。
 	AccountUID string
 	Generation uint64
 }
@@ -66,8 +66,8 @@ type target struct {
 	enabled bool
 }
 
-// Listener serializes target changes; at most one session writes to history.
-// Settings notifications may coalesce. Business messages never use a lossy channel.
+// Listener 串行处理目标变更；最多只有一个会话写入历史记录。
+// 设置通知可以合并。业务消息绝不使用会丢数据的通道。
 type Listener struct {
 	mu              sync.Mutex
 	desired         target
@@ -76,7 +76,7 @@ type Listener struct {
 	state           Snapshot
 	history         archive
 	factory         func(string, domain.Account) (source, error)
-	pending         []pendingWrite // bounded by the last decoded frame; drained before any new session
+	pending         []pendingWrite // 上限为最后一个已解码帧的内容；任何新会话开始前必须写完
 	wake            chan struct{}
 	cancel          context.CancelFunc
 	done            chan struct{}
@@ -103,7 +103,7 @@ func newListener(ctx context.Context, history archive, factory func(string, doma
 	return l
 }
 
-// Configure is idempotent, including credentials; it never waits on network I/O.
+// Configure 包括凭据配置在内均为幂等操作；绝不等待网络 I/O。
 func (l *Listener) Configure(account *domain.Account, proxy string, enabled bool) {
 	next := target{proxy: proxy, enabled: enabled}
 	if account != nil {
@@ -125,7 +125,7 @@ func (l *Listener) Configure(account *domain.Account, proxy string, enabled bool
 	}
 }
 
-// Retry explicitly renews a failed session without changing persisted settings.
+// Retry 显式重建失败的会话，不修改持久化设置。
 func (l *Listener) Retry() {
 	l.mu.Lock()
 	l.generation++
@@ -207,8 +207,8 @@ func (l *Listener) control(ctx context.Context) {
 				continue
 			}
 			stopSession()
-			// A target switch must not discard a message whose disk write failed.
-			// Retain its closure and drain it before accepting events from another room.
+			// 切换目标不得丢弃写盘失败的消息。
+			// 保留其闭包，在接收其他直播间的事件前完成所有待写入操作。
 			for len(l.pending) > 0 {
 				p := l.pending[0]
 				if err := l.persist(ctx, activeGeneration, p.room, p.write); err != nil {
@@ -241,9 +241,9 @@ func (l *Listener) control(ctx context.Context) {
 	}
 }
 
-// persist retries the same payload before accepting another. On storage failure
-// memory is bounded by the current wire frame and transport buffers, not an
-// unbounded queue. Shutdown attempts the write once more and reports failure.
+// persist 在接受下一份载荷前重试当前载荷。存储失败时，
+// 内存用量受当前线格式帧和传输缓冲区限制，
+// 而非使用无界队列。关闭时会再尝试写入一次，并报告失败。
 func (l *Listener) persist(ctx context.Context, gen uint64, room int64, write func() (bool, error)) error {
 	phase := l.Snapshot().Phase
 	if phase == PhaseStorageError {
@@ -265,8 +265,8 @@ func (l *Listener) persist(ctx context.Context, gen uint64, room int64, write fu
 
 func (l *Listener) save(ctx context.Context, gen uint64, room int64, write func() (bool, error)) error {
 	if len(l.pending) > 0 {
-		// Once cancellation has queued a failed write, preserve receive order
-		// through the rest of the decoded frame even if the disk recovers.
+		// 取消导致失败的写入入队后，即使磁盘恢复，
+		// 也要在处理已解码帧的剩余部分时保持接收顺序。
 		l.pending = append(l.pending, pendingWrite{room: room, write: write})
 		return nil
 	}
@@ -274,9 +274,9 @@ func (l *Listener) save(ctx context.Context, gen uint64, room int64, write func(
 	if err != nil {
 		l.pending = append(l.pending, pendingWrite{room: room, write: write})
 	}
-	// The canceled wire reader must finish decoding the frame it already read.
-	// Pending writes stay in memory and are drained before another session; a
-	// final shutdown failure is returned by Close, never counted as committed.
+	// 已取消的线格式读取器必须完成已读取帧的解码。
+	// 待写入操作保留在内存中，并在下一个会话开始前写完；
+	// 最终关闭时的失败由 Close 返回，绝不计作已提交。
 	return nil
 }
 
@@ -308,8 +308,8 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 			err = nil
 		}
 		if err == nil {
-			// Every session boundary is durable, including clean restart. There is no
-			// server replay cursor, so a reconnect must never imply complete coverage.
+			// 每次会话边界都要持久化，包括正常重启。服务器没有
+			// 重放游标，因此重连绝不意味着消息记录完整无缺。
 			err = l.save(ctx, gen, room, func() (bool, error) { return true, l.history.RecordGap(room, "session_start") })
 			if err != nil || ctx.Err() != nil {
 				return
@@ -323,8 +323,8 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 			}, func(raw json.RawMessage) error {
 				return l.save(ctx, gen, room, func() (bool, error) { return l.history.Append(room, raw) })
 			})
-			// Do not reset backoff merely on auth: repeatedly dying sockets otherwise
-			// cause a reconnect storm.
+			// 不要仅因认证成功就重置退避：否则反复断开的连接
+			// 会导致重连风暴。
 			if authenticated && time.Since(started) >= stableSessionPeriod {
 				failures = 0
 			}

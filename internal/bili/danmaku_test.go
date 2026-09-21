@@ -91,7 +91,7 @@ func TestDanmakuPacketBounds(t *testing.T) {
 	if err := danmakuDecode(data, 0, &budget, func(uint32, []byte) error { t.Fatal("excess nesting delivered"); return nil }); err == nil {
 		t.Fatal("accepted excessive nesting")
 	}
-	// Sibling expansions share the same budget.
+	// 同级包解压后共用同一限额。
 	data = append(compressDanmakuTest(t, 2, valid), compressDanmakuTest(t, 3, valid)...)
 	budget = len(valid)
 	count = 0
@@ -106,7 +106,7 @@ func TestDanmakuWBI(t *testing.T) {
 	}
 	query := url.Values{"foo": {"114"}, "bar": {"514"}, "baz": {"1919810"}}
 	got := danmakuWBISign(query, key, time.Unix(1702204169, 0))
-	// Independently calculated with Python urllib.parse.urlencode + hashlib.md5.
+	// 使用 Python urllib.parse.urlencode + hashlib.md5 独立计算。
 	if got.Get("w_rid") != "6149fdadf571698ca7e6a567265cd0ee" {
 		t.Fatalf("signature %s", got.Get("w_rid"))
 	}
@@ -253,7 +253,7 @@ func TestDanmakuCancelDuringProxyConnect(t *testing.T) {
 		}
 		defer conn.Close()
 		close(entered)
-		// Never answer CONNECT: cancellation must interrupt the proxy handshake.
+		// 始终不响应 CONNECT：取消必须能中断代理握手。
 		var b [1]byte
 		conn.Read(b[:])
 	}))

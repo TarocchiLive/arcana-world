@@ -254,7 +254,7 @@ func TestRetentionStartupMigratesAndExpiresTombstones(t *testing.T) {
 	if _, err := h.append(1, del, p); err != nil {
 		t.Fatal(err)
 	}
-	// Emulate the previous on-disk format, which had no deletion sequence.
+	// 模拟旧的磁盘格式，其中没有删除序号。
 	if err := h.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(roomsBucket).Bucket(key(1)).Bucket(tombstonesBucket).Put([]byte("17"), []byte{1})
 	}); err != nil {
@@ -269,8 +269,8 @@ func TestRetentionStartupMigratesAndExpiresTombstones(t *testing.T) {
 	if !page(t, h, 1, 0, 1)[0].Deleted {
 		t.Fatal("retained legacy deletion resurrected")
 	}
-	// Age both the deletion and its SC, then prove startup expires their
-	// raw payloads, dedup identity and deletion state together.
+	// 将删除记录及其 SC 都设为过期，再验证启动时会一并清理
+	// 它们的原始载荷、去重标识和删除状态。
 	if err := h.db.Update(func(tx *bolt.Tx) error {
 		events := tx.Bucket(roomsBucket).Bucket(key(1)).Bucket(eventsBucket)
 		return events.ForEach(func(k, v []byte) error {

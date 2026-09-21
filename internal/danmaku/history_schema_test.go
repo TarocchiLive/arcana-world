@@ -10,7 +10,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// downgradeHistory produces the actual unversioned, seq-keyed raw format.
+// downgradeHistory 生成实际使用过的无版本、以 seq 为键的原始数据格式。
 func downgradeHistory(t *testing.T, h *History) {
 	t.Helper()
 	if err := h.db.Update(func(tx *bolt.Tx) error {

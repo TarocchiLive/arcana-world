@@ -13,9 +13,9 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
-// Only local Unix addresses are accepted. SessionBus/ConnectSessionBus can
-// autolaunch a bus; calls to org.freedesktop.secrets can activate the service.
-// Neither is appropriate for diagnostics.
+// 仅接受本地 Unix 地址。SessionBus/ConnectSessionBus 可能自动启动总线；
+// 调用 org.freedesktop.secrets 可能激活该服务。
+// 这两种行为都不适用于诊断。
 func doctorSecretService(ctx context.Context) (available, known bool, detail string) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -67,7 +67,7 @@ func doctorSecretService(ctx context.Context) (available, known bool, detail str
 		return false, false, "existing session bus is unreachable; autolaunch disabled"
 	}
 	defer raw.Close()
-	// The deadline and cancellation cover Auth/Hello as well as method calls.
+	// 截止时间和取消操作同时覆盖 Auth/Hello 以及方法调用。
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = raw.SetDeadline(deadline)
 	}

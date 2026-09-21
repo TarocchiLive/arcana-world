@@ -11,10 +11,10 @@ import (
 type PlayerOptions struct {
 	Executable string
 	Timeout    time.Duration
-	Volume     int // 0 mutes playback; callers must supply the desired volume.
+	Volume     int // 0 表示静音播放；调用方必须提供所需音量。
 }
 
-// ProcessPlayer plays one MP3 at a time through an isolated audio helper.
+// ProcessPlayer 通过独立的音频辅助进程逐个播放 MP3。
 type ProcessPlayer struct {
 	executable string
 	timeout    time.Duration

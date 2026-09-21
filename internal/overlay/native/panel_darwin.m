@@ -153,7 +153,7 @@ static NSColor *colorForRGB(uint32_t rgb, CGFloat alpha) {
     [NSGraphicsContext saveGraphicsState];
     NSRectClip(bounds);
     NSRange textRange = NSMakeRange(0, _storage.length);
-    // Paint the outline first; a separate fill pass preserves thin CJK strokes.
+    // 先绘制描边；单独的填充绘制阶段可保留 CJK 字形的细笔画。
     for (NSUInteger pass = self.outline ? 0 : 1; pass < 2; ++pass) {
         [_storage beginEditing];
         if (pass == 0) {

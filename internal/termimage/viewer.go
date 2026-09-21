@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	// Kitty graphics payloads are base64 chunks of at most 4096 bytes.
+	// Kitty 图形载荷按 base64 分块，每块最多 4096 字节。
 	graphicsEncodedChunkSize = 4096
 	graphicsRawChunkSize     = graphicsEncodedChunkSize / 4 * 3
 	previewReservedRows      = 3

@@ -7,7 +7,7 @@ func TestGuardRepresentationsRemainDistinctWithoutTransactionID(t *testing.T) {
 	appendEvent(t, h, 1, `{"cmd":"GUARD_BUY","data":{"uid":42,"username":"alice","guard_level":3,"num":1,"price":198000,"gift_name":"舰长","start_time":1700000000}}`, true)
 	toast := `{"cmd":"USER_TOAST_MSG_V2","data":{"sender_uinfo":{"uid":42,"base":{"name":"alice"}},"guard_info":{"guard_level":3,"start_time":1700000000},"pay_info":{"num":1,"price":198000,"unit":"月"},"gift_info":{"gift_id":10003},"option":{"source":0},"toast_msg":"开通舰长"}}`
 	appendEvent(t, h, 1, toast, true)
-	// Timestamp/user/quantity equivalence is not proof of the same purchase.
+	// 时间戳、用户和数量相同，并不能证明是同一次购买。
 	appendEvent(t, h, 1, toast, true)
 	events := page(t, h, 1, 0, 10)
 	if len(events) != 3 {

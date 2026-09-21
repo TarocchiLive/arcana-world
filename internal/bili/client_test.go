@@ -140,7 +140,7 @@ func TestResponseBodyCancellationRemainsRecognizable(t *testing.T) {
 				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
 				response, err := transport.RoundTrip(r)
 				if err == nil {
-					// Cancel only after Do has returned headers, at the first body read.
+					// 仅在 Do 返回响应头后，首次读取响应体时取消。
 					response.Body = cancelReadBody{response.Body, cancel}
 				}
 				return response, err

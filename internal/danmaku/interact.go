@@ -10,7 +10,7 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
-// Legacy JSON and V2 protobuf interactions share action values 1–5.
+// 旧版 JSON 和 V2 protobuf 互动共用动作值 1–5。
 func projectInteractionEvent(p projection, cmd string, root map[string]any) projection {
 	data := object(root["data"])
 	var uid, user string

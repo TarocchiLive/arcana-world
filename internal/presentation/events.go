@@ -86,7 +86,7 @@ func Enabled(disabled []string, e danmaku.Event) bool {
 func RenderOverlay(e danmaku.Event) string { return render(e, false) }
 func RenderTTS(e danmaku.Event) string     { return render(e, true) }
 
-// OverlayRole identifies the purchase category without inspecting rendered text.
+// OverlayRole 无需检查渲染文本即可识别购买类别。
 func OverlayRole(e danmaku.Event) byte {
 	if e.Kind == "sc" {
 		return 's'

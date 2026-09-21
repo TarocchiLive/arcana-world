@@ -20,7 +20,7 @@ func TestRankProtoListAndPrecision(t *testing.T) {
 	first = protoString(first, 3, "999999999999999999999")
 	first = protoString(first, 4, "first viewer")
 	first = protoNumber(first, 5, 1)
-	first = protoNumber(first, 6, 99) // Future guard enums retain their raw value.
+	first = protoNumber(first, 6, 99) // 未来新增的上舰枚举值保持原样。
 	first = protoString(first, 8, string(protoString(nil, 2, string(protoString(nil, 1, "profile name")))))
 	second := protoNumber(protoString(protoNumber(nil, 1, 42), 4, "second viewer"), 5, 2)
 	pb := protoString(protoString(protoString(nil, 1, "online_rank"), 3, string(first)), 3, string(second))

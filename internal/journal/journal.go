@@ -57,8 +57,8 @@ func Open(dataDir string) (*Log, error) {
 		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectorySecureFailed), err)
 	}
 
-	// A separate, stable lock inode protects atomic log replacement across
-	// processes as well as writes. Bolt supplies portable advisory locking.
+	// 独立且稳定的锁 inode 同时保护跨进程的日志原子替换和写入。
+	// Bolt 提供跨平台的咨询锁。
 	lockPath := filepath.Join(dir, "journal.lock")
 	if info, err := os.Lstat(lockPath); err == nil {
 		if !info.Mode().IsRegular() {
@@ -77,7 +77,7 @@ func Open(dataDir string) (*Log, error) {
 			_ = lock.Close()
 		}
 	}()
-	// A crash before rename may leave an uncommitted private copy.
+	// 重命名前崩溃可能遗留尚未提交的私有副本。
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -204,9 +204,9 @@ func (l *Log) retain() {
 	}
 }
 
-// prune requires the write mutex (or an unpublished Log at startup). It
-// streams complete physical records into a private file, syncs it, then swaps
-// the pathname atomically. A failed copy never truncates the original log.
+// prune 要求持有写入互斥锁（或在启动时独占尚未对外提供的 Log）。
+// 它将完整的物理记录流式写入私有文件，同步后再原子替换路径。
+// 复制失败绝不会截断原日志。
 func (l *Log) prune(now time.Time) error {
 	if _, err := l.file.Seek(0, io.SeekStart); err != nil {
 		return err

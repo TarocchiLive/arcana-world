@@ -149,7 +149,7 @@ func (state *winState) drawTextLines(text []uint16, rect winRect) error {
 			return err
 		}
 		var count uint32
-		// The sizing call returns E_NOT_SUFFICIENT_BUFFER along with the required count.
+		// 查询所需大小的调用同时返回 E_NOT_SUFFICIENT_BUFFER 和所需数量。
 		hr := api.lineMetrics.bind(layout, 59)(layout, nil, 0, &count)
 		if hr < 0 && uint32(hr) != 0x8007007a {
 			layout.release()
@@ -178,8 +178,8 @@ func (state *winState) drawTextLines(text []uint16, rect winRect) error {
 		state.coverageValid = false
 	}
 	layout := state.textLayout
-	// Sum actual visual-line heights rather than assuming that newline counts
-	// or UTF-16 substring boundaries describe soft-wrapped lines.
+	// 累加实际视觉行的高度，不能假定换行符数量
+	// 或 UTF-16 子串边界能够描述自动折行后的行。
 	first, visibleHeight := len(state.layoutLines), float32(0)
 	for first > 0 {
 		height := state.layoutLines[first-1].Height
@@ -224,8 +224,8 @@ func (state *winState) drawTextLines(text []uint16, rect winRect) error {
 		}
 	}
 	fullRange := winTextRange{Length: uint32(len(text))}
-	// Remove old effects before releasing brushes, and draw coverage without
-	// colors. Black glyphs must have the same coverage as white glyphs.
+	// 释放画刷前先移除旧效果，并在不带颜色的情况下绘制覆盖率。
+	// 黑色字形必须与白色字形具有相同的覆盖率。
 	if err := winHRESULT("IDWriteTextLayout.SetDrawingEffect",
 		api.drawingEffect.bind(layout, 38)(layout, nil, fullRange)); err != nil {
 		return err
@@ -262,8 +262,8 @@ func (state *winState) drawTextLines(text []uint16, rect winRect) error {
 	if state.colorBrushes == nil {
 		state.colorBrushes = make(map[uint32]*winCOMObject, 6)
 	}
-	// TextRuns use UTF-8 byte offsets; DirectWrite ranges use UTF-16 code
-	// units. Walk the source once, preserving surrogate pairs for emoji.
+	// TextRuns 使用 UTF-8 字节偏移；DirectWrite 区间使用 UTF-16 码元。
+	// 只遍历源文本一次，并保留 emoji 的代理对。
 	byteOffset, unitOffset := 0, uint32(0)
 	for _, run := range state.cfg.TextRuns() {
 		for byteOffset < run.Start {

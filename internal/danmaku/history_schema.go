@@ -18,8 +18,8 @@ var historyMetaBucket = []byte("schema")
 var historyVersionKey = []byte("version")
 var legacyRawBucket = []byte("raw")
 
-// migrateHistory runs before retention, in one transaction across all rooms.
-// The version marker is committed only after every old reference is converted.
+// migrateHistory 在保留期清理前执行，在单个事务中处理所有直播间。
+// 仅在所有旧引用转换完成后提交版本标记。
 func migrateHistory(tx *bolt.Tx) error {
 	meta, err := tx.CreateBucketIfNotExists(historyMetaBucket)
 	if err != nil {
@@ -82,9 +82,9 @@ func migrateRoom(room *bolt.Bucket) error {
 		if raw == nil {
 			return fmt.Errorf("legacy history event %d is missing its raw payload", event.Sequence)
 		}
-		// Bytes alone are not a receive identity. Only coalesce adjacent batch
-		// projections with the same receive timestamp and increasing item order.
-		// Replays, single events and ambiguous old projections stay separate.
+		// 仅凭字节无法标识一次接收。只合并接收时间戳相同、
+		// 条目顺序递增且相邻的批次映射记录。
+		// 重放、单条事件及无法确定归属的旧映射记录仍单独保留。
 		sameReceive := messageID != nil && event.Time.Equal(received) && bytes.Equal(raw, previousRaw)
 		if !sameReceive {
 			batch = projectMany(event.RoomID, raw)

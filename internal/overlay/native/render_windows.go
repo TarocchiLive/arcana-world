@@ -129,7 +129,7 @@ func (state *winState) closeResources() {
 	state.pixels = nil
 }
 
-// Cache a half-logical-point outline with the glyph mask, not on color changes.
+// 随字形掩码缓存半个逻辑点宽的描边，不因颜色变化而更新。
 func (state *winState) updateTextOutline(rect winRect) {
 	for _, mask := range [...]*[]byte{&state.outline, &state.outlineScratch} {
 		if cap(*mask) < len(state.coverage) {
@@ -143,7 +143,7 @@ func (state *winState) updateTextOutline(rect winRect) {
 	left, right := max(0, int(rect.Left)), min(width, int(rect.Right))
 	top, bottom := max(0, int(rect.Top)), min(height, int(rect.Bottom))
 	radius := state.outlineRadius
-	// Two bounded max-filter passes keep the mask independent of text color.
+	// 两遍有界最大值滤波使掩码保持与文字颜色无关。
 	for y := top; y < bottom; y++ {
 		row := y * width
 		for x := left; x < right; x++ {
@@ -205,8 +205,8 @@ func (state *winState) render() error {
 	if result, _, err := winGDIFlush.Call(); result == 0 {
 		return winError("GdiFlush", err)
 	}
-	// The separate white mask supplies coverage even for black glyphs.
-	// The colored pass supplies RGB already multiplied by glyph coverage.
+	// 独立的白色掩码也能为黑色字形提供覆盖率。
+	// 彩色绘制阶段提供的 RGB 已乘以字形覆盖率。
 	backgroundRGB, err := overlay.ParseColor(state.cfg.Colors.Background)
 	if err != nil {
 		return err
