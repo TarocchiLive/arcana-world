@@ -105,8 +105,9 @@ Default data directory: `~/.arcana/world`.
 - [x] Add a Bilibili live chat overlay.
 - [x] Add TTS chat readouts and gift announcements.
 - [x] Switch the overlay between monitors without restarting.
-- [ ] Add mouse support to the TUI.
-- [ ] Refactor and improve the TUI layout and appearance.
+- [x] Add mouse support to the TUI.
+- [x] Refactor and improve the TUI layout and appearance.
+- [ ] Send live chat messages from the terminal.
 - [ ] Refactor and improve the overlay layout and appearance.
 - [ ] Support the iTerm2 image protocol.
 - [ ] Support resizing and cropping cover images in the terminal.
@@ -131,6 +132,9 @@ Licensed under [GPL-3.0-only](LICENSE).
 
 ## Acknowledgments
 
-- Everyone in the community who generously shared API definitions and implementation references for the relevant platforms.
-- [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive): the source of this project's streaming protocol implementation.
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea): the terminal UI framework.
+- [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive)
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+- [Bubbles](https://github.com/charmbracelet/bubbles)
+- [Lip Gloss](https://github.com/charmbracelet/lipgloss)
+- [edge-tts](https://github.com/rany2/edge-tts)
+- [edge-tts-go](https://github.com/wujunwei928/edge-tts-go)

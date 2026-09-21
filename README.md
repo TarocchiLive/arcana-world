@@ -106,8 +106,9 @@ arcana-world --help                     # 查看帮助
 - [x] 支持 B 站直播间弹幕浮层。
 - [x] 支持 TTS 朗读弹幕和礼物播报。
 - [x] 多显示器浮层热切换。
-- [ ] 鼠标 tui 操作。
-- [ ] tui 界面重构美化。
+- [x] 鼠标 tui 操作。
+- [x] tui 界面重构美化。
+- [ ] 在终端发送弹幕。
 - [ ] 浮层界面重构美化。
 - [ ] 支持 iterm2 图片协议。
 - [ ] 终端缩放裁剪封面图。
@@ -137,6 +138,9 @@ make build  # 构建
 
 ## 致谢
 
-- 社区内无私提供相关平台 API 声明与实现参考的各位大佬。
-- [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive)：本项目推流协议实现的来源。
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea)：终端界面框架。
+- [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive)
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+- [Bubbles](https://github.com/charmbracelet/bubbles)
+- [Lip Gloss](https://github.com/charmbracelet/lipgloss)
+- [edge-tts](https://github.com/rany2/edge-tts)
+- [edge-tts-go](https://github.com/wujunwei928/edge-tts-go)
