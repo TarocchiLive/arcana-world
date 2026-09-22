@@ -35,6 +35,9 @@ func downgradeHistory(t *testing.T, h *History) {
 		}); err != nil {
 			return err
 		}
+		if err := tx.DeleteBucket(receivedBucket); err != nil {
+			return err
+		}
 		return tx.DeleteBucket(historyMetaBucket)
 	}); err != nil {
 		t.Fatal(err)

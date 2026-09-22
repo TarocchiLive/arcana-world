@@ -16,13 +16,15 @@ type workspaceLayout struct {
 	width, margin, rail, panelWidth, panelHeight, paddingX, paddingY, border int
 	panelX, panelY, innerWidth, innerHeight                                  int
 	dialogX, dialogY, dialogWidth, dialogHeight                              int
-	chatActionsWidth, chatBorder, chatTop                                    int
-	header, footer, chatHeader                                               string
+	chatBorder, chatTop, chatComposer, chatDivider, chatPosition             int
+	header, footer                                                           string
 }
 
 func (m *Model) footerText() string {
 	key := i18n.LumenFooterNavigate
 	switch m.mode {
+	case "chat-history":
+		return i18n.T(i18n.DanmakuHistoryKeys)
 	case "form":
 		key = i18n.LumenFooterEdit
 	case "pick", "selection":
@@ -32,6 +34,9 @@ func (m *Model) footerText() string {
 	case "":
 		if m.page == chatPage {
 			key = i18n.LumenFooterChat
+			if m.chatInputActive() {
+				key = i18n.DanmakuInputKeys
+			}
 		}
 	default:
 		key = i18n.LumenFooterBack
@@ -169,27 +174,33 @@ func (m *Model) workspace() workspaceLayout {
 	m.view.SetHeight(l.innerHeight)
 	m.pickerLeft = l.panelX + l.border + l.paddingX
 	m.pickerTop = l.panelY + l.border + l.paddingY
-	if m.page == chatPage && m.mode == "" && m.chat != nil {
-		l.chatTop = 1
-		if l.innerHeight < 2 {
-			l.chatTop = 0
-		}
-		if l.innerHeight >= 7 {
-			l.chatHeader = m.chatHeader(false)
-			l.chatTop++
-		}
-		if l.innerWidth >= 78 && l.innerHeight >= 12 {
-			l.chatActionsWidth = 30
+	if m.page == chatPage && (m.mode == "" || m.mode == "chat-history") && m.chat != nil {
+		if l.innerHeight >= 3 {
 			l.chatTop = 1
-			l.chatHeader = m.chatHeader(false)
 		}
-		if l.innerWidth >= 12 && l.innerHeight-l.chatTop >= 4 {
+		if l.innerHeight >= 6 {
+			l.chatPosition = 1
+		}
+		if l.innerWidth >= 12 && l.innerHeight >= 8 {
 			l.chatBorder = 1
 		}
-		m.view.SetWidth(max(1, l.innerWidth-l.chatActionsWidth-2*l.chatBorder))
-		m.view.SetHeight(max(1, l.innerHeight-l.chatTop-2*l.chatBorder))
-		m.pickerLeft += l.chatActionsWidth + l.chatBorder
+		if m.mode == "" && l.innerHeight >= 4 {
+			m.styleChatInput()
+			m.chatInput.SetWidth(max(1, l.innerWidth-2*l.chatBorder))
+			rows := renderedChatLines(ansi.Wrap(m.chatInput.Value()+" ", max(1, m.chatInput.Width()-3), ""))
+			l.chatComposer = min(max(1, rows), max(1, (l.innerHeight-2*l.chatBorder-l.chatTop-l.chatPosition)/3))
+			m.chatInput.SetHeight(l.chatComposer)
+			if l.innerHeight >= 8 {
+				l.chatDivider = 1
+			}
+		}
+		m.view.SetWidth(max(1, l.innerWidth-2*l.chatBorder-1))
+		m.view.SetHeight(max(1, l.innerHeight-l.chatTop-l.chatComposer-l.chatDivider-l.chatPosition-2*l.chatBorder))
+		m.pickerLeft += l.chatBorder
 		m.pickerTop += l.chatTop + l.chatBorder
+	}
+	if m.mode == "chat-history-range" {
+		m.resizeChatHistory()
 	}
 	if m.mode == "confirm" {
 		l.dialogWidth = min(68, l.panelWidth)
@@ -219,7 +230,7 @@ func firstLines(value string, height int) string {
 func (m *Model) syncWorkspace() {
 	m.workspace()
 	m.theme.styleInput(&m.input)
-	m.input.SetWidth(max(1, m.view.Width()-ansi.StringWidth(m.input.Prompt)-1))
+	resizeTextInput(&m.input, max(1, m.view.Width()-ansi.StringWidth(m.input.Prompt)-1))
 	if m.selection != nil {
 		m.selection.theme = m.theme
 		m.theme.styleInput(&m.selection.input)
@@ -286,7 +297,7 @@ func (m *Model) View() tea.View {
 	l := m.workspace()
 	if m.chat != nil {
 		if m.page == chatPage && m.mode == "" {
-			if !m.chat.shown && m.chat.follow {
+			if !m.chat.shown && m.chat.historyBrowser == nil {
 				m.chat.scrollToLatest = true
 			}
 			m.chat.shown = true
@@ -296,7 +307,23 @@ func (m *Model) View() tea.View {
 	}
 	poll := m.pollViewState()
 	content := m.content()
-	m.view.SetContent(content)
+	if m.mode == "chat-history" {
+		b := m.chat.historyBrowser
+		if b.viewportContent != content {
+			m.view.SetContent(content)
+			b.viewportContent = content
+		}
+	} else {
+		m.view.SetContent(content)
+	}
+	cursor := m.contentCursor()
+	if cursor != nil && !m.mouseScrolling {
+		if cursor.Y < m.view.YOffset() {
+			m.view.SetYOffset(cursor.Y)
+		} else if cursor.Y >= m.view.YOffset()+m.view.Height() {
+			m.view.SetYOffset(cursor.Y - m.view.Height() + 1)
+		}
+	}
 	if !m.mouseScrolling && (m.mode == "pick" || m.mode == "confirm" || (m.mode == "" && len(m.menu()) > 0 && m.page != chatPage)) {
 		for row, line := range strings.Split(content, "\n") {
 			if !strings.HasPrefix(ansi.Strip(line), " › ") {
@@ -321,7 +348,7 @@ func (m *Model) View() tea.View {
 		screen = m.backdrop
 	} else {
 		body := m.view.View()
-		if m.page == chatPage && m.mode == "" && m.chat != nil {
+		if m.page == chatPage && (m.mode == "" || m.mode == "chat-history") && m.chat != nil {
 			body = m.chatWorkspace(l, body)
 		}
 		if m.mode == "confirm" {
@@ -362,7 +389,7 @@ func (m *Model) View() tea.View {
 	}
 	m.noticeLayer = m.notificationLayer(l.panelY, l.panelY+l.panelHeight)
 	screen = composeLayer(screen, append(layers, m.noticeLayer)...)
-	m.frame = renderFrame{base: screen, poll: poll}
+	m.frame = renderFrame{base: screen, poll: poll, cursor: m.screenCursor(l, cursor)}
 	if m.showcaseVisible() {
 		m.frame.separator = floatingLayer{x: l.margin, y: lipgloss.Height(l.header) - 1, width: l.width, height: 1}
 	}

@@ -36,7 +36,7 @@ func (m *Model) mouseControlItems() []mouseControl {
 	if m.exitPrompt != nil {
 		return nil
 	}
-	if m.previewing || (m.page == chatPage && m.mode == "") {
+	if m.previewing || (m.page == chatPage && (m.mode == "" || m.mode == "chat-history")) {
 		return nil
 	}
 	if m.busy {
@@ -51,6 +51,8 @@ func (m *Model) mouseControlItems() []mouseControl {
 	submit := mouseControl{i18n.LumenMouseSubmit, tea.KeyPressMsg{Code: tea.KeyEnter}}
 	switch m.mode {
 	case "form":
+		return []mouseControl{submit, back}
+	case "chat-history-range":
 		return []mouseControl{submit, back}
 	case "selection":
 		if m.selection != nil && m.selection.titleMode {
@@ -137,14 +139,28 @@ func (m *Model) rebuildMouseTargets(l workspaceLayout, content string) {
 	for i, control := range controls {
 		row(controlStart+i, "key", 0, control.key)
 	}
-	if m.page == chatPage && m.mode == "" && m.chat != nil {
-		_, targets := m.chatActionLayout(l)
-		for _, target := range targets {
-			add(l.panelX+l.border+l.paddingX+target.x, l.panelY+l.border+l.paddingY+target.y, target.width, target.kind, 0, target.key)
+	if m.page == chatPage && m.mode == "" && m.chat != nil && l.chatTop > 0 {
+		add(l.panelX+l.border+l.paddingX, l.panelY+l.border+l.paddingY,
+			min(l.innerWidth, ansi.StringWidth(i18n.T(i18n.DanmakuHistory)+" [h]")), "chat", 0, mouseRuneKey('h'))
+	}
+	if m.mode == "chat-history" && l.chatTop > 0 {
+		labelWidth := ansi.StringWidth("‹ " + strings.TrimSpace(i18n.T(i18n.LumenMouseBack)))
+		add(l.panelX+l.border+l.paddingX, l.panelY+l.border+l.paddingY,
+			min(l.innerWidth, labelWidth), "key", 0, tea.KeyPressMsg{Code: tea.KeyEsc})
+	}
+	if m.page == chatPage && (m.mode == "" || m.mode == "chat-history") && m.chat != nil {
+		for row := 0; row < m.view.Height(); row++ {
+			add(m.pickerLeft+m.view.Width(), m.pickerTop+row, 1, "chat-scroll", row, tea.KeyPressMsg{})
 		}
 	}
 	if (m.busy && m.exitPrompt == nil) || m.previewing {
 		return
+	}
+	if m.page == chatPage && m.mode == "" && m.chat != nil && l.chatComposer > 0 {
+		for row := 0; row < l.chatComposer; row++ {
+			add(m.pickerLeft, m.pickerTop+m.view.Height()+l.chatPosition+l.chatDivider+row,
+				l.innerWidth-2*l.chatBorder, "chat-input", row, tea.KeyPressMsg{})
+		}
 	}
 	if m.mode == "" {
 		if l.rail > 0 {
@@ -179,10 +195,13 @@ func (m *Model) rebuildMouseTargets(l workspaceLayout, content string) {
 		return
 	}
 	switch m.mode {
+	case "chat-history-range":
+		row(3, "history-input", 0, tea.KeyPressMsg{})
+		row(6, "history-input", 1, tea.KeyPressMsg{})
 	case "form", "confirm":
 		start := lipgloss.Height(ansi.Wrap(clean(m.prompt), max(1, m.view.Width()), "")) + 1
 		if m.mode == "form" {
-			row(start, "input", 0, tea.KeyPressMsg{})
+			row(lipgloss.Height(m.formPrompt()), "input", 0, tea.KeyPressMsg{})
 		} else {
 			row(start, "confirm", 0, tea.KeyPressMsg{})
 			row(start+1, "confirm", 1, tea.KeyPressMsg{})
@@ -282,6 +301,7 @@ func (m *Model) mouse(event tea.MouseMsg) tea.Cmd {
 		m.mouseScrolling = false
 		switch target.kind {
 		case "page":
+			m.chatInput.Blur()
 			m.page = target.index
 			m.view.GotoTop()
 		case "action":
@@ -295,6 +315,16 @@ func (m *Model) mouse(event tea.MouseMsg) tea.Cmd {
 			return m.modalKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 		case "input":
 			return mouseFocusInput(&m.input, msg.X-target.x)
+		case "chat-input":
+			return m.focusChatInput(msg.X-target.x, target.index)
+		case "history-input":
+			b := m.chat.historyBrowser
+			b.focus = target.index
+			b.inputs[1-b.focus].Blur()
+			return mouseFocusInput(&b.inputs[b.focus], msg.X-target.x)
+		case "chat-scroll":
+			m.view.SetYOffset(target.index * max(0, m.view.TotalLineCount()-m.view.Height()) / max(1, m.view.Height()-1))
+			return nil
 		case "title":
 			if m.selection != nil {
 				m.selection.selected = -1
@@ -306,6 +336,7 @@ func (m *Model) mouse(event tea.MouseMsg) tea.Cmd {
 				return m.updateSelection(tea.KeyPressMsg{Code: tea.KeyEnter})
 			}
 		case "chat":
+			m.chatInput.Blur()
 			_, cmd := m.chatKey(target.key.String())
 			return cmd
 		case "key":
@@ -323,23 +354,15 @@ func (m *Model) mouse(event tea.MouseMsg) tea.Cmd {
 	return nil
 }
 
-// 标记副本中光标前文本的末尾，保留输入组件自身的横向滚动偏移。
-// 重复文本和密码掩码均不适合通过搜索输入内容推算位置。
 func mouseFocusInput(input *textinput.Model, column int) tea.Cmd {
 	cmd := input.Focus()
 	if input.EchoMode == textinput.EchoNone || input.Value() == "" {
 		return cmd
 	}
-	copy := *input
-	styles := copy.Styles()
-	styles.Focused.Text = lipgloss.NewStyle().Transform(func(value string) string { return value + "\x00" })
-	copy.SetStyles(styles)
-	rendered := copy.View()
-	marker := strings.IndexByte(rendered, 0)
-	if marker < 0 {
+	visibleCursor, ok := textInputCursorColumn(*input)
+	if !ok {
 		return cmd
 	}
-	visibleCursor := ansi.StringWidth(rendered[:marker])
 	value := input.Value()
 	position := input.Position()
 	runeIndex, byteIndex := 0, len(value)

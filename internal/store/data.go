@@ -26,6 +26,8 @@ func (s *Store) ResetSettings() (domain.Config, error) {
 	c.TUINotificationsWarningsOnly = d.TUINotificationsWarningsOnly
 	c.ExitOBSStopDisabled = d.ExitOBSStopDisabled
 	c.ExitLiveStopDisabled = d.ExitLiveStopDisabled
+	c.DanmakuLimit = d.DanmakuLimit
+	c.DanmakuShowOther = d.DanmakuShowOther
 	c.Overlay = d.Overlay
 	c.OverlayDisabledEvents = d.OverlayDisabledEvents
 	c.TTS = d.TTS

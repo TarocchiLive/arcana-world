@@ -12,7 +12,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-const historySchemaVersion uint64 = 1
+const historySchemaVersion uint64 = 2
 
 var historyMetaBucket = []byte("schema")
 var historyVersionKey = []byte("version")
@@ -42,11 +42,31 @@ func migrateHistory(tx *bolt.Tx) error {
 	if version == historySchemaVersion {
 		return nil
 	}
+	if version < 1 {
+		if err := rooms.ForEach(func(roomKey, value []byte) error {
+			if value != nil {
+				return errors.New("invalid history room bucket")
+			}
+			return migrateRoom(rooms.Bucket(roomKey))
+		}); err != nil {
+			return err
+		}
+	}
+	index, err := tx.CreateBucket(receivedBucket)
+	if err != nil {
+		return err
+	}
 	if err := rooms.ForEach(func(roomKey, value []byte) error {
-		if value != nil {
+		if value != nil || len(roomKey) != 8 {
 			return errors.New("invalid history room bucket")
 		}
-		return migrateRoom(rooms.Bucket(roomKey))
+		return rooms.Bucket(roomKey).Bucket(eventsBucket).ForEach(func(seq, encoded []byte) error {
+			var event Event
+			if err := json.Unmarshal(encoded, &event); err != nil {
+				return err
+			}
+			return index.Put(receivedKey(event.Time, binary.BigEndian.Uint64(roomKey), binary.BigEndian.Uint64(seq)), nil)
+		})
 	}); err != nil {
 		return err
 	}

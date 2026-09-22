@@ -63,7 +63,7 @@ func (m *Model) pointerCommand() tea.Cmd {
 	if !m.previewing {
 		if target := m.hoveredTarget(); target != nil {
 			shape = "pointer"
-			if target.kind == "input" || target.kind == "title" {
+			if target.kind == "input" || target.kind == "title" || target.kind == "chat-input" || target.kind == "history-input" {
 				shape = "text"
 			}
 		} else if m.pointerOverNotice() && m.mouseX == m.noticeLayer.x+m.noticeLayer.width-3 && m.mouseY == m.noticeLayer.y+1 {
@@ -90,7 +90,7 @@ func (m *Model) hoverLayer(screen string) floatingLayer {
 		return floatingLayer{}
 	}
 	target := m.hoveredTarget()
-	if target == nil || target.kind == "input" || target.kind == "title" {
+	if target == nil || target.kind == "input" || target.kind == "title" || target.kind == "chat-input" || target.kind == "history-input" {
 		return floatingLayer{}
 	}
 	x, width := m.hoverBounds(target)

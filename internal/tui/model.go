@@ -17,6 +17,7 @@ import (
 	"arcana-world/internal/obs"
 	"arcana-world/internal/overlay"
 	"arcana-world/internal/store"
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -106,6 +107,7 @@ type Model struct {
 	width, height          int
 	mode, editKind, prompt string
 	input                  textinput.Model
+	chatInput              textarea.Model
 	choices                []choice
 	selected               int
 	pickerTop              int
@@ -151,9 +153,17 @@ func New(ctx context.Context, s *store.Store) (*Model, error) {
 		return nil, errors.Join(err, disk.Close())
 	}
 	in := textinput.New()
-	in.SetVirtualCursor(true)
+	in.SetVirtualCursor(false)
 	in.CharLimit = 4096
 	m := &Model{ctx: ctx, store: s, config: cfg, client: c, journal: disk, obsClient: obs.NewClient(), width: 100, height: 32, input: in, status: i18n.T(i18n.TUIStatusReady), view: viewport.New(viewport.WithWidth(96), viewport.WithHeight(24))}
+	m.chatInput = textarea.New()
+	m.chatInput.SetVirtualCursor(false)
+	m.chatInput.Prompt = "› "
+	m.chatInput.ShowLineNumbers = false
+	m.chatInput.EndOfBufferCharacter = ' '
+	m.chatInput.CharLimit = 0 // 组件按显示格数计数，字符数限制由 updateChatInput 处理。
+	m.chatInput.MaxHeight = 0
+	m.chatInput.KeyMap.InsertNewline.SetEnabled(false)
 	m.darkBackground = true
 	m.session = app.New(s, m.obsClient, c)
 	m.openChat()
@@ -348,6 +358,8 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		return m, m.handleTTSEvents(msg)
 	case chatPageMsg:
 		return m, m.applyChatPage(msg)
+	case chatHistoryMsg:
+		return m, m.applyChatHistory(msg)
 	case coverPreviewFinished:
 		m.previewing = false
 		if msg.err != nil {
@@ -361,7 +373,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	case obsResultMsg:
 		return m, m.handleOBSResult(msg)
 	case tea.WindowSizeMsg:
-		if m.page == chatPage && m.mode == "" && m.chat != nil && m.chat.follow && m.view.AtBottom() {
+		if m.page == chatPage && m.mode == "" && m.chat != nil && m.view.AtBottom() {
 			m.chat.scrollToLatest = true
 		}
 		m.width, m.height = msg.Width, msg.Height
@@ -383,7 +395,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	case tea.KeyPressMsg:
 		m.mouseScrolling = false
 		key := msg.String()
-		if key == "ctrl+c" || (key == "q" && m.mode == "") {
+		if key == "ctrl+c" || (key == "q" && m.mode == "" && !m.chatInputActive()) {
 			return m, m.requestQuit()
 		}
 		if m.exitPrompt != nil {
@@ -411,6 +423,17 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 				}
 			}
 			return m, nil
+		}
+		if m.chatInputActive() {
+			switch key {
+			case "enter":
+				return m, m.sendChat()
+			case "esc", "tab", "shift+tab":
+				m.chatInput.Blur()
+				return m, nil
+			default:
+				return m, m.updateChatInput(msg)
+			}
 		}
 		if m.obsBusy && key == "esc" && m.mode == "" {
 			if m.obsCancel != nil {
@@ -467,6 +490,14 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	if m.mode == "selection" && m.selection != nil {
 		return m, m.updateSelection(msg)
 	}
+	if m.chatInputActive() && !m.busy && m.exitPrompt == nil && !m.previewing {
+		return m, m.updateChatInput(msg)
+	}
+	if m.mode == "chat-history-range" && m.chat != nil && m.chat.historyBrowser != nil {
+		b := m.chat.historyBrowser
+		b.inputs[b.focus], cmd = b.inputs[b.focus].Update(msg)
+		return m, cmd
+	}
 	if m.mode != "form" {
 		m.view.SetContent(m.content())
 		var cmd tea.Cmd
@@ -495,9 +526,8 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.updateSelection(msg)
 	}
 	key := msg.String()
-	if key == "esc" && m.mode == "pick" && m.editKind == "chat-actions" {
-		m.restoreChatActions()
-		return nil
+	if m.mode == "chat-history-range" || m.mode == "chat-history" {
+		return m.chatHistoryKey(msg)
 	}
 	if key == "esc" && m.overlaySettings != nil {
 		if m.mode == "pick" && m.editKind == "overlay-fields" {

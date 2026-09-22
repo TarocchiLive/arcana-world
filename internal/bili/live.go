@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"arcana-world/internal/domain"
 )
@@ -213,6 +214,39 @@ func (c *Client) SetAnnouncement(ctx context.Context, roomID int64, content stri
 	p.Set("content", content)
 	p.Set("type", "1")
 	return c.call(ctx, http.MethodPost, c.LiveBase, "/xlive/app-blink/v1/room/AnnounceCommit", nil, p, false, false, nil)
+}
+
+// SendDanmaku 使用已登录账号发送普通滚动弹幕。
+func (c *Client) SendDanmaku(ctx context.Context, roomID int64, text string) error {
+	if roomID <= 0 {
+		return errors.New(i18n.T(i18n.BiliRoomIdInvalid))
+	}
+	if strings.TrimSpace(text) == "" {
+		return errors.New(i18n.T(i18n.BiliDanmakuEmpty))
+	}
+	p, err := c.csrf(values(
+		"roomid", decimal(roomID), "msg", text,
+		"color", "16777215", "fontsize", "25", "mode", "1",
+		"rnd", decimal(time.Now().Unix()), "bubble", "0",
+	))
+	if err != nil {
+		return err
+	}
+	const path = "/msg/send"
+	e, _, err := c.request(ctx, http.MethodPost, c.LiveBase, path, nil,
+		strings.NewReader(encode(p)), "application/x-www-form-urlencoded", false, true)
+	if err != nil {
+		return err
+	}
+	if err := e.check(path); err != nil {
+		return err
+	}
+	// 此接口可能以状态码零和非空消息表示内容被拒绝。
+	// 服务端原始消息可能含敏感输入，不直接展示。
+	if e.Message != "" {
+		return errors.New(i18n.T(i18n.BiliDanmakuRejected))
+	}
+	return nil
 }
 func (c *Client) timeShift(ctx context.Context) (int, int, int, error) {
 	if c.roomID == 0 {

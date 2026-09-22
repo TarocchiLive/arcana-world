@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"arcana-world/internal/i18n"
 	"arcana-world/internal/store"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -73,20 +73,20 @@ func TestNotificationScrollAndDismissDoNotActivateCoveredActions(t *testing.T) {
 	m.View()
 	card := m.noticeLayer
 	clicked := false
-	for y, line := range strings.Split(ansi.Strip(m.backdrop), "\n") {
-		if strings.Contains(line, i18n.T(i18n.LumenAppearance)) {
-			if y < card.y || y >= card.y+card.height {
-				t.Fatal("fixture action is not covered by the notification")
-			}
+	for _, target := range m.mouseTargets {
+		x := max(target.x, card.x+1)
+		if target.kind == "action" && x < min(target.x+target.width, card.x+card.width-1) &&
+			target.y > card.y && target.y < card.y+card.height-1 {
 			clicked = true
-			m.Update(tea.MouseClickMsg{X: card.x + 3, Y: y, Button: tea.MouseLeft})
-			if m.mode != "" {
-				t.Fatal("click passed through the notification into a picker")
+			m.Update(tea.MouseClickMsg{X: x, Y: target.y, Button: tea.MouseLeft})
+			if m.mode != "" || m.busy {
+				t.Fatal("click passed through the notification into an action")
 			}
+			break
 		}
 	}
 	if !clicked {
-		t.Fatal("covered appearance action was not found")
+		t.Fatal("no action overlaps the notification")
 	}
 	var observed strings.Builder
 	for range 12 {

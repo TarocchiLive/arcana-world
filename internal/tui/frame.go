@@ -6,6 +6,7 @@ import tea "charm.land/bubbletea/v2"
 type renderFrame struct {
 	base               string
 	view               tea.View
+	cursor             *tea.Cursor
 	target             *mouseTarget
 	hoverX, hoverWidth int
 	noticeClose        bool
@@ -34,7 +35,7 @@ func (m *Model) pollViewState() pollViewState {
 	switch m.page {
 	case chatPage:
 		if c := m.chat; c != nil {
-			state.chatRoom, state.chatRevision = c.room, c.state.Revision
+			state.chatRoom, state.chatRevision = c.state.RoomID, c.state.Revision
 			state.chatPhase, state.chatLoading = string(c.state.Phase), c.loading
 			if c.state.Err != nil {
 				state.chatError = c.state.Err.Error()
@@ -50,14 +51,18 @@ func (m *Model) pollViewState() pollViewState {
 
 func (m *Model) frameView() tea.View {
 	frame := &m.frame
+	cursor := frame.cursor
+	if m.blurred {
+		cursor = nil
+	}
 	target := m.hoveredTarget()
-	if target != nil && (target.kind == "input" || target.kind == "title") {
+	if target != nil && (target.kind == "input" || target.kind == "title" || target.kind == "chat-input" || target.kind == "history-input") {
 		target = nil
 	}
 	x, width := m.hoverBounds(target)
 	close := !m.previewing && m.pointerOverNotice() &&
 		m.mouseX == m.noticeLayer.x+m.noticeLayer.width-3 && m.mouseY == m.noticeLayer.y+1
-	if frame.view.Content != "" && frame.target == target && frame.noticeClose == close && frame.hoverX == x && frame.hoverWidth == width {
+	if frame.view.Content != "" && frame.view.Cursor == cursor && frame.target == target && frame.noticeClose == close && frame.hoverX == x && frame.hoverWidth == width {
 		return frame.view
 	}
 	screen := frame.base
@@ -68,6 +73,7 @@ func (m *Model) frameView() tea.View {
 	view.AltScreen = true
 	view.MouseMode = tea.MouseModeAllMotion
 	view.ReportFocus = true
+	view.Cursor = cursor
 	frame.view, frame.target, frame.noticeClose = view, target, close
 	frame.hoverX, frame.hoverWidth = x, width
 	return view

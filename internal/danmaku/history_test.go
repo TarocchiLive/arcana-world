@@ -278,9 +278,15 @@ func TestRetentionStartupMigratesAndExpiresTombstones(t *testing.T) {
 			if err := json.Unmarshal(v, &e); err != nil {
 				return err
 			}
+			if err := tx.Bucket(receivedBucket).Delete(receivedKey(e.Time, uint64(e.RoomID), e.Sequence)); err != nil {
+				return err
+			}
 			e.Time = time.Now().Add(-retention - time.Hour)
 			v, err := json.Marshal(e)
 			if err != nil {
+				return err
+			}
+			if err := tx.Bucket(receivedBucket).Put(receivedKey(e.Time, uint64(e.RoomID), e.Sequence), nil); err != nil {
 				return err
 			}
 			return events.Put(k, v)
@@ -294,6 +300,9 @@ func TestRetentionStartupMigratesAndExpiresTombstones(t *testing.T) {
 	h = openHistory(t, dir)
 	if events := page(t, h, 1, 0, 10); len(events) != 0 {
 		t.Fatalf("startup retained expired events: %+v", events)
+	}
+	if events, err := h.Range(time.Time{}, time.Now(), 0, nil); err != nil || len(events) != 0 {
+		t.Fatalf("time-range history retained expired events: %+v, %v", events, err)
 	}
 	appendEvent(t, h, 1, sc, true)
 	if e := page(t, h, 1, 0, 1)[0]; e.Deleted || e.Text != "fresh" {
@@ -321,5 +330,59 @@ func TestHistoryReinterpretsUnknownWithoutMovingItsCursor(t *testing.T) {
 	latest := page(t, h, 1, 0, 1)
 	if len(latest) != 1 || latest[0].Kind != "unknown" || latest[0].Text != "FUTURE_EVENT" {
 		t.Fatalf("future command was misclassified: %+v", latest)
+	}
+}
+
+func TestHistoryRangeAcrossRoomsAndClockChanges(t *testing.T) {
+	h := openHistory(t, t.TempDir())
+	start := time.Now().UTC().Add(-time.Hour)
+	end := start.Add(2 * time.Minute)
+	store := func(room int64, received time.Time, raw string, p projection) {
+		t.Helper()
+		p.event.Time = received
+		if _, err := h.append(room, []byte(raw), p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sc := `{"cmd":"SUPER_CHAT_MESSAGE","data":{"id":123,"uid":42,"message":"private text","price":30,"user_info":{"uname":"alice"}}}`
+	store(1, end, sc, project(1, []byte(sc)))
+	// 时钟回拨后，较大序号的接收时间可能更早。
+	store(1, start, "", projection{event: Event{RoomID: 1, Kind: "gap", Text: "start"}})
+	legacy := `{"cmd":"WATCHED_CHANGE","data":{"num":42}}`
+	store(1, start.Add(time.Minute), legacy, projection{event: Event{RoomID: 1, Kind: "unknown"}})
+	store(2, start.Add(time.Minute), "", projection{event: Event{RoomID: 2, Kind: "chat", Text: "first"}})
+	store(2, start.Add(time.Minute), "", projection{event: Event{RoomID: 2, Kind: "chat", Text: "second"}})
+	store(2, start.Add(-time.Nanosecond), "", projection{event: Event{RoomID: 2, Kind: "gap", Text: "before"}})
+	store(2, end.Add(time.Nanosecond), "", projection{event: Event{RoomID: 2, Kind: "gap", Text: "after"}})
+	del := `{"cmd":"SUPER_CHAT_MESSAGE_DELETE","data":{"ids":[123]}}`
+	store(1, end.Add(time.Minute), del, project(1, []byte(del)))
+
+	events, err := h.Range(start, end, 0, nil)
+	if err != nil || len(events) != 5 {
+		t.Fatalf("inclusive range=%+v err=%v", events, err)
+	}
+	if !events[0].Deleted || events[0].Text != "" || events[0].Kind != "sc" || !events[0].Time.Equal(end) {
+		t.Fatalf("deleted boundary record resurrected: %+v", events[0])
+	}
+	if events[1].Text != "second" || events[2].Text != "first" || events[3].Kind != "watched" || events[3].Count != 42 || events[4].Text != "start" {
+		t.Fatalf("range ordering or legacy decoding: %+v", events)
+	}
+	filtered, err := h.Range(start, end, 2, func(event Event) bool {
+		return !event.Deleted && event.Kind != "gap"
+	})
+	if err != nil || len(filtered) != 2 || filtered[0].Text != "second" || filtered[1].Text != "first" {
+		t.Fatalf("filter-before-limit=%+v err=%v", filtered, err)
+	}
+	if _, err := h.Range(end, start, 0, nil); err == nil {
+		t.Fatal("reversed range accepted")
+	}
+	if _, err := h.Range(start, end, -1, nil); err == nil {
+		t.Fatal("negative limit accepted")
+	}
+	if err := h.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.Range(start, end, 0, nil); !errors.Is(err, os.ErrClosed) {
+		t.Fatalf("closed range err=%v", err)
 	}
 }

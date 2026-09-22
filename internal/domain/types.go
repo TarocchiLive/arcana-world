@@ -34,6 +34,8 @@ type Config struct {
 	ExitLiveStopDisabled bool `json:"exit_live_stop_disabled"`
 	// 默认启用；使用禁用字段使旧配置无需迁移即可自动监听。
 	DanmakuDisabled       bool             `json:"danmaku_disabled"`
+	DanmakuLimit          int              `json:"danmaku_limit"`
+	DanmakuShowOther      bool             `json:"danmaku_show_other"`
 	RecentTitles          []string         `json:"recent_titles"`
 	RecentAreas           []Area           `json:"recent_areas"`
 	Overlay               overlay.Settings `json:"overlay"`

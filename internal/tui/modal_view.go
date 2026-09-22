@@ -12,6 +12,10 @@ import (
 func (m *Model) modalContent() string {
 	width := max(1, m.view.Width())
 	switch m.mode {
+	case "chat-history-range":
+		return m.chatHistoryRangeView()
+	case "chat-history":
+		return m.chatHistoryView()
 	case "help":
 		paragraphs := strings.Split(strings.TrimSpace(i18n.T(i18n.Key(m.editKind))), "\n\n")
 		rows := make([]string, 0, len(paragraphs)+1)
@@ -39,16 +43,12 @@ func (m *Model) modalContent() string {
 	case "selection":
 		return m.selection.View(width, m.view.Height())
 	case "form":
-		promptStyle := m.theme.accent
-		if m.editKind == "clear-data" {
-			promptStyle = m.theme.danger
-		}
 		controls := i18n.T(i18n.TUIFormControls)
 		if m.editKind == "cover-path" {
 			controls = i18n.T(i18n.TUIFormCoverControls)
 		}
 		return lipgloss.JoinVertical(lipgloss.Left,
-			promptStyle.Width(width).PaddingBottom(1).Render(clean(m.prompt)),
+			m.formPrompt(),
 			m.input.View()+m.overlayColorSample(),
 			lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(strings.TrimSpace(controls), width)))
 	case "confirm":
@@ -121,4 +121,12 @@ func (m *Model) modalContent() string {
 			m.theme.hintText(strings.TrimSpace(i18n.T(i18n.TUILoginKeyringRetry)), width))
 	}
 	return ""
+}
+
+func (m *Model) formPrompt() string {
+	style := m.theme.accent
+	if m.editKind == "clear-data" {
+		style = m.theme.danger
+	}
+	return style.Width(max(1, m.view.Width())).PaddingBottom(1).Render(clean(m.prompt))
 }

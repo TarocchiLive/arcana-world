@@ -149,5 +149,5 @@ func (t tuiTheme) styleInput(input *textinput.Model) {
 	styles.Blurred.Prompt = t.muted
 	styles.Cursor.Color = t.accentColor
 	input.SetStyles(styles)
-	input.SetVirtualCursor(true)
+	input.SetVirtualCursor(false)
 }

@@ -30,6 +30,17 @@ var messageRefsBucket = []byte("message-refs")
 var idsBucket = []byte("identities")
 var tombstonesBucket = []byte("sc-deleted")
 var scBucket = []byte("sc-sequences")
+var receivedBucket = []byte("received")
+
+// 使用定长有符号秒数和纳秒编码，保证时钟调整后的时间排序。
+func receivedKey(at time.Time, room, sequence uint64) []byte {
+	var k [28]byte
+	binary.BigEndian.PutUint64(k[:8], uint64(at.Unix())^(1<<63))
+	binary.BigEndian.PutUint32(k[8:12], uint32(at.Nanosecond()))
+	binary.BigEndian.PutUint64(k[12:20], room)
+	binary.BigEndian.PutUint64(k[20:], sequence)
+	return k[:]
+}
 
 func Open(dir string) (*History, error) {
 	base, err := filepath.Abs(dir)
@@ -173,6 +184,9 @@ func (h *History) append(roomID int64, raw []byte, projections ...projection) (b
 				return err
 			}
 			seqKey := key(seq)
+			if err := tx.Bucket(receivedBucket).Put(receivedKey(p.event.Time, uint64(roomID), seq), nil); err != nil {
+				return err
+			}
 			if err := events.Put(seqKey, encoded); err != nil {
 				return err
 			}
@@ -241,21 +255,9 @@ func (h *History) Page(roomID int64, before uint64, limit int) ([]Event, error) 
 			}
 		}
 		for ; k != nil && len(result) < limit; k, v = c.Prev() {
-			var event Event
-			if err := json.Unmarshal(v, &event); err != nil {
+			event, err := decodeHistoryEvent(room, roomID, k, v)
+			if err != nil {
 				return err
-			}
-			// 重新解释旧的未知记录，不改变其接收时间、
-			// 稳定的分页游标或已保留的原始载荷。
-			if event.Kind == "unknown" && !event.Deleted {
-				p := project(roomID, rawForEvent(room, k))
-				if p.event.Kind != "unknown" && len(p.batch) == 0 && p.scID == "" && len(p.deletes) == 0 {
-					p.event.Sequence, p.event.Time = event.Sequence, event.Time
-					event = p.event
-				}
-			}
-			if event.Kind == "guard" && event.GuardUnit == "" {
-				event.GuardUnit = project(roomID, rawForEvent(room, k)).event.GuardUnit
 			}
 			result = append(result, event)
 		}
@@ -263,6 +265,72 @@ func (h *History) Page(roomID int64, before uint64, limit int) ([]Event, error) 
 	})
 	return result, err
 }
+
+func decodeHistoryEvent(room *bolt.Bucket, roomID int64, k, v []byte) (Event, error) {
+	var event Event
+	if err := json.Unmarshal(v, &event); err != nil {
+		return Event{}, err
+	}
+	// 重新解释旧的未知记录，不改变其接收时间、
+	// 稳定的分页游标或已保留的原始载荷。
+	if event.Kind == "unknown" && !event.Deleted {
+		p := project(roomID, rawForEvent(room, k))
+		if p.event.Kind != "unknown" && len(p.batch) == 0 && p.scID == "" && len(p.deletes) == 0 {
+			p.event.Sequence, p.event.Time = event.Sequence, event.Time
+			event = p.event
+		}
+	}
+	if event.Kind == "guard" && event.GuardUnit == "" {
+		event.GuardUnit = project(roomID, rawForEvent(room, k)).event.GuardUnit
+	}
+	return event, nil
+}
+
+// Range 返回所有直播间在接收时间闭区间内的记录，按时间、直播间和序号降序排列。
+// visible 为 nil 时不过滤；limit 为零时不限数量，为正时仅保留过滤后的最新记录。
+func (h *History) Range(start, end time.Time, limit int, visible func(Event) bool) ([]Event, error) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if h.db == nil {
+		return nil, os.ErrClosed
+	}
+	if end.Before(start) {
+		return nil, errors.New("history range end precedes start")
+	}
+	if limit < 0 {
+		return nil, errors.New("history range limit must not be negative")
+	}
+	var result []Event
+	err := h.db.View(func(tx *bolt.Tx) error {
+		cursor := tx.Bucket(receivedBucket).Cursor()
+		upper := receivedKey(end, ^uint64(0), ^uint64(0))
+		k, _ := cursor.Seek(upper)
+		if k == nil {
+			k, _ = cursor.Last()
+		} else if string(k) > string(upper) {
+			k, _ = cursor.Prev()
+		}
+		lower := receivedKey(start, 0, 0)
+		for ; k != nil && string(k) >= string(lower) && (limit == 0 || len(result) < limit); k, _ = cursor.Prev() {
+			roomID := binary.BigEndian.Uint64(k[12:20])
+			room := tx.Bucket(roomsBucket).Bucket(key(roomID))
+			seq := k[20:]
+			event, err := decodeHistoryEvent(room, int64(roomID), seq, room.Bucket(eventsBucket).Get(seq))
+			if err != nil {
+				return err
+			}
+			if visible == nil || visible(event) {
+				result = append(result, event)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (h *History) RecordGap(roomID int64, text string) error {
 	// 仅接受调用方编写的状态文本，绝不接受含凭据的原始连接错误。
 	raw, err := json.Marshal(struct {
@@ -347,6 +415,9 @@ func (h *History) prune(now time.Time) error {
 					return err
 				}
 				if event.Time.Before(cutoff) {
+					if err := tx.Bucket(receivedBucket).Delete(receivedKey(event.Time, uint64(event.RoomID), event.Sequence)); err != nil {
+						return err
+					}
 					if err := releaseMessage(room, k); err != nil {
 						return err
 					}

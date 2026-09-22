@@ -51,16 +51,19 @@ type Store struct {
 
 // DefaultConfig 返回新配置和设置重置所用的默认值。
 func DefaultConfig() domain.Config {
-	return domain.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", OBSAutoConnect: true, OBSAutoStream: true, Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
+	return domain.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", OBSAutoConnect: true, OBSAutoStream: true, DanmakuLimit: 30, Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
 }
 
-func applyConnectionDefaults(c *domain.Config) {
+func applyConfigDefaults(c *domain.Config) {
 	defaults := DefaultConfig()
 	if c.Protocol == "" {
 		c.Protocol = defaults.Protocol
 	}
 	if c.OBSURL == "" {
 		c.OBSURL = defaults.OBSURL
+	}
+	if c.DanmakuLimit < 1 || c.DanmakuLimit > 1000 {
+		c.DanmakuLimit = defaults.DanmakuLimit
 	}
 }
 
@@ -191,7 +194,7 @@ func readConfig(dir string, secure bool) (domain.Config, bool, error) {
 	if c.TTS, err = c.TTS.Normalize(); err != nil {
 		return domain.Config{}, false, err
 	}
-	applyConnectionDefaults(&c)
+	applyConfigDefaults(&c)
 	seen := make(map[string]bool, len(c.Accounts))
 	for _, a := range c.Accounts {
 		if strings.TrimSpace(a.UID) == "" || seen[a.UID] {
@@ -239,7 +242,7 @@ func (s *Store) SaveConfig(c domain.Config) error {
 	if s.overrides.OBSAutoStream != nil {
 		c.OBSAutoStream = s.config.OBSAutoStream
 	}
-	applyConnectionDefaults(&c)
+	applyConfigDefaults(&c)
 	var err error
 	if c.TTS, err = c.TTS.Normalize(); err != nil {
 		return err

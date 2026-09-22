@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"arcana-world/internal/i18n"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -49,6 +48,12 @@ func TestMouseInputInsertionUsesVisibleCells(t *testing.T) {
 func TestMouseHoverDoesNotChangeKeyboardAction(t *testing.T) {
 	m := lifecycleModel(t, context.Background())
 	m.page = settingsPage
+	for index, item := range m.menu() {
+		if item.action == "theme" {
+			m.cursors[settingsPage] = index
+			break
+		}
+	}
 	m.dismissNotification()
 	m.Init()
 	before := m.View().Content
@@ -111,8 +116,9 @@ func TestMouseHoverDoesNotChangeKeyboardAction(t *testing.T) {
 		t.Fatalf("hover retained stale viewport dimensions: %dx%d", width, height)
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	closed := m.View().Content
 	m.Update(tea.MouseMotionMsg{X: 0, Y: 0})
-	if restored := m.View().Content; !strings.Contains(ansi.Strip(restored), i18n.T(i18n.TUIMenuSetProxy)) {
+	if restored := m.View().Content; restored != closed {
 		t.Fatal("hover retained the closed picker")
 	}
 }

@@ -59,12 +59,15 @@ func (m *Model) menu() []menuItem {
 		return m.outputMenu()
 	case settingsPage:
 		return []menuItem{
-			{i18n.T(i18n.LumenTheme) + " · " + m.themeName(), "theme"},
-			{i18n.T(i18n.LumenAppearance), "appearance"},
-			{i18n.T(i18n.TUIMenuSetProxy), "proxy"},
-			{i18n.T(i18n.TUIMenuSetProtocol), "protocol"},
+			{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"},
+			{toggleLabel(i18n.T(i18n.DanmakuOther), m.config.DanmakuShowOther), "chat-other"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
+			{i18n.T(i18n.LumenTheme) + " · " + m.themeName(), "theme"},
+			{i18n.T(i18n.LumenAppearance), "appearance"},
+			{i18n.T(i18n.DanmakuLimit) + " · " + strconv.Itoa(m.config.DanmakuLimit), "chat-limit"},
+			{i18n.T(i18n.TUIMenuSetProxy), "proxy"},
+			{i18n.T(i18n.TUIMenuSetProtocol), "protocol"},
 			{i18n.T(i18n.TUISettingsReset), "settings-reset-confirm"},
 			{i18n.T(i18n.TUISettingsClearData), "clear-data"},
 		}
@@ -77,8 +80,6 @@ func (m *Model) menu() []menuItem {
 			{i18n.T(i18n.TUIHelpOutputTitle), "help:" + string(i18n.TUIHelpOutput)},
 			{i18n.T(i18n.TUIHelpControlsTitle), "help:" + string(i18n.TUIHelpControls)},
 		}
-	case chatPage:
-		return []menuItem{{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"}}
 	}
 	return nil
 }
@@ -174,6 +175,12 @@ func (m *Model) perform(action string) tea.Cmd {
 		cfg := m.config
 		cfg.DanmakuDisabled = true
 		return m.saveConfig(cfg, false)
+	case "chat-other":
+		cfg := m.config
+		cfg.DanmakuShowOther = !cfg.DanmakuShowOther
+		return m.saveConfig(cfg, false)
+	case "chat-limit":
+		return m.form("chat-limit", i18n.T(i18n.DanmakuLimit), strconv.Itoa(m.config.DanmakuLimit), false)
 	case "login":
 		return work(m, qrOperation(), func(ctx context.Context) (domain.QR, error) { return m.client.GenerateQR(ctx) })
 	case "refresh":
@@ -387,8 +394,6 @@ func (m *Model) choose() tea.Cmd {
 		return m.chooseOverlay(ch.value)
 	}
 	switch m.editKind {
-	case "chat-actions":
-		return m.chooseChatAction(ch.value)
 	case "theme":
 		cfg := m.config
 		cfg.TUITheme = ch.value
@@ -450,6 +455,12 @@ func (m *Model) submitForm() tea.Cmd {
 		value = m.input.Value()
 	}
 	switch kind {
+	case "chat-limit":
+		n, err := strconv.Atoi(value)
+		if err != nil || n < 1 || n > 1000 {
+			m.warnStatus(i18n.T(i18n.DanmakuLimitInvalid))
+			return nil
+		}
 	case "tts-volume":
 		n, err := strconv.Atoi(value)
 		if err != nil || n < 0 || n > 100 {
@@ -489,6 +500,10 @@ func (m *Model) submitForm() tea.Cmd {
 	m.input.SetValue("")
 	m.input.Blur()
 	switch kind {
+	case "chat-limit":
+		cfg := m.config
+		cfg.DanmakuLimit, _ = strconv.Atoi(value)
+		return m.saveConfig(cfg, false)
 	case "tts-volume":
 		cfg := m.config
 		cfg.TTS.Volume, _ = strconv.Atoi(value)

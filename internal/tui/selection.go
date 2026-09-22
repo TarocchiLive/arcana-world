@@ -46,7 +46,7 @@ func selectionText(s string) string {
 
 func newTitleSelection(current string, recent []string) *roomSelection {
 	in := textinput.New()
-	in.SetVirtualCursor(true)
+	in.SetVirtualCursor(false)
 	in.Prompt = i18n.T(i18n.TUISelectionTitlePrompt)
 	themeFor("", true).styleInput(&in)
 	in.SetValue(selectionText(current))
@@ -239,7 +239,7 @@ func (s *roomSelection) resize(width, height int) {
 	width = max(1, width)
 	if s.titleMode {
 		s.input.Prompt = ansi.Truncate(i18n.T(i18n.TUISelectionTitlePrompt), max(0, width-2), "")
-		s.input.SetWidth(max(1, width-ansi.StringWidth(s.input.Prompt)-1))
+		resizeTextInput(&s.input, max(1, width-ansi.StringWidth(s.input.Prompt)-1))
 	}
 	_, _, s.window = s.layout(width, height)
 }
@@ -281,13 +281,7 @@ func (s *roomSelection) View(width, height int) string {
 			location = i18n.T(i18n.TUISelectionCategorySearch)
 		}
 		heading = i18n.T(i18n.TUISelectionCategoryHeading) + selectionText(location)
-		prompt := ansi.Truncate(i18n.T(i18n.TUISelectionSearchPrompt), max(0, width-1), "")
-		query := selectionText(string(s.query))
-		available := max(1, width-ansi.StringWidth(prompt))
-		if ansi.StringWidth(query) > available {
-			query = ansi.TruncateLeft(query, ansi.StringWidth(query)-available, "")
-		}
-		editor = s.theme.accent.Render(prompt) + s.theme.textStyle.Render(query)
+		editor = s.searchView(width)
 		controls = i18n.T(i18n.TUISelectionCategoryControls)
 		empty = i18n.T(i18n.TUISelectionCategoryEmpty)
 		for _, item := range s.items {
@@ -327,4 +321,34 @@ func (s *roomSelection) View(width, height int) string {
 	// 窄终端中的空状态换行后可能超过可用高度。
 	lines = strings.Split(strings.Join(lines, "\n"), "\n")
 	return strings.Join(lines[:min(height, len(lines))], "\n")
+}
+
+// 在可见搜索文字后预留一个显示格，供终端光标定位。
+func (s *roomSelection) searchView(width int) string {
+	prompt := ansi.Truncate(i18n.T(i18n.TUISelectionSearchPrompt), max(0, width-1), "")
+	query := selectionText(string(s.query))
+	available := max(0, width-ansi.StringWidth(prompt)-1)
+	if cells := ansi.StringWidth(query); cells > available {
+		query = ansi.TruncateLeft(query, cells-available, "")
+	}
+	return s.theme.accent.Render(prompt) + s.theme.textStyle.Render(query)
+}
+
+func (s *roomSelection) cursor(width, height int) *tea.Cursor {
+	header, _, _ := s.layout(width, height)
+	if header == 0 {
+		return nil
+	}
+	var c *tea.Cursor
+	if s.titleMode {
+		c = textInputCursor(s.input)
+	} else {
+		c = tea.NewCursor(ansi.StringWidth(s.searchView(width)), 0)
+		c.Color = s.theme.accentColor
+		c.Blink = true
+	}
+	if c != nil {
+		c.Y += header - 1
+	}
+	return c
 }

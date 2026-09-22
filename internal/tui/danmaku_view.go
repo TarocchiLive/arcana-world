@@ -40,39 +40,23 @@ func (m *Model) chatStatus() string {
 	}
 	return i18n.T(key)
 }
-func (m *Model) chatHeader(more bool) string {
-	if m.chat == nil {
-		return i18n.T(i18n.DanmakuNoRoom)
-	}
-	follow := i18n.T(i18n.DanmakuPaused)
-	if m.chat.follow {
-		follow = i18n.T(i18n.DanmakuFollowing)
-	}
-	status := fmt.Sprintf(i18n.T(i18n.DanmakuDetails), m.chat.room) + " · " + m.chatStatus() + " · " + follow
-	if more {
-		status = i18n.T(i18n.DanmakuNewMessages) + " · " + status
-	}
-	style := m.theme.muted
-	if m.chat.err != nil || m.chat.state.Err != nil {
-		style = m.theme.warning
-	}
-	return style.Render(status)
+func (m *Model) chatHeader() string {
+	return m.theme.muted.Render(m.chatStatus())
 }
 
 func (m *Model) chatView(width int) string {
+	if m.chat == nil {
+		return m.theme.hintText(i18n.T(i18n.DanmakuEmpty), max(1, width))
+	}
+	return m.chatEventsView(m.chat.entries, width)
+}
+
+func (m *Model) chatEventsView(entries []danmaku.Event, width int) string {
 	width = max(1, width)
 	surface := lipgloss.NewStyle().Background(m.theme.surfaceColor).Width(width)
-	if m.chat == nil {
-		return surface.Render(m.theme.hintText(i18n.T(i18n.DanmakuNoRoom), width))
-	}
-	c := m.chat
 	var b strings.Builder
-	// 存储以新消息优先确保排他游标稳定，显示时按时间正序排列。
-	for index := len(c.entries) - 1; index >= 0; index-- {
-		e := c.entries[index]
-		if !chatEventVisible(e, c.showOther) {
-			continue
-		}
+	for index := len(entries) - 1; index >= 0; index-- {
+		e := entries[index]
 		line := chatEventText(e)
 		style := m.theme.textStyle
 		switch e.Kind {
@@ -100,6 +84,11 @@ func (m *Model) chatView(width int) string {
 			b.WriteByte('\n')
 		}
 		stamp := m.theme.muted.Render(e.Time.Local().Format("01-02 15:04:05"))
+		textWidth := width
+		if width >= 32 {
+			textWidth -= 16
+		}
+		line = ansi.Wrap(line, textWidth, "")
 		if width >= 32 {
 			b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
 				m.theme.muted.Width(16).Render(stamp),
@@ -110,22 +99,7 @@ func (m *Model) chatView(width int) string {
 		}
 	}
 	if b.Len() == 0 {
-		state := i18n.T(i18n.DanmakuEmpty)
-		switch {
-		case c.room == 0:
-			state = i18n.T(i18n.DanmakuNoRoom)
-		case c.loading:
-			state = i18n.T(i18n.DanmakuLoading)
-		case c.before != 0:
-			state = i18n.T(i18n.DanmakuNoOlder)
-		}
-		b.WriteString(m.theme.hintText(state, width))
-	}
-	if c.err != nil {
-		return surface.Render(m.theme.warning.Render(ansi.Wrap(fmt.Sprintf(i18n.T(i18n.DanmakuHistoryError), m.safe(c.err.Error())), width, "")) + "\n" + b.String())
-	}
-	if c.state.Err != nil {
-		return surface.Render(m.theme.warning.Render(ansi.Wrap(m.safe(c.state.Err.Error()), width, "")) + "\n" + b.String())
+		b.WriteString(m.theme.hintText(i18n.T(i18n.DanmakuEmpty), width))
 	}
 	return surface.Render(b.String())
 }
