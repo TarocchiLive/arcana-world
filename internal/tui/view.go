@@ -16,7 +16,7 @@ type workspaceLayout struct {
 	width, margin, rail, panelWidth, panelHeight, paddingX, paddingY, border int
 	panelX, panelY, innerWidth, innerHeight                                  int
 	dialogX, dialogY, dialogWidth, dialogHeight                              int
-	chatBorder, chatTop, chatComposer, chatDivider, chatPosition             int
+	chatBorder, chatTop, chatComposer, chatDivider                           int
 	header, footer                                                           string
 }
 
@@ -178,9 +178,6 @@ func (m *Model) workspace() workspaceLayout {
 		if l.innerHeight >= 3 {
 			l.chatTop = 1
 		}
-		if l.innerHeight >= 6 {
-			l.chatPosition = 1
-		}
 		if l.innerWidth >= 12 && l.innerHeight >= 8 {
 			l.chatBorder = 1
 		}
@@ -188,14 +185,14 @@ func (m *Model) workspace() workspaceLayout {
 			m.styleChatInput()
 			m.chatInput.SetWidth(max(1, l.innerWidth-2*l.chatBorder))
 			rows := renderedChatLines(ansi.Wrap(m.chatInput.Value()+" ", max(1, m.chatInput.Width()-3), ""))
-			l.chatComposer = min(max(1, rows), max(1, (l.innerHeight-2*l.chatBorder-l.chatTop-l.chatPosition)/3))
+			l.chatComposer = min(max(1, rows), max(1, (l.innerHeight-2*l.chatBorder-l.chatTop)/3))
 			m.chatInput.SetHeight(l.chatComposer)
 			if l.innerHeight >= 8 {
 				l.chatDivider = 1
 			}
 		}
 		m.view.SetWidth(max(1, l.innerWidth-2*l.chatBorder-1))
-		m.view.SetHeight(max(1, l.innerHeight-l.chatTop-l.chatComposer-l.chatDivider-l.chatPosition-2*l.chatBorder))
+		m.view.SetHeight(max(1, l.innerHeight-l.chatTop-l.chatComposer-l.chatDivider-2*l.chatBorder))
 		m.pickerLeft += l.chatBorder
 		m.pickerTop += l.chatTop + l.chatBorder
 	}

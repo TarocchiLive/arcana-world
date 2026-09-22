@@ -16,8 +16,6 @@
   "danmaku.history_range_keys": "本地时间：YYYY-MM-DD HH:MM:SS\n↑↓ / Tab 切换 · Enter 下一项 / 查询 · Esc 返回",
   "danmaku.history_range_invalid": "请填写有效的起止时间，结束时间不能早于开始时间",
   "danmaku.history_keys": "↑↓ / PgUp / PgDn 滚动 · Home / End 首尾 · Esc 返回时间选择",
-  "danmaku.scroll_position": "↑ 上方 %d 行 · ↓ 下方 %d 行",
-  "danmaku.all_visible": "全部已显示",
   "danmaku.empty": "暂无弹幕",
   "danmaku.no_room": "登录后自动监听直播间",
   "danmaku.waiting": "等待登录",

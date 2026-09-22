@@ -14,8 +14,6 @@ const (
 	DanmakuHistoryRangeKeys    Key = "danmaku.history_range_keys"
 	DanmakuHistoryRangeInvalid Key = "danmaku.history_range_invalid"
 	DanmakuHistoryKeys         Key = "danmaku.history_keys"
-	DanmakuScrollPosition      Key = "danmaku.scroll_position"
-	DanmakuAllVisible          Key = "danmaku.all_visible"
 	DanmakuTruncated           Key = "danmaku.truncated"
 	DanmakuOther               Key = "danmaku.other"
 	DanmakuPage                Key = "danmaku.page"

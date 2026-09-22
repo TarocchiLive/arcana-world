@@ -16,8 +16,6 @@
   "danmaku.history_range_keys": "Local time: YYYY-MM-DD HH:MM:SS\n↑↓ / Tab switch · Enter next / search · Esc back",
   "danmaku.history_range_invalid": "Enter valid times with the end at or after the start",
   "danmaku.history_keys": "↑↓ / PgUp / PgDn scroll · Home / End first / last · Esc back to time range",
-  "danmaku.scroll_position": "↑ %d rows above · ↓ %d rows below",
-  "danmaku.all_visible": "All messages visible",
   "danmaku.empty": "No messages yet",
   "danmaku.no_room": "Sign in to listen to your room",
   "danmaku.waiting": "Waiting for sign-in",

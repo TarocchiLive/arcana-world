@@ -158,7 +158,7 @@ func (m *Model) rebuildMouseTargets(l workspaceLayout, content string) {
 	}
 	if m.page == chatPage && m.mode == "" && m.chat != nil && l.chatComposer > 0 {
 		for row := 0; row < l.chatComposer; row++ {
-			add(m.pickerLeft, m.pickerTop+m.view.Height()+l.chatPosition+l.chatDivider+row,
+			add(m.pickerLeft, m.pickerTop+m.view.Height()+l.chatDivider+row,
 				l.innerWidth-2*l.chatBorder, "chat-input", row, tea.KeyPressMsg{})
 		}
 	}

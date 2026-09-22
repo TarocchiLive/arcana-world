@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 
 	"arcana-world/internal/i18n"
@@ -28,19 +27,8 @@ func (m *Model) chatScrollView(records string) string {
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, records, strings.Join(bar, "\n"))
 }
-func (m *Model) chatPosition() string {
-	above := m.view.YOffset()
-	below := max(0, m.view.TotalLineCount()-above-m.view.Height())
-	if above == 0 && below == 0 {
-		return i18n.T(i18n.DanmakuAllVisible)
-	}
-	return fmt.Sprintf(i18n.T(i18n.DanmakuScrollPosition), above, below)
-}
 func (m *Model) chatWorkspace(l workspaceLayout, records string) string {
 	body := m.chatScrollView(records)
-	if l.chatPosition > 0 {
-		body += "\n" + m.theme.muted.Render(ansi.Truncate(m.chatPosition(), l.innerWidth-2*l.chatBorder, "…"))
-	}
 	if l.chatComposer > 0 {
 		if l.chatDivider > 0 {
 			body += "\n" + m.theme.muted.Render(strings.Repeat("─", max(1, l.innerWidth-2*l.chatBorder)))

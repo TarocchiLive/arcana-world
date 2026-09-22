@@ -84,7 +84,7 @@ func (m *Model) screenCursor(l workspaceLayout, c *tea.Cursor) *tea.Cursor {
 		if c == nil || c.X < 0 || c.X >= l.innerWidth-2*l.chatBorder || c.Y < 0 || c.Y >= l.chatComposer {
 			return nil
 		}
-		c.Y += m.view.Height() + l.chatPosition + l.chatDivider
+		c.Y += m.view.Height() + l.chatDivider
 	} else {
 		if c == nil {
 			return nil
