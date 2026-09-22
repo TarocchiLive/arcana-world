@@ -33,6 +33,9 @@ func (m *Model) progressStatus(text string) {
 }
 
 func (m *Model) resetNotification() {
+	if m.selectingNotice() {
+		m.textSelection = nil
+	}
 	m.notification = notificationState{
 		text:       m.status,
 		warning:    m.statusWarning,
@@ -45,7 +48,7 @@ func (m *Model) resetNotification() {
 
 // 每次新结果只安排一次计时，与背景动画和任务忙碌状态无关。
 func (m *Model) notificationCommand() tea.Cmd {
-	if !m.notification.pending {
+	if !m.notification.pending || m.selectingNotice() {
 		return nil
 	}
 	m.notification.pending = false
@@ -60,7 +63,7 @@ func (m *Model) notificationCommand() tea.Cmd {
 }
 
 func (m *Model) updateNotification(msg notificationExpired) tea.Cmd {
-	if msg.generation == m.notification.generation {
+	if msg.generation == m.notification.generation && !m.selectingNotice() {
 		m.notification.dismissed = true
 		m.noticeLayer = floatingLayer{}
 	}
@@ -70,7 +73,7 @@ func (m *Model) updateNotification(msg notificationExpired) tea.Cmd {
 func (m *Model) notificationVisible() bool {
 	return m.mode != "confirm" && strings.TrimSpace(m.notification.text) != "" && !m.notification.dismissed &&
 		(!m.config.TUINotificationsWarningsOnly || m.notification.warning) &&
-		time.Since(m.notification.started) < notificationDuration
+		(m.selectingNotice() || time.Since(m.notification.started) < notificationDuration)
 }
 
 // 渲染与鼠标滚动共用可见行数，并为滚动位置预留一行。
@@ -85,9 +88,9 @@ func (m *Model) notificationRows(width, height int) (lines []string, visible, of
 	return
 }
 
-func (m *Model) notificationLayer(top, maxY int) floatingLayer {
+func (m *Model) notificationLayer(top, maxY int) (floatingLayer, textRegion) {
 	if !m.notificationVisible() || m.width < 16 || maxY-top < 4 {
-		return floatingLayer{}
+		return floatingLayer{}, textRegion{}
 	}
 	margin := 2
 	if m.width < 40 {
@@ -111,6 +114,8 @@ func (m *Model) notificationLayer(top, maxY int) floatingLayer {
 	for _, line := range lines[offset:min(len(lines), offset+visible)] {
 		rows = append(rows, style.Width(inner).Render(line))
 	}
+	body := strings.Join(rows[1:], "\n")
+	bodyHeight := len(rows) - 1
 	if len(lines) > visible {
 		position := fmt.Sprintf("%d–%d/%d", offset+1, min(len(lines), offset+visible), len(lines))
 		if ansi.StringWidth(position) > inner {
@@ -122,7 +127,10 @@ func (m *Model) notificationLayer(top, maxY int) floatingLayer {
 		BorderBackground(m.theme.elevatedColor).Background(m.theme.elevatedColor).
 		Padding(0, 1).Width(width).Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
 	card = m.theme.paintSurface(card, m.theme.elevatedColor)
-	return floatingLayer{content: card, x: m.width - margin - width, y: top, width: width, height: lipgloss.Height(card)}
+	layer := floatingLayer{content: card, x: m.width - margin - width, y: top, width: width, height: lipgloss.Height(card)}
+	return layer, textRegion{kind: "notice", floatingLayer: floatingLayer{
+		content: body, x: layer.x + 2, y: layer.y + 2, width: inner, height: bodyHeight,
+	}}
 }
 
 func (m *Model) notificationMouse(msg tea.MouseMsg) bool {
@@ -154,6 +162,9 @@ func (m *Model) notificationMouse(msg tea.MouseMsg) bool {
 func (m *Model) dismissNotification() bool {
 	if !m.notificationVisible() {
 		return false
+	}
+	if m.selectingNotice() {
+		m.clearTextSelection()
 	}
 	m.notification.dismissed = true
 	m.noticeLayer = floatingLayer{}

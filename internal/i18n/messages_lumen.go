@@ -44,6 +44,7 @@ const (
 	LumenMouseConfirm        Key = "lumen.mouse_confirm"
 	LumenMouseOpenQR         Key = "lumen.mouse_open_qr"
 	LumenMouseRetry          Key = "lumen.mouse_retry"
+	LumenSelectionKeys       Key = "lumen.selection_keys"
 	LumenNotificationInfo    Key = "lumen.notification_info"
 	LumenNotificationWarning Key = "lumen.notification_warning"
 )

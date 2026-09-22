@@ -7,6 +7,7 @@ type renderFrame struct {
 	base               string
 	view               tea.View
 	cursor             *tea.Cursor
+	textRegions        [2]textRegion
 	target             *mouseTarget
 	hoverX, hoverWidth int
 	noticeClose        bool
@@ -52,7 +53,7 @@ func (m *Model) pollViewState() pollViewState {
 func (m *Model) frameView() tea.View {
 	frame := &m.frame
 	cursor := frame.cursor
-	if m.blurred {
+	if m.blurred || m.textSelection != nil {
 		cursor = nil
 	}
 	target := m.hoveredTarget()
@@ -65,7 +66,7 @@ func (m *Model) frameView() tea.View {
 	if frame.view.Content != "" && frame.view.Cursor == cursor && frame.target == target && frame.noticeClose == close && frame.hoverX == x && frame.hoverWidth == width {
 		return frame.view
 	}
-	screen := frame.base
+	screen := m.textSelectionView(frame.base)
 	if layer := m.hoverLayer(screen); layer.content != "" {
 		screen = composeRow(screen, layer)
 	}

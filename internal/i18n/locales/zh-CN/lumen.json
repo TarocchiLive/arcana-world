@@ -27,6 +27,7 @@
   "lumen.mouse_confirm": "确认上传",
   "lumen.mouse_open_qr": "打开二维码",
   "lumen.mouse_retry": "重试",
+  "lumen.selection_keys": "y 复制 · Esc 清除选区",
   "lumen.actions": "操作",
   "lumen.room": "直播间",
   "lumen.title": "标题",

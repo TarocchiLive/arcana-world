@@ -61,7 +61,9 @@ func (m *Model) pointerCommand() tea.Cmd {
 	}
 	shape := "default"
 	if !m.previewing {
-		if target := m.hoveredTarget(); target != nil {
+		if m.textRegionAt(m.mouseX, m.mouseY) != nil || m.textSelection != nil && m.textSelection.dragging {
+			shape = "text"
+		} else if target := m.hoveredTarget(); target != nil {
 			shape = "pointer"
 			if target.kind == "input" || target.kind == "title" || target.kind == "chat-input" || target.kind == "history-input" {
 				shape = "text"

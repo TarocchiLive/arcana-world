@@ -18,6 +18,7 @@ Versions are listed newest first.
 - In terminals supporting pointer-shape control, use an arrow over empty areas, a hand over actions, and a text pointer over inputs.
 - Highlight actionable items on hover without activating them or changing keyboard selection.
 - Split Help into six topics: first stream, OBS connection, picture and streaming troubleshooting, chat history, overlay and speech, and controls and settings. Read each topic separately and return to the directory.
+- Drag to select body text in chat, history, logs, and notifications. Press `y` to copy or `Esc` to clear, with a footer-only hint and no copy button or automatic copy. `Ctrl+C` still opens quit confirmation.
 
 ### Changed
 
@@ -33,6 +34,7 @@ Versions are listed newest first.
 - Use text and background color for hover without a full-row underline. Reuse unchanged frames, redraw only the hovered row, and avoid redraws triggered by pointer-shape output to reduce CPU use during rapid mouse movement.
 - Reduce idle TUI CPU use: update only the animated separator and reuse the frame when polling finds no visible changes. Pause decoration when the terminal reports focus loss and resume on focus, while keeping background business polling active.
 - Keep hover highlighting from repainting a notification that partially covers an action, and preserve the correct pointer shape after asynchronous redraws.
+- Fix dark backgrounds appearing across text areas during selection in light themes, preserving the original colors of unselected text and backgrounds.
 
 ## [v0.2.1]: 2026-09-20
 

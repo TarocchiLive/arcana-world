@@ -100,6 +100,7 @@ type Model struct {
 	overlaySettings        *overlaySettingsNavigation
 	overlayChat            overlayChatState
 	selection              *roomSelection
+	textSelection          *textSelection
 	cover                  *coverimage.Prepared
 	previewing             bool
 	page                   int
@@ -277,6 +278,35 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	case tea.RawMsg:
 		m.frame.reuse = m.frame.base != ""
 		return m, nil
+	}
+	switch event := msg.(type) {
+	case tea.KeyPressMsg:
+		if m.textSelection != nil {
+			if m.textSelection.active && event.String() == "y" {
+				m.frame.reuse = m.frame.base != ""
+				return m, m.copyTextSelection()
+			}
+			m.clearTextSelection()
+			if event.String() == "esc" {
+				m.frame.reuse = m.frame.base != ""
+				return m, tea.Batch(m.notificationCommand(), m.pointerCommand())
+			}
+		}
+	case tea.WindowSizeMsg, tea.BackgroundColorMsg, tea.PasteMsg:
+		m.clearTextSelection()
+	case tea.BlurMsg:
+		if m.textSelection != nil {
+			m.textSelection.dragging = false
+			if !m.textSelection.active {
+				m.clearTextSelection()
+			}
+		}
+	}
+	if mouse, ok := msg.(tea.MouseMsg); ok {
+		if handled, cmd := m.textSelectionMouse(mouse); handled {
+			m.frame.reuse = m.frame.base != ""
+			return m, tea.Batch(cmd, m.pointerCommand())
+		}
 	}
 	if motion, ok := msg.(tea.MouseMotionMsg); ok {
 		m.mouseX, m.mouseY, m.mouseKnown = motion.X, motion.Y, true

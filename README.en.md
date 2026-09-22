@@ -77,6 +77,7 @@ Press `2` to browse chat and history; listening continues on other pages.
 - Use `PgUp` / `PgDn` or the mouse wheel to scroll, `Home` / `End` to jump to the top / latest message, and `r` to refresh / retry.
 - Press `h` to search history by start and end time. Use `↑` / `↓` to switch time fields, `Enter` to confirm, and `Esc` to return. Your main reading position and draft are preserved.
 - Adjust listening, additional events, and the main message limit on **Settings** (`8`).
+- Drag to select text in chat, history, logs, or notifications. Press `y` to copy or `Esc` to clear the selection; shortcuts appear in the footer.
 
 See the [chat display allowlist](docs/danmaku-whitelist.md) for the default message types. Unlisted messages stay hidden even with additional events enabled, but their original data is still saved.
 

@@ -340,11 +340,13 @@ func (m *Model) View() tea.View {
 	}
 	m.rebuildMouseTargets(l, content)
 	var screen string
+	var textRegions [2]textRegion
 	cachedBackdrop := m.mode == "confirm" && m.backdrop != "" && m.backdropWidth == m.width && m.backdropHeight == m.height
 	if cachedBackdrop {
 		screen = m.backdrop
 	} else {
 		body := m.view.View()
+		textRegions[0] = m.pageTextRegion(body)
 		if m.page == chatPage && (m.mode == "" || m.mode == "chat-history") && m.chat != nil {
 			body = m.chatWorkspace(l, body)
 		}
@@ -384,9 +386,10 @@ func (m *Model) View() tea.View {
 		dialog := m.theme.panel(m.view.View(), l.dialogWidth, l.dialogHeight, l.paddingX, l.paddingY, l.border, true)
 		layers = append(layers, floatingLayer{content: dialog, x: l.dialogX, y: l.dialogY, width: l.dialogWidth, height: l.dialogHeight})
 	}
-	m.noticeLayer = m.notificationLayer(l.panelY, l.panelY+l.panelHeight)
+	m.noticeLayer, textRegions[1] = m.notificationLayer(l.panelY, l.panelY+l.panelHeight)
 	screen = composeLayer(screen, append(layers, m.noticeLayer)...)
-	m.frame = renderFrame{base: screen, poll: poll, cursor: m.screenCursor(l, cursor)}
+	m.retainTextSelection(textRegions)
+	m.frame = renderFrame{base: screen, poll: poll, cursor: m.screenCursor(l, cursor), textRegions: textRegions}
 	if m.showcaseVisible() {
 		m.frame.separator = floatingLayer{x: l.margin, y: lipgloss.Height(l.header) - 1, width: l.width, height: 1}
 	}
