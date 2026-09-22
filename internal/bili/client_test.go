@@ -9,6 +9,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -21,6 +22,40 @@ func TestSignatureMatchesPythonURLSerialization(t *testing.T) {
 	p := signed(values("csrf", "中文 ~ a+b/", "ts", "1700000000"))
 	if p.Get("sign") != "c6fd15ffa2548cfbbde055923539ae7d" {
 		t.Fatal("signature incompatible with LiveHime Python serialization")
+	}
+}
+
+func TestSendDanmakuRejectsZeroCodeMessage(t *testing.T) {
+	const private = "private-session-value"
+	var reject atomic.Bool
+	reject.Store(true)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if reject.Load() {
+			fmt.Fprintf(w, `{"code":0,"message":"rejected: %s","data":{}}`, private)
+			return
+		}
+		fmt.Fprint(w, `{"code":0,"message":"","data":{}}`)
+	}))
+	defer server.Close()
+	c, err := New("direct")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.HTTP = server.Client()
+	c.LiveBase = server.URL
+	c.SetAccount(domain.Account{UID: "1", Cookies: map[string]string{
+		"SESSDATA": private, "bili_jct": "csrf-value",
+	}})
+	err = c.SendDanmaku(context.Background(), 123, "hello")
+	if err == nil {
+		t.Fatal("rejected danmaku was reported as sent")
+	}
+	if strings.Contains(err.Error(), private) {
+		t.Fatal("danmaku rejection exposed the raw server message")
+	}
+	reject.Store(false)
+	if err := c.SendDanmaku(context.Background(), 123, "hello"); err != nil {
+		t.Fatalf("accepted danmaku failed: %v", err)
 	}
 }
 func TestQRIsAnonymousAndAccountSwitchDropsOldCookies(t *testing.T) {
@@ -140,7 +175,7 @@ func TestResponseBodyCancellationRemainsRecognizable(t *testing.T) {
 				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
 				response, err := transport.RoundTrip(r)
 				if err == nil {
-					// Cancel only after Do has returned headers, at the first body read.
+					// 仅在 Do 返回响应头后，首次读取响应体时取消。
 					response.Body = cancelReadBody{response.Body, cancel}
 				}
 				return response, err

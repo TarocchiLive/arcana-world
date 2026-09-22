@@ -34,7 +34,7 @@ func TestExitSettingsToggleIndependentlyWithoutStoppingBroadcast(t *testing.T) {
 	m.account = &domain.Account{UID: "123", Cookies: map[string]string{"DedeUserID": "123", "bili_jct": "csrf"}}
 	m.client.SetAccount(*m.account)
 	m.room = &domain.Room{ID: 456, Live: true}
-	// Cleanup must not make a real account-room request for this synthetic account.
+	// 清理时不能为这个虚构账号发起真实的房间请求。
 	t.Cleanup(func() { m.account = nil })
 	if err := m.obsClient.Connect(context.Background(), endpoint, ""); err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestExitUsesCommittedToggleBeforeResultDelivery(t *testing.T) {
 	if queued.taskError() != nil {
 		t.Fatal(queued.taskError())
 	}
-	// Close before Bubble Tea delivers the successful save result.
+	// 在 Bubble Tea 投递保存成功消息之前关闭。
 	if err := m.Close(); err != nil {
 		t.Fatal(err)
 	}

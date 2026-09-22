@@ -29,7 +29,7 @@ Native support for Windows, Linux, and macOS.
 ## Highlights
 
 - **Scan to sign in, connect OBS, and go live with one click.**
-- **Browse live chat in real time, with a click-through floating overlay that stays out of the way of your mouse and keyboard.**
+- **Browse and send live chat in real time, with a click-through floating overlay that stays out of the way of your mouse and keyboard.**
 - **High-quality chat, gift, and Super Chat announcements powered by Edge TTS, with zero resource overhead.**
 - **Typical memory usage of 40 MB: lightweight, smooth, and stable.**
 
@@ -72,17 +72,20 @@ If Bilibili requests identity verification, complete it and try again.
 
 Press `2` to browse chat and history; listening continues on other pages.
 
-- `s`: toggle listening; `Space`: pause display / follow latest.
-- `[` / `]`: page history; `End`: return to latest; `o`: switch history rooms.
-- `f`: toggle optional allowlisted events; `r`: refresh / retry; `PgUp` / `PgDn`: scroll.
+- At startup, Chat shows the latest 10 messages from the past 24 hours and keeps up to 30 by default. The scrollbar shows your reading position.
+- Press `/` or click the bottom input to compose up to 40 characters. `Enter` sends; `Esc` / `Tab` returns to browsing. Failed sends keep the draft.
+- Use `PgUp` / `PgDn` or the mouse wheel to scroll, `Home` / `End` to jump to the top / latest message, and `r` to refresh / retry.
+- Press `h` to search history by start and end time. Use `↑` / `↓` to switch time fields, `Enter` to confirm, and `Esc` to return. Your main reading position and draft are preserved.
+- Adjust listening, additional events, and the main message limit on **Settings** (`8`).
+- Drag to select text in chat, history, logs, or notifications. Press `y` to copy or `Esc` to clear the selection; shortcuts appear in the footer.
 
-See the [chat display allowlist](docs/danmaku-whitelist.md) for the default message types. Unlisted messages stay hidden even with `f` enabled, but their original data is still saved.
+See the [chat display allowlist](docs/danmaku-whitelist.md) for the default message types. Unlisted messages stay hidden even with additional events enabled, but their original data is still saved.
 
 History is stored per room in `danmaku/history.db` under the data directory; history and operation logs are retained for seven days and cleaned automatically. Messages missed while disconnected are not fetched later to fill in the database.
 
 ### Desktop overlay
 
-Provides a focus-free, click-through, semi-transparent desktop text overlay. Overlay and TTS have independent event selections; all events visible without `f` are selected by default. Press `Enter` or `Space` to toggle an event. Output templates currently support Chinese only. The TTS tab offers voice selection, preview, on/off controls, and stopping playback with queue clearing. Only new events are spoken after enabling TTS; history is not replayed. Speech synthesis requires an internet connection and the bundled companion executable.
+Provides a focus-free, click-through, semi-transparent desktop text overlay. Overlay and TTS have independent event selections; all message types shown by default are initially selected. Press `Enter` or `Space` to toggle an event. Output templates currently support Chinese only. The TTS tab offers voice selection, preview, on/off controls, and stopping playback with queue clearing. Only new events are spoken after enabling TTS; history is not replayed. Speech synthesis requires an internet connection and the bundled companion executable.
 
 See [Arcana World Overlay](cmd/arcana-world-overlay/README.en.md) for details.
 
@@ -105,11 +108,16 @@ Default data directory: `~/.arcana/world`.
 - [x] Add a Bilibili live chat overlay.
 - [x] Add TTS chat readouts and gift announcements.
 - [x] Switch the overlay between monitors without restarting.
-- [ ] Add mouse support to the TUI.
-- [ ] Refactor and improve the TUI layout and appearance.
+- [x] Add mouse support to the TUI.
+- [x] Refactor and improve the TUI layout and appearance.
+- [x] Send live chat messages from the terminal.
 - [ ] Refactor and improve the overlay layout and appearance.
 - [ ] Support the iTerm2 image protocol.
 - [ ] Support resizing and cropping cover images in the terminal.
+- [ ] Check for new versions.
+- [ ] Support package repositories such as Scoop, Homebrew, and nixpkgs.
+- [ ] Add a bot protocol interface.
+- [?] GUI / WebUI support (under consideration).
 
 ## Development
 
@@ -131,6 +139,9 @@ Licensed under [GPL-3.0-only](LICENSE).
 
 ## Acknowledgments
 
-- Everyone in the community who generously shared API definitions and implementation references for the relevant platforms.
-- [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive): the source of this project's streaming protocol implementation.
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea): the terminal UI framework.
+- [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive)
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+- [Bubbles](https://github.com/charmbracelet/bubbles)
+- [Lip Gloss](https://github.com/charmbracelet/lipgloss)
+- [edge-tts](https://github.com/rany2/edge-tts)
+- [edge-tts-go](https://github.com/wujunwei928/edge-tts-go)

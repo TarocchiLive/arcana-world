@@ -10,7 +10,7 @@ import (
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/presentation"
 	"arcana-world/internal/tts"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 type ttsRetired struct {
@@ -31,6 +31,7 @@ type ttsRuntime struct {
 	room                      int64
 	generation                uint64
 	voice, proxy              string
+	volume                    int
 	disabled                  []string
 	request, latest, revision uint64
 	loaded, loading           bool
@@ -47,7 +48,7 @@ type ttsEventsMsg struct {
 	err                                   error
 }
 
-// Cancellation is immediate; reaping a helper never blocks the UI event loop.
+// 立即取消任务，后台回收辅助进程，不阻塞界面事件循环。
 func (r *ttsRuntime) retire() {
 	if r.manager == nil {
 		return
@@ -70,11 +71,11 @@ func (m *Model) ttsError(err error) {
 	detail := m.safe(err.Error())
 	if m.tts.lastError != detail {
 		m.tts.lastError = detail
-		m.log(fmt.Sprintf(i18n.T(i18n.TTSLogFailed), detail))
+		m.warn(fmt.Sprintf(i18n.T(i18n.TTSLogFailed), detail))
 	}
 }
 
-// ConfigureTTS sets a session override before model initialization.
+// ConfigureTTS 在模型初始化前设置仅限本次会话的覆盖值。
 func (m *Model) ConfigureTTS(enabled bool) error {
 	if m.initialized || m.ttsOverride != nil {
 		return errors.New("TTS must be configured once before model initialization")
@@ -110,10 +111,11 @@ func (m *Model) syncTTS() {
 			}
 		}
 	}
-	if r.listener != listener || r.history != history || r.account != account || r.room != room || r.generation != generation || r.voice != m.config.TTS.Voice || r.proxy != m.config.Proxy || r.listeningDisabled != m.config.DanmakuDisabled || !slices.Equal(r.disabled, m.config.TTS.DisabledEvents) {
+	if r.listener != listener || r.history != history || r.account != account || r.room != room || r.generation != generation || r.voice != m.config.TTS.Voice || r.volume != m.config.TTS.Volume || r.proxy != m.config.Proxy || r.listeningDisabled != m.config.DanmakuDisabled || !slices.Equal(r.disabled, m.config.TTS.DisabledEvents) {
 		r.retire()
 		r.listener, r.history, r.account, r.room, r.generation = listener, history, account, room, generation
 		r.voice, r.proxy = m.config.TTS.Voice, m.config.Proxy
+		r.volume = m.config.TTS.Volume
 		r.listeningDisabled = m.config.DanmakuDisabled
 		r.disabled = slices.Clone(m.config.TTS.DisabledEvents)
 		r.request++
@@ -147,7 +149,7 @@ func (m *Model) startTTSManager() {
 		m.ttsError(fmt.Errorf(i18n.T(i18n.TTSSynthesisBackendUnavailable), err))
 		return
 	}
-	player, err := tts.NewPlayer(tts.PlayerOptions{})
+	player, err := tts.NewPlayer(tts.PlayerOptions{Volume: m.config.TTS.Volume})
 	if err != nil {
 		r.failed = true
 		m.ttsError(fmt.Errorf(i18n.T(i18n.TTSPlaybackBackendUnavailable), err))
@@ -167,7 +169,7 @@ func (m *Model) startTTSManager() {
 
 func (m *Model) performTTS(action string) tea.Cmd {
 	if m.ttsOverride != nil && (action == "tts-toggle" || action == "tts-preview" && !*m.ttsOverride) {
-		m.log(i18n.T(i18n.TUISessionOverride))
+		m.warn(i18n.T(i18n.TUISessionOverride))
 		return nil
 	}
 	if m.tts == nil {

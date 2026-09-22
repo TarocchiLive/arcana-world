@@ -17,9 +17,10 @@ import (
 	"arcana-world/internal/obs"
 	"arcana-world/internal/overlay"
 	"arcana-world/internal/store"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 )
 
 const (
@@ -65,6 +66,22 @@ type Model struct {
 	store                  *store.Store
 	client                 *bili.Client
 	config                 domain.Config
+	theme                  tuiTheme
+	themeID                string
+	darkBackground         bool
+	showcase               showcaseState
+	blurred                bool
+	mouseTargets           []mouseTarget
+	mouseScrolling         bool
+	mouseX, mouseY         int
+	mouseKnown             bool
+	pointerShape           string
+	frame                  renderFrame
+	exitPrompt             *exitConfirmation
+	backdrop               string
+	backdropWidth          int
+	backdropHeight         int
+	backdropFooterHeight   int
 	account                *domain.Account
 	room                   *domain.Room
 	stream                 *domain.Stream
@@ -83,6 +100,7 @@ type Model struct {
 	overlaySettings        *overlaySettingsNavigation
 	overlayChat            overlayChatState
 	selection              *roomSelection
+	textSelection          *textSelection
 	cover                  *coverimage.Prepared
 	previewing             bool
 	page                   int
@@ -90,9 +108,11 @@ type Model struct {
 	width, height          int
 	mode, editKind, prompt string
 	input                  textinput.Model
+	chatInput              textarea.Model
 	choices                []choice
 	selected               int
 	pickerTop              int
+	pickerLeft             int
 	overlayDisplays        []overlay.Display
 	confirmAction          string
 	busy                   bool
@@ -106,6 +126,9 @@ type Model struct {
 	faceURL                string
 	pendingAccount         *domain.Account
 	status                 string
+	statusWarning          bool
+	notification           notificationState
+	noticeLayer            floatingLayer
 	logs                   []string
 	journal                *journal.Log
 	closeOnce              sync.Once
@@ -131,11 +154,22 @@ func New(ctx context.Context, s *store.Store) (*Model, error) {
 		return nil, errors.Join(err, disk.Close())
 	}
 	in := textinput.New()
+	in.SetVirtualCursor(false)
 	in.CharLimit = 4096
-	m := &Model{ctx: ctx, store: s, config: cfg, client: c, journal: disk, obsClient: obs.NewClient(), width: 100, height: 32, input: in, status: i18n.T(i18n.TUIStatusReady), view: viewport.New(96, 24)}
+	m := &Model{ctx: ctx, store: s, config: cfg, client: c, journal: disk, obsClient: obs.NewClient(), width: 100, height: 32, input: in, status: i18n.T(i18n.TUIStatusReady), view: viewport.New(viewport.WithWidth(96), viewport.WithHeight(24))}
+	m.chatInput = textarea.New()
+	m.chatInput.SetVirtualCursor(false)
+	m.chatInput.Prompt = "› "
+	m.chatInput.ShowLineNumbers = false
+	m.chatInput.EndOfBufferCharacter = ' '
+	m.chatInput.CharLimit = 0 // 组件按显示格数计数，字符数限制由 updateChatInput 处理。
+	m.chatInput.MaxHeight = 0
+	m.chatInput.KeyMap.InsertNewline.SetEnabled(false)
+	m.darkBackground = true
 	m.session = app.New(s, m.obsClient, c)
 	m.openChat()
 	m.logCredentialStorage()
+	m.syncWorkspace()
 	return m, nil
 }
 func (m *Model) Init() tea.Cmd {
@@ -143,7 +177,7 @@ func (m *Model) Init() tea.Cmd {
 		return nil
 	}
 	m.initialized = true
-	cmds := []tea.Cmd{m.watchOBS(), chatTickCmd()}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.watchOBS(), chatTickCmd(), m.syncShowcase(), m.notificationCommand(), m.pointerCommand()}
 	if m.overlay != nil && m.overlayEnabled {
 		cmds = append(cmds, m.startOverlay())
 	}
@@ -159,23 +193,40 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) logCredentialStorage() {
 	switch m.store.CredentialStorage() {
 	case store.StorageFile:
-		m.log(i18n.T(i18n.StoreFileStorageFallback))
+		m.warn(i18n.T(i18n.StoreFileStorageFallback))
 	case store.StorageMemory:
-		m.log(i18n.T(i18n.StoreMemoryStorage))
+		m.warn(i18n.T(i18n.StoreMemoryStorage))
 	}
 }
 
-func (m *Model) log(s string) {
+func (m *Model) log(s string) { m.logStatus(s, false) }
+
+func (m *Model) logStatus(s string, warning bool) {
 	s = m.safe(s)
-	if err := m.journal.Write(s); err != nil {
+	err := m.journal.Write(s)
+	if err != nil {
 		s += i18n.T(i18n.TUILogWriteFailedPrefix) + m.safe(err.Error()) + i18n.T(i18n.TUILogWriteFailedSuffix)
 	}
 	m.logs = append(m.logs, time.Now().Format("15:04:05")+"  "+s)
 	if len(m.logs) > logEntryLimit {
 		m.logs = append([]string(nil), m.logs[len(m.logs)-logEntryLimit:]...)
 	}
-	m.status = s
+	m.status, m.statusWarning = s, warning || err != nil
+	m.resetNotification()
 }
+
+func (m *Model) setStatus(text string) {
+	m.status = text
+	m.statusWarning = false
+	m.resetNotification()
+}
+
+func (m *Model) warnStatus(text string) {
+	m.status, m.statusWarning = text, true
+	m.resetNotification()
+}
+
+func (m *Model) warn(text string) { m.logStatus(text, true) }
 func clean(s string) string {
 	return strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
@@ -200,17 +251,131 @@ func (m *Model) safe(s string) string {
 	}
 	return clean(s)
 }
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+
+// 业务轮询始终运行；仅可见状态变化时才使整页缓存失效。
+func (m *Model) updatePolling() tea.Cmd {
+	cmds := []tea.Cmd{m.updateChat(), m.updateOverlayChat(), m.updateTTS()}
+	m.publishOverlay()
+	if m.frame.base != "" && m.frame.poll == m.pollViewState() {
+		m.frame.reuse = true
+	} else {
+		m.frame = renderFrame{}
+		m.mouseTargets = m.mouseTargets[:0]
+		m.noticeLayer = floatingLayer{}
+		m.syncWorkspace()
+		if m.initialized {
+			cmds = append(cmds, refreshPointer)
+		}
+	}
+	return tea.Batch(append(cmds, m.notificationCommand())...)
+}
+func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
+	// 原始终端输出已由 Bubble Tea 执行，不改变界面状态，也不再次设置指针。
+	switch msg.(type) {
+	case pointerRefreshMsg:
+		m.frame.reuse = m.frame.base != ""
+		return m, m.pointerCommand()
+	case tea.RawMsg:
+		m.frame.reuse = m.frame.base != ""
+		return m, nil
+	}
+	switch event := msg.(type) {
+	case tea.KeyPressMsg:
+		if m.textSelection != nil {
+			if m.textSelection.active && event.String() == "y" {
+				m.frame.reuse = m.frame.base != ""
+				return m, m.copyTextSelection()
+			}
+			m.clearTextSelection()
+			if event.String() == "esc" {
+				m.frame.reuse = m.frame.base != ""
+				return m, tea.Batch(m.notificationCommand(), m.pointerCommand())
+			}
+		}
+	case tea.WindowSizeMsg, tea.BackgroundColorMsg, tea.PasteMsg:
+		m.clearTextSelection()
+	case tea.BlurMsg:
+		if m.textSelection != nil {
+			m.textSelection.dragging = false
+			if !m.textSelection.active {
+				m.clearTextSelection()
+			}
+		}
+	}
+	if mouse, ok := msg.(tea.MouseMsg); ok {
+		if handled, cmd := m.textSelectionMouse(mouse); handled {
+			m.frame.reuse = m.frame.base != ""
+			return m, tea.Batch(cmd, m.pointerCommand())
+		}
+	}
+	if motion, ok := msg.(tea.MouseMotionMsg); ok {
+		m.mouseX, m.mouseY, m.mouseKnown = motion.X, motion.Y, true
+		m.frame.reuse = m.frame.base != ""
+		return m, m.pointerCommand()
+	}
+	if tick, ok := msg.(showcaseTick); ok {
+		frame := m.showcase.frame
+		cmd := m.updateShowcase(tick)
+		m.frame.reuse = m.frame.base != ""
+		m.frame.separatorDirty = m.frame.separatorDirty || frame != m.showcase.frame
+		return m, cmd
+	}
+	switch msg.(type) {
+	case tea.BlurMsg:
+		m.blurred = true
+		m.frame.reuse = m.frame.base != ""
+		return m, m.syncShowcase()
+	case tea.FocusMsg:
+		m.blurred = false
+		m.frame.reuse = m.frame.base != ""
+		return m, m.syncShowcase()
+	}
+	if m.deferUntilQuitResolved(msg) {
+		m.frame.reuse = m.frame.base != ""
+		return m, nil
+	}
+	if _, ok := msg.(chatTick); ok {
+		return m, m.updatePolling()
+	}
+	// 输入和业务结果可能改变布局；只有无变化的轮询与装饰更新复用画面。
+	m.frame = renderFrame{}
+	if _, mouse := msg.(tea.MouseMsg); !mouse {
+		m.mouseTargets = m.mouseTargets[:0]
+		m.noticeLayer = floatingLayer{}
+	}
+	defer func() {
+		m.syncWorkspace()
+		if next := m.syncShowcase(); next != nil {
+			cmd = tea.Batch(cmd, next)
+		}
+		if m.initialized {
+			cmd = tea.Batch(cmd, m.notificationCommand(), refreshPointer)
+		}
+	}()
 	if m.clearDataOnExit {
 		return m, tea.Quit
 	}
 	defer m.publishOverlay()
 	defer m.syncTTS()
 	switch msg := msg.(type) {
+	case notificationExpired:
+		return m, m.updateNotification(msg)
+	case tea.BackgroundColorMsg:
+		if dark := msg.IsDark(); dark != m.darkBackground {
+			m.darkBackground = dark
+			m.theme = themeFor(m.config.TUITheme, dark)
+			m.themeID = m.config.TUITheme
+			m.backdrop = ""
+		}
+		return m, nil
+	case tea.PasteMsg:
+		if m.busy || m.previewing {
+			return m, nil
+		}
 	case qrImageOpened:
 		m.qrImageOpening = false
 		if msg.err != nil {
-			m.log(i18n.T(i18n.TUIQROpenFailed) + msg.err.Error())
+			m.warn(i18n.T(i18n.TUIQROpenFailed) + msg.err.Error())
 		}
 		return m, nil
 	case overlayStartedMsg:
@@ -221,16 +386,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.handleOverlayChat(msg)
 	case ttsEventsMsg:
 		return m, m.handleTTSEvents(msg)
-	case chatTick:
-		return m, tea.Batch(m.updateChat(), m.updateOverlayChat(), m.updateTTS())
 	case chatPageMsg:
 		return m, m.applyChatPage(msg)
+	case chatHistoryMsg:
+		return m, m.applyChatHistory(msg)
 	case coverPreviewFinished:
 		m.previewing = false
 		if msg.err != nil {
-			m.log(i18n.T(i18n.TUILogCoverPreviewFailed) + msg.err.Error())
+			m.warn(i18n.T(i18n.TUILogCoverPreviewFailed) + msg.err.Error())
 		} else {
-			m.status = i18n.T(i18n.TUIStatusPreviewClosed)
+			m.setStatus(i18n.T(i18n.TUIStatusPreviewClosed))
 		}
 		return m, nil
 	case obsEventMsg:
@@ -238,10 +403,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case obsResultMsg:
 		return m, m.handleOBSResult(msg)
 	case tea.WindowSizeMsg:
+		if m.page == chatPage && m.mode == "" && m.chat != nil && m.view.AtBottom() {
+			m.chat.scrollToLatest = true
+		}
 		m.width, m.height = msg.Width, msg.Height
-		m.view.Width = max(12, m.width-4)
-		m.view.Height = max(3, m.height-10)
-		m.input.Width = max(10, m.width-10)
+		m.syncWorkspace()
 	case taskMessage:
 		if msg.taskID() != m.operation {
 			return m, nil
@@ -255,18 +421,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, work(m, pollOperation(), func(ctx context.Context) (domain.LoginPoll, error) { return m.client.PollQR(ctx, key) })
 		}
 	case tea.MouseMsg:
-		return m, m.overlayDisplayMouse(msg)
-	case tea.KeyMsg:
+		return m, m.mouse(msg)
+	case tea.KeyPressMsg:
+		m.mouseScrolling = false
 		key := msg.String()
-		if key == "ctrl+c" || (key == "q" && m.mode == "") {
-			m.session.BeginClose()
-			if m.cancel != nil {
-				m.cancel()
-			}
-			if m.obsCancel != nil {
-				m.obsCancel()
-			}
-			return m, tea.Quit
+		if key == "ctrl+c" || (key == "q" && m.mode == "" && !m.chatInputActive()) {
+			return m, m.requestQuit()
+		}
+		if m.exitPrompt != nil {
+			return m, m.quitKey(msg)
 		}
 		if m.previewing {
 			return m, nil
@@ -283,23 +446,34 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.qr = nil
 				m.qrText = ""
 				m.faceURL = ""
-				m.status = i18n.T(i18n.TUIStatusCancelRequested)
+				m.progressStatus(i18n.T(i18n.TUIStatusCancelRequested))
 				m.clearOverlayColorPreview()
 				if m.overlaySettings != nil {
 					return m, m.showOverlaySettings()
 				}
-				if m.editKind == "overlay-displays" {
-					return m, tea.DisableMouse
-				}
 			}
 			return m, nil
+		}
+		if m.chatInputActive() {
+			switch key {
+			case "enter":
+				return m, m.sendChat()
+			case "esc", "tab", "shift+tab":
+				m.chatInput.Blur()
+				return m, nil
+			default:
+				return m, m.updateChatInput(msg)
+			}
 		}
 		if m.obsBusy && key == "esc" && m.mode == "" {
 			if m.obsCancel != nil {
 				m.obsCancel()
 			}
 			_ = m.obsClient.Disconnect()
-			m.status = i18n.T(i18n.TUIStatusOBSCancelRequested)
+			m.progressStatus(i18n.T(i18n.TUIStatusOBSCancelRequested))
+			return m, nil
+		}
+		if key == "esc" && m.mode == "" && m.dismissNotification() {
 			return m, nil
 		}
 		if m.mode != "" {
@@ -333,7 +507,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter":
 			return m, m.activate()
-		case " ":
+		case "space":
 			if m.page == overlayPage || m.page == ttsPage {
 				return m, m.activate()
 			}
@@ -346,18 +520,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.mode == "selection" && m.selection != nil {
 		return m, m.updateSelection(msg)
 	}
+	if m.chatInputActive() && !m.busy && m.exitPrompt == nil && !m.previewing {
+		return m, m.updateChatInput(msg)
+	}
+	if m.mode == "chat-history-range" && m.chat != nil && m.chat.historyBrowser != nil {
+		b := m.chat.historyBrowser
+		b.inputs[b.focus], cmd = b.inputs[b.focus].Update(msg)
+		return m, cmd
+	}
 	if m.mode != "form" {
 		m.view.SetContent(m.content())
 		var cmd tea.Cmd
 		m.view, cmd = m.view.Update(msg)
 		return m, cmd
 	}
-	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
 	m.updateOverlayColorPreview()
 	return m, cmd
 }
-func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
+func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
+	if m.exitPrompt != nil {
+		return m.quitKey(msg)
+	}
 	if m.mode == "cover" || m.mode == "cover-review" {
 		return m.coverKey(msg)
 	}
@@ -372,6 +556,9 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		return m.updateSelection(msg)
 	}
 	key := msg.String()
+	if m.mode == "chat-history-range" || m.mode == "chat-history" {
+		return m.chatHistoryKey(msg)
+	}
 	if key == "esc" && m.overlaySettings != nil {
 		if m.mode == "pick" && m.editKind == "overlay-fields" {
 			m.overlaySettings = nil
@@ -391,9 +578,6 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 		m.input.Blur()
 		m.view.GotoTop()
 		m.clearOverlayColorPreview()
-		if m.editKind == "overlay-displays" {
-			return tea.DisableMouse
-		}
 		return nil
 	}
 	switch m.mode {
@@ -425,14 +609,14 @@ func (m *Model) modalKey(msg tea.KeyMsg) tea.Cmd {
 			m.selected = len(m.choices) - 1
 		case "enter":
 			return m.choose()
-		case " ":
+		case "space":
 			if m.editKind == "output-events" || m.editKind == "overlay-displays" {
 				return m.choose()
 			}
 		}
 	case "confirm":
 		switch key {
-		case "left", "right", "tab", "h", "l":
+		case "left", "right", "up", "down", "tab", "h", "l", "j", "k":
 			m.selected = 1 - m.selected
 		case "enter":
 			action := m.confirmAction

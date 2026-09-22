@@ -14,7 +14,7 @@ import (
 const (
 	sampleRate        = 24000
 	pcmChannels       = 2
-	pcmBytesPerSample = 2 // Signed 16-bit PCM from go-mp3.
+	pcmBytesPerSample = 2 // go-mp3 提供的有符号 16 位 PCM。
 	pcmBytesPerSecond = sampleRate * pcmChannels * pcmBytesPerSample
 	maxAudioSeconds   = 120
 	maxAudioBytes     = 8 << 20
@@ -48,7 +48,7 @@ func validateMP3(data []byte) error {
 	return nil
 }
 
-// readerOnly prevents the decoder from indexing the entire MP3 for seeking.
+// readerOnly 防止解码器为支持定位而对整个 MP3 建立索引。
 type readerOnly struct{ io.Reader }
 
 func decodeMP3(data []byte) (*mp3.Decoder, error) {

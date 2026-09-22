@@ -17,10 +17,11 @@ import (
 	"arcana-world/internal/store"
 	"arcana-world/internal/tui"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
-var version = "0.2.1"
+var version = "0.3.0-alpha.1"
 
 func run() (err error) {
 	return runArgs(os.Args[1:])
@@ -133,7 +134,8 @@ func runArgs(args []string) (err error) {
 	if err := model.ConfigureOverlay(overlay.Options{Executable: *overlayExecutable, Config: cfg.Overlay.Config("")}, effectiveOverlay); err != nil {
 		return err
 	}
-	_, err = tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(ctx)).Run()
+	defer func() { _, _ = fmt.Fprint(os.Stdout, ansi.SetPointerShape("default")) }()
+	_, err = tea.NewProgram(model, tea.WithContext(ctx)).Run()
 	if ctx.Err() != nil {
 		return nil
 	}

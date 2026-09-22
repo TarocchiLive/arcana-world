@@ -8,8 +8,8 @@ import (
 
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/overlay"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type overlaySettingField struct {
@@ -235,7 +235,7 @@ func (m *Model) chooseOverlay(value string) tea.Cmd {
 		return m.saveOverlay(s, overlayConfigOperation())
 	case "overlay-fields":
 		if m.overlaySettings != nil {
-			m.overlaySettings.selected, m.overlaySettings.offset = m.selected, m.view.YOffset
+			m.overlaySettings.selected, m.overlaySettings.offset = m.selected, m.view.YOffset()
 		}
 		switch value {
 		case "content":
@@ -277,9 +277,9 @@ func (m *Model) submitOverlay(kind, value string) tea.Cmd {
 			continue
 		}
 		if err := field.assign(&s, value); err != nil {
-			m.status = i18n.T(i18n.TUIOverlayInvalidNumber)
+			m.warnStatus(i18n.T(i18n.TUIOverlayInvalidNumber))
 			if field.color != nil {
-				m.status = i18n.T(i18n.TUIOverlayInvalidColor)
+				m.warnStatus(i18n.T(i18n.TUIOverlayInvalidColor))
 			}
 			return nil
 		}
@@ -290,7 +290,7 @@ func (m *Model) submitOverlay(kind, value string) tea.Cmd {
 func (m *Model) saveOverlay(settings overlay.Settings, op operation[struct{}]) tea.Cmd {
 	s, err := settings.Normalize()
 	if err != nil {
-		m.status = fmt.Sprintf(i18n.T(i18n.TUIOverlayInvalidSettings), clean(err.Error()))
+		m.warnStatus(fmt.Sprintf(i18n.T(i18n.TUIOverlayInvalidSettings), clean(err.Error())))
 		return nil
 	}
 	m.mode = ""

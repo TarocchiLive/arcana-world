@@ -8,8 +8,8 @@ import (
 	"arcana-world/internal/i18n"
 )
 
-// Catalog entries describe documented wire fields, not guessed command prefixes.
-// Nested lists and objects remain structured JSON; numbers never pass through float64.
+// 目录条目描述有文档依据的线格式字段，不猜测命令前缀。
+// 嵌套列表和对象保留为结构化 JSON；数字绝不经由 float64 转换。
 type commandField struct {
 	path string
 	kind byte

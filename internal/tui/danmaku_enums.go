@@ -7,8 +7,8 @@ import (
 	"arcana-world/internal/i18n"
 )
 
-// Keep the wire value visible alongside documented meanings. Future values and
-// fields with no published enum contract are displayed unchanged.
+// 同时展示协议原始值与已知含义。
+// 未知取值及没有公开枚举定义的字段保持原样。
 func chatEnumText(command string, field danmaku.EventField) string {
 	var label i18n.Key
 	switch strings.TrimPrefix(field.Name, "data.") {

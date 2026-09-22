@@ -30,7 +30,7 @@ Arcana World 是一款基于 Go 的 bilibili 直播姬 + 弹幕姬。
 ## 功能亮点
 
 - **扫码登录，连接 OBS，然后一键开播**
-- **直播间实时弹幕浏览，提供穿透弹幕悬浮窗，不干扰鼠标键盘操作**
+- **直播间实时弹幕收发，提供穿透弹幕悬浮窗，不干扰鼠标键盘操作**
 - **支持弹幕，礼物语音播报，SC播报，基于 Edge TTS，0 占用，高质量**
 - **常态内存占用 40MB，超轻量、超流畅、超稳定**
 
@@ -73,17 +73,20 @@ make desktop
 
 按 `2` 浏览弹幕与历史；切换页面不会停止监听。
 
-- `s` 开关监听；`Space` 暂停显示 / 跟随最新。
-- `[` / `]` 翻页；`End` 回到最新；`o` 切换历史房间。
-- `f` 开关白名单内的附加事件；`r` 刷新 / 重试；`PgUp` / `PgDn` 滚动。
+- 启动时显示近 24 小时内最新 10 条消息，主框默认最多保留 30 条；右侧滚动条显示阅读位置。
+- 按 `/` 或点击底部输入区编辑，最多 40 字；`Enter` 发送，`Esc` / `Tab` 返回浏览，发送失败保留草稿。
+- `PgUp` / `PgDn` 或鼠标滚轮滚动；`Home` / `End` 跳到顶部 / 最新消息；`r` 刷新 / 重试。
+- 按 `h` 选择起止时间查询历史，`↑` / `↓` 切换时间输入框，`Enter` 确认，`Esc` 返回；主框阅读位置和草稿会保留。
+- 监听、附加事件和主框消息条数上限在「设置」（`8`）页调整。
+- 弹幕、历史、日志和通知正文可拖选，按 `y` 复制、`Esc` 清除选区，快捷键显示在底部。
 
-默认显示的消息类型见[弹幕显示白名单](docs/danmaku-whitelist.md)。白名单之外的消息即使开启 `f` 也不展示，但原始数据仍保存。
+默认显示的消息类型见[弹幕显示白名单](docs/danmaku-whitelist.md)。白名单之外的消息即使开启附加事件也不展示，但原始数据仍保存。
 
 历史按房间保存在数据目录的 `danmaku/history.db`；历史和操作日志保留最近七天并自动清理。断开连接期间的消息不会重新拉取到数据库。
 
 ### 桌面浮层
 
-支持无焦点、鼠标穿透的半透明桌面文字浮层。「弹幕浮层」与「TTS」页分别选择要输出的事件，默认勾选所有无需开启 `f` 即可显示的事件；按 `Enter` 或 `Space` 切换。两页配置互不影响，输出模板暂仅支持中文。「TTS」页可选择音色，并提供试听、启停及停止当前播放并清空队列。启用后仅播报新事件，不回放历史；语音合成需要联网。
+支持无焦点、鼠标穿透的半透明桌面文字浮层。「弹幕浮层」与「TTS」页分别选择要输出的事件，默认勾选所有默认显示的消息类型；按 `Enter` 或 `Space` 切换。两页配置互不影响，输出模板暂仅支持中文。「TTS」页可选择音色，并提供试听、启停及停止当前播放并清空队列。启用后仅播报新事件，不回放历史；语音合成需要联网。
 
 详见 [Arcana World Overlay](cmd/arcana-world-overlay/README.md)。
 
@@ -106,11 +109,16 @@ arcana-world --help                     # 查看帮助
 - [x] 支持 B 站直播间弹幕浮层。
 - [x] 支持 TTS 朗读弹幕和礼物播报。
 - [x] 多显示器浮层热切换。
-- [ ] 鼠标 tui 操作。
-- [ ] tui 界面重构美化。
+- [x] 鼠标 tui 操作。
+- [x] tui 界面重构美化。
+- [x] 在终端发送弹幕。
 - [ ] 浮层界面重构美化。
 - [ ] 支持 iterm2 图片协议。
 - [ ] 终端缩放裁剪封面图。
+- [ ] 版本更新检查。
+- [ ] Scoop、Homebrew、nixpkgs 等软件仓库支持。
+- [ ] 机器人协议接口。
+- [?] GUI / WebUI 支持（待定）。
 
 ## 开发
 
@@ -137,6 +145,9 @@ make build  # 构建
 
 ## 致谢
 
-- 社区内无私提供相关平台 API 声明与实现参考的各位大佬。
-- [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive)：本项目推流协议实现的来源。
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea)：终端界面框架。
+- [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive)
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+- [Bubbles](https://github.com/charmbracelet/bubbles)
+- [Lip Gloss](https://github.com/charmbracelet/lipgloss)
+- [edge-tts](https://github.com/rany2/edge-tts)
+- [edge-tts-go](https://github.com/wujunwei928/edge-tts-go)

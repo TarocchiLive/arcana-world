@@ -51,8 +51,8 @@ func localEdgeCertificate(t *testing.T) (tls.Certificate, string) {
 	return certificate, caPath
 }
 
-// This exercises the fixed upstream Stream implementation, including its blocked
-// post-SSML ReadMessage, in a real subprocess with normal certificate validation.
+// 在启用正常证书校验的真实子进程中验证修复后的上游 Stream 实现，
+// 包括发送 SSML 后阻塞的 ReadMessage。
 func TestEdgeRealStreamCancellationAndEscaping(t *testing.T) {
 	certificate, caPath := localEdgeCertificate(t)
 	ssml := make(chan string, 1)
@@ -78,7 +78,7 @@ func TestEdgeRealStreamCancellationAndEscaping(t *testing.T) {
 					return
 				}
 				ssml <- body
-				// Deliberately never send turn.end. Stream must remain blocked until killed.
+				// 故意不发送 turn.end。Stream 必须保持阻塞，直到进程被终止。
 			}
 		}
 	}))

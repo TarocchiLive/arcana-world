@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Protocol reference: xfgryujk/blivedm (MIT), clients/web.py and clients/ws_base.py:
+// 协议参考：xfgryujk/blivedm (MIT)，clients/web.py 和 clients/ws_base.py：
 // https://github.com/xfgryujk/blivedm/tree/dev/blivedm/clients
-// This is an independent implementation; no anonymous or stale-host fallback.
+// 此为独立实现；不会回退到匿名连接或过期主机。
 package bili
 
 import (
@@ -36,8 +36,8 @@ const (
 	danmakuMaxProxyResponse  = 64 << 10
 )
 
-// The wrapper reuses request's cookie validation, bounded reads and redirect
-// rejection while avoiding its desktop device identifier and desktop UA.
+// 此包装器复用 request 的 Cookie 校验、限量读取和重定向拒绝逻辑，
+// 同时避免使用其桌面设备标识和桌面 UA。
 type danmakuTransport struct{ base http.RoundTripper }
 
 func (t danmakuTransport) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -103,10 +103,10 @@ func danmakuHost(host string) bool {
 	return true
 }
 
-// ListenDanmaku performs one authenticated connection attempt. The caller owns
-// retries and must keep this account snapshot unchanged until it returns.
-// receive runs synchronously and may retain its payload. Its error is returned
-// unchanged, including when cancellation occurs at the same time.
+// ListenDanmaku 尝试建立一次认证连接。调用方负责
+// 重试，且必须在此方法返回前保持账号快照不变。
+// receive 同步执行，可以保留收到的载荷。其错误会原样返回，
+// 即使同时发生取消也不例外。
 func (c *Client) ListenDanmaku(ctx context.Context, roomID int64, attempt int, authenticated func(), receive func(json.RawMessage) error) error {
 	if roomID <= 0 || receive == nil {
 		return errors.New("danmaku: invalid listener arguments")
@@ -202,7 +202,7 @@ func (c *Client) ListenDanmaku(ctx context.Context, roomID int64, attempt int, a
 		return err
 	}
 	headers := http.Header{"User-Agent": {danmakuUserAgent}, "Origin": {liveWebOrigin}, "Referer": {liveWebOrigin + "/"}}
-	// Cookies are only used at the metadata endpoints, never sent to comet hosts.
+	// Cookie 仅用于元数据端点，绝不发送给 comet 主机。
 	conn, response, err := dialer.DialContext(ctx, target, headers)
 	if response != nil && response.Body != nil {
 		response.Body.Close()
@@ -227,7 +227,7 @@ func danmakuDialer(ctx context.Context, tr *http.Transport, target string) (*web
 			config.MinVersion = tls.VersionTLS12
 		}
 	}
-	// Both Gorilla Upgrade and our proxy CONNECT use HTTP/1.1, not HTTP/2.
+	// Gorilla Upgrade 和此处的代理 CONNECT 均使用 HTTP/1.1，而非 HTTP/2。
 	config.NextProtos = []string{"http/1.1"}
 	dial := tr.DialContext
 	if dial == nil {
@@ -307,8 +307,8 @@ func danmakuDialer(ctx context.Context, tr *http.Transport, target string) (*web
 	return d, nil
 }
 
-// Do not delegate CONNECT to Gorilla v1.5.3: its rejection path indexes an
-// optional reason phrase and can panic on a valid reason-less status line.
+// 不要将 CONNECT 交给 Gorilla v1.5.3：它的拒绝路径会索引可选的
+// 原因短语，遇到合法但不含原因短语的状态行时可能 panic。
 func danmakuCONNECT(conn net.Conn, address string, user *url.Userinfo) error {
 	headers := make(http.Header)
 	if user != nil {
@@ -331,15 +331,15 @@ func danmakuCONNECT(conn net.Conn, address string, user *url.Userinfo) error {
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("danmaku: proxy CONNECT rejected (%d)", response.StatusCode)
 	}
-	// The TLS peer cannot send application bytes before our ClientHello.
+	// TLS 对端在收到我们的 ClientHello 前无法发送应用数据。
 	if reader.Buffered() != 0 {
 		return errors.New("danmaku: unexpected data after proxy CONNECT")
 	}
 	return nil
 }
 
-// Cancellation also interrupts CONNECT/SOCKS and TLS negotiation, before the
-// websocket reader exists. Close joins the cancellation callback if it ran.
+// 取消也会中断 websocket 读取器创建前的 CONNECT/SOCKS 和 TLS 协商。
+// 若取消回调已启动，Close 会等待其结束。
 type danmakuContextConn struct {
 	net.Conn
 	stop     func() bool
@@ -441,8 +441,8 @@ func danmakuSession(ctx context.Context, conn *websocket.Conn, auth []byte, auth
 					conn.SetReadDeadline(time.Now().Add(interval + timeout))
 				}
 			case danmakuOpMessage:
-				// Do not consult ctx here: completed packets must reach durable storage,
-				// including earlier packets in a frame with a later corrupt packet.
+				// 此处不检查 ctx：已完成的包必须写入持久存储，
+				// 即使同一帧后续有损坏的包，也要保存此前的完整包。
 				return receive(append(json.RawMessage(nil), body...))
 			}
 			return nil

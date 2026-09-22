@@ -8,7 +8,7 @@ import (
 	"errors"
 )
 
-// AccountOutcome preserves fresh old-room state even if cleanup or commit fails.
+// AccountOutcome 保留刚获取的旧直播间状态，即使清理或提交失败。
 type AccountOutcome struct {
 	Account domain.Account
 	Client  *bili.Client
@@ -27,7 +27,7 @@ func (m *Session) client(source *bili.Client, account *domain.Account, proxy str
 	return c, nil
 }
 
-// detach queries the committed identity, never a potentially stale UI room.
+// detach 查询已提交的身份，绝不使用可能过期的 UI 直播间状态。
 func (m *Session) detach(ctx context.Context, source *bili.Client, out *AccountOutcome) error {
 	cfg := m.store.Config()
 	if cfg.ActiveUID == "" {
@@ -59,9 +59,9 @@ func (m *Session) detach(ctx context.Context, source *bili.Client, out *AccountO
 	return nil
 }
 
-// Switch validates first, cleans up the old identity, then commits ActiveUID.
-// Cancellation before commit leaves the old identity; confirmed remote effects
-// are returned regardless of later errors. A successful commit is not rolled back.
+// Switch 先验证，再清理旧身份，最后提交 ActiveUID。
+// 提交前取消会保留旧身份；已确认的远端操作结果
+// 不受后续错误影响，始终返回。提交成功后不会回滚。
 func (m *Session) Switch(ctx context.Context, source *bili.Client, uid string, login *domain.Account) (AccountOutcome, error) {
 	out := AccountOutcome{}
 	if err := m.Lock(ctx); err != nil {

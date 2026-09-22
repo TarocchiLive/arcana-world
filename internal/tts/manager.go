@@ -39,7 +39,7 @@ func New(ctx context.Context, options Options) (*Manager, error) {
 		capacity = DefaultQueueCapacity
 	}
 	m := &Manager{ctx: ctx, synth: options.Synthesizer, player: options.Player, queue: make([]string, capacity), state: Snapshot{Phase: PhaseIdle}, wake: make(chan struct{}, 1), done: make(chan struct{})}
-	// AfterFunc avoids an extra lifetime goroutine and never waits with the lock held.
+	// AfterFunc 避免额外创建生命周期协程，且绝不在持锁时等待。
 	stop := context.AfterFunc(ctx, func() { m.Close() })
 	go func() { defer stop(); defer close(m.done); m.run() }()
 	return m, nil
@@ -193,7 +193,7 @@ func (m *Manager) run() {
 	}
 }
 
-// A joined cleanup failure must survive even when cancellation is also present.
+// 即使同时发生取消，合并后的清理失败也必须保留。
 func cancellationOnly(err, cancellation error) bool {
 	if cancellation == nil {
 		return false

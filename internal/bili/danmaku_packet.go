@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Wire format reference: https://github.com/xfgryujk/blivedm/blob/dev/blivedm/clients/ws_base.py (MIT).
+// 线格式参考：https://github.com/xfgryujk/blivedm/blob/dev/blivedm/clients/ws_base.py (MIT)。
 package bili
 
 import (
@@ -46,8 +46,8 @@ func danmakuPacket(op uint32, version uint16, body []byte) []byte {
 	return data
 }
 
-// The budget is cumulative across siblings and nesting, not a per-stream cap.
-// Delivery is incremental so a corrupt suffix cannot discard valid predecessors.
+// 限额在同级和嵌套包间累计，而非每条流各自计算。
+// 逐步交付数据，确保损坏的后缀不会导致此前有效的数据被丢弃。
 func danmakuDecode(data []byte, depth int, budget *int, receive func(uint32, []byte) error) error {
 	if depth > danmakuMaxDepth {
 		return errors.New("danmaku: packet nesting limit exceeded")

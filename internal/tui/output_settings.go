@@ -6,7 +6,7 @@ import (
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/presentation"
 	"arcana-world/internal/tts"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func (m *Model) outputMenu() []menuItem {
@@ -21,6 +21,7 @@ func (m *Model) outputMenu() []menuItem {
 	return []menuItem{
 		{i18n.T(i18n.OutputTTSToggle), "tts-toggle"},
 		{i18n.T(i18n.OutputVoice), "tts-voice"},
+		{i18n.T(i18n.OutputVolume), "tts-volume"},
 		{i18n.T(i18n.OutputTTSStop), "tts-stop"},
 		{i18n.T(i18n.OutputTTSPreview), "tts-preview"},
 		{i18n.T(i18n.OutputEvents), "output-events"},

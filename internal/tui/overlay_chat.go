@@ -9,7 +9,7 @@ import (
 	"arcana-world/internal/danmaku"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/presentation"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 const (
@@ -158,7 +158,7 @@ func (m *Model) handleOverlayChat(msg overlayChatMsg) tea.Cmd {
 	if msg.err != nil {
 		if detail := msg.err.Error(); detail != c.readError {
 			c.readError = detail
-			m.log(fmt.Sprintf(i18n.T(i18n.TUILogOverlayChatReadFailed), detail))
+			m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayChatReadFailed), detail))
 		}
 		return nil
 	}

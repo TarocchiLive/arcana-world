@@ -19,8 +19,8 @@ import (
 
 const edgeReceiveTimeoutSeconds = 20
 
-// RunEdge handles one request in a dedicated process. It changes that process's
-// proxy environment and default logger; callers must not run it in the host.
+// RunEdge 在专用进程中处理一个请求。它会修改该进程的代理环境变量
+// 和默认日志记录器；调用方不得在宿主进程中运行它。
 func RunEdge(in io.Reader, out io.Writer) error {
 	request, err := readEdgeRequest(in)
 	if err != nil {

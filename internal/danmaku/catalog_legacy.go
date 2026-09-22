@@ -2,14 +2,14 @@ package danmaku
 
 import "arcana-world/internal/i18n"
 
-// Protocol facts independently transcribed from the archived bilive_client schema:
+// 协议事实独立摘录自已归档的 bilive_client 模式定义：
 // https://github.com/ShmilyChen/bilive_client/blob/master/bilive/@types/danmaku.d.ts
-// Command names cross-checked against https://github.com/xuan25/BiliLiveCmds/blob/master/sum_cmd_list.js.
-// The schema's PK_BATTLE_PREP interface has wire command PK_BATTLE_PRE;
-// Room_Admin_Entrance is the modern room_admin_entrance command, not a second spelling.
-// Base interfaces are not commands. Arrays retain their decoded contents; enum
-// numbers and strings remain uninterpreted. Combo summaries and welcome notices
-// are details, never additional paid gifts or guard purchases.
+// 命令名已与 https://github.com/xuan25/BiliLiveCmds/blob/master/sum_cmd_list.js 交叉核对。
+// 模式定义中的 PK_BATTLE_PREP 接口对应线格式命令 PK_BATTLE_PRE；
+// Room_Admin_Entrance 对应现代命令 room_admin_entrance，并非另一种拼写。
+// 基础接口不是命令。数组保留解码后的内容；枚举
+// 数字和字符串保持原样，不作解释。连击汇总和欢迎通知
+// 仅作为详情，绝不计作额外的付费礼物或上舰购买。
 var legacyCommandSpecs = map[string]commandSpec{
 	"ACTIVITY_BANNER_CLOSE": {
 		title: i18n.DanmakuLegacyActivityBannerClose,

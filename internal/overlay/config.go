@@ -81,7 +81,7 @@ type Font struct {
 // 显式显示器选择断开时保持隐藏，重连后恢复；空选择不创建窗口。
 type Config struct {
 	Text string `json:"text"`
-	// TextRoles has one role per logical line: n/c/a/g/s; empty means ordinary text.
+	// TextRoles 为每个逻辑行指定一个角色：n/c/a/g/s；空值表示普通文本。
 	TextRoles       string   `json:"text_roles,omitempty"`
 	Colors          Colors   `json:"colors"`
 	Position        Position `json:"position"`

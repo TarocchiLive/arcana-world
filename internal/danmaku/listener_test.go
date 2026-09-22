@@ -208,8 +208,8 @@ func TestListenerRetainsFailedWriteAcrossAccountSwitch(t *testing.T) {
 			ready()
 			if room == 1 {
 				defer close(drained)
-				// Both messages are already decoded from one frame. Neither has
-				// an ID, so accidental replay cannot be hidden by deduplication.
+				// 两条消息已从同一帧解码。它们都没有
+				// ID，因此意外重放不会被去重掩盖。
 				if err := receive(message("", "retained while disk unavailable")); err != nil {
 					return err
 				}
@@ -226,7 +226,7 @@ func TestListenerRetainsFailedWriteAcrossAccountSwitch(t *testing.T) {
 	waitPhase(t, l, "storage_error")
 	l.Configure(&domain.Account{UID: "2"}, "direct", true)
 	waitSignal(t, drained)
-	// The entire completed frame must survive cancellation before disk recovery.
+	// 磁盘恢复前发生取消，也必须保留整个已完成的帧。
 	disk.fail.Store(false)
 	waitSignal(t, second)
 	if err := l.Close(); err != nil {
@@ -275,8 +275,8 @@ func TestListenerDiskRecoveryDoesNotOvertakePendingMessages(t *testing.T) {
 				if err := receive(message("", "first")); err != nil {
 					return err
 				}
-				// Cancellation retains the first message. Disk recovery during
-				// the remainder of that frame must not let later messages pass it.
+				// 取消时保留第一条消息。处理该帧剩余内容时，
+				// 即使磁盘恢复，也不得让后续消息先于它写入。
 				disk.fail.Store(false)
 				return receive(message("", "second"))
 			}

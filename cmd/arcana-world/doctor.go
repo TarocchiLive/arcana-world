@@ -50,7 +50,7 @@ func runDoctor(ctx context.Context, out io.Writer, dir string, options store.Opt
 		r.line("OK", "config path", "%q", filepath.Join(resolved, "config.json"))
 		cfg, readErr := store.ReadConfig(resolved)
 		if readErr != nil {
-			// Loader errors can contain configuration values; never print them.
+			// 加载器错误可能包含配置值；绝不打印这些错误。
 			r.line("ERROR", "config", "cannot read configuration: invalid contents, file type or access permissions")
 		} else {
 			cfg = options.Overrides.Apply(cfg)
@@ -82,8 +82,8 @@ func runDoctor(ctx context.Context, out io.Writer, dir string, options store.Opt
 		}
 		r.credentials(ctx, resolved, options.CredentialBackend)
 	}
-	// Optional helpers do not prevent the terminal UI from running. Only an
-	// explicit enable makes a known missing prerequisite a blocking issue.
+	// 可选辅助程序不会阻止终端 UI 运行。只有显式启用时，
+	// 已知缺失的前置条件才会成为阻断问题。
 	overlayRequired := overlayOverride != nil && *overlayOverride
 	ttsRequired := ttsOverride != nil && *ttsOverride
 	r.helper("overlay", "arcana-world-overlay", overlayExecutable, overlayRequired)

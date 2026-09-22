@@ -11,8 +11,8 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// ResetSettings resets application, overlay and speech preferences, leaving
-// credentials, OBS connection settings, account selection and histories untouched.
+// ResetSettings 重置应用、浮层和语音偏好，保留凭据、OBS 连接设置、
+// 账号选择和历史记录。
 func (s *Store) ResetSettings() (domain.Config, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -20,8 +20,14 @@ func (s *Store) ResetSettings() (domain.Config, error) {
 	d := DefaultConfig()
 	c.Proxy = d.Proxy
 	c.Protocol = d.Protocol
+	c.TUITheme = d.TUITheme
+	c.TUIMotionDisabled = d.TUIMotionDisabled
+	c.TUICompactHeader = d.TUICompactHeader
+	c.TUINotificationsWarningsOnly = d.TUINotificationsWarningsOnly
 	c.ExitOBSStopDisabled = d.ExitOBSStopDisabled
 	c.ExitLiveStopDisabled = d.ExitLiveStopDisabled
+	c.DanmakuLimit = d.DanmakuLimit
+	c.DanmakuShowOther = d.DanmakuShowOther
 	c.Overlay = d.Overlay
 	c.OverlayDisabledEvents = d.OverlayDisabledEvents
 	c.TTS = d.TTS
@@ -32,11 +38,11 @@ func (s *Store) ResetSettings() (domain.Config, error) {
 	return s.overrides.Apply(c), nil
 }
 
-// ClearData requires the caller to close speech, overlay, listener/history, OBS,
-// and journal first. Once attempted, this Store rejects all further writes,
-// even if clearing fails. ClearData itself remains retryable. Credentials are
-// deleted before files; any failure preserves the account index for retry.
-// Only known application files are removed, never the containing data directory.
+// ClearData 要求调用方先关闭语音、浮层、监听器及历史记录、OBS 和日志。
+// 一旦尝试清理，此 Store 就会拒绝后续所有写入，
+// 即使清理失败也不例外。ClearData 本身仍可重试。先删除凭据，
+// 再删除文件；任何失败都会保留账号索引以便重试。
+// 仅删除已知的应用文件，绝不删除其所在的数据目录。
 func (s *Store) ClearData() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -54,7 +60,7 @@ func (s *Store) ClearData() error {
 			unlistedActiveUID = ""
 		}
 	}
-	// A damaged account index may still identify one credential via ActiveUID.
+	// 损坏的账号索引仍可能通过 ActiveUID 标识一份凭据。
 	if unlistedActiveUID != "" {
 		deleteAccount(unlistedActiveUID)
 	}
@@ -94,8 +100,8 @@ func (s *Store) clearFiles() error {
 	if !os.SameFile(info, opened) {
 		return errors.New(i18n.T(i18n.StoreConfigDirectoryRequired))
 	}
-	// Root constrains all resolution, including concurrent symlink replacement,
-	// to this directory. Removing a leaf symlink removes the link, not its target.
+	// Root 将所有路径解析限制在此目录内，包括并发替换符号链接的情况。
+	// 删除末级符号链接只会删除链接本身，不会删除其目标。
 	for _, child := range []struct {
 		name   string
 		files  []string
@@ -119,7 +125,7 @@ func (s *Store) clearFiles() error {
 			continue
 		}
 		if !info.IsDir() {
-			// The application never creates a regular file at a directory path.
+			// 应用绝不会在应为目录的路径上创建普通文件。
 			return errors.New(i18n.T(i18n.StoreConfigDirectoryRequired))
 		}
 		dir, err := root.OpenRoot(child.name)
@@ -132,7 +138,7 @@ func (s *Store) clearFiles() error {
 			return err
 		}
 	}
-	// Keep config.json until all other removals succeed, retaining the retry index.
+	// 在其他删除操作全部成功前保留 config.json，以保留重试所需的索引。
 	if err := removeOwnedFiles(root, nil, ".config-"); err != nil {
 		return err
 	}

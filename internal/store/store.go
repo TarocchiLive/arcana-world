@@ -49,12 +49,12 @@ type Store struct {
 	closed    bool
 }
 
-// DefaultConfig returns the defaults used for new profiles and settings resets.
+// DefaultConfig 返回新配置和设置重置所用的默认值。
 func DefaultConfig() domain.Config {
-	return domain.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", OBSAutoConnect: true, OBSAutoStream: true, Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
+	return domain.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", OBSAutoConnect: true, OBSAutoStream: true, DanmakuLimit: 30, Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
 }
 
-func applyConnectionDefaults(c *domain.Config) {
+func applyConfigDefaults(c *domain.Config) {
 	defaults := DefaultConfig()
 	if c.Protocol == "" {
 		c.Protocol = defaults.Protocol
@@ -62,10 +62,13 @@ func applyConnectionDefaults(c *domain.Config) {
 	if c.OBSURL == "" {
 		c.OBSURL = defaults.OBSURL
 	}
+	if c.DanmakuLimit < 1 || c.DanmakuLimit > 1000 {
+		c.DanmakuLimit = defaults.DanmakuLimit
+	}
 }
 
-// Open opens a profile with auto, system, file, or memory credential storage.
-// Explicit backends never fall back or migrate credentials between stores.
+// Open 使用 auto、system、file 或 memory 凭据存储打开配置。
+// 显式指定的后端不会回退，也不会在存储之间迁移凭据。
 func Open(dir string, options Options) (*Store, error) {
 	switch options.CredentialBackend {
 	case "", "auto", "system", "file", "memory":
@@ -101,7 +104,7 @@ func OpenWithBackend(dir string, backend Backend) (*Store, error) {
 	return s, nil
 }
 
-// ResolveDir resolves the profile path without accessing or creating its files.
+// ResolveDir 解析配置路径，不访问或创建其中的文件。
 func ResolveDir(dir string) (string, error) {
 	if dir == "" {
 		base, err := os.UserHomeDir()
@@ -145,8 +148,8 @@ func openStore(dir string) (*Store, error) {
 	return s, nil
 }
 
-// ReadConfig loads and validates settings without creating files, changing
-// permissions, or consulting credential storage. Missing profiles use defaults.
+// ReadConfig 加载并校验设置，不创建文件、更改权限，
+// 也不访问凭据存储。配置不存在时使用默认值。
 func ReadConfig(dir string) (domain.Config, error) {
 	dir, err := ResolveDir(dir)
 	if err != nil {
@@ -191,7 +194,7 @@ func readConfig(dir string, secure bool) (domain.Config, bool, error) {
 	if c.TTS, err = c.TTS.Normalize(); err != nil {
 		return domain.Config{}, false, err
 	}
-	applyConnectionDefaults(&c)
+	applyConfigDefaults(&c)
 	seen := make(map[string]bool, len(c.Accounts))
 	for _, a := range c.Accounts {
 		if strings.TrimSpace(a.UID) == "" || seen[a.UID] {
@@ -239,7 +242,7 @@ func (s *Store) SaveConfig(c domain.Config) error {
 	if s.overrides.OBSAutoStream != nil {
 		c.OBSAutoStream = s.config.OBSAutoStream
 	}
-	applyConnectionDefaults(&c)
+	applyConfigDefaults(&c)
 	var err error
 	if c.TTS, err = c.TTS.Normalize(); err != nil {
 		return err

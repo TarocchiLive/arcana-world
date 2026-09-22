@@ -16,7 +16,7 @@ import (
 func TestEdgeRejectsUnsafeInput(t *testing.T) {
 	for _, text := range []string{"", " \t\n", "hello\x00world", string([]byte{0xff}), strings.Repeat("中", 501)} {
 		data, _ := json.Marshal(edgeRequest{Text: text, Voice: defaultVoice})
-		// Invalid UTF-8 is replaced by encoding/json; exercise the public boundary directly.
+		// encoding/json 会替换无效的 UTF-8；直接验证公开接口的输入边界。
 		if text == string([]byte{0xff}) {
 			edge := &Edge{timeout: time.Second}
 			if _, err := edge.Synthesize(context.Background(), text); !errors.Is(err, ErrInvalidText) {

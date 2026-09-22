@@ -7,11 +7,20 @@ import (
 	"os/exec"
 	"runtime"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/skip2/go-qrcode"
 )
 
 type qrImageOpened struct{ err error }
+
+func (m *Model) prepareQR(link string) tea.Cmd {
+	m.qrText = ""
+	if preferQRImage() {
+		return m.openQRImage()
+	}
+	m.qrText = renderQR(link)
+	return nil
+}
 
 func (m *Model) openQRImage() tea.Cmd {
 	if m.qrImageOpening {
@@ -39,7 +48,7 @@ func openQRBitmap(ctx context.Context, link string) error {
 	if err != nil {
 		return err
 	}
-	// An integer scale preserves sharp modules and the default quiet zone.
+	// 整数倍缩放可保持码点清晰，并保留默认静区。
 	data, err := qr.PNG(-8)
 	if err != nil {
 		return err
@@ -74,7 +83,7 @@ func openQRBitmap(ctx context.Context, link string) error {
 		os.Remove(path)
 		return err
 	}
-	// The viewer may read asynchronously; keep the image until the app exits.
+	// 查看器可能异步读取，图片文件保留到程序退出。
 	context.AfterFunc(ctx, func() { _ = os.Remove(path) })
 	return nil
 }

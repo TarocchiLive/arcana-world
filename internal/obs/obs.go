@@ -21,7 +21,7 @@ import (
 
 const operationTimeout = 15 * time.Second
 
-// OBS WebSocket v5 opcodes and negotiated protocol settings.
+// OBS WebSocket v5 操作码及协商后的协议设置。
 const (
 	opHello           = 0
 	opIdentify        = 1

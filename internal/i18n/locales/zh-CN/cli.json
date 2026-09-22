@@ -7,7 +7,7 @@
   "cli.obs_auto_stream_usage": "仅本次运行覆盖开播时 OBS 自动推流；使用 =false 关闭",
   "cli.tts_usage": "仅本次运行启用或禁用 TTS；=false 同时禁用试听",
   "cli.doctor_usage": "检查配置、凭据存储及可选辅助程序，不修改文件或启动服务",
-  "cli.help": "Arcana World — B 站直播控制台 / Bubble Tea\n\n用法: arcana-world [选项]\n\n显式指定的代理、OBS 自动连接/推流和 TTS 开关仅本次运行生效，不写回配置，也不能在界面中修改。\n\n",
+  "cli.help": "Arcana World — B 站直播控制台 / Bubble Tea\n\n用法: arcana-world [选项]\n\n显式指定的代理、OBS 自动连接/推流和 TTS 开关仅本次运行生效，不写回配置，也不能在界面中修改。\n\n在弹幕、历史、日志或通知正文内拖动选择；y 复制，Esc 清除选区，Ctrl+C 打开退出确认。\n\n",
   "cli.help_usage": "显示帮助",
   "cli.invalid_arguments": "参数解析失败；使用 --help 查看用法",
   "cli.language_usage": "界面语言：auto、zh-CN、en",

@@ -4,6 +4,43 @@
 
 Versions are listed newest first.
 
+## [v0.3.0-alpha.1]: 2026-09-22 (prerelease)
+
+### Added
+
+- Add a wrapping input at the bottom of the chat frame. Press `/` or click to compose up to 40 characters, `Enter` to send, and `Esc` / `Tab` to return to browsing. Failed sends keep the draft.
+- Set and save TTS volume from 0 to 100 on the TTS tab, with a default of 80 and 0 for mute. Previews and event announcements use the same volume.
+- Choose and save one of five TUI themes in Settings: Lumen, Midnight, Nord, Ember, or Paper. The selection persists across restarts.
+- Use the left mouse button to navigate pages, activate menus and pickers, position input cursors, submit forms, and confirm actions. Scroll long lists and content with the mouse wheel.
+- Show a compact Arcana / WORLD wordmark and a slow flowing highlight in large windows. Remove the Earth animation and keep header and footer heights consistent across pages and submenus.
+- Add Appearance settings for slow motion, a compact header, and warnings-only notifications, saved across restarts.
+- Confirm before quitting with `q` or `Ctrl+C`, with Cancel selected by default. Canceling preserves unsaved input and the previous menu.
+- In terminals supporting pointer-shape control, use an arrow over empty areas, a hand over actions, and a text pointer over inputs.
+- Highlight actionable items on hover without activating them or changing keyboard selection.
+- Split Help into six topics: first stream, OBS connection, picture and streaming troubleshooting, chat history, overlay and speech, and controls and settings. Read each topic separately and return to the directory.
+- Drag to select body text in chat, history, logs, and notifications. Press `y` to copy or `Esc` to clear, with a footer-only hint and no copy button or automatic copy. `Ctrl+C` still opens quit confirmation.
+
+### Changed
+
+- Upgrade to Lip Gloss v2, Bubble Tea v2, and Bubbles v2, and rebuild all TUI pages, forms, and pickers. Use thin rounded borders, layered backgrounds, and consistent focus states, with grouped sidebar navigation on wide terminals and compact navigation on narrow ones.
+- Rebuild Chat around the latest 10 messages from the past 24 hours at launch, with a default maximum of 30 messages and a scrollbar showing the reading position. Move listening, additional events, and the message limit to Settings. Replace room switching and history paging with a separate time-range browser that preserves the main frame and draft.
+- Use Up / Down to switch between history start and end time fields, alongside Tab and Enter. Group all Settings toggles before the other options.
+- Correct input cursor placement for CJK text, scrolling, and window resizing to improve IME candidate positioning across chat, forms, title editing, category search, and history time fields.
+- Shorten the first-stream guide to four steps: sign in and set up the room, connect OBS, go live, and stop. Add a video tutorial link at the bottom. Connect the lower stroke of R in the WORLD wordmark.
+- Reserve upper-right notifications for outcomes and warnings, dismissing them after five seconds with manual dismissal and scrolling available. Show loading progress in the bottom status bar instead, and use a consistent shortcut layout across pages.
+- Center confirmation dialogs over a dimmed, non-interactive page, with Cancel selected by default. Place Start/Stop live before Refresh on the live page.
+- Simplify Accounts, Room, OBS, and TTS descriptions and clarify when automatic connection, streaming, and chat listening run, without changing their behavior.
+- Move the page name, live status, and OBS status to the upper-right header, with notifications below. Keep only shortcuts and operation progress in the footer, and add the Tab navigation hint to Chat.
+- Use text and background color for hover without a full-row underline. Reuse unchanged frames, redraw only the hovered row, and avoid redraws triggered by pointer-shape output to reduce CPU use during rapid mouse movement.
+- Reduce idle TUI CPU use: update only the animated separator and reuse the frame when polling finds no visible changes. Pause decoration when the terminal reports focus loss and resume on focus, while keeping background business polling active.
+- Keep hover highlighting from repainting a notification that partially covers an action, and preserve the correct pointer shape after asynchronous redraws.
+- Fix dark backgrounds appearing across text areas during selection in light themes, preserving the original colors of unselected text and backgrounds.
+
+### Upgrade notes
+
+- This is the first 0.3.0 alpha prerelease, available for early testing and feedback.
+- Replace both the main executable and the complete `libexec` directory from the release archive. The new volume setting requires the matching TTS helper; using an older helper causes speech playback to fail.
+
 ## [v0.2.1]: 2026-09-20
 
 ### Added
@@ -206,6 +243,7 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 - Provide persistent configuration, operation logs, and command-line options including `--config-dir` and `--version`.
 - Establish basic tests and CI, with a Linux x64 release archive and checksums.
 
+[v0.3.0-alpha.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.1
 [v0.2.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.1
 [v0.2.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0
 [v0.2.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-rc.2

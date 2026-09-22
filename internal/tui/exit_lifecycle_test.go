@@ -11,9 +11,44 @@ import (
 
 	"arcana-world/internal/bili"
 	"arcana-world/internal/domain"
+	tea "charm.land/bubbletea/v2"
 )
 
-// This server implements the real Room lookup, including its required cover status.
+func TestQuitConfirmationCancelRestoresEditor(t *testing.T) {
+	m := lifecycleModel(t, context.Background())
+	m.form("proxy", "代理", "http://localhost:8080", false)
+	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	if m.mode != "confirm" || m.selected != 0 {
+		t.Fatal("quit did not open with Cancel selected")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.mode != "form" || m.input.Value() != "http://localhost:8080" {
+		t.Fatal("canceling quit discarded the editor")
+	}
+	cfg := m.config
+	cfg.TUITheme = "paper"
+	if result := m.saveConfig(cfg, false)().(taskMessage); result.taskError() != nil {
+		t.Fatal("canceling quit closed the session")
+	}
+}
+
+func TestQuitConfirmationDefersCompletedSettingsResult(t *testing.T) {
+	m := lifecycleModel(t, context.Background())
+	cfg := m.config
+	cfg.TUITheme = "paper"
+	save := m.saveConfig(cfg, false)
+	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	m.Update(save())
+	if m.mode != "confirm" || m.confirmAction != "quit" {
+		t.Fatal("background completion displaced quit confirmation")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if m.mode != "" || m.busy || m.config.TUITheme != "paper" {
+		t.Fatal("canceling quit lost the completed settings result")
+	}
+}
+
+// 此服务模拟真实的房间查询，包括必需的封面审核状态。
 func exitLiveServer(t *testing.T, live bool, failure string, requests, stops *atomic.Int32) string {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +134,7 @@ func TestExitSwitchesIndependentlyStopExternalStreams(t *testing.T) {
 			m.account = &account
 			m.client.SetAccount(account)
 			m.client.LiveBase = liveURL
-			// A stale room from an earlier account must never be used.
+			// 绝不能使用之前账号留下的过期房间。
 			m.room = &domain.Room{ID: 101, Live: false}
 			if err := m.obsClient.Connect(ctx, endpoint, ""); err != nil {
 				t.Fatal(err)
@@ -135,7 +170,7 @@ func TestExitRefreshesCommittedAccountAndSkipsOfflineOrAbsentAccount(t *testing.
 			var requests, stops atomic.Int32
 			liveURL := exitLiveServer(t, mode != "offline", "", &requests, &stops)
 			m := lifecycleModel(t, context.Background())
-			// This scenario exercises Bilibili cleanup without OBS integration.
+			// 此场景验证不接入 OBS 时的哔哩哔哩清理。
 			cfg := m.store.Config()
 			cfg.OBSAutoConnect, cfg.OBSAutoStream = false, false
 			if err := m.store.SaveConfig(cfg); err != nil {
@@ -165,7 +200,7 @@ func TestExitRefreshesCommittedAccountAndSkipsOfflineOrAbsentAccount(t *testing.
 					if queued.taskError() != nil {
 						t.Fatal(queued.taskError())
 					}
-					// Deletion itself closes the old broadcast before removing identity.
+					// 删除账号会先关闭旧直播，再移除身份。
 					if stops.Load() != 1 {
 						t.Fatal("deletion did not stop old broadcast")
 					}

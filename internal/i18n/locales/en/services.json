@@ -60,6 +60,8 @@
   "bili.response_data_invalid": "Invalid data format in Bilibili response",
   "bili.response_data_missing": "Bilibili response is missing data",
   "bili.response_status_missing": "%s: response is missing its status code",
+  "bili.danmaku_empty": "Danmaku message cannot be empty",
+  "bili.danmaku_rejected": "Bilibili rejected the danmaku message",
   "bili.room_category_invalid": "Invalid room or category ID",
   "bili.room_id_invalid": "Invalid room ID",
   "bili.room_response_incomplete": "Incomplete room response; make sure your live room is activated",

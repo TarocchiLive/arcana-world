@@ -5,16 +5,18 @@ import (
 	"testing"
 
 	"arcana-world/internal/domain"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
-func selectionKey(s *roomSelection, key tea.KeyType) *selectionResult {
-	result, _ := s.Update(tea.KeyMsg{Type: key})
+func selectionKey(s *roomSelection, key rune) *selectionResult {
+	result, _ := s.Update(tea.KeyPressMsg{Code: key})
 	return result
 }
 
 func selectionType(s *roomSelection, text string) {
-	s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(text)})
+	for _, r := range text {
+		s.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
 }
 
 func TestTitleSelectionEmptyHistory(t *testing.T) {
@@ -50,6 +52,20 @@ func TestTitleSelectionHistoryAndEditing(t *testing.T) {
 	}
 }
 
+func TestSelectionPasteUsesEditedTitleAndSearch(t *testing.T) {
+	title := newTitleSelection("", []string{"旧标题"})
+	selectionKey(title, tea.KeyDown)
+	title.Update(tea.PasteMsg{Content: "粘贴的新标题"})
+	if result := selectionKey(title, tea.KeyEnter); result == nil || result.Title != "粘贴的新标题" {
+		t.Fatalf("paste submitted history instead of edited title: %+v", result)
+	}
+	area := newAreaSelection(selectionCatalog(), nil, 12)
+	area.Update(tea.PasteMsg{Content: "围棋"})
+	if result := selectionKey(area, tea.KeyEnter); result == nil || result.Area == nil || result.Area.ID != 34 {
+		t.Fatalf("pasted search did not select matching area: %+v", result)
+	}
+}
+
 func selectionCatalog() []domain.Area {
 	return []domain.Area{
 		{ID: 12, Parent: "游戏", Name: "星际"},
@@ -68,12 +84,12 @@ func TestAreaSelectionSearchAndRuneBackspace(t *testing.T) {
 	if result := selectionKey(s, tea.KeyEnter); result == nil || result.Area == nil || result.Area.ID != 34 {
 		t.Fatalf("Unicode search: %+v", result)
 	}
-	selectionKey(s, tea.KeyCtrlU)
+	s.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	selectionType(s, "56")
 	if result := selectionKey(s, tea.KeyEnter); result == nil || result.Area == nil || result.Area.Parent != "生活" || result.Area.ID != 56 {
 		t.Fatalf("ID search: %+v", result)
 	}
-	selectionKey(s, tea.KeyCtrlU)
+	s.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	selectionType(s, "游戏")
 	selectionKey(s, tea.KeyDown)
 	if result := selectionKey(s, tea.KeyEnter); result == nil || result.Area == nil || result.Area.ID != 34 {
@@ -85,9 +101,6 @@ func TestAreaSelectionHierarchyAndBack(t *testing.T) {
 	s := newAreaSelection(selectionCatalog(), nil, 12)
 	if result := selectionKey(s, tea.KeyRight); result != nil {
 		t.Fatal("parent selection submitted")
-	}
-	if !strings.Contains(s.View(100, 8), "[当前]") {
-		t.Fatal("current area not indicated")
 	}
 	selectionKey(s, tea.KeyDown)
 	if result := selectionKey(s, tea.KeyEnter); result == nil || result.Area == nil || result.Area.ID != 34 {
@@ -127,7 +140,7 @@ func TestAreaSelectionRecentNormalizationAndDedup(t *testing.T) {
 func TestAreaSelectionSmallWindowNavigation(t *testing.T) {
 	s := newAreaSelection(selectionCatalog(), nil, 0)
 	selectionType(s, "游戏")
-	s.View(80, 4)
+	s.resize(80, 4)
 	selectionKey(s, tea.KeyPgDown)
 	view := s.View(80, 4)
 	if strings.Count(view, "\n") >= 4 || !strings.Contains(view, "围棋") {

@@ -26,7 +26,7 @@ func TestInteractionKnownKinds(t *testing.T) {
 		{5, "mutual_follow"},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
-			// Exceeds float64's integer precision; the displayed UID must stay exact.
+			// 超出 float64 的整数精度；显示的 UID 必须保持精确。
 			const uid = uint64(math.MaxUint64)
 			pb := protoNumber(nil, 1, uid)
 			pb = protoString(pb, 2, "visitor")

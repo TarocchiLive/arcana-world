@@ -215,7 +215,7 @@ func TestResolveHelper(t *testing.T) {
 	if _, err := resolveHelper("arcana-world-tts", filepath.Dir(path)); err == nil {
 		t.Fatal("directory accepted")
 	}
-	// A same-name executable in the working directory must never be selected.
+	// 绝不能选择工作目录中的同名可执行文件。
 	t.Chdir(filepath.Dir(path))
 	name := "arcana-world-tts"
 	if runtime.GOOS == "windows" {

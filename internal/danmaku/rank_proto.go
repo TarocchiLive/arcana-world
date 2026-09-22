@@ -11,8 +11,8 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
-// ONLINE_RANK_V3 decodes typed protobuf fields rather than displaying opaque bytes.
-// UID strings preserve the schema's full uint64 range in JSON and in the UI.
+// ONLINE_RANK_V3 解码有类型的 protobuf 字段，而非显示不透明的字节。
+// UID 字符串在 JSON 和 UI 中均保留模式定义允许的完整 uint64 范围。
 type rankProtoField struct {
 	number   protowire.Number
 	name     string
@@ -116,7 +116,7 @@ func projectRankEvent(p projection, cmd string, root map[string]any) projection 
 			if !ok {
 				return false
 			}
-			// Required proto3 scalars omitted on the wire have their zero value.
+			// 线格式中省略的必需 proto3 标量取零值。
 			for _, field := range rankProtoEntryFields[:5] {
 				if _, exists := entry[field.name]; !exists {
 					if field.kind == 'n' {

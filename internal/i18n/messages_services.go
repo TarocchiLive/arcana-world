@@ -64,6 +64,8 @@ const (
 	BiliResponseDataInvalid              Key = "bili.response_data_invalid"
 	BiliResponseDataMissing              Key = "bili.response_data_missing"
 	BiliResponseStatusMissing            Key = "bili.response_status_missing"
+	BiliDanmakuEmpty                     Key = "bili.danmaku_empty"
+	BiliDanmakuRejected                  Key = "bili.danmaku_rejected"
 	BiliRoomCategoryInvalid              Key = "bili.room_category_invalid"
 	BiliRoomIdInvalid                    Key = "bili.room_id_invalid"
 	BiliRoomResponseIncomplete           Key = "bili.room_response_incomplete"
