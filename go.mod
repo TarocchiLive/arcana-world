@@ -43,3 +43,6 @@ require (
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 )
+
+// 固定 https://github.com/charmbracelet/lipgloss/pull/732 的补丁，避免 32 位平台截断样式标记。
+replace charm.land/lipgloss/v2 => github.com/repost-sh/lipgloss/v2 v2.0.7-0.20260818135826-488b5b63a693

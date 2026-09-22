@@ -4,6 +4,12 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+### Fixed
+
+- Fix missing left borders, shifted input cursors, and misaligned notifications on 32-bit platforms, including Windows 386.
+
 ## [v0.3.0-alpha.1]: 2026-09-22 (prerelease)
 
 ### Added

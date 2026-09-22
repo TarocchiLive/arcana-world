@@ -20,7 +20,7 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          vendorHash = "sha256-pxUZQSnWaZE4H7nr4ID7aY2zLsW9V8ao/v0x/m/etXQ=";
+          vendorHash = "sha256-9Hhtt+n0EogWFNsfbhyXsaaWoAQL0j3c/Tr3LJwmjlI=";
         in
         rec {
           default = arcana-world-desktop;
