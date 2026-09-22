@@ -146,7 +146,7 @@ func TestDefaultDataDirectoryUsesHomeNotXDG(t *testing.T) {
 func TestOBSDefaultsPreserveExplicitOptOut(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
-	// Missing legacy fields inherit defaults; an explicit false must not.
+	// 旧配置中缺失的字段继承默认值；显式设置的 false 不得被覆盖。
 	if err := os.WriteFile(path, []byte(`{"obs_auto_connect":false}`), 0600); err != nil {
 		t.Fatal(err)
 	}

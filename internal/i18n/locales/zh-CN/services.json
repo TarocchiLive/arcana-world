@@ -60,6 +60,8 @@
   "bili.response_data_invalid": "B 站响应数据格式无效",
   "bili.response_data_missing": "B 站响应缺少数据",
   "bili.response_status_missing": "%s：响应缺少状态码",
+  "bili.danmaku_empty": "弹幕内容不能为空",
+  "bili.danmaku_rejected": "B 站拒绝发送这条弹幕",
   "bili.room_category_invalid": "直播间或分区 ID 无效",
   "bili.room_id_invalid": "直播间 ID 无效",
   "bili.room_response_incomplete": "直播间响应不完整，请确认已开通直播间",

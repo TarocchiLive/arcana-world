@@ -7,7 +7,7 @@ import (
 	"arcana-world/internal/app"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/store"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func TestLiveMenuFollowsRoomResultsAndKeepsSelection(t *testing.T) {
@@ -66,11 +66,11 @@ func TestLiveMenuFollowsRoomResultsAndKeepsSelection(t *testing.T) {
 			if cursor < 0 || cursor >= len(items) || items[cursor].action != step.want+"-confirm" {
 				t.Fatalf("live action selection did not survive %s: cursor=%d, menu=%v", step.name, cursor, items)
 			}
-			m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 			if m.mode != "confirm" || m.confirmAction != step.want {
 				t.Fatalf("selected action opened %q/%q, want confirmation for %s", m.mode, m.confirmAction, step.want)
 			}
-			m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 		})
 	}
 }

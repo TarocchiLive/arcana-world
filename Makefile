@@ -6,7 +6,7 @@ VERSION ?=
 OUT_DIR ?= bin
 BUILD = GOOS="$(GOOS)" GOARCH="$(GOARCH)" VERSION="$(VERSION)" OUT_DIR="$(OUT_DIR)" bash scripts/build.sh
 
-# Default build remains a standalone, CGO-free TUI.
+# 默认构建仍为独立且不依赖 CGO 的 TUI。
 build overlay tts desktop:
 	$(BUILD) $@
 

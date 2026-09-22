@@ -2,12 +2,12 @@ package tui
 
 import (
 	"arcana-world/internal/i18n"
+	tea "charm.land/bubbletea/v2"
 	"context"
 	"fmt"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Ordinary tasks share an operation ID; OBS and overlay lifecycle tasks do not.
+// 普通任务共用操作编号；OBS 与浮层生命周期任务独立处理。
 type taskMessage interface {
 	taskID() int
 	taskError() error
@@ -37,7 +37,7 @@ func work[T any](m *Model, op operation[T], fn func(context.Context) (T, error))
 	id := m.operation
 	ctx, cancel := context.WithTimeout(m.ctx, operationTimeout)
 	m.cancel = cancel
-	m.status = fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), i18n.T(op.label))
+	m.progressStatus(fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), i18n.T(op.label)))
 	return func() tea.Msg {
 		defer cancel()
 		value, err := fn(ctx)

@@ -49,8 +49,8 @@ func resolveHelper(name, explicit string) (string, error) {
 	return path, nil
 }
 
-// cappedDiagnostics consumes all diagnostics without retaining unbounded output.
-// It is only read after Wait joins os/exec's stderr copying goroutine.
+// cappedDiagnostics 消费全部诊断信息，但不会保留无界输出。
+// 仅在 Wait 等待 os/exec 的 stderr 复制协程结束后读取它。
 type cappedDiagnostics struct{ data []byte }
 
 func (b *cappedDiagnostics) Write(p []byte) (int, error) {
@@ -106,7 +106,7 @@ func runHelper(ctx context.Context, executable string, args []string, input []by
 	if readErr != nil {
 		return nil, fmt.Errorf("tts: reading helper output: %w", readErr)
 	}
-	// Do not forward arbitrary stderr: a backend can include text or proxy credentials.
+	// 不转发任意 stderr 内容：后端可能在其中包含文本或代理凭据。
 	if waitErr != nil {
 		diagnostic := strings.TrimSpace(string(diagnostics.data))
 		switch diagnostic {

@@ -1,6 +1,6 @@
 //go:build tts_audio
 
-// Package audio implements the one-shot native MP3 playback helper.
+// audio 包实现单次原生 MP3 播放辅助程序。
 package audio
 
 import (
@@ -20,8 +20,8 @@ const (
 	playbackBufferBytes    = int(pcmBytesPerSecond * playbackBufferDuration / time.Second)
 )
 
-// Run decodes and plays a single MP3. It must only be called once per process:
-// Oto does not support creating a second context or closing the first one.
+// Run 解码并播放一个 MP3。每个进程只能调用一次：
+// Oto 不支持创建第二个上下文，也不支持关闭第一个上下文。
 func Run(ctx context.Context, in io.Reader, volume int) error {
 	if volume < 0 || volume > 100 {
 		return errors.New("audio: volume must be between 0 and 100")
@@ -97,8 +97,8 @@ func playbackDrained(player playbackDevice, deviceErr func() error, state pcmSta
 	return true, nil
 }
 
-// The tail allows queued device audio to finish on the verified target sink.
-// Oto has no hardware drain callback: this is not a universal physical drain guarantee.
+// 尾部等待时间用于让已验证的目标音频输出设备播完其队列中的音频。
+// Oto 没有硬件排空回调：这不能保证所有设备的物理输出均已排空。
 func waitPlayback(ctx context.Context, player playbackDevice, deviceErr func() error, stream *trackedPCM, tail time.Duration) (err error) {
 	defer func() { err = errors.Join(err, player.Close()) }()
 	ticker := time.NewTicker(playbackPollInterval)

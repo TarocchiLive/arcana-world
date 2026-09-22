@@ -4,17 +4,19 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"strings"
 
 	"arcana-world/internal/bili"
 	"arcana-world/internal/coverimage"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/termimage"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type coverPreviewFinished struct{ err error }
 
-func (m *Model) coverKey(msg tea.KeyMsg) tea.Cmd {
+func (m *Model) coverKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case "esc":
 		if m.mode == "cover-review" {
@@ -32,7 +34,7 @@ func (m *Model) coverKey(msg tea.KeyMsg) tea.Cmd {
 			return m.previewCover(m.cover.Image, i18n.T(i18n.TUICoverUploadPreviewTitle))
 		}
 		if m.room == nil || m.room.CoverURL == "" {
-			m.status = i18n.T(i18n.TUIStatusCoverMissing)
+			m.warnStatus(i18n.T(i18n.TUIStatusCoverMissing))
 			return nil
 		}
 		source := m.room.CoverURL
@@ -60,18 +62,24 @@ func (m *Model) previewCover(img image.Image, caption string) tea.Cmd {
 	return tea.Exec(termimage.New(m.ctx, img, caption), func(err error) tea.Msg { return coverPreviewFinished{err: err} })
 }
 func (m *Model) coverView() string {
+	width := max(1, m.view.Width())
 	if m.mode == "cover-review" && m.cover != nil {
 		processing := i18n.T(i18n.TUICoverScaled)
 		if m.cover.Cropped {
 			processing = i18n.T(i18n.TUICoverCropped)
 		}
-		return accent.Render(i18n.T(i18n.TUICoverConfirmTitle)) + fmt.Sprintf(i18n.T(i18n.TUICoverProcessedDetails), m.cover.SourceWidth, m.cover.SourceHeight, coverimage.Width, coverimage.Height, float64(len(m.cover.PNG))/1024, processing) +
-			i18n.T(i18n.TUICoverReviewControls)
+		details := fmt.Sprintf(i18n.T(i18n.TUICoverProcessedDetails), m.cover.SourceWidth, m.cover.SourceHeight, coverimage.Width, coverimage.Height, float64(len(m.cover.PNG))/1024, processing)
+		return lipgloss.JoinVertical(lipgloss.Left,
+			lipgloss.NewStyle().PaddingBottom(1).Render(m.theme.sectionTitle(i18n.T(i18n.TUICoverConfirmTitle), width)),
+			m.theme.textStyle.Width(width).PaddingBottom(1).Render(clean(strings.TrimSpace(details))),
+			m.theme.hintText(i18n.T(i18n.TUICoverReviewControls), width))
 	}
 	state := i18n.T(i18n.TUICoverEmpty)
 	if m.room != nil && m.room.CoverURL != "" {
 		state = m.room.CoverStatus
 	}
-	return accent.Render(i18n.T(i18n.TUICoverTitle)) + i18n.T(i18n.TUICoverRequirements) + clean(state) + "\n\n" +
-		i18n.T(i18n.TUICoverControls)
+	return lipgloss.JoinVertical(lipgloss.Left,
+		lipgloss.NewStyle().PaddingBottom(1).Render(m.theme.sectionTitle(i18n.T(i18n.TUICoverTitle), width)),
+		m.theme.textStyle.Width(width).PaddingBottom(1).Render(clean(strings.TrimLeft(i18n.T(i18n.TUICoverRequirements), "\n")+state)),
+		m.theme.hintText(i18n.T(i18n.TUICoverControls), width))
 }

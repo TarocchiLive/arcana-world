@@ -1,4 +1,4 @@
-// Package danmaku retains received business events and conservative projections.
+// Package danmaku 保留收到的业务事件，并仅映射含义明确的字段。
 package danmaku
 
 import (
@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// Event is the display projection; raw wire data is stored separately.
-// Time is the local receive time. Gift Amount is raw CoinType units; SC is yuan.
+// Event 是用于显示的映射结果；原始线格式数据单独存储。
+// Time 为本地接收时间。礼物 Amount 使用原始 CoinType 单位；SC 的单位为元。
 type Event struct {
 	Sequence                              uint64
 	RoomID                                int64
@@ -25,8 +25,8 @@ type Event struct {
 	Fields                                []EventField `json:",omitempty"`
 }
 
-// GuardPeriod returns a duration, not a gift quantity. A self-contained unit
-// such as "*3天" overrides the protocol's quantity.
+// GuardPeriod 返回时长，而非礼物数量。自带数量的单位
+// （如 "*3天"）优先于协议中的数量。
 func (e Event) GuardPeriod() (int64, string) {
 	count, unit := e.Count, e.GuardUnit
 	if e.Kind == "detail" {
@@ -67,7 +67,7 @@ func (e Event) GuardPeriod() (int64, string) {
 	return 0, ""
 }
 
-// EventField retains a named, decoded protocol value without selecting a UI language.
+// EventField 保留具名的已解码协议值，不指定 UI 语言。
 type EventField struct {
 	Name, Value string
 }
@@ -107,7 +107,7 @@ func strong(v any) string {
 }
 func identity(parts ...string) string { b, _ := json.Marshal(parts); return string(b) }
 
-// decodeEventJSON preserves integer precision and accepts exactly one JSON value.
+// decodeEventJSON 保留整数精度，且只接受恰好一个 JSON 值。
 func decodeEventJSON(reader io.Reader, out any) bool {
 	decoder := json.NewDecoder(reader)
 	decoder.UseNumber()
@@ -154,7 +154,7 @@ func project(room int64, raw []byte) projection {
 				extra = e
 			}
 		}
-		// rnd is sometimes merely a timestamp: only the explicit server message ID is strong.
+		// rnd 有时只是时间戳：只有明确的服务器消息 ID 才是可靠标识。
 		if id := strong(object(extra)["id_str"]); id != "" {
 			p.identity = identity("chat", id)
 		}
@@ -165,8 +165,8 @@ func project(room int64, raw []byte) projection {
 		p.event.Kind, p.event.Gift = "gift", stringValue(data["giftName"])
 		p.event.User, p.event.UID = stringValue(data["uname"]), stringValue(data["uid"])
 		p.event.Count, p.event.Amount, p.event.CoinType = number(data["num"]), number(data["total_coin"]), stringValue(data["coin_type"])
-		// Batch IDs alone are not event identities. Require a transaction and include
-		// increment/cumulative quantities so updates within a batch survive.
+		// 仅凭批次 ID 无法标识事件。必须有交易标识，并包含
+		// 增量和累计数量，以保留同一批次内的更新。
 		if tid := strong(data["tid"]); tid != "" {
 			batch := object(data["batch_combo_send"])
 			p.identity = identity("gift", tid, stringValue(data["rnd"]), p.event.UID, stringValue(data["giftId"]), stringValue(data["timestamp"]), stringValue(data["num"]), stringValue(data["total_coin"]), stringValue(data["combo_num"]), stringValue(batch["batch_combo_num"]), stringValue(batch["combo_num"]), stringValue(batch["total_num"]))
@@ -199,7 +199,7 @@ func project(room int64, raw []byte) projection {
 		p.event.Kind, p.event.User, p.event.UID = "guard", stringValue(data["username"]), stringValue(data["uid"])
 		p.event.Gift, p.event.Count = stringValue(data["gift_name"]), number(data["num"])
 		p.event.GuardUnit = "月"
-		// No documented transaction ID: retain ambiguous guard representations.
+		// 文档未提供交易 ID：保留无法确定是否重复的上舰记录。
 	case "USER_TOAST_MSG_V2", "USER_TOAST_V2":
 		if data == nil {
 			return p

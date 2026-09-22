@@ -2,11 +2,11 @@ package danmaku
 
 import "arcana-world/internal/i18n"
 
-// Wire fields independently transcribed from bilibili-API-collect message_stream.md
-// at 5e81e288579470be9aee6576dafb9ae68f766361:
+// 线格式字段独立摘录自 bilibili-API-collect 的 message_stream.md，
+// 对应提交 5e81e288579470be9aee6576dafb9ae68f766361：
 // https://github.com/SocialSisterYi/bilibili-API-collect/blob/5e81e288579470be9aee6576dafb9ae68f766361/docs/live/message_stream.md
-// Preserve structured lists and objects; undocumented numeric codes remain raw.
-// DM_INTERACTION has both object and JSON-encoded object forms in the documentation.
+// 保留结构化列表和对象；未记载的数字代码保持原样。
+// 文档中的 DM_INTERACTION 既有对象形式，也有 JSON 编码的对象形式。
 var supplementalCommandSpecs = map[string]commandSpec{
 	"DM_INTERACTION": {i18n.DanmakuSupplementalDmInteraction, []commandField{
 		{"data.data", 'j'},

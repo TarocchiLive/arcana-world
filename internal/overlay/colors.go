@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Colors keeps event colors independent from the shared text/background opacity.
+// Colors 使事件颜色独立于共享的文字和背景不透明度。
 type Colors struct {
 	Text       string `json:"text"`
 	Background string `json:"background"`
@@ -19,7 +19,7 @@ func DefaultColors() Colors {
 	return Colors{Text: "#FFFFFF", Background: "#181C24", Captain: "#E88C8C", Admiral: "#E88C8C", Governor: "#E88C8C", SuperChat: "#E6C77A"}
 }
 
-// ParseColor accepts exactly #RRGGBB and returns packed 0xRRGGBB.
+// ParseColor 仅接受 #RRGGBB 格式，并返回打包后的 0xRRGGBB。
 func ParseColor(value string) (uint32, error) {
 	if len(value) != 7 || value[0] != '#' {
 		return 0, errors.New("overlay: color must be #RRGGBB")
@@ -63,13 +63,13 @@ func (colors Colors) Normalize() (Colors, error) {
 	return colors, nil
 }
 
-// TextRun uses UTF-8 byte offsets into Config.Text, with an exclusive End.
+// TextRun 使用 Config.Text 中的 UTF-8 字节偏移，End 为不包含在内的结束位置。
 type TextRun struct {
 	Start, End int
 	RGB        uint32
 }
 
-// TextRuns resolves a normalized configuration into adjacent colored ranges.
+// TextRuns 将归一化的配置解析为相邻的着色区间。
 func (cfg Config) TextRuns() []TextRun {
 	if cfg.Text == "" {
 		return nil

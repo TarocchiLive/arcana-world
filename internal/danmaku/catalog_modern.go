@@ -2,9 +2,9 @@ package danmaku
 
 import "arcana-world/internal/i18n"
 
-// Arrays retain their decoded members, including winners, awards and notice segments.
-// Undocumented numeric values remain raw; opaque protobuf payloads are deliberately
-// not treated as decoded details here (their dedicated decoders own those commands).
+// 数组保留解码后的成员，包括获奖者、奖品和通知片段。
+// 未记载的数值保持原样；此处有意不将不透明的 protobuf 载荷
+// 视为已解码详情（这些命令由专用解码器负责）。
 var modernCommandSpecs = map[string]commandSpec{
 	"ENTRY_EFFECT": {i18n.DanmakuModernEntryEffect, []commandField{
 		{"data.uid", 'i'}, {"data.uinfo.base.name", 's'}, {"data.target_id", 'i'},
@@ -63,7 +63,7 @@ var modernCommandSpecs = map[string]commandSpec{
 	"ROOM_SILENT_ON": {i18n.DanmakuModernSilentOn, []commandField{
 		{"data.type", 's'}, {"data.level", 'n'}, {"data.second", 'n'}, {"data.msg", 's'},
 	}},
-	// Older servers send data: []; the command itself fully identifies this state.
+	// 旧服务器发送 data: []；命令本身已足以标识此状态。
 	"ROOM_SILENT_OFF": {i18n.DanmakuModernSilentOff, nil},
 	"ONLINE_RANK_V2": {i18n.DanmakuModernOnlineRank, []commandField{
 		{"data.online_list", 'a'}, {"data.rank_type", 's'},

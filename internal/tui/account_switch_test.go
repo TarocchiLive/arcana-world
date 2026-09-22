@@ -10,7 +10,7 @@ import (
 
 	"arcana-world/internal/domain"
 	"arcana-world/internal/store"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 type switchSecrets struct {
@@ -42,7 +42,7 @@ func switchModel(t *testing.T, failure string) (*Model, domain.Account, *atomic.
 	m.account = &old
 	m.client.SetAccount(old)
 	cfg := m.store.Config()
-	// Account-switch tests connect a fake OBS explicitly when it is needed.
+	// 切换账号的测试仅在需要时显式连接模拟 OBS。
 	cfg.OBSAutoConnect, cfg.OBSAutoStream = false, false
 	cfg.ExitOBSStopDisabled = true
 	cfg.ExitLiveStopDisabled = true
@@ -64,7 +64,7 @@ func switchModel(t *testing.T, failure string) (*Model, domain.Account, *atomic.
 	}))
 	t.Cleanup(api.Close)
 	m.client.APIBase = api.URL
-	// Deliberately stale: switching must query the old account rather than trust UI.
+	// 故意保留过期状态：切换必须查询旧账号，不能信任界面缓存。
 	m.room = &domain.Room{ID: 101, Live: false}
 	return m, target, &stops, secrets
 }
@@ -80,7 +80,7 @@ func TestAccountSwitchConfirmationCoversSavedAndQRAccounts(t *testing.T) {
 	if cmd := m.perform("account:" + target.UID); cmd != nil || m.mode != "confirm" {
 		t.Fatal("saved account switched without confirmation")
 	}
-	m.modalKey(tea.KeyMsg{Type: tea.KeyEnter}) // default is cancel
+	m.modalKey(tea.KeyPressMsg{Code: tea.KeyEnter}) // 默认取消。
 	if m.store.Config().ActiveUID != "42" || stops.Load() != 0 || !state.active.Load() || state.stops.Load() != 0 {
 		t.Fatal("cancel changed identity or broadcast")
 	}
@@ -90,7 +90,7 @@ func TestAccountSwitchConfirmationCoversSavedAndQRAccounts(t *testing.T) {
 		t.Fatal("QR login bypassed switch confirmation")
 	}
 	m.selected = 1
-	cmd = m.modalKey(tea.KeyMsg{Type: tea.KeyEnter})
+	cmd = m.modalKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("confirmed login did not run")
 	}
@@ -109,7 +109,7 @@ func TestAccountSwitchFailureRetainsFreshOldRoomAndIdentity(t *testing.T) {
 	m, target, stops, _ := switchModel(t, "/room/v1/Room/stopLive")
 	m.perform("account:" + target.UID)
 	m.selected = 1
-	result := m.modalKey(tea.KeyMsg{Type: tea.KeyEnter})().(taskMessage)
+	result := m.modalKey(tea.KeyPressMsg{Code: tea.KeyEnter})().(taskMessage)
 	if result.taskError() == nil {
 		t.Fatal("failed remote stop accepted")
 	}
@@ -127,8 +127,10 @@ func TestQueuedAccountSwitchCannotCommitAfterQuit(t *testing.T) {
 	m, target, stops, _ := switchModel(t, "")
 	m.perform("account:" + target.UID)
 	m.selected = 1
-	queued := m.modalKey(tea.KeyMsg{Type: tea.KeyEnter})
-	m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	queued := m.modalKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	result := queued().(taskMessage)
 	if result.taskError() == nil || m.store.Config().ActiveUID != "42" || stops.Load() != 0 {
 		t.Fatal("queued account switch escaped quit barrier")
@@ -140,7 +142,7 @@ func TestAccountSwitchSaveFailureKeepsConfirmedStopVisible(t *testing.T) {
 	secrets.reject = true
 	m.perform("account:" + target.UID)
 	m.selected = 1
-	result := m.modalKey(tea.KeyMsg{Type: tea.KeyEnter})().(taskMessage)
+	result := m.modalKey(tea.KeyPressMsg{Code: tea.KeyEnter})().(taskMessage)
 	if result.taskError() == nil {
 		t.Fatal("credential failure accepted")
 	}

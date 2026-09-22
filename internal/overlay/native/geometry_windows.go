@@ -124,7 +124,7 @@ func winFriendlyNames(ctx context.Context) (map[string]string, error) {
 		modes := make([]winDisplayMode, max(modeCount, 1))
 		result, _, _ = winQueryDisplayConfig.Call(2, uintptr(unsafe.Pointer(&pathCount)), uintptr(unsafe.Pointer(&paths[0])),
 			uintptr(unsafe.Pointer(&modeCount)), uintptr(unsafe.Pointer(&modes[0])), 0)
-		if result == 122 { // ERROR_INSUFFICIENT_BUFFER: topology changed between calls.
+		if result == 122 { // ERROR_INSUFFICIENT_BUFFER：两次调用之间显示器拓扑发生了变化。
 			continue
 		}
 		if result != 0 {

@@ -20,7 +20,7 @@
 #include <time.h>
 #include <unistd.h>
 
-// Each output owns two bounded pixel stores and independent frame throttling.
+// 每个输出拥有两个有大小上限的像素存储区，并独立控制帧提交频率。
 #define MAX_BUFFER_BYTES (64u * 1024u * 1024u)
 struct arcana_wayland;
 struct output;
@@ -58,12 +58,12 @@ struct output
 };
 struct arcana_wayland
 {
-    // Only the mailbox and stop flag are shared with the Go producer.
+    // 仅邮箱和停止标志与 Go 生产者共享。
     pthread_mutex_t mutex;
     int wake[2];
     bool stop;
     struct arcana_wayland_config *pending;
-    // All remaining state belongs to the Wayland dispatch thread.
+    // 其余状态均归 Wayland 事件分发线程所有。
     struct arcana_wayland_config *config;
     char *wanted;
     char error[384];
@@ -369,7 +369,7 @@ static int synchronize(struct arcana_wayland *s)
     return result;
 }
 
-// Output callbacks update only their own surface geometry and scale.
+// 输出回调只更新自身表面的几何信息和缩放比例。
 static void output_geometry(void *data, struct wl_output *p, int32_t x, int32_t y,
                             int32_t pw, int32_t ph, int32_t sub, const char *make, const char *model, int32_t transform)
 {
@@ -379,7 +379,7 @@ static void output_geometry(void *data, struct wl_output *p, int32_t x, int32_t 
     (void)pw;
     (void)ph;
     (void)sub;
-    // Connector identity comes from output.name; make/model are descriptive only.
+    // 连接器标识来自 output.name；make/model 仅用于描述。
     struct output *o = data;
     if (!o->description && (make || model))
     {
@@ -750,7 +750,7 @@ static bool apply_geometry(struct view *s, bool initial)
     s->effective_top = top;
     s->effective_width = width;
     s->effective_height = height;
-    // Resolve all nine anchors against the full output, not its usable work area.
+    // 所有九个锚点均相对于完整输出区域解析，而非其可用工作区。
     wl_proxy_marshal(s->layer, 0, (uint32_t)width, (uint32_t)height);
     wl_proxy_marshal(s->layer, 3, top, 0, 0, left);
     if (resized)
@@ -779,7 +779,7 @@ static void create_surface(struct view *s, struct output *output)
         return;
     }
     wl_proxy_add_listener(s->layer, (void (**)(void))layer_listener, s);
-    wl_proxy_marshal(s->layer, 1, 1u | 4u); // Top and left; margins carry the resolved position.
+    wl_proxy_marshal(s->layer, 1, 1u | 4u); // 顶部和左侧；边距承载解析后的位置。
     wl_proxy_marshal(s->layer, 2, -1);      // 使用完整输出区域。
     wl_proxy_marshal(s->layer, 4, 0u);      // 禁用键盘交互。
     apply_geometry(s, true);
@@ -857,7 +857,7 @@ static void reconcile_output(struct arcana_wayland *s)
         s->wanted = name;
         legacy = fallback;
     }
-    // Only the legacy automatic selector may fall back to another output.
+    // 只有旧版自动选择器可以回退到另一个输出。
     if (!s->config->explicit_displays && !*s->config->output && !legacy)
         legacy = fallback;
     for (struct output *o = s->outputs; o; o = o->next)
@@ -1124,7 +1124,7 @@ static void cleanup_native(struct arcana_wayland *s)
 {
     if (!s->display)
         return;
-    // Output destruction also releases its surface and pixel stores.
+    // 销毁输出时也会释放其表面和像素存储区。
     while (s->outputs)
     {
         struct output *next = s->outputs->next;

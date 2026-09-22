@@ -5,7 +5,7 @@ import (
 
 	"arcana-world/internal/bili"
 	"arcana-world/internal/store"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func (m *Model) resetSettings() tea.Cmd {
@@ -15,7 +15,7 @@ func (m *Model) resetSettings() tea.Cmd {
 	})
 }
 
-// Rebuild and commit under the session gate; ownership transfers only after save succeeds.
+// 在会话锁保护下重建并保存，保存成功后才转移客户端所有权。
 func (m *Model) rebuildClientAndSave(op operation[*bili.Client], proxy string, save func() error) tea.Cmd {
 	if override := m.store.Overrides().Proxy; override != nil {
 		proxy = *override
@@ -42,7 +42,7 @@ func (m *Model) rebuildClientAndSave(op operation[*bili.Client], proxy string, s
 	})
 }
 
-// OBS settings are committed under the session gate before disconnecting.
+// 先在会话锁保护下保存 OBS 设置，再断开连接。
 func (m *Model) saveOBSSetting(op operation[struct{}], save func() error) tea.Cmd {
 	return work(m, op, func(ctx context.Context) (struct{}, error) {
 		if err := m.session.Lock(ctx); err != nil {

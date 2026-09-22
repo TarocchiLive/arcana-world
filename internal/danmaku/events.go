@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-// Room events project supplied text and explicitly named fields only.
-// Undocumented enum values are not assigned guessed meanings.
+// 直播间事件仅映射收到的文本和明确指定的字段。
+// 不为未记载的枚举值猜测含义。
 func projectRoomEvent(p projection, cmd string, root map[string]any) projection {
 	data := object(root["data"])
 	e := p.event
@@ -69,7 +69,7 @@ func projectRoomEvent(p projection, cmd string, root map[string]any) projection 
 		if !ok {
 			return p
 		}
-		// online_count is the newer rank counter, not a viewer count.
+		// online_count 是新版排行计数，并非观众人数。
 		e.Kind, e.Count = "rank_count", count
 	case "STOP_LIVE_ROOM_LIST":
 		rooms, ok := data["room_id_list"].([]any)
@@ -124,8 +124,8 @@ func projectRoomEvent(p projection, cmd string, root map[string]any) projection 
 	return p
 }
 
-// Counters must be JSON integers. IDs also occur as decimal strings on the wire.
-// Unlike number, this preserves the distinction between absent/invalid and zero.
+// 计数必须是 JSON 整数。线格式中的 ID 也可能采用十进制字符串。
+// 与 number 不同，此处区分缺失或无效值与零值。
 func roomEventInteger(value any, allowString bool) (int64, bool) {
 	var text string
 	switch value := value.(type) {

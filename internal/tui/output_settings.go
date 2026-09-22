@@ -6,7 +6,7 @@ import (
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/presentation"
 	"arcana-world/internal/tts"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func (m *Model) outputMenu() []menuItem {

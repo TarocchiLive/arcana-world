@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"arcana-world/internal/store"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func chatTestModel(t *testing.T) *Model {
@@ -30,7 +31,6 @@ func chatTestModel(t *testing.T) *Model {
 		t.Fatal(m.chat.err)
 	}
 	m.page = chatPage
-	m.chat.room = 1
 	return m
 }
 func appendChat(t *testing.T, m *Model, text string) {
@@ -45,6 +45,8 @@ func runChatCommand(m *Model, cmd tea.Cmd) {
 		switch msg := cmd().(type) {
 		case chatPageMsg:
 			cmd = m.applyChatPage(msg)
+		case chatHistoryMsg:
+			cmd = m.applyChatHistory(msg)
 		case taskMessage:
 			m.busy = false
 			cmd = msg.apply(m)
@@ -53,46 +55,11 @@ func runChatCommand(m *Model, cmd tea.Cmd) {
 		}
 	}
 }
-func chatKeyRun(m *Model, key string) { _, cmd := m.chatKey(key); runChatCommand(m, cmd) }
-
-func TestChatHistoryCursorsStayStableWhileMessagesArrive(t *testing.T) {
-	m := chatTestModel(t)
-	for i := 1; i <= 205; i++ {
-		appendChat(t, m, fmt.Sprintf("event-%03d", i))
-	}
-	runChatCommand(m, m.readChat())
-	if m.chat.entries[0].Text != "event-205" {
-		t.Fatal("latest history not loaded")
-	}
-	chatKeyRun(m, "[")
-	if m.chat.entries[0].Text != "event-105" || m.chat.entries[99].Text != "event-006" {
-		t.Fatal("older page lost its exclusive sequence boundary")
-	}
-	appendChat(t, m, "event-206")
-	runChatCommand(m, m.readChat())
-	if m.chat.entries[0].Text != "event-105" {
-		t.Fatal("new messages shifted frozen history")
-	}
-	chatKeyRun(m, "]")
-	if m.chat.entries[0].Text != "event-205" {
-		t.Fatal("returning to newer page jumped to live data")
-	}
-	chatKeyRun(m, "end")
-	if m.chat.entries[0].Text != "event-206" {
-		t.Fatal("return-to-live failed")
-	}
-	chatKeyRun(m, "[")
-	chatKeyRun(m, "[")
-	chatKeyRun(m, "[")
-	if m.chat.entries[0].Text != "event-006" || m.chat.entries[len(m.chat.entries)-1].Text != "event-001" {
-		t.Fatal("paging past oldest erased history or broke back navigation")
-	}
-}
 
 func TestChatTogglePersistsWithoutDeletingHistory(t *testing.T) {
 	m := chatTestModel(t)
 	appendChat(t, m, "keep this history")
-	chatKeyRun(m, "s")
+	runChatCommand(m, m.perform("chat-toggle"))
 	if m.mode != "confirm" || m.config.DanmakuDisabled {
 		t.Fatal("disabling must explain offline gaps before changing setting")
 	}
@@ -112,13 +79,13 @@ func TestChatTogglePersistsWithoutDeletingHistory(t *testing.T) {
 		t.Fatal("toggle removed saved messages")
 	}
 	m.mode = ""
-	chatKeyRun(m, "s")
+	runChatCommand(m, m.perform("chat-toggle"))
 	if m.store.Config().DanmakuDisabled {
 		t.Fatal("listener could not be re-enabled")
 	}
 }
 
-func TestChatDeletionUpdatesPausedHistoryAndStripsTerminalControls(t *testing.T) {
+func TestChatDeletionUpdatesRecentHistoryAndStripsTerminalControls(t *testing.T) {
 	m := chatTestModel(t)
 	for _, raw := range []string{`{"cmd":"SUPER_CHAT_MESSAGE","data":{"id":42,"uid":7,"price":30,"message":"withdraw-me","user_info":{"uname":"viewer"}}}`, `{"cmd":"DANMU_MSG","info":[[],"safe\u001b[2J\u0007",[1,"viewer"]]}`} {
 		if _, err := m.chat.history.Append(1, json.RawMessage(raw)); err != nil {
@@ -126,7 +93,6 @@ func TestChatDeletionUpdatesPausedHistoryAndStripsTerminalControls(t *testing.T)
 		}
 	}
 	runChatCommand(m, m.readChat())
-	chatKeyRun(m, " ")
 	if _, err := m.chat.history.Append(1, json.RawMessage(`{"cmd":"SUPER_CHAT_MESSAGE_DELETE","data":{"ids":[42]}}`)); err != nil {
 		t.Fatal(err)
 	}
@@ -162,35 +128,21 @@ func TestChatDisplayBoundsPreserveStoredText(t *testing.T) {
 	}
 }
 
-func TestChatPauseRejectsAnInflightLivePage(t *testing.T) {
-	m := chatTestModel(t)
-	appendChat(t, m, "already displayed")
-	runChatCommand(m, m.readChat())
-	appendChat(t, m, "arrived during refresh")
-	pending := m.readChat()
-	queued := pending().(chatPageMsg)
-	chatKeyRun(m, " ")
-	runChatCommand(m, m.applyChatPage(queued))
-	if m.chat.follow || len(m.chat.entries) != 1 || m.chat.entries[0].Text != "already displayed" {
-		t.Fatal("in-flight history refresh defeated the user's pause")
-	}
-}
-
 func TestChatScrollingDoesNotHideIncomingMessages(t *testing.T) {
 	m := chatTestModel(t)
 	runChatCommand(m, m.readChat())
-	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	appendChat(t, m, "arrived after scrolling")
 	runChatCommand(m, m.readChat())
-	if !strings.Contains(m.chatView(), "arrived after scrolling") {
+	if !strings.Contains(m.chatView(m.view.Width()), "arrived after scrolling") {
 		t.Fatal("scrolling an empty page hid incoming chat")
 	}
 	appendChat(t, m, "arrived during refresh")
 	pending := m.readChat()
 	queued := pending().(chatPageMsg)
-	m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
 	runChatCommand(m, m.applyChatPage(queued))
-	if !strings.Contains(m.chatView(), "arrived during refresh") {
+	if !strings.Contains(m.chatView(m.view.Width()), "arrived during refresh") {
 		t.Fatal("scrolling discarded an incoming chat refresh")
 	}
 }
@@ -203,8 +155,11 @@ func TestChatDetailFieldsCannotInjectTerminalControlsOrUnboundedText(t *testing.
 	if _, err := m.chat.history.Append(1, json.RawMessage(raw)); err != nil {
 		t.Fatal(err)
 	}
-	runChatCommand(m, m.readChat())
-	line := chatEventText(m.chat.entries[0])
+	records, err := m.chat.history.Page(1, 0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := chatEventText(records[0])
 	if strings.ContainsAny(line, "\x1b\a\r\n") || len(line) > 4096 {
 		t.Fatal("protocol detail escaped the bounded single-line renderer")
 	}
@@ -234,10 +189,10 @@ func TestChatAllowlistCannotBeBypassedByOtherToggle(t *testing.T) {
 	}
 	runChatCommand(m, m.readChat())
 	for _, other := range []bool{false, true, false} {
-		if m.chat.showOther != other {
-			chatKeyRun(m, "f")
-		}
-		rendered := m.chatView()
+		m.config.DanmakuShowOther = other
+		runChatCommand(m, m.readChat())
+		// 工作区宽度变化时，换行可能拆分事件文本。
+		rendered := strings.Join(strings.Fields(ansi.Strip(m.chatView(m.view.Width()))), "")
 		if !strings.Contains(rendered, "allowed-chat") || !strings.Contains(rendered, "allowed-guard-purchase") {
 			t.Fatal("essential room activity was hidden")
 		}

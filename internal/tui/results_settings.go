@@ -5,7 +5,7 @@ import (
 
 	"arcana-world/internal/bili"
 	"arcana-world/internal/i18n"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func settingsResetOperation() operation[*bili.Client] {
@@ -23,7 +23,7 @@ func (m *Model) handleSettingsResetResult(value *bili.Client, err error, label i
 		m.overlay.options.Config = m.config.Overlay.Config("")
 	}
 	if err := m.closeTTS(); err != nil {
-		m.log(fmt.Sprintf(i18n.T(i18n.TTSLogStopFailed), err))
+		m.warn(fmt.Sprintf(i18n.T(i18n.TTSLogStopFailed), err))
 	}
 	if m.ttsOverride != nil {
 		m.tts.enabled = *m.ttsOverride
@@ -47,6 +47,22 @@ func (m *Model) handleConfigResult(value *bili.Client, err error, label i18n.Key
 	}
 	m.log(i18n.T(i18n.TUILogSettingsSaved))
 	m.syncChat()
+	return m.finishResult()
+}
+
+func appearanceOperation() operation[struct{}] {
+	return operation[struct{}]{label: i18n.TUIOperationSaveSettings, handle: (*Model).handleAppearanceResult}
+}
+
+func (m *Model) handleAppearanceResult(_ struct{}, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
+		return cmd
+	}
+	// 仅刷新仍打开的菜单，不重新进入已被 Esc 关闭的选择器。
+	if m.mode == "pick" && m.editKind == "appearance" {
+		m.choices = m.appearanceChoices()
+	}
+	m.log(i18n.T(i18n.TUILogSettingsSaved))
 	return m.finishResult()
 }
 

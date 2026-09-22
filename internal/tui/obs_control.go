@@ -8,7 +8,7 @@ import (
 
 	"arcana-world/internal/app"
 	"arcana-world/internal/i18n"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 const obsOperationTimeout = 30 * time.Second
@@ -71,7 +71,7 @@ func (m *Model) handleOBSEvent(msg obsEventMsg) tea.Cmd {
 	// 排队事件可能属于已断开的旧连接，不能发布其过期状态。
 	m.obsState = m.obsClient.Snapshot()
 	if previous.Connected && !m.obsState.Connected && m.obsState.Err != nil {
-		m.log(fmt.Sprintf(i18n.T(i18n.TUILogOBSConnectionLost), m.obsState.Err.Error()))
+		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOBSConnectionLost), m.obsState.Err.Error()))
 	}
 	if msg.closed {
 		return nil
@@ -87,7 +87,7 @@ func (m *Model) runOBS(label i18n.Key, fn func(context.Context) error) tea.Cmd {
 	id := m.obsOperation
 	ctx, cancel := context.WithTimeout(m.ctx, obsOperationTimeout)
 	m.obsCancel = cancel
-	m.status = fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), i18n.T(label))
+	m.progressStatus(fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), i18n.T(label)))
 	return func() tea.Msg {
 		defer cancel()
 		if err := m.session.Lock(ctx); err != nil {
@@ -108,9 +108,9 @@ func (m *Model) handleOBSResult(msg obsResultMsg) tea.Cmd {
 		if errors.Is(msg.err, context.Canceled) {
 			m.log(i18n.T(i18n.TUILogOBSCanceled))
 		} else if msg.label == i18n.TUIOBSConnect {
-			m.log(msg.err.Error())
+			m.warn(msg.err.Error())
 		} else {
-			m.log(fmt.Sprintf(i18n.T(i18n.TUILogOperationFailed), i18n.T(msg.label), msg.err.Error()))
+			m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOperationFailed), i18n.T(msg.label), msg.err.Error()))
 		}
 	} else if msg.label == i18n.TUIOBSConnect && m.obsState.Connected {
 		m.log(i18n.T(i18n.TUILogOBSConnected))

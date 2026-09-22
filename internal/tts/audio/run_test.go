@@ -83,7 +83,7 @@ func TestTailCancellationAndDeviceFailureClosePlayer(t *testing.T) {
 			checks := 0
 			deviceErr := func() error {
 				checks++
-				// The second check occurs after software drain has started the tail.
+				// 第二次检查发生在软件缓冲排空并开始尾部等待之后。
 				if checks == 2 {
 					if deviceFailure {
 						return want

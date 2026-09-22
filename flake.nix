@@ -20,7 +20,7 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          vendorHash = "sha256-bvZzhgRceIq/YNgDwX7FNNE+tdI6BG/cwrNmzqBLFKk=";
+          vendorHash = "sha256-pxUZQSnWaZE4H7nr4ID7aY2zLsW9V8ao/v0x/m/etXQ=";
         in
         rec {
           default = arcana-world-desktop;
@@ -117,7 +117,7 @@
               description = "Arcana World with optional desktop overlay and speech helper";
             };
           } ''
-            # Match the portable bundle layout used by scripts/build.sh.
+            # 与 scripts/build.sh 使用的便携发行包布局保持一致。
             install -Dm755 ${arcana-world}/bin/arcana-world "$out/bin/arcana-world"
             install -Dm755 ${arcana-world-overlay}/bin/arcana-world-overlay "$out/bin/libexec/arcana-world-overlay"
             install -Dm755 ${arcana-world-tts}/bin/arcana-world-tts "$out/bin/libexec/arcana-world-tts"

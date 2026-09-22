@@ -34,6 +34,10 @@ func TestResetSettingsPreservesConnectionsAccountsAndHistory(t *testing.T) {
 	c.RecentAreas = []domain.Area{{ID: 12, Name: "saved area"}}
 	c.Proxy = "direct"
 	c.Protocol = "srt"
+	c.TUITheme = "midnight"
+	c.TUIMotionDisabled = true
+	c.TUICompactHeader = true
+	c.TUINotificationsWarningsOnly = true
 	c.ExitOBSStopDisabled = true
 	c.ExitLiveStopDisabled = true
 	c.Overlay.Enabled = true
@@ -44,6 +48,10 @@ func TestResetSettingsPreservesConnectionsAccountsAndHistory(t *testing.T) {
 	want := c
 	d := DefaultConfig()
 	want.Proxy, want.Protocol = d.Proxy, d.Protocol
+	want.TUITheme = d.TUITheme
+	want.TUIMotionDisabled = d.TUIMotionDisabled
+	want.TUICompactHeader = d.TUICompactHeader
+	want.TUINotificationsWarningsOnly = d.TUINotificationsWarningsOnly
 	want.ExitOBSStopDisabled, want.ExitLiveStopDisabled = d.ExitOBSStopDisabled, d.ExitLiveStopDisabled
 	want.Overlay = d.Overlay
 	got, err := s.ResetSettings()
@@ -78,7 +86,7 @@ func TestClearDataRemovesUnlistedActiveAccountCredentials(t *testing.T) {
 	if err := s.Save(domain.Account{UID: "42", Cookies: map[string]string{"SESSDATA": "secret"}}); err != nil {
 		t.Fatal(err)
 	}
-	// A stale or manually edited legacy index can retain only the active UID.
+	// 过期或经手动编辑的旧索引可能只保留活动 UID。
 	if err := os.WriteFile(filepath.Join(s.Dir(), "config.json"), []byte(`{"active_uid":"42"}`), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +289,7 @@ func TestClearDataRetainsIndexAfterFileFailure(t *testing.T) {
 	if err := os.MkdirAll(path, 0700); err != nil {
 		t.Fatal(err)
 	}
-	// A directory is not a history database and must not be recursively removed.
+	// 目录不是历史数据库，不得递归删除。
 	victim := filepath.Join(path, "unrelated")
 	if err := os.WriteFile(victim, []byte("keep"), 0600); err != nil {
 		t.Fatal(err)

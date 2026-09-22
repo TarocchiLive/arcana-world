@@ -2,10 +2,10 @@ package danmaku
 
 import "arcana-world/internal/i18n"
 
-// Open-platform wire reference: https://github.com/xfgryujk/blivedm/blob/dev/blivedm/models/open_live.py.
-// The archived API-collect message_stream.md documents the legacy toast shape.
-// Additional archived samples: EricEcho/BilibiliTool/doc/danmu-cmd.md;
-// RANK_CHANGED_V2 fields: urlynn/blivemsg/src/internal/parser.rs.
+// 开放平台线格式参考：https://github.com/xfgryujk/blivedm/blob/dev/blivedm/models/open_live.py。
+// 已归档的 API-collect message_stream.md 记载了旧版 toast 结构。
+// 其他归档样例：EricEcho/BilibiliTool/doc/danmu-cmd.md；
+// RANK_CHANGED_V2 字段：urlynn/blivemsg/src/internal/parser.rs。
 var coreCommandSpecs = map[string]commandSpec{
 	"RECALL_DANMU_MSG":                   {title: i18n.DanmakuRecallNotice, fields: []commandField{{"data.target_id", 'i'}, {"data.recall_type", 'n'}}},
 	"USER_TOAST_MSG":                     {title: i18n.DanmakuGuardToast, fields: []commandField{{"data.username", 's'}, {"data.role_name", 's'}, {"data.guard_level", 'n'}, {"data.num", 'n'}, {"data.unit", 's'}, {"data.price", 'n'}, {"data.op_type", 'n'}, {"data.toast_msg", 's'}}},
@@ -65,8 +65,8 @@ var coreCommandSpecs = map[string]commandSpec{
 
 func projectAdditionalCoreEvent(p projection, cmd string, root map[string]any) projection {
 	if spec, ok := coreCommandSpecs[cmd]; ok {
-		// A recall's target_id has no confirmed per-message ID contract. Show
-		// the notice; do not infer that every message by a user must be erased.
+		// 撤回通知的 target_id 没有明确约定为逐条消息的 ID。仅显示
+		// 通知，不据此推断应删除某用户的所有消息。
 		return projectCommandSpec(p, cmd, root, spec)
 	}
 	data := object(root["data"])

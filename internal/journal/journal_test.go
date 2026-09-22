@@ -248,7 +248,7 @@ func TestRetentionBoundaryAndContinuedWrites(t *testing.T) {
 		return at.Format(time.RFC3339) + " " + message + "\n"
 	}
 	kept := line(cutoff, "boundary") + line(now, "new")
-	// Expired records need not form a prefix after a clock adjustment.
+	// 调整时钟后，过期记录不一定集中在日志开头。
 	input := line(cutoff, "boundary") + line(cutoff.Add(-time.Second), "expired-private") + line(now, "new")
 	if _, err := log.file.WriteString(input); err != nil {
 		t.Fatal(err)
@@ -290,8 +290,8 @@ func TestRetentionStartupAndExclusiveWriter(t *testing.T) {
 	}
 	old := time.Now().Add(-retention-time.Hour).Format(time.RFC3339) + " expired-private\n"
 	newLine := time.Now().Format(time.RFC3339) + " retained\n"
-	// Preserve unrecognized or partial records instead of silently discarding
-	// data for which no trustworthy expiration timestamp is available.
+	// 保留无法识别或不完整的记录，避免静默丢弃
+	// 缺少可信过期时间戳的数据。
 	input := old + newLine + "legacy unknown timestamp\npartial"
 	if err := os.WriteFile(path, []byte(input), 0600); err != nil {
 		t.Fatal(err)

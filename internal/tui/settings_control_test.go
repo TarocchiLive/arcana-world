@@ -17,7 +17,7 @@ import (
 
 	"arcana-world/internal/domain"
 	"arcana-world/internal/store"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/zalando/go-keyring"
 )
 
@@ -48,15 +48,15 @@ func TestResetSettingsRequiresConfirmationAndKeepsOBS(t *testing.T) {
 	m.config, m.overlayEnabled, m.page = m.store.Config(), true, settingsPage
 	before := m.store.Config()
 	m.perform("settings-reset-confirm")
-	if cmd := m.modalKey(tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil {
+	if cmd := m.modalKey(tea.KeyPressMsg{Code: tea.KeyEnter}); cmd != nil {
 		t.Fatal("default confirmation choice did not cancel")
 	}
 	if !reflect.DeepEqual(m.store.Config(), before) {
 		t.Fatal("canceling reset changed saved settings")
 	}
 	m.perform("settings-reset-confirm")
-	m.modalKey(tea.KeyMsg{Type: tea.KeyRight})
-	cmd := m.modalKey(tea.KeyMsg{Type: tea.KeyEnter})
+	m.modalKey(tea.KeyPressMsg{Code: tea.KeyRight})
+	cmd := m.modalKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("confirmed reset did not run")
 	}
@@ -213,21 +213,21 @@ func TestRestoreOverlayAppearanceRequiresConfirmationAndKeepsContent(t *testing.
 		t.Fatal(err)
 	}
 	m.config = cfg
-	m.overlayEnabled = true // A session-only override must survive appearance changes.
+	m.overlayEnabled = true // 外观修改不能覆盖仅当前会话生效的设置。
 	m.perform("overlay-settings")
 	m.selected = len(m.choices) - 1
 	if cmd := m.choose(); cmd != nil || m.mode != "confirm" {
 		t.Fatal("restore did not wait for confirmation")
 	}
-	m.modalKey(tea.KeyMsg{Type: tea.KeyEnter})
+	m.modalKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !reflect.DeepEqual(m.store.Config(), cfg) {
 		t.Fatal("canceling restore changed saved settings")
 	}
 	m.perform("overlay-settings")
 	m.selected = len(m.choices) - 1
 	m.choose()
-	m.modalKey(tea.KeyMsg{Type: tea.KeyRight})
-	cmd := m.modalKey(tea.KeyMsg{Type: tea.KeyEnter})
+	m.modalKey(tea.KeyPressMsg{Code: tea.KeyRight})
+	cmd := m.modalKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("confirmed appearance restore did not save")
 	}
@@ -266,28 +266,28 @@ func TestOverlayAppearanceEditsReturnToTheirListPosition(t *testing.T) {
 		if m.mode != "pick" || m.editKind != "overlay-fields" || m.choices[m.selected].value != key {
 			t.Fatalf("editor did not return to %q: mode=%s kind=%s selected=%d", key, m.mode, m.editKind, m.selected)
 		}
-		if m.view.YOffset != offset {
-			t.Fatalf("list scrolled on return: got %d, want %d", m.view.YOffset, offset)
+		if m.view.YOffset() != offset {
+			t.Fatalf("list scrolled on return: got %d, want %d", m.view.YOffset(), offset)
 		}
 	}
 
 	selectField("super-chat-color")
-	offset := m.view.YOffset
+	offset := m.view.YOffset()
 	before := m.config.Overlay.Colors
 	m.choose()
 	m.input.SetValue("#123456")
 	m.updateOverlayColorPreview()
-	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	assertReturned("super-chat-color", offset)
 	if m.overlayColorPreview != nil || m.store.Config().Overlay.Colors != before {
 		t.Fatal("canceling color edit retained preview or saved a color")
 	}
 
 	selectField("font-size")
-	offset = m.view.YOffset
+	offset = m.view.YOffset()
 	m.choose()
 	m.input.SetValue("24")
-	_, save := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, save := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if save == nil {
 		t.Fatal("font change did not start saving")
 	}
@@ -299,15 +299,15 @@ func TestOverlayAppearanceEditsReturnToTheirListPosition(t *testing.T) {
 	}
 
 	selectField("background-color")
-	offset = m.view.YOffset
+	offset = m.view.YOffset()
 	m.choose()
 	m.input.SetValue("#123456")
 	m.updateOverlayColorPreview()
-	_, pending := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, pending := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if pending == nil {
 		t.Fatal("background change did not start saving")
 	}
-	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	m.Update(pending())
 	assertReturned("background-color", offset)
 	if m.overlayColorPreview != nil || m.store.Config().Overlay.Colors != before {
@@ -315,21 +315,21 @@ func TestOverlayAppearanceEditsReturnToTheirListPosition(t *testing.T) {
 	}
 
 	selectField("anchor")
-	offset = m.view.YOffset
+	offset = m.view.YOffset()
 	m.choose()
-	m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	assertReturned("anchor", offset)
 
 	selectField("restore")
-	offset = m.view.YOffset
+	offset = m.view.YOffset()
 	m.choose()
-	m.Update(tea.KeyMsg{Type: tea.KeyEnter}) // Default confirmation choice is Cancel.
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // 确认框默认选择取消。
 	assertReturned("restore", offset)
 	if m.store.Config().Overlay.Font.Size != 24 {
 		t.Fatal("canceling appearance restore changed the saved font")
 	}
-	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if m.mode != "" || m.overlaySettings != nil {
 		t.Fatal("Escape from the appearance list did not leave it")
 	}

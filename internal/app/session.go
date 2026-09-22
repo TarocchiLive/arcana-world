@@ -15,12 +15,12 @@ import (
 	"time"
 )
 
-// Each shutdown phase gets its own deadline so one failure cannot exhaust
-// the time available to the remaining cleanup.
+// 每个关闭阶段都有独立的截止时间，避免某一阶段失败
+// 耗尽其余清理阶段可用的时间。
 const shutdownPhaseTimeout = 15 * time.Second
 
-// Session owns serialized identity and broadcast transitions, including shutdown.
-// The UI owns display snapshots; commands return confirmed remote outcomes.
+// Session 负责串行执行身份切换与直播状态转换，包括关闭流程。
+// UI 负责显示快照；命令返回已确认的远端操作结果。
 type Session struct {
 	store     *store.Store
 	obsClient *obs.Client

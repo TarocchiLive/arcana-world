@@ -1,4 +1,4 @@
-// Package helperpath locates helpers within the application's installation.
+// helperpath 包定位应用安装目录中的辅助程序。
 package helperpath
 
 import (
@@ -6,8 +6,8 @@ import (
 	"runtime"
 )
 
-// Installed follows the application executable's symlinks and locates name in
-// its libexec directory. Callers retain responsibility for checking the helper.
+// Installed 解析应用可执行文件的符号链接，并在其 libexec 目录中定位 name。
+// 调用方仍负责检查该辅助程序。
 func Installed(executable, name string) (string, error) {
 	executable, err := filepath.EvalSymlinks(executable)
 	if err != nil {

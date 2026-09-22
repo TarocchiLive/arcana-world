@@ -17,10 +17,9 @@ func TestChatInteractionVisibilityFollowsActionAndOtherToggle(t *testing.T) {
 	}
 	runChatCommand(m, m.readChat())
 	for _, other := range []bool{false, true, false} {
-		if m.chat.showOther != other {
-			chatKeyRun(m, "f")
-		}
-		rendered := m.chatView()
+		m.config.DanmakuShowOther = other
+		runChatCommand(m, m.readChat())
+		rendered := m.chatView(m.view.Width())
 		for action := 1; action <= 5; action++ {
 			want := action <= 2 || (action == 3 || action == 4) && other
 			if got := strings.Contains(rendered, fmt.Sprintf("interaction-user-%d", action)); got != want {

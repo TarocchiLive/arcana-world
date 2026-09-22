@@ -7,7 +7,7 @@ import (
 
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/overlay"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 type overlayRuntime struct {
@@ -124,7 +124,7 @@ func (m *Model) handleOverlayStarted(msg overlayStartedMsg) tea.Cmd {
 	if msg.err != nil {
 		owner.cancel()
 		owner.state, owner.lastError = "failed", msg.err
-		m.log(fmt.Sprintf(i18n.T(i18n.TUILogOverlayStartupFailed), msg.err))
+		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayStartupFailed), msg.err))
 		return nil
 	}
 	owner.manager, owner.state = msg.manager, "running"
@@ -149,7 +149,7 @@ func (m *Model) handleOverlayStopped(msg overlayStoppedMsg) tea.Cmd {
 	}
 	if msg.err != nil {
 		owner.lastError = msg.err
-		m.log(fmt.Sprintf(i18n.T(i18n.TUILogOverlayStopped), msg.err))
+		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayStopped), msg.err))
 	}
 	// 只有停止期间明确收到启用请求，才启动下一进程。
 	if requested && m.overlayEnabled {
@@ -172,7 +172,7 @@ func (m *Model) publishOverlay() {
 	owner.last, owner.published = cfg, true
 	if err := owner.manager.SetConfig(cfg); err != nil {
 		owner.lastError = err
-		m.log(fmt.Sprintf(i18n.T(i18n.TUILogOverlayUpdateFailed), err))
+		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayUpdateFailed), err))
 	}
 }
 func (m *Model) closeOverlay() error {
