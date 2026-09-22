@@ -8,6 +8,7 @@ Versions are listed newest first.
 
 ### Added
 
+- Add a wrapping input at the bottom of the chat frame. Press `/` or click to compose up to 30 characters, `Enter` to send, and `Esc` / `Tab` to return to browsing. Failed sends keep the draft.
 - Set and save TTS volume from 0 to 100 on the TTS tab, with a default of 80 and 0 for mute. Previews and event announcements use the same volume.
 - Choose and save one of five TUI themes in Settings: Lumen, Midnight, Nord, Ember, or Paper. The selection persists across restarts.
 - Use the left mouse button to navigate pages, activate menus and pickers, position input cursors, submit forms, and confirm actions. Scroll long lists and content with the mouse wheel.
@@ -21,7 +22,9 @@ Versions are listed newest first.
 ### Changed
 
 - Upgrade to Lip Gloss v2, Bubble Tea v2, and Bubbles v2, and rebuild all TUI pages, forms, and pickers. Use thin rounded borders, layered backgrounds, and consistent focus states, with grouped sidebar navigation on wide terminals and compact navigation on narrow ones.
-- Put chat records in a separate frame, with vertical actions on wide screens and an Actions / history menu on narrow screens. Use text labels for older records, newer records, and returning to the latest messages. Keep live following at the bottom when resizing.
+- Rebuild Chat around the latest 10 messages from the past 24 hours at launch, with a default maximum of 30 messages and a scrollbar showing the reading position. Move listening, additional events, and the message limit to Settings. Replace room switching and history paging with a separate time-range browser that preserves the main frame and draft.
+- Use Up / Down to switch between history start and end time fields, alongside Tab and Enter. Group all Settings toggles before the other options.
+- Correct input cursor placement for CJK text, scrolling, and window resizing to improve IME candidate positioning across chat, forms, title editing, category search, and history time fields.
 - Shorten the first-stream guide to four steps: sign in and set up the room, connect OBS, go live, and stop. Add a video tutorial link at the bottom. Connect the lower stroke of R in the WORLD wordmark.
 - Reserve upper-right notifications for outcomes and warnings, dismissing them after five seconds with manual dismissal and scrolling available. Show loading progress in the bottom status bar instead, and use a consistent shortcut layout across pages.
 - Center confirmation dialogs over a dimmed, non-interactive page, with Cancel selected by default. Place Start/Stop live before Refresh on the live page.
