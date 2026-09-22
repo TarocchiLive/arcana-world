@@ -56,7 +56,7 @@ func TestChatComposerRetainsFailedSendAndClearsSuccessfulRetry(t *testing.T) {
 	m.account = &account
 	m.client.SetAccount(account)
 	m.room = &domain.Room{ID: 123}
-	text := strings.Repeat("界", 30)
+	text := strings.Repeat("界", 40)
 	var attempts atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/msg/send" {
@@ -105,8 +105,8 @@ func TestChatComposerLimitsCharactersRatherThanTerminalCells(t *testing.T) {
 	m := chatTestModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 48, Height: 22})
 	m.Update(mouseRuneKey('/'))
-	m.Update(tea.PasteMsg{Content: strings.Repeat("界", 30) + "不能发送"})
-	if got := m.chatInput.Value(); got != strings.Repeat("界", 30) {
+	m.Update(tea.PasteMsg{Content: strings.Repeat("界", 45)})
+	if got := m.chatInput.Value(); got != strings.Repeat("界", 40) {
 		t.Fatalf("paste exceeded character limit or counted CJK cells: %q", got)
 	}
 	if m.workspace().chatComposer < 2 {
@@ -114,17 +114,17 @@ func TestChatComposerLimitsCharactersRatherThanTerminalCells(t *testing.T) {
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	m.Update(mouseRuneKey('好'))
-	if got := m.chatInput.Value(); got != strings.Repeat("界", 29)+"好" {
+	if got := m.chatInput.Value(); got != strings.Repeat("界", 39)+"好" {
 		t.Fatalf("editing at the character limit lost text: %q", got)
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	m.Update(mouseRuneKey('新'))
-	if got := m.chatInput.Value(); got != strings.Repeat("界", 29)+"好" {
+	if got := m.chatInput.Value(); got != strings.Repeat("界", 39)+"好" {
 		t.Fatalf("inserting at the limit silently replaced the draft suffix: %q", got)
 	}
 	m.chatInput.SelectAll()
-	m.Update(tea.PasteMsg{Content: strings.Repeat("文", 35)})
-	if got := m.chatInput.Value(); got != strings.Repeat("文", 30) {
+	m.Update(tea.PasteMsg{Content: strings.Repeat("文", 45)})
+	if got := m.chatInput.Value(); got != strings.Repeat("文", 40) {
 		t.Fatalf("replacing selected CJK text escaped the character limit: %q", got)
 	}
 }

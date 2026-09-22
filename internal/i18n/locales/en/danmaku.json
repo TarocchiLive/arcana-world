@@ -9,7 +9,7 @@
   "danmaku.toggle": "Listen after sign-in",
   "danmaku.limit": "Maximum messages in Chat",
   "danmaku.limit_invalid": "Enter a whole number from 1 to 1000",
-  "danmaku.input_too_long": "Use at most 30 characters",
+  "danmaku.input_too_long": "Use at most 40 characters",
   "danmaku.history": "Browse history",
   "danmaku.history_start": "Start time",
   "danmaku.history_end": "End time",

@@ -9,7 +9,7 @@
   "danmaku.toggle": "登录后自动监听弹幕",
   "danmaku.limit": "主弹幕框最多保留条数",
   "danmaku.limit_invalid": "请输入 1 至 1000 的整数",
-  "danmaku.input_too_long": "弹幕最多 30 字",
+  "danmaku.input_too_long": "弹幕最多 40 字",
   "danmaku.history": "浏览历史",
   "danmaku.history_start": "开始时间",
   "danmaku.history_end": "结束时间",

@@ -8,7 +8,7 @@ Versions are listed newest first.
 
 ### Added
 
-- Add a wrapping input at the bottom of the chat frame. Press `/` or click to compose up to 30 characters, `Enter` to send, and `Esc` / `Tab` to return to browsing. Failed sends keep the draft.
+- Add a wrapping input at the bottom of the chat frame. Press `/` or click to compose up to 40 characters, `Enter` to send, and `Esc` / `Tab` to return to browsing. Failed sends keep the draft.
 - Set and save TTS volume from 0 to 100 on the TTS tab, with a default of 80 and 0 for mute. Previews and event announcements use the same volume.
 - Choose and save one of five TUI themes in Settings: Lumen, Midnight, Nord, Ember, or Paper. The selection persists across restarts.
 - Use the left mouse button to navigate pages, activate menus and pickers, position input cursors, submit forms, and confirm actions. Scroll long lists and content with the mouse wheel.

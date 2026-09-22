@@ -73,7 +73,7 @@ If Bilibili requests identity verification, complete it and try again.
 Press `2` to browse chat and history; listening continues on other pages.
 
 - At startup, Chat shows the latest 10 messages from the past 24 hours and keeps up to 30 by default. The scrollbar shows your reading position.
-- Press `/` or click the bottom input to compose up to 30 characters. `Enter` sends; `Esc` / `Tab` returns to browsing. Failed sends keep the draft.
+- Press `/` or click the bottom input to compose up to 40 characters. `Enter` sends; `Esc` / `Tab` returns to browsing. Failed sends keep the draft.
 - Use `PgUp` / `PgDn` or the mouse wheel to scroll, `Home` / `End` to jump to the top / latest message, and `r` to refresh / retry.
 - Press `h` to search history by start and end time. Use `↑` / `↓` to switch time fields, `Enter` to confirm, and `Esc` to return. Your main reading position and draft are preserved.
 - Adjust listening, additional events, and the main message limit on **Settings** (`8`).

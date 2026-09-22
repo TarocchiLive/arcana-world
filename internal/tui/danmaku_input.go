@@ -12,7 +12,7 @@ import (
 	"github.com/rivo/uniseg"
 )
 
-const chatInputLimit = 30
+const chatInputLimit = 40
 
 func (m *Model) chatInputActive() bool {
 	return m.page == chatPage && m.mode == "" && m.chatInput.Focused()
