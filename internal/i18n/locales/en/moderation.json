@@ -1,0 +1,21 @@
+{
+  "moderation.admins": "Moderators",
+  "moderation.blocks": "Blocklist",
+  "moderation.list": "View moderators",
+  "moderation.block_list": "View blocklist",
+  "moderation.admin_list_title": "Moderators · Select to revoke appointment",
+  "moderation.block_list_title": "Live-room blocklist · Select to remove",
+  "moderation.add_admin": "Appoint a moderator",
+  "moderation.add_block": "Block a user (permanent live-room mute)",
+  "moderation.remove_admin": "Remove moderator",
+  "moderation.remove_block": "Remove live-room mute",
+  "moderation.search": "Find by Bilibili username or UID",
+  "moderation.empty": "No matching users or the list is empty",
+  "moderation.confirm": "%s\nName: %s\nUID: %d\nRoom: %d\nCheck the avatar and user details before confirming.",
+  "moderation.fetch_avatar": "Fetch user avatar",
+  "moderation.avatar_missing": "Avatar unavailable. Check the name and UID before confirming.",
+  "moderation.log": "Room %d · UID %d · %s: %s",
+  "moderation.success": "Succeeded",
+  "moderation.search_required": "Enter a username or UID",
+  "moderation.ambiguous": "Multiple users found. Enter an exact username or UID."
+}

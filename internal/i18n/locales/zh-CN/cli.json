@@ -1,5 +1,5 @@
 {
-  "cli.config_dir_usage": "数据目录（默认：~/.arcana/world）",
+  "cli.config_dir_usage": "数据目录（默认：~/.arcana/world；每个目录只能运行一个实例）",
   "cli.credential_backend_usage": "凭据存储：auto、system、file、memory",
   "cli.credential_backend_invalid": "credential-backend 必须是 auto、system、file 或 memory",
   "cli.proxy_usage": "仅本次运行覆盖代理：HTTP(S)/SOCKS5 URL、direct，或留空以使用环境变量",
@@ -7,7 +7,7 @@
   "cli.obs_auto_stream_usage": "仅本次运行覆盖开播时 OBS 自动推流；使用 =false 关闭",
   "cli.tts_usage": "仅本次运行启用或禁用 TTS；=false 同时禁用试听",
   "cli.doctor_usage": "检查配置、凭据存储及可选辅助程序，不修改文件或启动服务",
-  "cli.help": "Arcana World — B 站直播控制台 / Bubble Tea\n\n用法: arcana-world [选项]\n\n显式指定的代理、OBS 自动连接/推流和 TTS 开关仅本次运行生效，不写回配置，也不能在界面中修改。\n\n在弹幕、历史、日志或通知正文内拖动选择；y 复制，Esc 清除选区，Ctrl+C 打开退出确认。\n\n",
+  "cli.help": "Arcana World — B 站直播控制台 / Bubble Tea\n\n用法: arcana-world [选项]\n\n显式指定的代理、OBS 自动连接/推流和 TTS 开关仅本次运行生效，不写回配置，也不能在界面中修改。\n\n在弹幕、历史、日志或通知正文内拖动选择；y 复制，Esc 清除选区，Ctrl+C 打开退出确认。\n\n弹幕页按 u 或点击「观众列表」、按 g 或点击「大航海」查看对应名单，各展示前 20 名；r 刷新，Esc 返回。\n\n单击弹幕说话人的名字查看头像、名称、粉丝牌和 UID，可禁言 1 小时、加入直播间黑名单、设为房管或打开主页。前三项需再次确认；拖动名字仍选择文字，不打开浮框。\n\n",
   "cli.help_usage": "显示帮助",
   "cli.invalid_arguments": "参数解析失败；使用 --help 查看用法",
   "cli.language_usage": "界面语言：auto、zh-CN、en",

@@ -1,0 +1,22 @@
+{
+  "members.title": "观众列表",
+  "members.fetch": "读取观众列表",
+  "members.controls": "r 刷新 · ↑/↓ 浏览 · Esc 返回",
+  "members.refresh": "刷新",
+  "members.loading": "正在读取观众列表…",
+  "members.load_failed": "观众列表读取失败：%s\n按 r 重试。",
+  "members.previous": "以下为上次成功读取的名单，尚未更新。",
+  "members.total": "观众人数：%d",
+  "members.empty": "暂无观众。",
+  "members.governor": "总督",
+  "members.admiral": "提督",
+  "members.captain": "舰长",
+  "members.score": "贡献值：%d",
+  "members.medal": "粉丝牌：%s · 等级 %d",
+  "fleet.title": "大航海",
+  "fleet.fetch": "读取大航海",
+  "fleet.loading": "正在读取大航海…",
+  "fleet.load_failed": "大航海读取失败：%s\n按 r 重试。",
+  "fleet.total": "大航海总人数：%d",
+  "fleet.empty": "暂无大航海成员。"
+}

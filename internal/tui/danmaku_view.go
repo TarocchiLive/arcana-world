@@ -48,13 +48,19 @@ func (m *Model) chatView(width int) string {
 	if m.chat == nil {
 		return m.theme.hintText(i18n.T(i18n.DanmakuEmpty), max(1, width))
 	}
-	return m.chatEventsView(m.chat.entries, width)
+	return m.chatEventsView(m.chat.entries, width, &m.chat.speakerSpans)
 }
 
-func (m *Model) chatEventsView(entries []danmaku.Event, width int) string {
+func (m *Model) chatEventsView(entries []danmaku.Event, width int, target *[]chatSpeakerSpan) string {
 	width = max(1, width)
 	surface := lipgloss.NewStyle().Background(m.theme.surfaceColor).Width(width)
 	var b strings.Builder
+	var spans []chatSpeakerSpan
+	// 点击区域归属于实际渲染的数据，测量行高时不写入任何视图。
+	if target != nil {
+		spans = (*target)[:0]
+	}
+	row := 0
 	for index := len(entries) - 1; index >= 0; index-- {
 		e := entries[index]
 		line := chatEventText(e)
@@ -76,7 +82,11 @@ func (m *Model) chatEventsView(entries []danmaku.Event, width int) string {
 		}
 		if e.Kind == "chat" {
 			user := chatText(e.User, 128)
-			line = m.theme.textStyle.Bold(true).Render(user) + m.theme.textStyle.Render(line[len(user):])
+			boundary := ""
+			if e.UID != "" && e.UID != "0" && !e.Mystery && user != "" {
+				boundary = chatSpeakerBoundary
+			}
+			line = m.theme.textStyle.Bold(true).Render(user) + boundary + m.theme.textStyle.Render(line[len(user):])
 		} else {
 			line = style.Render(line)
 		}
@@ -89,6 +99,23 @@ func (m *Model) chatEventsView(entries []danmaku.Event, width int) string {
 			textWidth -= 16
 		}
 		line = ansi.Wrap(line, textWidth, "")
+		if end := strings.Index(line, chatSpeakerBoundary); end >= 0 {
+			nameRow, column := row, 16
+			if width < 32 {
+				nameRow += strings.Count(ansi.Wrap(stamp, width, ""), "\n") + 1
+				column = 0
+			}
+			for offset, part := range strings.Split(line[:end], "\n") {
+				if cells := ansi.StringWidth(part); target != nil && cells > 0 {
+					spans = append(spans, chatSpeakerSpan{event: e, row: nameRow + offset, column: column, width: cells})
+				}
+			}
+			line = strings.ReplaceAll(line, chatSpeakerBoundary, "")
+		}
+		row += strings.Count(line, "\n") + 1
+		if width < 32 {
+			row += strings.Count(ansi.Wrap(stamp, width, ""), "\n") + 1
+		}
 		if width >= 32 {
 			b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
 				m.theme.muted.Width(16).Render(stamp),
@@ -97,6 +124,9 @@ func (m *Model) chatEventsView(entries []danmaku.Event, width int) string {
 			b.WriteString(lipgloss.JoinVertical(lipgloss.Left,
 				ansi.Wrap(stamp, width, ""), lipgloss.NewStyle().Width(width).Render(line)))
 		}
+	}
+	if target != nil {
+		*target = spans
 	}
 	if b.Len() == 0 {
 		b.WriteString(m.theme.hintText(i18n.T(i18n.DanmakuEmpty), width))

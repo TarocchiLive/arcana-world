@@ -52,55 +52,9 @@ make desktop
 
 After building, run `bin/arcana-world` (`bin/arcana-world.exe` on Windows). For terminal-only use without the overlay, build with `make build`; graphics development libraries are not required. See [Arcana World Overlay](cmd/arcana-world-overlay/README.en.md#supported-platforms) for overlay platform support.
 
-## Go live
+## Help
 
-1. Open **Accounts** and scan the QR code with the Bilibili app.
-2. Set your title, category, and cover on the **Room** page.
-3. In OBS Studio's top menu, choose **Tools → WebSocket Server Settings → Enable WebSocket server** (check it) **→ Show Connect Info →** copy the server password **→ OK** ([official setup guide](https://obsproject.com/kb/remote-control-guide)).
-OBS 28 and later include this feature, so no plugin is needed. For older versions, install an [obs-websocket 5.x plugin](https://github.com/obsproject/obs-websocket/releases) compatible with your OBS version.
-4. On Arcana World's **OBS** (`7`) page, enter the server address (for example `ws://127.0.0.1:4455`) and the password you just copied.
-5. Connect on the same page and enable **Auto-stream**. Adjust proxy and streaming protocol options on **Settings** (`8`).
-6. Return to **Live** and start your broadcast.
-
-By default, exiting stops OBS streaming and closes the current account's Bilibili room, including broadcasts started from another client. On **Settings** (`8`), **Stop OBS streaming on exit** and **Close live room on exit** can be disabled independently. With both off, exiting performs neither action. These settings do not affect **Stop Bilibili live** on the Live page.
-
-Switching to a different account (including QR sign-in) or deleting the current account asks for confirmation before stopping the old account's broadcast and associated OBS stream. If stopping fails, the account is not switched or deleted. Exit settings do not control this cleanup.
-
-If Bilibili requests identity verification, complete it and try again.
-
-### Chat and history
-
-Press `2` to browse chat and history; listening continues on other pages.
-
-- At startup, Chat shows the latest 10 messages from the past 24 hours and keeps up to 30 by default. The scrollbar shows your reading position.
-- Press `/` or click the bottom input to compose up to 40 characters. `Enter` sends; `Esc` / `Tab` returns to browsing. Failed sends keep the draft.
-- Use `PgUp` / `PgDn` or the mouse wheel to scroll, `Home` / `End` to jump to the top / latest message, and `r` to refresh / retry.
-- Press `h` to search history by start and end time. Use `↑` / `↓` to switch time fields, `Enter` to confirm, and `Esc` to return. Your main reading position and draft are preserved.
-- Adjust listening, additional events, and the main message limit on **Settings** (`8`).
-- Drag to select text in chat, history, logs, or notifications. Press `y` to copy or `Esc` to clear the selection; shortcuts appear in the footer.
-
-See the [chat display allowlist](docs/danmaku-whitelist.md) for the default message types. Unlisted messages stay hidden even with additional events enabled, but their original data is still saved.
-
-History is stored per room in `danmaku/history.db` under the data directory; history and operation logs are retained for seven days and cleaned automatically. Messages missed while disconnected are not fetched later to fill in the database.
-
-### Desktop overlay
-
-Provides a focus-free, click-through, semi-transparent desktop text overlay. Overlay and TTS have independent event selections; all message types shown by default are initially selected. Press `Enter` or `Space` to toggle an event. Output templates currently support Chinese only. The TTS tab offers voice selection, preview, on/off controls, and stopping playback with queue clearing. Only new events are spoken after enabling TTS; history is not replayed. Speech synthesis requires an internet connection and the bundled companion executable.
-
-See [Arcana World Overlay](cmd/arcana-world-overlay/README.en.md) for details.
-
-### Options
-
-The interface uses your system language by default. You can choose a language or data directory with:
-
-```sh
-arcana-world --lang en                  # Use English
-arcana-world --lang zh-CN               # Use Chinese
-arcana-world --config-dir /path/to/data # Set the data directory
-arcana-world --help                     # Show help
-```
-
-Default data directory: `~/.arcana/world`.
+Press `0` or open Help in the app for instructions and common questions. Run `arcana-world --help` for command-line options.
 
 ## TODO
 - [x] Fetch direct Bilibili stream URLs, connect to OBS, and start broadcasts automatically.

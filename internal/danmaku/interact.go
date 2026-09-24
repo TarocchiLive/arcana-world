@@ -109,6 +109,9 @@ func projectInteractionEvent(p projection, cmd string, root map[string]any) proj
 		return p
 	}
 	p.event.Kind, p.event.User, p.event.UID, p.event.Text = kind, user, uid, ""
+	if cmd == "INTERACT_WORD" {
+		applySpeakerInfo(&p.event, data)
+	}
 	return p
 }
 

@@ -106,6 +106,12 @@ func (m *Model) perform(action string) tea.Cmd {
 	if m.busy {
 		return nil
 	}
+	if action == "speaker-apply" {
+		return m.applyChatSpeaker()
+	}
+	if action == "moderation-apply" {
+		return m.applyModeration()
+	}
 	if strings.HasPrefix(action, "help:") {
 		// 保留帮助目录的光标，返回时仍选中刚才阅读的主题。
 		m.mode = "help"
@@ -380,6 +386,9 @@ func (m *Model) choose() tea.Cmd {
 		return nil
 	}
 	ch := m.choices[m.selected]
+	if strings.HasPrefix(m.editKind, "moderation-") {
+		return m.chooseModeration(ch.value)
+	}
 	if m.editKind == "overlay-displays" {
 		return m.toggleOverlayDisplay(ch.value)
 	}
@@ -429,6 +438,13 @@ func (m *Model) setArea(a domain.Area) tea.Cmd {
 func (m *Model) submitForm() tea.Cmd {
 	value := strings.TrimSpace(m.input.Value())
 	kind := m.editKind
+	if kind == "moderation-search" {
+		if value == "" {
+			m.warnStatus(i18n.T(i18n.ModerationSearchRequired))
+			return nil
+		}
+		return m.loadModerationUsers(value)
+	}
 	if kind == "clear-data" {
 		if m.input.Value() != "arcanaworldclear" {
 			m.mode = ""
@@ -442,7 +458,7 @@ func (m *Model) submitForm() tea.Cmd {
 		m.session.BeginClose()
 		m.input.SetValue("")
 		m.input.Blur()
-		return tea.Quit
+		return m.quitCommand()
 	}
 	if strings.HasPrefix(kind, "overlay-") {
 		if m.editingOverlayColor() != nil {

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"arcana-world/internal/app"
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/termimage"
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -30,6 +32,16 @@ func toggleLabel(label string, enabled bool) string {
 // Close 仅执行一次：按退出设置停止 OBS、关闭当前账号直播间，再释放资源。
 func (m *Model) Close() error {
 	m.closeOnce.Do(func() {
+		// 事件循环可能因信号直接结束，此时不能再依靠 tea.Cmd 清理终端。
+		imageID := m.inlineImage.id
+		m.clearInlineImage()
+		var imageErr error
+		if imageID != 0 {
+			_, imageErr = fmt.Fprint(os.Stdout, termimage.Delete(imageID))
+		}
+		if m.speaker != nil && m.speaker.cancel != nil {
+			m.speaker.cancel()
+		}
 		m.session.BeginClose()
 		if m.cancel != nil {
 			m.cancel()
@@ -42,7 +54,7 @@ func (m *Model) Close() error {
 		if stopErr != nil {
 			stopErr = errors.Join(stopErr, m.journal.Write(m.safe(stopErr.Error())))
 		}
-		m.closeErr = errors.Join(ttsErr, stopErr, m.closeOverlay(), m.closeChat(), m.obsClient.Close(), m.journal.Write(i18n.T(i18n.TUILogApplicationExited)), m.journal.Close())
+		m.closeErr = errors.Join(imageErr, ttsErr, stopErr, m.closeOverlay(), m.closeChat(), m.obsClient.Close(), m.journal.Write(i18n.T(i18n.TUILogApplicationExited)), m.journal.Close())
 		if m.clearDataOnExit {
 			if m.closeErr != nil {
 				m.closeErr = fmt.Errorf(i18n.T(i18n.TUISettingsClearDataShutdownFailed), m.closeErr)

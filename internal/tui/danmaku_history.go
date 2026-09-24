@@ -19,6 +19,7 @@ type chatHistoryBrowser struct {
 	focus                                  int
 	start, end                             time.Time
 	entries                                []danmaku.Event
+	speakerSpans                           []chatSpeakerSpan
 	returnView                             viewport.Model
 	returnBottom                           bool
 	loading                                bool
@@ -84,7 +85,7 @@ func (m *Model) chatHistoryView() string {
 		return m.theme.warning.Render(m.safe(b.err.Error()))
 	}
 	if b.rendered == "" || b.renderWidth != m.view.Width() || b.renderTheme != m.theme.id {
-		b.rendered = m.chatEventsView(b.entries, m.view.Width())
+		b.rendered = m.chatEventsView(b.entries, m.view.Width(), &b.speakerSpans)
 		b.renderWidth, b.renderTheme = m.view.Width(), m.theme.id
 	}
 	return b.rendered

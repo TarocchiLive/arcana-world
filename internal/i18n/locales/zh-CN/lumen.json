@@ -13,7 +13,7 @@
   "lumen.footer_edit": "Enter 保存 · Esc 取消",
   "lumen.footer_pick": "↑↓ 选择 · Enter 确定 · Esc 返回",
   "lumen.footer_confirm": "←→ 选择 · Enter 确认 · Esc 取消",
-  "lumen.footer_chat": "/ 发弹幕 · ↑↓ 滚动 · End 底部 · h 浏览历史 · Tab 切页 · q 退出",
+  "lumen.footer_chat": "/ 发弹幕 · ↑↓ 滚动 · End 底部 · u 观众列表 · g 大航海 · h 历史 · Tab 切页 · q 退出",
   "lumen.footer_busy": "Esc 取消 · Ctrl+C 退出",
   "lumen.theme_lumen": "微光 · 自动",
   "lumen.theme_midnight": "午夜 · 靛蓝",

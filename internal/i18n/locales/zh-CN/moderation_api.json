@@ -1,0 +1,4 @@
+{
+  "moderation_api.input_invalid": "请输入有效的直播间、用户或名称",
+  "moderation_api.own_room_required": "只能管理当前账号自己的直播间房管"
+}

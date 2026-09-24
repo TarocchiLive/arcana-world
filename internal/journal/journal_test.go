@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 func readEvents(t *testing.T, path string) []string {
@@ -72,6 +74,50 @@ func TestAppendAcrossReopen(t *testing.T) {
 	events := readEvents(t, log.Path())
 	if len(events) != 2 || events[0] != "first event" || events[1] != "second event" {
 		t.Fatalf("reopened journal lost or replaced events: %q", events)
+	}
+}
+
+func TestOpenWhileDirectoryOccupied(t *testing.T) {
+	dir := t.TempDir()
+	first, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = first.Close() })
+	second, err := Open(dir)
+	if second != nil {
+		_ = second.Close()
+		t.Fatal("second open succeeded while the directory was occupied")
+	}
+	if !errors.Is(err, bolt.ErrTimeout) {
+		t.Fatalf("lock contention did not retain its cause: %v", err)
+	}
+	if err := first.Write("still usable after contention"); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	if err := reopened.Write("reopened"); err != nil {
+		t.Fatal(err)
+	}
+	events := readEvents(t, reopened.Path())
+	if len(events) != 2 || events[0] != "still usable after contention" || events[1] != "reopened" {
+		t.Fatalf("contention or reopening changed events: %q", events)
+	}
+
+	// 非锁错误不能提示用户关闭另一个实例。
+	invalidDir := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(invalidDir, []byte("unchanged"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(invalidDir); err == nil || errors.Is(err, bolt.ErrTimeout) {
+		t.Fatalf("non-lock failure misclassified: %v", err)
 	}
 }
 

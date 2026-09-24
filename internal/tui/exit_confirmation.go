@@ -3,6 +3,7 @@ package tui
 import (
 	"arcana-world/internal/i18n"
 	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // 退出确认保留编辑现场；后台结果暂存到取消确认后按顺序处理。
@@ -10,6 +11,13 @@ type exitConfirmation struct {
 	mode, editKind, prompt, action string
 	selected, offset               int
 	pending                        []tea.Msg
+}
+
+func (m *Model) quitCommand() tea.Cmd {
+	if clear := m.clearInlineImage(); clear != nil {
+		return tea.Sequence(clear, tea.Quit)
+	}
+	return tea.Quit
 }
 
 func (m *Model) requestQuit() tea.Cmd {
@@ -37,7 +45,7 @@ func (m *Model) quitKey(key tea.KeyPressMsg) tea.Cmd {
 		if m.obsCancel != nil {
 			m.obsCancel()
 		}
-		return tea.Quit
+		return m.quitCommand()
 	}
 	return nil
 }
@@ -63,7 +71,7 @@ func (m *Model) deferUntilQuitResolved(msg tea.Msg) bool {
 		return false
 	}
 	switch msg.(type) {
-	case tea.KeyPressMsg, tea.KeyReleaseMsg, tea.PasteMsg, tea.PasteStartMsg, tea.PasteEndMsg, tea.MouseMsg, tea.WindowSizeMsg, tea.BackgroundColorMsg, notificationExpired:
+	case tea.KeyPressMsg, tea.KeyReleaseMsg, tea.PasteMsg, tea.PasteStartMsg, tea.PasteEndMsg, tea.MouseMsg, tea.WindowSizeMsg, tea.BackgroundColorMsg, notificationExpired, uv.CellSizeEvent, uv.KittyGraphicsEvent, imageTimeout:
 		return false
 	default:
 		m.exitPrompt.pending = append(m.exitPrompt.pending, msg)

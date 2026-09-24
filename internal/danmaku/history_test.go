@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"testing"
 	"time"
@@ -64,6 +65,93 @@ func TestReplayAcrossReopenAndRoomIsolation(t *testing.T) {
 	rooms, err := h.Rooms()
 	if err != nil || len(rooms) != 2 || rooms[0] != 1 || rooms[1] != 2 {
 		t.Fatalf("rooms=%v err=%v", rooms, err)
+	}
+}
+
+func TestOpenPrunesExpiredEventsWithoutMessageReferences(t *testing.T) {
+	dir := t.TempDir()
+	h := openHistory(t, dir)
+	now := time.Now().UTC()
+	expired := now.Add(-retention - time.Hour)
+	for range 2 {
+		if _, err := h.append(1, []byte(`{"kind":"gap","text":"session_end"}`),
+			projection{event: Event{RoomID: 1, Kind: "gap", Text: "session_end", Time: expired}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	appendEvent(t, h, 1, chat("retained"), true)
+	kept := page(t, h, 1, 0, 1)[0]
+	// 复现旧库中原始消息已释放、过期事件和时间索引仍保留的状态。
+	if err := h.db.Update(func(tx *bolt.Tx) error {
+		room := tx.Bucket(roomsBucket).Bucket(key(1))
+		for _, seq := range []uint64{1, 2} {
+			if err := releaseMessage(room, key(seq)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Close(); err != nil {
+		t.Fatal(err)
+	}
+	h = openHistory(t, dir)
+	events, err := h.Range(expired.Add(-time.Second), now.Add(time.Second), 0, nil)
+	if err != nil || len(events) != 1 || !reflect.DeepEqual(events[0], kept) {
+		t.Fatalf("retained event changed or expired index remained: events=%+v err=%v", events, err)
+	}
+	appendEvent(t, h, 1, chat("after-recovery"), true)
+	if events := page(t, h, 1, 0, 10); len(events) != 2 || events[0].Sequence <= kept.Sequence {
+		t.Fatalf("cannot append after retention recovery: %+v", events)
+	}
+}
+
+func TestSpeakerMetadataAcrossHistoryUpgradeAndReopen(t *testing.T) {
+	dir := t.TempDir()
+	h := openHistory(t, dir)
+	raw := `{"cmd":"DANMU_MSG","info":[[0,1,25,0,0,0,0,0,0,0,0,0,0,0,0,{"user":{"base":{"face":"https://example.com/avatar","is_mystery":true}}}],"hello",[42,"anonymous"],[17,"other room medal","anchor",999]]}`
+	appendEvent(t, h, 1, raw, true)
+	original := page(t, h, 1, 0, 1)[0]
+	assertMetadata := func(event Event) {
+		t.Helper()
+		if event.Face != "https://example.com/avatar" || event.MedalName != "other room medal" || event.MedalLevel != 17 || !event.Mystery || event.UID != "42" {
+			t.Fatalf("speaker metadata lost: %+v", event)
+		}
+		if event.Sequence != original.Sequence || !event.Time.Equal(original.Time) || event.Text != original.Text {
+			t.Fatalf("history identity changed: %+v", event)
+		}
+	}
+	assertMetadata(original)
+	if err := h.Close(); err != nil {
+		t.Fatal(err)
+	}
+	h = openHistory(t, dir)
+	assertMetadata(page(t, h, 1, 0, 1)[0])
+	// 模拟旧版本已保存的映射；升级必须从原始载荷恢复资料。
+	if err := h.db.Update(func(tx *bolt.Tx) error {
+		old := original
+		old.Face, old.MedalName, old.MedalLevel, old.Mystery = "", "", 0, false
+		encoded, err := json.Marshal(old)
+		if err != nil {
+			return err
+		}
+		if err := tx.Bucket(roomsBucket).Bucket(key(1)).Bucket(eventsBucket).Put(key(old.Sequence), encoded); err != nil {
+			return err
+		}
+		return tx.Bucket(historyMetaBucket).Put(historyVersionKey, key(2))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Close(); err != nil {
+		t.Fatal(err)
+	}
+	h = openHistory(t, dir)
+	assertMetadata(page(t, h, 1, 0, 1)[0])
+	appendEvent(t, h, 1, chat("no-medal"), true)
+	plain := page(t, h, 1, 0, 1)[0]
+	if plain.MedalName != "" || plain.MedalLevel != 0 || plain.Mystery {
+		t.Fatalf("invented speaker metadata: %+v", plain)
 	}
 }
 func TestAmbiguousRepeatedChatsSurvive(t *testing.T) {

@@ -9,9 +9,28 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+func (m *Model) confirmationPrompt() string {
+	width := max(1, m.view.Width())
+	text := m.theme.warning.Render(ansi.Wrap(clean(m.prompt), width, ""))
+	if avatar := m.confirmationAvatarView(); avatar != "" {
+		cols := m.avatarColumns()
+		if width >= cols+22 {
+			text = lipgloss.JoinHorizontal(lipgloss.Top, avatar, "  ",
+				m.theme.warning.Render(ansi.Wrap(clean(m.prompt), width-cols-2, "")))
+		} else {
+			text = lipgloss.JoinVertical(lipgloss.Left, avatar, text)
+		}
+	}
+	return lipgloss.NewStyle().Width(width).PaddingBottom(1).Render(text)
+}
+
 func (m *Model) modalContent() string {
 	width := max(1, m.view.Width())
 	switch m.mode {
+	case "speaker":
+		return m.speakerView()
+	case "members":
+		return m.roomMembersView()
 	case "chat-history-range":
 		return m.chatHistoryRangeView()
 	case "chat-history":
@@ -64,7 +83,7 @@ func (m *Model) modalContent() string {
 			execute = m.theme.danger.Render(ansi.Strip(execute))
 		}
 		return lipgloss.JoinVertical(lipgloss.Left,
-			m.theme.warning.Width(width).PaddingBottom(1).Render(clean(m.prompt)),
+			m.confirmationPrompt(),
 			cancel, execute,
 			lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(i18n.T(i18n.TUIConfirmControls), width)))
 	case "pick":

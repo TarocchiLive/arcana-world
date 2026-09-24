@@ -69,6 +69,9 @@ func Open(dataDir string) (*Log, error) {
 	}
 	lock, err := bolt.Open(lockPath, 0600, &bolt.Options{Timeout: time.Second})
 	if err != nil {
+		if errors.Is(err, bolt.ErrTimeout) {
+			return nil, fmt.Errorf(i18n.T(i18n.DataDirectoryOccupied), base, err)
+		}
 		return nil, err
 	}
 	keepLock := false

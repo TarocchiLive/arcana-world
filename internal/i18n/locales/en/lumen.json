@@ -13,7 +13,7 @@
   "lumen.footer_edit": "Enter save · Esc cancel",
   "lumen.footer_pick": "↑↓ select · Enter choose · Esc back",
   "lumen.footer_confirm": "←→ select · Enter confirm · Esc cancel",
-  "lumen.footer_chat": "/ compose · ↑↓ scroll · End bottom · h history · Tab pages · q quit",
+  "lumen.footer_chat": "/ compose · ↑↓ scroll · End bottom · u viewers · g Fleet · h history · Tab pages · q quit",
   "lumen.footer_busy": "Esc cancel · Ctrl+C quit",
   "lumen.theme_lumen": "Lumen · Automatic",
   "lumen.theme_midnight": "Midnight · Indigo",

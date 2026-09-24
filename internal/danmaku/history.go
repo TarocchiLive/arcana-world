@@ -1,9 +1,12 @@
 package danmaku
 
 import (
+	"arcana-world/internal/i18n"
+
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -81,6 +84,9 @@ func Open(dir string) (*History, error) {
 	}
 	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: time.Second})
 	if err != nil {
+		if errors.Is(err, bolt.ErrTimeout) {
+			return nil, fmt.Errorf(i18n.T(i18n.DataDirectoryOccupied), base, err)
+		}
 		return nil, err
 	}
 	if err := db.Update(migrateHistory); err != nil {
@@ -418,8 +424,12 @@ func (h *History) prune(now time.Time) error {
 					if err := tx.Bucket(receivedBucket).Delete(receivedKey(event.Time, uint64(event.RoomID), event.Sequence)); err != nil {
 						return err
 					}
-					if err := releaseMessage(room, k); err != nil {
-						return err
+					// 旧库可能残留原始消息已释放的过期事件；只清除其事件和索引，
+					// 不猜测消息归属，也不影响保留期内的记录。
+					if room.Bucket(messageIDsBucket).Get(k) != nil {
+						if err := releaseMessage(room, k); err != nil {
+							return err
+						}
 					}
 					if err := c.Delete(); err != nil {
 						return err

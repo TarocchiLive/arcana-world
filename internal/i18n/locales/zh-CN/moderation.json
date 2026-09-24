@@ -1,0 +1,21 @@
+{
+  "moderation.admins": "房管",
+  "moderation.blocks": "黑名单",
+  "moderation.list": "查看房管列表",
+  "moderation.block_list": "查看黑名单",
+  "moderation.admin_list_title": "房管列表 · 选择取消任命",
+  "moderation.block_list_title": "直播间黑名单 · 选择移除",
+  "moderation.add_admin": "任命指定用户为房管",
+  "moderation.add_block": "拉黑指定用户（永久直播间禁言）",
+  "moderation.remove_admin": "取消房管",
+  "moderation.remove_block": "解除直播间禁言",
+  "moderation.search": "输入b站用户名或uid查找",
+  "moderation.empty": "没有匹配用户或名单为空",
+  "moderation.confirm": "%s\n名称：%s\nUID：%d\n直播间：%d\n请核对头像与用户信息后确认。",
+  "moderation.fetch_avatar": "读取用户头像",
+  "moderation.avatar_missing": "头像不可用，请核对名称和 UID 后确认。",
+  "moderation.log": "直播间 %d · UID %d · %s：%s",
+  "moderation.success": "成功",
+  "moderation.search_required": "请输入用户名或 UID",
+  "moderation.ambiguous": "查到多个用户，请输入完整用户名或 UID 精确查找"
+}

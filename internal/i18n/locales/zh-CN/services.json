@@ -93,6 +93,7 @@
   "journal.file_changed": "日志文件在打开时发生了变化",
   "journal.file_inspect_failed": "检查日志文件：%w",
   "journal.file_secure_failed": "设置日志文件权限：%w",
+  "data.directory_occupied": "数据目录 %q 正被另一个 Arcana World 实例占用，请关闭该实例或使用其他 --config-dir：%w",
   "journal.open_failed": "打开日志：%w",
   "journal.opened_file_inspect_failed": "检查已打开的日志：%w",
   "journal.path_inspect_failed": "检查日志路径：%w",

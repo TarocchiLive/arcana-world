@@ -23,11 +23,13 @@ type workspaceLayout struct {
 func (m *Model) footerText() string {
 	key := i18n.LumenFooterNavigate
 	switch m.mode {
+	case "members":
+		key = i18n.MembersControls
 	case "chat-history":
 		return i18n.T(i18n.DanmakuHistoryKeys)
 	case "form":
 		key = i18n.LumenFooterEdit
-	case "pick", "selection":
+	case "pick", "selection", "speaker":
 		key = i18n.LumenFooterPick
 	case "confirm":
 		key = i18n.LumenFooterConfirm
@@ -55,7 +57,11 @@ func (m *Model) liveBadge() string {
 			state, style = i18n.T(i18n.TUILiveOnline), m.theme.positive
 		}
 	}
-	return style.Render("● " + state)
+	badge := style.Render("● " + state)
+	if m.room != nil {
+		badge += "  " + m.theme.muted.Render(m.audienceText())
+	}
+	return badge
 }
 
 func (m *Model) obsBadge() string {
@@ -73,7 +79,7 @@ func (m *Model) workspaceHeader(width int) string {
 	if m.account != nil {
 		account = selectionText(m.account.Name) + " / " + m.account.UID
 	}
-	statusWidth := min(32, max(1, width/2))
+	statusWidth := min(max(32, lipgloss.Width(m.liveBadge())+lipgloss.Width(pageNames()[m.page])+4), max(1, width/2))
 	leftWidth := max(1, width-statusWidth-2)
 	page := m.theme.selectedStyle.Padding(0, 1).Render(pageNames()[m.page])
 	var status string
@@ -83,10 +89,16 @@ func (m *Model) workspaceHeader(width int) string {
 			ansi.Truncate(m.liveBadge(), statusWidth, "…"),
 			ansi.Truncate(m.obsBadge(), statusWidth, "…"))
 	} else {
+		top := lipgloss.JoinHorizontal(lipgloss.Top,
+			lipgloss.NewStyle().MarginRight(2).Render(page), m.liveBadge())
+		bottom := m.obsBadge()
+		if lipgloss.Width(top) > statusWidth {
+			top = m.liveBadge()
+			bottom = page + " " + bottom
+		}
 		status = lipgloss.JoinVertical(lipgloss.Right,
-			lipgloss.JoinHorizontal(lipgloss.Top,
-				lipgloss.NewStyle().MarginRight(2).Render(page), m.liveBadge()),
-			m.obsBadge())
+			ansi.Truncate(top, statusWidth, "…"),
+			ansi.Truncate(bottom, statusWidth, "…"))
 	}
 	status = lipgloss.NewStyle().Width(statusWidth).MaxWidth(statusWidth).
 		Align(lipgloss.Right).Render(status)
@@ -199,13 +211,13 @@ func (m *Model) workspace() workspaceLayout {
 	if m.mode == "chat-history-range" {
 		m.resizeChatHistory()
 	}
-	if m.mode == "confirm" {
+	if m.floatingModal() {
 		l.dialogWidth = min(68, l.panelWidth)
 		if l.panelWidth >= 36 {
 			l.dialogWidth = min(l.dialogWidth, l.panelWidth-4)
 		}
 		m.view.SetWidth(max(1, l.dialogWidth-2*l.border-2*l.paddingX))
-		desired := lipgloss.Height(m.modalContent()) + 2*l.border + 2*l.paddingY
+		desired := lipgloss.Height(m.modalContent()+m.mouseControls()) + 2*l.border + 2*l.paddingY
 		l.dialogHeight = min(l.panelHeight, desired)
 		l.dialogX = l.panelX + (l.panelWidth-l.dialogWidth)/2
 		l.dialogY = l.panelY + (l.panelHeight-l.dialogHeight)/2
@@ -280,6 +292,15 @@ func (m *Model) navigationRail(l workspaceLayout) string {
 
 // 确认框使用独立视口；仅在没有可复用背景或终端尺寸变化时重绘底层页面。
 func (m *Model) confirmationBackdrop(l workspaceLayout) string {
+	if s := m.speaker; s != nil && m.page == chatPage && (m.mode == "speaker" || m.confirmAction == "speaker-apply") {
+		mode, view, left, top := m.mode, m.view, m.pickerLeft, m.pickerTop
+		m.mode, m.view = s.parentMode, s.parentView
+		parent := m.workspace()
+		m.view.SetContent(m.content())
+		body := m.chatWorkspace(parent, m.view.View())
+		m.mode, m.view, m.pickerLeft, m.pickerTop = mode, view, left, top
+		return body
+	}
 	view := viewport.New(viewport.WithWidth(l.innerWidth), viewport.WithHeight(l.innerHeight))
 	view.SetContent(m.pageContent(l.innerWidth))
 	return view.View()
@@ -312,6 +333,10 @@ func (m *Model) View() tea.View {
 		}
 	} else {
 		m.view.SetContent(content)
+		// 范围表单和弹窗已经替换当前视口，历史缓存不能代表它们的内容。
+		if m.chat != nil && m.chat.historyBrowser != nil {
+			m.chat.historyBrowser.viewportContent = ""
+		}
 	}
 	cursor := m.contentCursor()
 	if cursor != nil && !m.mouseScrolling {
@@ -321,7 +346,7 @@ func (m *Model) View() tea.View {
 			m.view.SetYOffset(cursor.Y - m.view.Height() + 1)
 		}
 	}
-	if !m.mouseScrolling && (m.mode == "pick" || m.mode == "confirm" || (m.mode == "" && len(m.menu()) > 0 && m.page != chatPage)) {
+	if !m.mouseScrolling && (m.mode == "pick" || m.floatingModal() || (m.mode == "" && len(m.menu()) > 0 && m.page != chatPage)) {
 		for row, line := range strings.Split(content, "\n") {
 			if !strings.HasPrefix(ansi.Strip(line), " › ") {
 				continue
@@ -341,7 +366,7 @@ func (m *Model) View() tea.View {
 	m.rebuildMouseTargets(l, content)
 	var screen string
 	var textRegions [2]textRegion
-	cachedBackdrop := m.mode == "confirm" && m.backdrop != "" && m.backdropWidth == m.width && m.backdropHeight == m.height
+	cachedBackdrop := m.floatingModal() && m.backdrop != "" && m.backdropWidth == m.width && m.backdropHeight == m.height
 	if cachedBackdrop {
 		screen = m.backdrop
 	} else {
@@ -350,10 +375,10 @@ func (m *Model) View() tea.View {
 		if m.page == chatPage && (m.mode == "" || m.mode == "chat-history") && m.chat != nil {
 			body = m.chatWorkspace(l, body)
 		}
-		if m.mode == "confirm" {
+		if m.floatingModal() {
 			body = m.confirmationBackdrop(l)
 		}
-		panel := m.theme.panel(body, l.panelWidth, l.panelHeight, l.paddingX, l.paddingY, l.border, m.mode != "" && m.mode != "confirm")
+		panel := m.theme.panel(body, l.panelWidth, l.panelHeight, l.paddingX, l.paddingY, l.border, m.mode != "" && !m.floatingModal())
 		if l.rail > 0 {
 			rail := lipgloss.NewStyle().MarginRight(2).MarginBackground(m.theme.canvasColor).Render(m.navigationRail(l))
 			panel = lipgloss.JoinHorizontal(lipgloss.Top, rail, panel)
@@ -361,14 +386,14 @@ func (m *Model) View() tea.View {
 		screen = lipgloss.JoinVertical(lipgloss.Left, l.header, panel, l.footer)
 		screen = m.theme.paintSurface(lipgloss.NewStyle().Foreground(m.theme.textColor).Background(m.theme.canvasColor).
 			Width(max(1, m.width)).Height(max(1, m.height)).MaxWidth(max(1, m.width)).MaxHeight(max(1, m.height)).Padding(0, l.margin).Render(screen), m.theme.canvasColor)
-		if m.mode != "confirm" {
+		if !m.floatingModal() {
 			m.backdrop, m.backdropWidth, m.backdropHeight = screen, m.width, m.height
 			m.backdropFooterHeight = lipgloss.Height(l.footer)
 		}
 	}
 	var overlaySlots [4]floatingLayer
 	layers := overlaySlots[:0]
-	if m.mode == "confirm" {
+	if m.floatingModal() {
 		// 固定并淡化原页面，顶栏状态和确认操作的快捷键继续更新。
 		height := lipgloss.Height(l.footer)
 		if cachedBackdrop {

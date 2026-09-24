@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"arcana-world/internal/danmaku"
 	"arcana-world/internal/i18n"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -25,6 +26,7 @@ type textSelection struct {
 	anchor, head textPoint
 	dragging     bool
 	active       bool
+	speaker      *danmaku.Event
 }
 
 func (r textRegion) contains(x, y int) bool {
@@ -182,7 +184,11 @@ func (m *Model) textSelectionMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 		s.move(mouse.X, mouse.Y)
 		s.dragging = false
 		if !s.active {
+			speaker := s.speaker
 			m.clearTextSelection()
+			if speaker != nil && mouse.Button == tea.MouseLeft {
+				return true, m.openChatSpeaker(*speaker)
+			}
 		}
 		m.frame.view = tea.View{}
 		return true, m.notificationCommand()
@@ -193,6 +199,8 @@ func (m *Model) textSelectionMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 			return false, nil
 		}
 		r := m.textRegionAt(mouse.X, mouse.Y)
+		// 已有选区时先取消选择，避免对冻结画面下的新弹幕误触发资料。
+		hadSelection := s != nil && s.active
 		m.clearTextSelection()
 		if r == nil {
 			return false, nil
@@ -212,6 +220,9 @@ func (m *Model) textSelectionMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 		}
 		region.content = strings.Join(visible, "\n")
 		m.textSelection = &textSelection{region: region, lines: strings.Split(ansi.Strip(region.content), "\n"), anchor: point, head: point, dragging: true}
+		if r.kind == "chat" && !hadSelection {
+			m.textSelection.speaker = m.chatSpeakerAt(mouse.X, mouse.Y)
+		}
 		return true, nil
 	}
 	return false, nil

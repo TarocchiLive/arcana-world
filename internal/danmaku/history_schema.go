@@ -12,7 +12,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-const historySchemaVersion uint64 = 2
+const historySchemaVersion uint64 = 3
 
 var historyMetaBucket = []byte("schema")
 var historyVersionKey = []byte("version")
@@ -52,7 +52,7 @@ func migrateHistory(tx *bolt.Tx) error {
 			return err
 		}
 	}
-	index, err := tx.CreateBucket(receivedBucket)
+	index, err := tx.CreateBucketIfNotExists(receivedBucket)
 	if err != nil {
 		return err
 	}
@@ -60,13 +60,48 @@ func migrateHistory(tx *bolt.Tx) error {
 		if value != nil || len(roomKey) != 8 {
 			return errors.New("invalid history room bucket")
 		}
-		return rooms.Bucket(roomKey).Bucket(eventsBucket).ForEach(func(seq, encoded []byte) error {
+		room := rooms.Bucket(roomKey)
+		events := room.Bucket(eventsBucket)
+		messages, messageIDs := room.Bucket(rawBucket), room.Bucket(messageIDsBucket)
+		if events == nil || messages == nil || messageIDs == nil {
+			return errors.New("history is missing events or raw payload buckets")
+		}
+		cursor := events.Cursor()
+		for seq, encoded := cursor.First(); seq != nil; seq, encoded = cursor.Next() {
+			if len(seq) != 8 || encoded == nil {
+				return errors.New("invalid history event")
+			}
+			messageID := messageIDs.Get(seq)
+			raw := messages.Get(messageID)
+			if len(messageID) != 8 || raw == nil {
+				return errors.New("history event is missing its raw payload")
+			}
 			var event Event
 			if err := json.Unmarshal(encoded, &event); err != nil {
 				return err
 			}
-			return index.Put(receivedKey(event.Time, binary.BigEndian.Uint64(roomKey), binary.BigEndian.Uint64(seq)), nil)
-		})
+			sequence := binary.BigEndian.Uint64(seq)
+			// 从原始消息补齐旧记录的说话者资料，不改变身份、删除状态或分页顺序。
+			p := project(int64(binary.BigEndian.Uint64(roomKey)), raw)
+			if len(p.batch) == 0 && p.event.UID == event.UID {
+				event.Face, event.MedalName = p.event.Face, p.event.MedalName
+				event.MedalLevel, event.Mystery = p.event.MedalLevel, p.event.Mystery
+				updated, err := json.Marshal(event)
+				if err != nil {
+					return err
+				}
+				stableKey := key(sequence)
+				if err := events.Put(stableKey, updated); err != nil {
+					return err
+				}
+				// 值增长可能分裂页，写入后重新定位，不能继续使用旧的遍历路径。
+				cursor.Seek(stableKey)
+			}
+			if err := index.Put(receivedKey(event.Time, binary.BigEndian.Uint64(roomKey), sequence), nil); err != nil {
+				return err
+			}
+		}
+		return nil
 	}); err != nil {
 		return err
 	}

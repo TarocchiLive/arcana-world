@@ -21,6 +21,8 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 )
 
 const (
@@ -102,6 +104,10 @@ type Model struct {
 	selection              *roomSelection
 	textSelection          *textSelection
 	cover                  *coverimage.Prepared
+	moderation             *moderationState
+	members                *roomMembersState
+	speaker                *chatSpeaker
+	inlineImage            inlineImage
 	previewing             bool
 	page                   int
 	cursors                [pageCount]int
@@ -137,6 +143,7 @@ type Model struct {
 	reveal                 bool
 	view                   viewport.Model
 	chat                   *danmakuUI
+	audience               audienceUI
 }
 
 func New(ctx context.Context, s *store.Store) (*Model, error) {
@@ -177,7 +184,7 @@ func (m *Model) Init() tea.Cmd {
 		return nil
 	}
 	m.initialized = true
-	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.watchOBS(), chatTickCmd(), m.syncShowcase(), m.notificationCommand(), m.pointerCommand()}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.watchOBS(), chatTickCmd(), m.syncShowcase(), m.notificationCommand(), m.pointerCommand(), m.initInlineImage()}
 	if m.overlay != nil && m.overlayEnabled {
 		cmds = append(cmds, m.startOverlay())
 	}
@@ -254,7 +261,7 @@ func (m *Model) safe(s string) string {
 
 // 业务轮询始终运行；仅可见状态变化时才使整页缓存失效。
 func (m *Model) updatePolling() tea.Cmd {
-	cmds := []tea.Cmd{m.updateChat(), m.updateOverlayChat(), m.updateTTS()}
+	cmds := []tea.Cmd{m.updateChat(), m.updateOverlayChat(), m.updateTTS(), m.updateAudience()}
 	m.publishOverlay()
 	if m.frame.base != "" && m.frame.poll == m.pollViewState() {
 		m.frame.reuse = true
@@ -274,7 +281,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	switch msg.(type) {
 	case pointerRefreshMsg:
 		m.frame.reuse = m.frame.base != ""
-		return m, m.pointerCommand()
+		return m, tea.Batch(m.pointerCommand(), m.syncInlineImage())
 	case tea.RawMsg:
 		m.frame.reuse = m.frame.base != ""
 		return m, nil
@@ -303,8 +310,12 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		}
 	}
 	if mouse, ok := msg.(tea.MouseMsg); ok {
+		mode := m.mode
 		if handled, cmd := m.textSelectionMouse(mouse); handled {
-			m.frame.reuse = m.frame.base != ""
+			m.frame.reuse = mode == m.mode && m.frame.base != ""
+			if mode != m.mode {
+				m.syncWorkspace()
+			}
 			return m, tea.Batch(cmd, m.pointerCommand())
 		}
 	}
@@ -345,6 +356,12 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	}
 	defer func() {
 		m.syncWorkspace()
+		if m.confirmationAvatar() != m.inlineImage.thumbnail || !m.nativeAvatar() {
+			cmd = tea.Batch(cmd, m.clearInlineImage())
+		}
+		if _, resized := msg.(tea.WindowSizeMsg); resized {
+			cmd = tea.Batch(cmd, tea.Raw(ansi.WindowOp(16)))
+		}
 		if next := m.syncShowcase(); next != nil {
 			cmd = tea.Batch(cmd, next)
 		}
@@ -353,11 +370,35 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		}
 	}()
 	if m.clearDataOnExit {
-		return m, tea.Quit
+		return m, m.quitCommand()
 	}
 	defer m.publishOverlay()
 	defer m.syncTTS()
 	switch msg := msg.(type) {
+	case uv.CellSizeEvent:
+		if msg.Width > 0 && msg.Height > 0 {
+			m.inlineImage.cellWidth, m.inlineImage.cellHeight = msg.Width, msg.Height
+			m.inlineImage.invalidatePlacement()
+		}
+		return m, nil
+	case uv.KittyGraphicsEvent:
+		return m, m.handleImageResponse(msg)
+	case imageTimeout:
+		return m, m.handleImageTimeout(msg)
+	case speakerAvatarMsg:
+		if m.speakerValid(msg.speaker) {
+			msg.speaker.avatar = msg.avatar
+		}
+		return m, nil
+	case speakerHomepageMsg:
+		if m.speakerValid(msg.speaker) && msg.err != nil {
+			msg.speaker.result = m.safe(msg.err.Error())
+			m.warnStatus(msg.speaker.result)
+		}
+		return m, nil
+	case audienceMsg:
+		m.applyAudience(msg)
+		return m, nil
 	case notificationExpired:
 		return m, m.updateNotification(msg)
 	case tea.BackgroundColorMsg:
@@ -408,6 +449,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		}
 		m.width, m.height = msg.Width, msg.Height
 		m.syncWorkspace()
+		m.inlineImage.invalidatePlacement()
 	case taskMessage:
 		if msg.taskID() != m.operation {
 			return m, nil
@@ -438,9 +480,15 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 			return m, m.openQRImage()
 		}
 		if m.busy {
+			if m.mode == "speaker" {
+				return m, nil
+			}
 			if key == "esc" && m.cancel != nil {
 				m.canceled = true
 				m.cancel()
+				if m.mode == "members" {
+					m.closeRoomMembers()
+				}
 				m.qrGeneration++
 				m.mode = ""
 				m.qr = nil
@@ -542,6 +590,26 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 	if m.exitPrompt != nil {
 		return m.quitKey(msg)
 	}
+	if m.mode == "speaker" {
+		return m.speakerKey(msg)
+	}
+	if m.mode == "confirm" && m.confirmAction == "speaker-apply" && msg.String() == "esc" {
+		return m.returnChatSpeaker()
+	}
+	if msg.String() == "esc" && m.moderation != nil {
+		if m.mode == "confirm" && m.confirmAction == "moderation-apply" {
+			return m.moderationBack()
+		}
+		if (m.mode == "pick" || m.mode == "form") && strings.HasPrefix(m.editKind, "moderation-") {
+			m.input.Blur()
+			if m.editKind == "moderation-menu" {
+				m.moderation = nil
+				m.mode = ""
+				return nil
+			}
+			return m.moderationMenu()
+		}
+	}
 	if m.mode == "cover" || m.mode == "cover-review" {
 		return m.coverKey(msg)
 	}
@@ -558,6 +626,9 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 	key := msg.String()
 	if m.mode == "chat-history-range" || m.mode == "chat-history" {
 		return m.chatHistoryKey(msg)
+	}
+	if m.mode == "members" {
+		return m.roomMembersKey(msg)
 	}
 	if key == "esc" && m.overlaySettings != nil {
 		if m.mode == "pick" && m.editKind == "overlay-fields" {
@@ -623,6 +694,12 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.mode = ""
 			if m.selected == 1 {
 				return m.perform(action)
+			}
+			if action == "speaker-apply" {
+				return m.returnChatSpeaker()
+			}
+			if action == "moderation-apply" {
+				return m.moderationBack()
 			}
 			m.pendingAccount = nil
 			if m.overlaySettings != nil {

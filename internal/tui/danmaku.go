@@ -17,6 +17,7 @@ type danmakuUI struct {
 	err                   error
 	state                 danmaku.Snapshot
 	entries               []danmaku.Event
+	speakerSpans          []chatSpeakerSpan
 	loading, loaded       bool
 	request, revision     uint64
 	sinceRoom             int64
@@ -136,22 +137,24 @@ func (m *Model) applyChatPage(msg chatPageMsg) tea.Cmd {
 		}
 	}
 	mainVisible := m.page == chatPage && m.mode == ""
-	follow := !c.loaded || (mainVisible && m.view.AtBottom())
-	if b := c.historyBrowser; b != nil {
-		follow = b.returnBottom
-	}
 	reader := &m.view
+	follow := !c.loaded || (mainVisible && reader.AtBottom())
 	if b := c.historyBrowser; b != nil {
-		reader = &b.returnView
+		reader, follow = &b.returnView, b.returnBottom
+	} else if s := m.members; s != nil {
+		reader, follow = &s.returnView, s.returnBottom
+	} else if s := m.speaker; s != nil && s.parentMode == "" {
+		reader, follow = &s.parentView, s.parentView.AtBottom()
 	}
+	mainReader := mainVisible || reader != &m.view
 	offset := reader.YOffset()
 	// 主框移除最早记录时，保持当前阅读位置。
-	if (mainVisible || c.historyBrowser != nil) && !follow && len(msg.entries) > 0 {
+	if mainReader && !follow && len(msg.entries) > 0 {
 		oldest := msg.entries[len(msg.entries)-1]
 		for i, e := range c.entries {
 			if e.RoomID == oldest.RoomID && e.Sequence == oldest.Sequence {
 				if i+1 < len(c.entries) {
-					offset -= renderedChatLines(m.chatEventsView(c.entries[i+1:], reader.Width()))
+					offset -= renderedChatLines(m.chatEventsView(c.entries[i+1:], reader.Width(), nil))
 				}
 				break
 			}
@@ -159,14 +162,29 @@ func (m *Model) applyChatPage(msg chatPageMsg) tea.Cmd {
 	}
 	c.entries, c.revision, c.loaded = msg.entries, msg.revision, true
 	c.limit, c.showOther = msg.limit, msg.showOther
-	if mainVisible || c.historyBrowser != nil {
-		reader.SetContent(m.chatEventsView(c.entries, reader.Width()))
+	if mainReader {
+		reader.SetContent(m.chatEventsView(c.entries, reader.Width(), &c.speakerSpans))
 		reader.SetYOffset(max(0, offset))
+		if follow {
+			reader.GotoBottom()
+		}
 		c.scrollToLatest = follow
 	}
 	return nil
 }
 func (m *Model) chatKey(key string) (bool, tea.Cmd) {
+	if key == "u" {
+		return true, m.openRoomMembers(false)
+	}
+	if key == "g" {
+		return true, m.openRoomMembers(true)
+	}
+	if key == "m" {
+		return true, m.openModeration(moderationAdmins)
+	}
+	if key == "b" {
+		return true, m.openModeration(moderationBlocks)
+	}
 	if m.chat == nil {
 		return false, nil
 	}

@@ -1,0 +1,10 @@
+{
+  "speaker.mute": "Mute",
+  "speaker.block": "Add to blacklist",
+  "speaker.admin": "Make room admin",
+  "speaker.homepage": "Open homepage",
+  "speaker.medal_unknown": "Fan medal: —",
+  "speaker.confirm_mute": "Mute %s (UID %d) for 1 hour?",
+  "speaker.confirm_block": "Add %s (UID %d) to the blacklist?",
+  "speaker.confirm_admin": "Make %s (UID %d) a moderator?"
+}

@@ -43,7 +43,7 @@ func (m *Model) chatWorkspace(l workspaceLayout, records string) string {
 		if m.mode == "chat-history" {
 			header = m.theme.accent.Render("‹ "+strings.TrimSpace(i18n.T(i18n.LumenMouseBack))) + " · " + m.chat.historyBrowser.rangeLabel()
 		} else {
-			header = m.theme.accent.Render(i18n.T(i18n.DanmakuHistory)+" [h]") + " · " + header
+			header = m.theme.accent.Render(i18n.T(i18n.MembersTitle)+" [u] · "+i18n.T(i18n.FleetTitle)+" [g] · "+i18n.T(i18n.ModerationAdmins)+" [m] · "+i18n.T(i18n.ModerationBlocks)+" [b] · "+i18n.T(i18n.DanmakuHistory)+" [h]") + " · " + header
 		}
 		body = ansi.Truncate(header, l.innerWidth, "…") + "\n" + body
 	}

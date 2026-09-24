@@ -1,5 +1,5 @@
 {
-  "cli.config_dir_usage": "Data directory (default: ~/.arcana/world)",
+  "cli.config_dir_usage": "Data directory (default: ~/.arcana/world; one running instance per directory)",
   "cli.credential_backend_usage": "Credential storage: auto, system, file, memory",
   "cli.credential_backend_invalid": "credential-backend must be auto, system, file, or memory",
   "cli.proxy_usage": "Override proxy for this run: HTTP(S)/SOCKS5 URL, direct, or empty to use the environment",
@@ -7,7 +7,7 @@
   "cli.obs_auto_stream_usage": "Override automatic OBS streaming when going live; use =false to disable",
   "cli.tts_usage": "Enable or disable TTS for this run; =false also disables preview",
   "cli.doctor_usage": "Inspect configuration, credentials and optional helpers without changing files or starting services",
-  "cli.help": "Arcana World — Bilibili live console / Bubble Tea\n\nUsage: arcana-world [options]\n\nExplicit proxy, OBS auto-connect/auto-stream and TTS overrides apply only to this run, are not saved, and cannot be changed in the interface.\n\nDrag within chat, history, log, or notification body text to select; y copies, Esc clears. Ctrl+C opens quit confirmation.\n\n",
+  "cli.help": "Arcana World — Bilibili live console / Bubble Tea\n\nUsage: arcana-world [options]\n\nExplicit proxy, OBS auto-connect/auto-stream and TTS overrides apply only to this run, are not saved, and cannot be changed in the interface.\n\nDrag within chat, history, log, or notification body text to select; y copies, Esc clears. Ctrl+C opens quit confirmation.\n\nOn Chat, press u or click Viewers, or g or Fleet, to view the corresponding list. Each shows up to 20 users; r refreshes and Esc returns.\n\nClick a chat speaker's name to see their avatar, name, fan medal and UID. Actions: mute for 1 hour, add to the room blocklist, appoint as moderator, or open their profile. The first three require confirmation. Dragging a name still selects text without opening the popup.\n\n",
   "cli.help_usage": "Show help",
   "cli.invalid_arguments": "invalid arguments; use --help for usage",
   "cli.language_usage": "Display language: auto, zh-CN, en",

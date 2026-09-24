@@ -40,6 +40,9 @@ func (m *Model) mouseControlItems() []mouseControl {
 		return nil
 	}
 	if m.busy {
+		if m.mode == "speaker" {
+			return nil
+		}
 		if m.cancel != nil {
 			return []mouseControl{back}
 		}
@@ -49,7 +52,12 @@ func (m *Model) mouseControlItems() []mouseControl {
 		return []mouseControl{back}
 	}
 	submit := mouseControl{i18n.LumenMouseSubmit, tea.KeyPressMsg{Code: tea.KeyEnter}}
+	if m.mode == "speaker" {
+		return []mouseControl{back}
+	}
 	switch m.mode {
+	case "members":
+		return []mouseControl{{i18n.MembersRefresh, mouseRuneKey('r')}, back}
 	case "form":
 		return []mouseControl{submit, back}
 	case "chat-history-range":
@@ -140,8 +148,25 @@ func (m *Model) rebuildMouseTargets(l workspaceLayout, content string) {
 		row(controlStart+i, "key", 0, control.key)
 	}
 	if m.page == chatPage && m.mode == "" && m.chat != nil && l.chatTop > 0 {
-		add(l.panelX+l.border+l.paddingX, l.panelY+l.border+l.paddingY,
-			min(l.innerWidth, ansi.StringWidth(i18n.T(i18n.DanmakuHistory)+" [h]")), "chat", 0, mouseRuneKey('h'))
+		x := l.panelX + l.border + l.paddingX
+		left := l.innerWidth
+		for _, entry := range []struct {
+			label string
+			key   rune
+		}{
+			{i18n.T(i18n.MembersTitle) + " [u]", 'u'},
+			{i18n.T(i18n.FleetTitle) + " [g]", 'g'},
+			{i18n.T(i18n.ModerationAdmins) + " [m]", 'm'},
+			{i18n.T(i18n.ModerationBlocks) + " [b]", 'b'},
+			{i18n.T(i18n.DanmakuHistory) + " [h]", 'h'},
+		} {
+			width := ansi.StringWidth(entry.label)
+			// 标题截断时省略号不属于入口，完整文字以外不响应点击。
+			visible := ansi.StringWidth(ansi.Truncate(entry.label, max(0, left-1), ""))
+			add(x, l.panelY+l.border+l.paddingY, visible, "chat", 0, mouseRuneKey(entry.key))
+			x += width + 3
+			left -= width + 3
+		}
 	}
 	if m.mode == "chat-history" && l.chatTop > 0 {
 		labelWidth := ansi.StringWidth("‹ " + strings.TrimSpace(i18n.T(i18n.LumenMouseBack)))
@@ -195,11 +220,16 @@ func (m *Model) rebuildMouseTargets(l workspaceLayout, content string) {
 		return
 	}
 	switch m.mode {
+	case "speaker":
+		start := lipgloss.Height(m.speakerIdentityView())
+		for i := range 4 {
+			row(start+i, "speaker", i, tea.KeyPressMsg{})
+		}
 	case "chat-history-range":
 		row(3, "history-input", 0, tea.KeyPressMsg{})
 		row(6, "history-input", 1, tea.KeyPressMsg{})
 	case "form", "confirm":
-		start := lipgloss.Height(ansi.Wrap(clean(m.prompt), max(1, m.view.Width()), "")) + 1
+		start := lipgloss.Height(m.confirmationPrompt())
 		if m.mode == "form" {
 			row(lipgloss.Height(m.formPrompt()), "input", 0, tea.KeyPressMsg{})
 		} else {
@@ -300,6 +330,11 @@ func (m *Model) mouse(event tea.MouseMsg) tea.Cmd {
 		m.mouseTargets = nil
 		m.mouseScrolling = false
 		switch target.kind {
+		case "speaker":
+			if m.speaker != nil {
+				m.speaker.selected = target.index
+				return m.chooseChatSpeaker()
+			}
 		case "page":
 			m.chatInput.Blur()
 			m.page = target.index

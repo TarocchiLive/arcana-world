@@ -18,6 +18,10 @@ type Event struct {
 	Kind, User, UID, Text, Gift, CoinType string
 	Count                                 int64
 	Amount                                int64
+	Face                                  string `json:",omitempty"`
+	MedalName                             string `json:",omitempty"`
+	MedalLevel                            int64  `json:",omitempty"`
+	Mystery                               bool   `json:",omitempty"`
 	GuardUnit                             string `json:",omitempty"`
 	Time                                  time.Time
 	Deleted                               bool
@@ -145,6 +149,8 @@ func project(room int64, raw []byte) projection {
 		}
 		p.event.Kind, p.event.Text = "chat", text
 		p.event.UID, p.event.User = stringValue(at(at(info, 2), 0)), stringValue(at(at(info, 2), 1))
+		p.event.MedalLevel, p.event.MedalName = number(at(at(info, 3), 0)), stringValue(at(at(info, 3), 1))
+		applySpeakerInfo(&p.event, object(at(at(info, 0), 15)))
 		extra := object(at(at(info, 0), 15))["extra"]
 		if s, ok := extra.(string); ok {
 			var e map[string]any
@@ -154,6 +160,7 @@ func project(room int64, raw []byte) projection {
 				extra = e
 			}
 		}
+		applySpeakerInfo(&p.event, object(extra))
 		// rnd 有时只是时间戳：只有明确的服务器消息 ID 才是可靠标识。
 		if id := strong(object(extra)["id_str"]); id != "" {
 			p.identity = identity("chat", id)
@@ -165,6 +172,7 @@ func project(room int64, raw []byte) projection {
 		p.event.Kind, p.event.Gift = "gift", stringValue(data["giftName"])
 		p.event.User, p.event.UID = stringValue(data["uname"]), stringValue(data["uid"])
 		p.event.Count, p.event.Amount, p.event.CoinType = number(data["num"]), number(data["total_coin"]), stringValue(data["coin_type"])
+		applySpeakerInfo(&p.event, data)
 		// 仅凭批次 ID 无法标识事件。必须有交易标识，并包含
 		// 增量和累计数量，以保留同一批次内的更新。
 		if tid := strong(data["tid"]); tid != "" {
@@ -178,6 +186,8 @@ func project(room int64, raw []byte) projection {
 		p.event.Kind, p.event.Text = "sc", stringValue(data["message"])
 		p.event.User, p.event.UID = stringValue(object(data["user_info"])["uname"]), stringValue(data["uid"])
 		p.event.Amount = number(data["price"])
+		applySpeakerInfo(&p.event, object(data["user_info"]))
+		applySpeakerInfo(&p.event, data)
 		p.scID = strong(data["id"])
 		if p.scID != "" {
 			p.identity = identity("sc", p.scID)
@@ -199,6 +209,7 @@ func project(room int64, raw []byte) projection {
 		p.event.Kind, p.event.User, p.event.UID = "guard", stringValue(data["username"]), stringValue(data["uid"])
 		p.event.Gift, p.event.Count = stringValue(data["gift_name"]), number(data["num"])
 		p.event.GuardUnit = "月"
+		applySpeakerInfo(&p.event, data)
 		// 文档未提供交易 ID：保留无法确定是否重复的上舰记录。
 	case "USER_TOAST_MSG_V2", "USER_TOAST_V2":
 		if data == nil {
@@ -212,6 +223,7 @@ func project(room int64, raw []byte) projection {
 		p.event.Count, p.event.Text = number(pay["num"]), stringValue(data["toast_msg"])
 		p.event.Gift = guardName(number(guard["guard_level"]))
 		p.event.GuardUnit = stringValue(pay["unit"])
+		applySpeakerInfo(&p.event, data)
 	default:
 		p = projectRoomEvent(p, cmd, root)
 		if p.event.Kind == "unknown" {
@@ -239,4 +251,38 @@ func guardName(level int64) string {
 		return "舰长"
 	}
 	return ""
+}
+
+// applySpeakerInfo 只读取发送者实际携带的头像、佩戴粉丝牌和匿名标志。
+// 粉丝牌所属直播间不必是当前直播间，舰长等级也不能代替粉丝牌。
+func applySpeakerInfo(event *Event, data map[string]any) {
+	if face := stringValue(data["face"]); face != "" {
+		event.Face = face
+	}
+	if mystery, _ := data["is_mystery"].(bool); mystery || number(data["is_mystery"]) != 0 {
+		event.Mystery = true
+	}
+	for _, key := range [...]string{"medal_info", "fans_medal"} {
+		medal := object(data[key])
+		if name := stringValue(medal["medal_name"]); name != "" {
+			event.MedalName, event.MedalLevel = name, number(medal["medal_level"])
+		}
+	}
+	for _, key := range [...]string{"user", "uinfo", "sender_uinfo"} {
+		user := object(data[key])
+		if user == nil {
+			continue
+		}
+		base := object(user["base"])
+		if face := stringValue(base["face"]); face != "" {
+			event.Face = face
+		}
+		if mystery, _ := base["is_mystery"].(bool); mystery || number(base["is_mystery"]) != 0 {
+			event.Mystery = true
+		}
+		medal := object(user["medal"])
+		if name := stringValue(medal["name"]); name != "" {
+			event.MedalName, event.MedalLevel = name, number(medal["level"])
+		}
+	}
 }

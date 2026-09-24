@@ -1,0 +1,22 @@
+{
+  "members.title": "Viewers",
+  "members.fetch": "Fetch viewers",
+  "members.controls": "r Refresh · ↑/↓ Browse · Esc Back",
+  "members.refresh": "Refresh",
+  "members.loading": "Loading viewers…",
+  "members.load_failed": "Could not load viewers: %s\nPress r to retry.",
+  "members.previous": "Showing the last successfully loaded list; it has not been updated.",
+  "members.total": "Viewers: %d",
+  "members.empty": "No viewers.",
+  "members.governor": "Governor",
+  "members.admiral": "Admiral",
+  "members.captain": "Captain",
+  "members.score": "Contribution: %d",
+  "members.medal": "Fan medal: %s · Level %d",
+  "fleet.title": "Fleet",
+  "fleet.fetch": "Fetch Fleet",
+  "fleet.loading": "Loading Fleet…",
+  "fleet.load_failed": "Could not load Fleet: %s\nPress r to retry.",
+  "fleet.total": "Total Fleet members: %d",
+  "fleet.empty": "No Fleet members."
+}

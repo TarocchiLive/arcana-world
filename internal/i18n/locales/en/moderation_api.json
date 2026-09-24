@@ -1,0 +1,4 @@
+{
+  "moderation_api.input_invalid": "Enter a valid room, user, or name",
+  "moderation_api.own_room_required": "You can only manage moderators for the signed-in account's own room"
+}

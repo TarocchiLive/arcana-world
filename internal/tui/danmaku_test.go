@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"arcana-world/internal/domain"
 	"arcana-world/internal/store"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -53,6 +54,47 @@ func runChatCommand(m *Model, cmd tea.Cmd) {
 		default:
 			return
 		}
+	}
+}
+
+func TestChatReadingPositionSurvivesMembersAndSpeaker(t *testing.T) {
+	for _, popup := range []string{"members", "speaker"} {
+		t.Run(popup, func(t *testing.T) {
+			m := chatTestModel(t)
+			m.account = &domain.Account{UID: "1"}
+			m.config.ActiveUID = "1"
+			m.room = &domain.Room{ID: 1}
+			m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+			for n := range 10 {
+				appendChat(t, m, fmt.Sprintf("record-%02d", n))
+			}
+			runChatCommand(m, m.readChat())
+			for n := 10; n < 30; n++ {
+				appendChat(t, m, fmt.Sprintf("record-%02d", n))
+			}
+			runChatCommand(m, m.readChat())
+			m.View()
+			m.view.SetYOffset(5)
+			before := ansi.Strip(m.view.View())
+			if popup == "members" {
+				m.openRoomMembers(false)
+			} else {
+				m.openChatSpeaker(m.chat.entries[0])
+			}
+			m.View()
+			appendChat(t, m, "record-30")
+			runChatCommand(m, m.readChat())
+			m.busy = false
+			if popup == "members" {
+				m.closeRoomMembers()
+			} else {
+				m.closeChatSpeaker()
+			}
+			m.View()
+			if after := ansi.Strip(m.view.View()); after != before {
+				t.Fatalf("reading position changed after %s:\nbefore: %s\nafter: %s", popup, before, after)
+			}
+		})
 	}
 }
 

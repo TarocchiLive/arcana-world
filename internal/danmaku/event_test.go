@@ -33,3 +33,16 @@ func TestMalformedKnownCommandsRemainUnknown(t *testing.T) {
 		}
 	}
 }
+
+func TestSpeakerMetadataSchemas(t *testing.T) {
+	for _, raw := range []string{
+		`{"cmd":"DANMU_MSG","info":[[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,{"extra":"{\"user\":{\"base\":{\"face\":\"avatar\",\"is_mystery\":true},\"medal\":{\"name\":\"worn\",\"level\":12}}}"}],"hello",[42,"alice"],[]]}`,
+		`{"cmd":"SUPER_CHAT_MESSAGE","data":{"uid":42,"message":"hello","user_info":{"uname":"alice","face":"avatar"},"medal_info":{"medal_name":"worn","medal_level":12,"anchor_roomid":999},"is_mystery":1}}`,
+		`{"cmd":"SEND_GIFT","data":{"uid":42,"uname":"alice","giftName":"gift","num":1,"face":"avatar","medal_info":{"medal_name":"worn","medal_level":12},"is_mystery":true}}`,
+	} {
+		event := project(1, []byte(raw)).event
+		if event.Face != "avatar" || event.MedalName != "worn" || event.MedalLevel != 12 || !event.Mystery || event.UID != "42" {
+			t.Fatalf("speaker schema lost: %+v", event)
+		}
+	}
+}

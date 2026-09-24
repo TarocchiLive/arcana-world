@@ -86,6 +86,7 @@ const (
 	CoverImageImageFormatInvalid         Key = "coverimage.image_format_invalid"
 	CoverImagePngEncodeFailed            Key = "coverimage.png_encode_failed"
 	CoverImageRegularFileRequired        Key = "coverimage.regular_file_required"
+	DataDirectoryOccupied                Key = "data.directory_occupied"
 	DomainIdentityVerificationRequired   Key = "domain.identity_verification_required"
 	JournalDataDirectoryInspectFailed    Key = "journal.data_directory_inspect_failed"
 	JournalDataDirectoryRequired         Key = "journal.data_directory_required"

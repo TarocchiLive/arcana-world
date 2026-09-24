@@ -93,6 +93,7 @@
   "journal.file_changed": "journal file changed while opening",
   "journal.file_inspect_failed": "inspect journal file: %w",
   "journal.file_secure_failed": "secure journal file: %w",
+  "data.directory_occupied": "Data directory %q is occupied by another Arcana World instance. Close it or use a different --config-dir: %w",
   "journal.open_failed": "open journal: %w",
   "journal.opened_file_inspect_failed": "inspect opened journal: %w",
   "journal.path_inspect_failed": "inspect journal path: %w",
