@@ -1,4 +1,5 @@
 {
+  "audience.ignore_self": "观众列表忽略自己",
   "audience.count": "观众 %d",
   "audience.unknown": "观众 —"
 }

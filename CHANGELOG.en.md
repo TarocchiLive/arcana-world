@@ -4,6 +4,12 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+### Added
+
+- Add “Ignore myself in viewer list” to Settings, enabled by default. Viewer counts exclude the current account, and viewer details hide it. Turning this off restores the original counts and list; Fleet is unchanged.
+
 ## [v0.3.0-alpha.3]: 2026-09-24 (prerelease)
 
 ### Changed

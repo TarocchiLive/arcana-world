@@ -75,7 +75,15 @@ func (m *Model) audienceText() string {
 	roomID, uid := m.audienceIdentity()
 	a := m.audience
 	if a.known && a.client == m.client && a.roomID == roomID && a.uid == uid {
-		return fmt.Sprintf(i18n.T(i18n.TUIAudienceCount), a.count)
+		return fmt.Sprintf(i18n.T(i18n.TUIAudienceCount), m.visibleAudienceCount(a.count))
 	}
 	return i18n.T(i18n.TUIAudienceUnknown)
+}
+
+func (m *Model) visibleAudienceCount(count int64) int64 {
+	// 接口进房会计入当前账号；在线总数独立于仅返回前 20 名的榜单。
+	if !m.config.AudienceIncludeSelf && m.account != nil && m.account.UID != "" {
+		return max(0, count-1)
+	}
+	return count
 }
