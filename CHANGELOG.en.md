@@ -4,6 +4,17 @@
 
 Versions are listed newest first.
 
+## [v0.2.2]: 2026-09-24
+
+### Fixed
+
+- Fix automatic cleanup failing when expired history records have lost their original message references, preventing chat history from loading and the listener from starting. Cleanup removes only records older than seven days and preserves events and original messages within the retention period.
+
+### Upgrade notes
+
+- This is a patch for 0.2.1 without the new features from 0.3.0 alpha. Replace the complete release archive; there is no need to delete the history database.
+- Do not use 0.2.2 with a data directory already upgraded by 0.3.0 alpha. Continue using the alpha development version with the same fix.
+
 ## [v0.2.1]: 2026-09-20
 
 ### Added
@@ -213,3 +224,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.2.0-alpha]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-alpha
 [v0.1.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.1.4
 [v0.1.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.1.3
+[v0.2.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.2

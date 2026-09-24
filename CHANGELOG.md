@@ -4,6 +4,17 @@
 
 版本按时间倒序记录。
 
+## [v0.2.2]：2026-09-24
+
+### 修复
+
+- 修复旧历史库中已过期记录缺少原始消息引用时，自动清理失败，导致弹幕历史无法加载、监听无法启动的问题。清理仅移除超过七天的记录，保留期内的事件及原始消息不变。
+
+### 升级提示
+
+- 本版本是 0.2.1 的补丁，不包含 0.3.0 alpha 的新功能。请完整替换发行包，无需删除历史库。
+- 已使用 0.3.0 alpha 升级过的数据目录不能直接交给 0.2.2 使用；请继续使用包含同一修复的 alpha 开发版本。
+
 ## [v0.2.1]：2026-09-20
 
 ### 新增
@@ -213,3 +224,4 @@
 [v0.2.0-alpha]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.0-alpha
 [v0.1.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.1.4
 [v0.1.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.1.3
+[v0.2.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.2

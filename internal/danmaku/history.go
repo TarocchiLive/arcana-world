@@ -347,8 +347,12 @@ func (h *History) prune(now time.Time) error {
 					return err
 				}
 				if event.Time.Before(cutoff) {
-					if err := releaseMessage(room, k); err != nil {
-						return err
+					// 旧库可能残留原始消息已释放的过期事件；只清除过期事件，
+					// 不猜测消息归属，也不影响保留期内的记录。
+					if room.Bucket(messageIDsBucket).Get(k) != nil {
+						if err := releaseMessage(room, k); err != nil {
+							return err
+						}
 					}
 					if err := c.Delete(); err != nil {
 						return err
