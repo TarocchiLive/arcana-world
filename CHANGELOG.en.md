@@ -4,6 +4,12 @@
 
 Versions are listed newest first.
 
+## [v0.3.0-alpha.3]: 2026-09-24 (prerelease)
+
+### Changed
+
+- Change the default mute duration in speaker profiles from one hour to two hours, with matching confirmation and help text. Permanent room mutes are unchanged.
+
 ## [v0.3.0-alpha.2]: 2026-09-24 (prerelease)
 
 ### Added
@@ -291,3 +297,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.1.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.1.3
 [v0.2.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.2
 [v0.3.0-alpha.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.2
+[v0.3.0-alpha.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.3

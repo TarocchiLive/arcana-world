@@ -66,7 +66,7 @@ func TestModerationPaginationScopeAndMute(t *testing.T) {
 	if posts != 1 {
 		t.Fatal("mute request missing")
 	}
-	wantHour = "1"
+	wantHour = "2"
 	if err := client.MuteRoomUser(ctx, 2, 42); err == nil {
 		t.Fatal("rejected temporary mute reported success")
 	}

@@ -162,9 +162,9 @@ func (c *Client) AddRoomBlock(ctx context.Context, roomID, uid int64) error {
 	return c.muteRoomUser(ctx, roomID, uid, "-1")
 }
 
-// MuteRoomUser 禁止用户在此直播间发言一小时。
+// MuteRoomUser 禁止用户在此直播间发言两小时。
 func (c *Client) MuteRoomUser(ctx context.Context, roomID, uid int64) error {
-	return c.muteRoomUser(ctx, roomID, uid, "1")
+	return c.muteRoomUser(ctx, roomID, uid, "2")
 }
 
 func (c *Client) muteRoomUser(ctx context.Context, roomID, uid int64, hour string) error {

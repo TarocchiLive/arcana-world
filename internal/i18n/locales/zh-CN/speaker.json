@@ -4,7 +4,7 @@
   "speaker.admin": "设为房管",
   "speaker.homepage": "打开主页",
   "speaker.medal_unknown": "粉丝牌：—",
-  "speaker.confirm_mute": "将 %s（UID %d）禁言 1 小时？",
+  "speaker.confirm_mute": "将 %s（UID %d）禁言 2 小时？",
   "speaker.confirm_block": "将 %s（UID %d）加入黑名单？",
   "speaker.confirm_admin": "将 %s（UID %d）设为房管？"
 }

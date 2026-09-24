@@ -4,6 +4,12 @@
 
 版本按时间倒序记录。
 
+## [v0.3.0-alpha.3]：2026-09-24（预发布）
+
+### 改进
+
+- 将用户资料浮框中的默认禁言时长由 1 小时改为 2 小时，确认提示与帮助同步更新；永久禁言不变。
+
 ## [v0.3.0-alpha.2]：2026-09-24（预发布）
 
 ### 新增
@@ -291,3 +297,4 @@
 [v0.1.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.1.3
 [v0.2.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.2
 [v0.3.0-alpha.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.2
+[v0.3.0-alpha.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.3
