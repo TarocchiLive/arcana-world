@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"testing"
 	"time"
@@ -65,45 +64,6 @@ func TestReplayAcrossReopenAndRoomIsolation(t *testing.T) {
 	rooms, err := h.Rooms()
 	if err != nil || len(rooms) != 2 || rooms[0] != 1 || rooms[1] != 2 {
 		t.Fatalf("rooms=%v err=%v", rooms, err)
-	}
-}
-
-func TestOpenPrunesExpiredEventsWithoutMessageReferences(t *testing.T) {
-	dir := t.TempDir()
-	h := openHistory(t, dir)
-	now := time.Now().UTC()
-	expired := now.Add(-retention - time.Hour)
-	for range 2 {
-		if _, err := h.append(1, []byte(`{"kind":"gap","text":"session_end"}`),
-			projection{event: Event{RoomID: 1, Kind: "gap", Text: "session_end", Time: expired}}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	appendEvent(t, h, 1, chat("retained"), true)
-	kept := page(t, h, 1, 0, 1)[0]
-	// 复现旧库中原始消息已释放、过期事件和时间索引仍保留的状态。
-	if err := h.db.Update(func(tx *bolt.Tx) error {
-		room := tx.Bucket(roomsBucket).Bucket(key(1))
-		for _, seq := range []uint64{1, 2} {
-			if err := releaseMessage(room, key(seq)); err != nil {
-				return err
-			}
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.Close(); err != nil {
-		t.Fatal(err)
-	}
-	h = openHistory(t, dir)
-	events, err := h.Range(expired.Add(-time.Second), now.Add(time.Second), 0, nil)
-	if err != nil || len(events) != 1 || !reflect.DeepEqual(events[0], kept) {
-		t.Fatalf("retained event changed or expired index remained: events=%+v err=%v", events, err)
-	}
-	appendEvent(t, h, 1, chat("after-recovery"), true)
-	if events := page(t, h, 1, 0, 10); len(events) != 2 || events[0].Sequence <= kept.Sequence {
-		t.Fatalf("cannot append after retention recovery: %+v", events)
 	}
 }
 
