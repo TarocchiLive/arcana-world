@@ -21,6 +21,8 @@ type RoomMember struct {
 	MedalLevel int64
 	Score      int64
 	Mystery    bool
+	// 在匿名 UID 脱敏前识别当前账号，不向展示层暴露匿名身份。
+	Self bool
 }
 
 type RoomMemberList struct {
@@ -80,7 +82,7 @@ func (c *Client) RoomMembers(ctx context.Context, roomID int64) (RoomMemberList,
 		result.Members = append(result.Members, RoomMember{
 			UID: uid, Name: item.Name, Rank: int64(item.Rank), GuardLevel: level,
 			MedalName: item.Medal.Name, MedalLevel: int64(item.Medal.Level),
-			Score: int64(item.Score), Mystery: item.Mystery,
+			Score: int64(item.Score), Mystery: item.Mystery, Self: int64(item.UID) == accountUID,
 		})
 	}
 	result.Members = normalizeRoomMembers(result.Members)

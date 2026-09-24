@@ -61,6 +61,7 @@ func (m *Model) menu() []menuItem {
 		return []menuItem{
 			{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"},
 			{toggleLabel(i18n.T(i18n.DanmakuOther), m.config.DanmakuShowOther), "chat-other"},
+			{toggleLabel(i18n.T(i18n.TUIAudienceIgnoreSelf), !m.config.AudienceIncludeSelf), "audience-ignore-self"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
 			{i18n.T(i18n.LumenTheme) + " · " + m.themeName(), "theme"},
@@ -162,6 +163,10 @@ func (m *Model) perform(action string) tea.Cmd {
 		return m.resetSettings()
 	case "clear-data":
 		return m.form("clear-data", i18n.T(i18n.TUISettingsClearDataConfirm), "", false)
+	case "audience-ignore-self":
+		cfg := m.config
+		cfg.AudienceIncludeSelf = !cfg.AudienceIncludeSelf
+		return m.saveConfig(cfg, false)
 	case "exit-obs-stop":
 		cfg := m.config
 		cfg.ExitOBSStopDisabled = !cfg.ExitOBSStopDisabled

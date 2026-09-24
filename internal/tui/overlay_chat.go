@@ -1,44 +1,24 @@
 package tui
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"unicode"
 
 	"arcana-world/internal/danmaku"
-	"arcana-world/internal/i18n"
 	"arcana-world/internal/presentation"
-	tea "charm.land/bubbletea/v2"
 )
 
 const (
-	overlayChatLimit        = 6
-	overlayChatScanPages    = 4
-	overlayChatScanPageSize = 64
-	overlayChatTextLimit    = 200
-	overlayTitleLimit       = 200
+	overlayChatLimit     = 6
+	overlayChatTextLimit = 200
+	overlayTitleLimit    = 200
 )
 
-// 只缓存有界、已清理的事件文本，与 TUI 历史页的房间和翻页位置无关。
+// 浮层只投影主弹幕列表的快照，不单独读取或累积历史。
 type overlayChatState struct {
-	listener      *danmaku.Listener
-	history       *danmaku.History
-	account       string
-	generation    uint64
-	mode          string
-	room          int64
+	entries       []danmaku.Event
 	disabled      []string
-	active        bool
-	request       uint64
-	loading       bool
-	loaded        bool
-	revision      uint64
-	latest        uint64
-	lines         [overlayChatLimit]string
-	lineRoles     [overlayChatLimit]byte
-	count         int
-	readError     string
 	text          string
 	roles         string
 	cached        bool
@@ -50,145 +30,55 @@ type overlayChatState struct {
 	contentRoles  string
 }
 
-type overlayChatMsg struct {
-	request  uint64
-	revision uint64
-	latest   uint64
-	lines    [overlayChatLimit]string
-	roles    [overlayChatLimit]byte
-	count    int
-	err      error
-}
-
-// 渲染前也检查来源，先清除旧账号、房间或模式的文字，再等待异步读取。
 func (m *Model) syncOverlayChatSource() {
 	c := &m.overlayChat
+	var entries []danmaku.Event
 	mode := m.config.Overlay.Content
-	active := m.overlayEnabled && !m.config.DanmakuDisabled && (mode == "danmaku" || mode == "combined")
-	active = active && m.overlay != nil && (m.overlay.state == "starting" || m.overlay.state == "running")
-	var listener *danmaku.Listener
-	var history *danmaku.History
-	var account string
-	var room int64
-	var generation uint64
-	if m.account != nil {
-		account = m.account.UID
+	if m.overlayEnabled && !m.config.DanmakuDisabled && (mode == "danmaku" || mode == "combined") &&
+		m.overlay != nil && (m.overlay.state == "starting" || m.overlay.state == "running") && m.chat != nil {
+		entries = m.chat.entries
 	}
-	if active && account != "" && m.chat != nil {
-		listener, history = m.chat.listener, m.chat.history
-		if listener != nil && history != nil {
-			state := listener.Snapshot()
-			generation = state.Generation
-			if state.AccountUID == account {
-				room = state.RoomID
-			}
-		}
-	}
-	if c.listener == listener && c.history == history && c.account == account && c.generation == generation && c.mode == mode && c.room == room && c.active == active && slices.Equal(c.disabled, m.config.OverlayDisabledEvents) {
+	// 主列表每次接受查询结果都会替换快照；未变化时复用渲染文本。
+	if len(c.entries) == 0 && len(entries) == 0 {
 		return
 	}
-	request := c.request + 1
-	*c = overlayChatState{listener: listener, history: history, account: account, generation: generation, mode: mode, disabled: slices.Clone(m.config.OverlayDisabledEvents), room: room, active: active, request: request}
-}
-
-func (m *Model) updateOverlayChat() tea.Cmd {
-	m.syncOverlayChatSource()
-	c := &m.overlayChat
-	if !c.active || c.room <= 0 || c.listener == nil || c.history == nil || c.loading {
-		return nil
+	if len(entries) > 0 && len(c.entries) == len(entries) && &c.entries[0] == &entries[0] && slices.Equal(c.disabled, m.config.OverlayDisabledEvents) {
+		return
 	}
-	revision := c.listener.Snapshot().Revision
-	if c.loaded && c.revision == revision {
-		return nil
+	c.entries = entries
+	c.disabled = slices.Clone(m.config.OverlayDisabledEvents)
+	c.text, c.roles = "", ""
+	if len(entries) == 0 {
+		return
 	}
-	c.loading = true
-	c.request++
-	request, room, after, history := c.request, c.room, c.latest, c.history
-	disabled := c.disabled
-	return func() tea.Msg {
-		msg := overlayChatMsg{request: request, revision: revision, latest: after}
-		var before uint64
-		// 限制每次扫描量；密集通知下仍保留此前收集的事件。
-		for page := range overlayChatScanPages {
-			events, err := history.Page(room, before, overlayChatScanPageSize)
-			if err != nil {
-				msg.err = err
-				return msg
-			}
-			if len(events) == 0 {
-				break
-			}
-			if page == 0 {
-				msg.latest = max(after, events[0].Sequence)
-			}
-			for _, event := range events {
-				if event.Sequence <= after {
-					return msg
-				}
-				if event.Deleted || event.RoomID != room || !presentation.Enabled(disabled, event) {
-					continue
-				}
-				text := overlayChatPlain(presentation.RenderOverlay(event), overlayChatTextLimit)
-				if text == "" {
-					continue
-				}
-				msg.lines[msg.count] = text
-				msg.roles[msg.count] = presentation.OverlayRole(event)
-				msg.count++
-				if msg.count == overlayChatLimit {
-					return msg
-				}
-			}
-			before = events[len(events)-1].Sequence
-			if len(events) < overlayChatScanPageSize {
-				break
-			}
-		}
-		return msg
-	}
-}
-
-func (m *Model) handleOverlayChat(msg overlayChatMsg) tea.Cmd {
-	m.syncOverlayChatSource()
-	c := &m.overlayChat
-	if !c.loading || msg.request != c.request {
-		return nil
-	}
-	c.loading = false
-	if msg.err != nil {
-		if detail := msg.err.Error(); detail != c.readError {
-			c.readError = detail
-			m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayChatReadFailed), detail))
-		}
-		return nil
-	}
-	c.readError = ""
-	c.loaded, c.revision, c.latest = true, msg.revision, msg.latest
-	if msg.count == 0 {
-		return nil
-	}
-	keep := min(c.count, overlayChatLimit-msg.count)
-	copy(c.lines[msg.count:], c.lines[:keep])
-	copy(c.lines[:msg.count], msg.lines[:msg.count])
-	copy(c.lineRoles[msg.count:], c.lineRoles[:keep])
-	copy(c.lineRoles[:msg.count], msg.roles[:msg.count])
-	c.count = msg.count + keep
-	var b strings.Builder
+	var lines [overlayChatLimit]string
 	var roles [overlayChatLimit]byte
-	for i := c.count - 1; i >= 0; i-- {
+	count := 0
+	for _, event := range entries {
+		if event.Deleted || !presentation.Enabled(m.config.OverlayDisabledEvents, event) {
+			continue
+		}
+		text := overlayChatPlain(presentation.RenderOverlay(event), overlayChatTextLimit)
+		if text == "" {
+			continue
+		}
+		lines[count] = text
+		roles[count] = presentation.OverlayRole(event)
+		count++
+		if count == overlayChatLimit {
+			break
+		}
+	}
+	var b strings.Builder
+	var orderedRoles [overlayChatLimit]byte
+	for i := count - 1; i >= 0; i-- {
 		if b.Len() != 0 {
 			b.WriteByte('\n')
 		}
-		b.WriteString(c.lines[i])
-		role := c.lineRoles[i]
-		if role == 0 {
-			role = 'n'
-		}
-		roles[c.count-1-i] = role
+		b.WriteString(lines[i])
+		orderedRoles[count-1-i] = roles[i]
 	}
-	c.text = b.String()
-	c.roles = string(roles[:c.count])
-	return nil
+	c.text, c.roles = b.String(), string(orderedRoles[:count])
 }
 
 func (m *Model) overlayContentText() string {

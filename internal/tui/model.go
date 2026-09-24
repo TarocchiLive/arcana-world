@@ -261,7 +261,7 @@ func (m *Model) safe(s string) string {
 
 // 业务轮询始终运行；仅可见状态变化时才使整页缓存失效。
 func (m *Model) updatePolling() tea.Cmd {
-	cmds := []tea.Cmd{m.updateChat(), m.updateOverlayChat(), m.updateTTS(), m.updateAudience()}
+	cmds := []tea.Cmd{m.updateChat(), m.updateTTS(), m.updateAudience()}
 	m.publishOverlay()
 	if m.frame.base != "" && m.frame.poll == m.pollViewState() {
 		m.frame.reuse = true
@@ -423,8 +423,6 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		return m, m.handleOverlayStarted(msg)
 	case overlayStoppedMsg:
 		return m, m.handleOverlayStopped(msg)
-	case overlayChatMsg:
-		return m, m.handleOverlayChat(msg)
 	case ttsEventsMsg:
 		return m, m.handleTTSEvents(msg)
 	case chatPageMsg:

@@ -1,50 +1,74 @@
 package tui
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
-	"arcana-world/internal/domain"
-	"arcana-world/internal/store"
+	"arcana-world/internal/presentation"
 )
 
-func TestOverlayChatClearsSourceBeforeAcceptingDelayedResults(t *testing.T) {
-	m := &Model{
-		config:         store.DefaultConfig(),
-		account:        &domain.Account{UID: "first"},
-		overlayEnabled: true,
-		overlay:        &overlayRuntime{state: "running"},
+func TestOverlayChatFollowsMainSnapshot(t *testing.T) {
+	m := chatTestModel(t)
+	m.overlayEnabled = true
+	m.overlay = &overlayRuntime{state: "running"}
+	m.config.DanmakuLimit = 1
+	for n := range 15 {
+		appendChat(t, m, fmt.Sprintf("record-%02d", n))
 	}
-	m.syncOverlayChatSource()
-	m.overlayChat.loading = true
-	previous := overlayChatMsg{request: m.overlayChat.request, count: 1, lines: [overlayChatLimit]string{"first-account-only"}}
-	m.handleOverlayChat(previous)
-	if got := m.overlayContentText(); got != "first-account-only" {
-		t.Fatalf("initial chat not shown: %q", got)
+	assertSnapshot := func() {
+		t.Helper()
+		want := ""
+		if len(m.chat.entries) != 0 {
+			want = presentation.RenderOverlay(m.chat.entries[0])
+		}
+		if got := m.overlayContentText(); got != want {
+			t.Fatalf("overlay diverged from main snapshot: got %q, want %q", got, want)
+		}
 	}
+	// 尚未加载主列表时，浮层不能自行补入历史。
+	assertSnapshot()
+	runChatCommand(m, m.readChat())
+	assertSnapshot()
+	appendChat(t, m, "new-message")
+	// 存储已变化，但两端必须等待同一份快照。
+	assertSnapshot()
+	runChatCommand(m, m.readChat())
+	assertSnapshot()
+	m.config.OverlayDisabledEvents = []string{"chat"}
+	if got := m.overlayContentText(); got != "" {
+		t.Fatalf("filtered chat remained visible: %q", got)
+	}
+	m.config.OverlayDisabledEvents = nil
+	assertSnapshot()
+	m.overlayEnabled = false
+	if got := m.overlayContentText(); got != "" {
+		t.Fatalf("disabled overlay retained chat: %q", got)
+	}
+	m.overlayEnabled = true
+	assertSnapshot()
+	m.chat.entries = nil
+	assertSnapshot()
+}
 
-	// 旧历史请求尚未返回时切换账号。
-	m.account = &domain.Account{UID: "second"}
-	if got := m.overlayContentText(); got != "" {
-		t.Fatalf("old account remained visible during switch: %q", got)
+func TestOverlayChatRemovesWithdrawnMessages(t *testing.T) {
+	m := chatTestModel(t)
+	m.overlayEnabled = true
+	m.overlay = &overlayRuntime{state: "running"}
+	appendRaw := func(raw string) {
+		t.Helper()
+		if _, err := m.chat.history.Append(1, json.RawMessage(raw)); err != nil {
+			t.Fatal(err)
+		}
+		runChatCommand(m, m.readChat())
 	}
-	m.overlayChat.loading = true
-	m.handleOverlayChat(previous)
-	if got := m.overlayContentText(); got != "" {
-		t.Fatalf("late result restored old account text: %q", got)
+	appendRaw(`{"cmd":"SUPER_CHAT_MESSAGE","data":{"id":42,"uid":7,"price":30,"message":"withdraw-me","user_info":{"uname":"viewer"}}}`)
+	if got := m.overlayContentText(); !strings.Contains(got, "withdraw-me") {
+		t.Fatalf("SC missing before withdrawal: %q", got)
 	}
-	current := overlayChatMsg{request: m.overlayChat.request, count: 1, lines: [overlayChatLimit]string{"second-account-only"}}
-	m.handleOverlayChat(current)
-	if got := m.overlayContentText(); got != "second-account-only" {
-		t.Fatalf("current account result was lost: %q", got)
-	}
-
-	m.config.DanmakuDisabled = true
-	if got := m.overlayContentText(); got != "" {
-		t.Fatalf("disabled chat remained visible: %q", got)
-	}
-	m.handleOverlayChat(current)
-	if got := m.overlayContentText(); strings.Contains(got, "account-only") {
-		t.Fatalf("late result bypassed chat disable: %q", got)
+	appendRaw(`{"cmd":"SUPER_CHAT_MESSAGE_DELETE","data":{"ids":[42]}}`)
+	if got := m.overlayContentText(); strings.Contains(got, "withdraw-me") {
+		t.Fatalf("withdrawn SC remained visible: %q", got)
 	}
 }

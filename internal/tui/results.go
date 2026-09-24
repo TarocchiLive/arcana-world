@@ -37,7 +37,7 @@ func (m *Model) resultError(label i18n.Key, err error) (tea.Cmd, bool) {
 }
 func (m *Model) finishResult() tea.Cmd {
 	m.view.SetContent(m.content())
-	return m.updateOverlayChat()
+	return nil
 }
 
 // 仅返回完成状态的操作共用错误处理与成功提示。

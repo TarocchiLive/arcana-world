@@ -4,6 +4,20 @@
 
 Versions are listed newest first.
 
+## [v0.3.0-alpha.4]: 2026-09-25 (prerelease)
+
+### Added
+
+- Add “Ignore myself in viewer list” to Settings, enabled by default. Viewer counts exclude the current account, and viewer details hide it. Turning this off restores the original counts and list; Fleet is unchanged.
+
+### Fixed
+
+- Share the same data and refresh results between the overlay and the TUI main chat list, without loading extra history. Startup messages, new arrivals, Super Chat withdrawals, and removal of older entries now update together. Keep independent overlay event filtering and the six-event display limit.
+
+### Upgrade notes
+
+- Replace both the main executable and the complete `libexec` directory. Back up the data directory before upgrading; history databases upgraded by 0.3.0 alpha cannot be used directly with 0.2.x.
+
 ## [v0.3.0-alpha.3]: 2026-09-24 (prerelease)
 
 ### Changed
@@ -298,3 +312,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.2.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.2
 [v0.3.0-alpha.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.2
 [v0.3.0-alpha.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.3
+[v0.3.0-alpha.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.4

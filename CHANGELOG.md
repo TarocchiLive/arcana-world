@@ -4,6 +4,20 @@
 
 版本按时间倒序记录。
 
+## [v0.3.0-alpha.4]：2026-09-25（预发布）
+
+### 新增
+
+- 设置新增默认开启的「观众列表忽略自己」：观众人数扣除自身，观众详情隐藏当前账号；关闭后恢复原始人数和名单，大航海名单不受影响。
+
+### 修复
+
+- 浮层与 TUI 主弹幕列表共用同一份数据和刷新结果，不再单独补读历史；启动范围、新消息、SC 撤回和旧记录淘汰同步更新。保留浮层独立事件筛选和最多六条的展示限制。
+
+### 升级提示
+
+- 请完整替换发行包中的主程序和 `libexec` 目录。升级前建议备份数据目录；0.3.0 alpha 升级后的历史库不支持直接降级到 0.2.x。
+
 ## [v0.3.0-alpha.3]：2026-09-24（预发布）
 
 ### 改进
@@ -298,3 +312,4 @@
 [v0.2.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.2
 [v0.3.0-alpha.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.2
 [v0.3.0-alpha.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.3
+[v0.3.0-alpha.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.4
