@@ -56,6 +56,5 @@
   "overlay.ui.right": "右侧居中",
   "overlay.ui.bottom_left": "左下",
   "overlay.ui.bottom": "下方居中",
-  "overlay.ui.bottom_right": "右下",
-  "overlay.log.chat_read_failed": "浮层事件读取失败：%s"
+  "overlay.ui.bottom_right": "右下"
 }

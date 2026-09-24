@@ -30,7 +30,7 @@ func (m *Model) handleSettingsResetResult(value *bili.Client, err error, label i
 	}
 	m.syncChat()
 	m.log(i18n.T(i18n.TUISettingsResetDone))
-	return tea.Batch(m.stopOverlay(), m.updateOverlayChat())
+	return m.stopOverlay()
 }
 
 func configOperation() operation[*bili.Client] {
@@ -101,7 +101,7 @@ func (m *Model) handleOverlayConfigResult(_ struct{}, err error, label i18n.Key)
 		return cmd
 	}
 	m.applyOverlaySettings(i18n.TUILogSettingsSaved)
-	return m.updateOverlayChat()
+	return nil
 }
 
 func (m *Model) handleOverlayToggleResult(_ struct{}, err error, label i18n.Key) tea.Cmd {
@@ -116,7 +116,7 @@ func (m *Model) handleOverlayToggleResult(_ struct{}, err error, label i18n.Key)
 	} else {
 		cmd = m.stopOverlay()
 	}
-	return tea.Batch(cmd, m.updateOverlayChat())
+	return cmd
 }
 
 func (m *Model) handleOverlayRestoreResult(_ struct{}, err error, label i18n.Key) tea.Cmd {
@@ -129,7 +129,7 @@ func (m *Model) handleOverlayRestoreResult(_ struct{}, err error, label i18n.Key
 		return cmd
 	}
 	m.applyOverlaySettings(i18n.TUIOverlayRestoreDone)
-	return m.updateOverlayChat()
+	return nil
 }
 
 var (

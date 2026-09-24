@@ -56,6 +56,5 @@
   "overlay.ui.right": "Center right",
   "overlay.ui.bottom_left": "Bottom left",
   "overlay.ui.bottom": "Bottom center",
-  "overlay.ui.bottom_right": "Bottom right",
-  "overlay.log.chat_read_failed": "Overlay event read failed: %s"
+  "overlay.ui.bottom_right": "Bottom right"
 }
