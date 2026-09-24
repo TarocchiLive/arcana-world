@@ -4,24 +4,32 @@
 
 Versions are listed newest first.
 
-## Unreleased
+## [v0.3.0-alpha.2]: 2026-09-24 (prerelease)
 
 ### Added
 
+- Add Viewers (`u`) and Fleet (`g`) pages to Chat, with clickable entries, refresh, scrolling, and up to 20 users each. Viewers shows contribution scores; Fleet lists paid members and Governor, Admiral, or Captain tiers whether present or not. Show fan medals and hide UIDs for anonymous members.
+- Add moderator (`m`) and live-room blocklist (`b`) menus for listing users, appointing or dismissing moderators, and applying or lifting permanent room mutes. Look up a username or UID, check the avatar and identity, then confirm the action. Record results without changing the account blocklist.
+- Click a chat speaker's name to view their avatar, fan medal, and UID in a popup. Mute them for one hour, add them to the room blocklist, appoint them as moderator, or open their profile. The first three actions require confirmation; dragging a name still selects text.
 - Show the viewer count beside live status, refreshed every 30 seconds, with an unknown state when unavailable.
-- Add moderator and blocklist menus to Chat for listing users, appointing or dismissing moderators, and applying or lifting permanent room mutes. Look up a username or UID to open confirmation directly. All four actions show a small avatar, name, and UID inside the dialog and record results in logs without changing the account blocklist.
-- Add separate clickable Viewers (`u`) and Fleet (`g`) entries to Chat, each showing up to 20 users. Viewers shows contribution scores; Fleet lists paid members whether present or not. Show Governor, Admiral, and Captain tiers and fan medals, hiding UIDs for anonymous members. Refresh and scroll either list while preserving the chat draft and reading position on return.
-- Click a chat speaker's name to open a popup with their avatar, name, worn fan medal and UID. Mute them for 1 hour, add them to the room blocklist, appoint them as moderator, or open their profile. The first three actions require confirmation. Dragging a name still selects text; closing the popup preserves the draft and reading position.
+
+### Changed
+
+- Use native Kitty/Ghostty graphics for square avatars in profiles and confirmation dialogs, sized to terminal cell pixels, with character previews on other terminals. Failed avatar loads do not prevent confirmation by name and UID; clear images when closing popups or exiting.
+- Consolidate usage instructions in the in-app Help and `--help`, with additional guidance on OBS connections, chat controls, and data directories.
 
 ### Fixed
 
 - Fix missing left borders, shifted input cursors, and misaligned notifications on 32-bit platforms, including Windows 386.
-- Use native Kitty/Ghostty graphics for square avatars about four rows high, sized using terminal cell pixels. Fall back to character previews when unavailable and clear images when closing or switching dialogs.
-- Allow confirmation by name and UID when an avatar fails to load. Release the session lock before viewer-count requests so they cannot delay stopping a stream.
-- Fix historical name clicks opening the wrong speaker after live messages arrive. Preserve historical content and reading position when closing the speaker popup.
-- Explain which data directory is occupied and how to proceed when another instance is running, instead of showing only `timeout`.
-- Fix chat loading being blocked when expired history records have lost their original message references. Remove only expired records and preserve data within the retention period.
-- Fix stale viewer counts after returning to a room, reading-position jumps after closing member lists or speaker popups, and repeated confirmation or cancellation state in moderation actions.
+- Fix historical name clicks targeting the wrong user after live messages arrive. Preserve drafts, historical content, and reading position when closing member lists or speaker popups.
+- Fix stale viewer counts after returning to a room and moderation state after repeated confirmation or cancellation. Viewer-count requests no longer block other broadcast operations.
+- Fix expired history cleanup failures preventing chat from loading.
+- Identify the data directory and explain how to proceed when another instance is using it.
+
+### Upgrade notes
+
+- This is the second 0.3.0 alpha prerelease. Replace both the main executable and the complete `libexec` directory.
+- Back up the data directory before upgrading. The upgraded history database cannot be used directly with 0.2.x.
 
 ## [v0.2.2]: 2026-09-24
 
@@ -282,3 +290,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.1.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.1.4
 [v0.1.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.1.3
 [v0.2.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2.2
+[v0.3.0-alpha.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.2
