@@ -14,6 +14,7 @@ Versions are listed newest first.
 ### Fixed
 
 - Reject attempts to mute the signed-in account with a clear explanation. For mute API code `100004`, suggest checking the target and moderation permissions while retaining the code and keeping raw responses private.
+- Keep public UIDs visible in logs and status messages so operation targets can be identified. Login credentials and stream keys remain hidden.
 
 ## [v0.3.0-alpha.4]: 2026-09-25 (prerelease)
 

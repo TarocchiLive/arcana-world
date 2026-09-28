@@ -247,8 +247,9 @@ func clean(s string) string {
 }
 func (m *Model) safe(s string) string {
 	if m.account != nil {
-		for _, v := range m.account.Cookies {
-			if v != "" {
+		for name, v := range m.account.Cookies {
+			// UID 是公开身份信息，保留它以便核对操作目标。
+			if name != "DedeUserID" && v != "" {
 				s = strings.ReplaceAll(s, v, i18n.T(i18n.TUISecurityHidden))
 			}
 		}
