@@ -4,6 +4,23 @@
 
 版本按时间倒序记录。
 
+## [v0.3.0-rc.1]：2026-09-28（预发布）
+
+### 改进
+
+- 黑名单接入直播拉黑、名单查询和解除拉黑，确认时提示解除关系及限制互动的影响。
+- 禁言支持自定义正整数小时数或永久禁言，执行前确认时长。弹幕页新增独立禁言管理入口（`s`），支持查看名单和解除禁言；黑名单仍使用 `b`。
+- 将应用配置移至独立包，解除基础领域类型、B 站 API 和 OBS 对浮层与 TTS 的间接依赖；配置文件格式和默认值不变。
+
+### 修复
+
+- 禁止对当前登录账号执行禁言，并显示明确原因；禁言接口返回 `100004` 时提示检查目标身份和管理权限，保留错误码且不暴露原始响应。
+- 日志和状态提示保留公开 UID，便于核对操作目标；登录凭据和推流密钥仍隐藏。
+
+### 升级提示
+
+- 请完整替换发行包中的主程序和 `libexec` 目录。升级前建议备份数据目录；0.3.0 升级后的历史库不支持直接降级到 0.2.x。
+
 ## [v0.3.0-alpha.4]：2026-09-25（预发布）
 
 ### 新增
@@ -313,3 +330,4 @@
 [v0.3.0-alpha.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.2
 [v0.3.0-alpha.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.3
 [v0.3.0-alpha.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.4
+[v0.3.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-rc.1

@@ -31,6 +31,8 @@ type chatSpeaker struct {
 	action      int
 	pending     bool
 	result      string
+	hours       int64
+	draft       string
 }
 
 type speakerAvatarMsg struct {
@@ -211,9 +213,34 @@ func (m *Model) chooseChatSpeaker() tea.Cmd {
 	if !m.requireRoom() {
 		return nil
 	}
+	if s.action == 0 {
+		return m.pickMuteDuration()
+	}
+	return m.confirmChatSpeaker()
+}
+
+func (m *Model) confirmChatSpeaker() tea.Cmd {
+	s := m.speaker
+	if !m.speakerValid(s) {
+		return m.closeChatSpeaker()
+	}
 	key := [...]i18n.Key{i18n.SpeakerConfirmMute, i18n.SpeakerConfirmBlock, i18n.SpeakerConfirmAdmin}[s.action]
+	prompt := fmt.Sprintf(i18n.T(key), selectionText(s.event.User), s.uid)
+	if s.action == 0 {
+		prompt += "\n" + muteDurationLabel(s.hours)
+	}
+	if s.action == 1 {
+		prompt += "\n" + i18n.T(i18n.ModerationBlockWarning)
+	}
 	s.pending = true
-	return m.confirm(fmt.Sprintf(i18n.T(key), selectionText(s.event.User), s.uid), "speaker-apply")
+	return m.confirm(prompt, "speaker-apply")
+}
+
+func (m *Model) speakerConfirmationBack() tea.Cmd {
+	if m.speakerValid(m.speaker) && m.speaker.action == 0 {
+		return m.pickMuteDuration()
+	}
+	return m.returnChatSpeaker()
 }
 
 func (m *Model) applyChatSpeaker() tea.Cmd {
@@ -221,7 +248,7 @@ func (m *Model) applyChatSpeaker() tea.Cmd {
 	if !m.speakerValid(s) || !s.pending || m.confirmAction != "speaker-apply" || m.selected != 1 || s.action < 0 || s.action > 2 || m.busy {
 		return m.closeChatSpeaker()
 	}
-	action := s.action
+	action, hours := s.action, s.hours
 	s.pending = false
 	m.mode = "speaker"
 	op := operation[struct{}]{label: speakerActionLabel(action), handle: func(m *Model, _ struct{}, err error, label i18n.Key) tea.Cmd {
@@ -240,7 +267,7 @@ func (m *Model) applyChatSpeaker() tea.Cmd {
 		var err error
 		switch action {
 		case 0:
-			err = s.client.MuteRoomUser(ctx, s.roomID, s.uid)
+			err = s.client.MuteRoomUser(ctx, s.roomID, s.uid, hours)
 		case 1:
 			err = s.client.AddRoomBlock(ctx, s.roomID, s.uid)
 		case 2:

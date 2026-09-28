@@ -145,6 +145,8 @@ func (m *Model) applyChatPage(msg chatPageMsg) tea.Cmd {
 		reader, follow = &s.returnView, s.returnBottom
 	} else if s := m.speaker; s != nil && s.parentMode == "" {
 		reader, follow = &s.parentView, s.parentView.AtBottom()
+	} else if s := m.moderation; s != nil {
+		reader, follow = &s.parentView, s.parentView.AtBottom()
 	}
 	mainReader := mainVisible || reader != &m.view
 	offset := reader.YOffset()
@@ -184,6 +186,9 @@ func (m *Model) chatKey(key string) (bool, tea.Cmd) {
 	}
 	if key == "b" {
 		return true, m.openModeration(moderationBlocks)
+	}
+	if key == "s" {
+		return true, m.openModeration(moderationMutes)
 	}
 	if m.chat == nil {
 		return false, nil

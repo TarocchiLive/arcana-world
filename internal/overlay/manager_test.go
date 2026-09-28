@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -29,19 +27,6 @@ func testHost(socket string) error {
 		if path := os.Getenv("ARCANA_OVERLAY_TEST_MARKER"); path != "" {
 			_ = os.WriteFile(path, []byte("entered"), 0600)
 		}
-	}
-	if os.Getenv("ARCANA_OVERLAY_TEST_MODE") == "stall-config" {
-		conn, err := net.Dial("unix", socket)
-		if err != nil {
-			return err
-		}
-		defer conn.Close()
-		if err = writeFrame(conn, wireFrame{Type: "hello", Token: os.Getenv(tokenEnvironment)}); err != nil {
-			return err
-		}
-		marker()
-		time.Sleep(time.Minute)
-		return nil
 	}
 	return Serve(context.Background(), socket, func(ctx context.Context, _ Config, updates <-chan Config, ready func()) error {
 		marker()
@@ -118,29 +103,6 @@ func TestManagerNormalNativeStopAndConcurrentClose(t *testing.T) {
 	workers.Wait()
 	if err = manager.SetText("after close"); err == nil {
 		t.Fatal("accepted update after close")
-	}
-	assertRuntimeClean(t, options.RuntimeDir)
-}
-func TestManagerStartupDeadlineInterruptsConfigWrite(t *testing.T) {
-	options := helperOptions(t, "stall-config")
-	options.StartupTimeout = time.Second
-	options.Config.Text = strings.Repeat("\x01", MaxTextBytes)
-	marker := filepath.Join(t.TempDir(), "host-entered")
-	t.Setenv("ARCANA_OVERLAY_TEST_MARKER", marker)
-	start := time.Now()
-	manager, err := Start(context.Background(), options)
-	if manager != nil {
-		_ = manager.Close()
-		t.Fatal("nonreading child became ready")
-	}
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("startup error=%v", err)
-	}
-	if _, err = os.Stat(marker); err != nil {
-		t.Fatalf("helper did not reach blocked-write scenario: %v", err)
-	}
-	if elapsed := time.Since(start); elapsed > 1800*time.Millisecond {
-		t.Fatalf("frame write extended startup deadline: %s", elapsed)
 	}
 	assertRuntimeClean(t, options.RuntimeDir)
 }

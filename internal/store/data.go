@@ -6,14 +6,15 @@ import (
 	"os"
 	"strings"
 
-	"arcana-world/internal/domain"
+	"arcana-world/internal/config"
 	"arcana-world/internal/i18n"
+
 	"github.com/zalando/go-keyring"
 )
 
 // ResetSettings 重置应用、浮层和语音偏好，保留凭据、OBS 连接设置、
 // 账号选择和历史记录。
-func (s *Store) ResetSettings() (domain.Config, error) {
+func (s *Store) ResetSettings() (config.Config, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := clone(s.config)
@@ -32,7 +33,7 @@ func (s *Store) ResetSettings() (domain.Config, error) {
 	c.OverlayDisabledEvents = d.OverlayDisabledEvents
 	c.TTS = d.TTS
 	if err := s.persist(c); err != nil {
-		return domain.Config{}, err
+		return config.Config{}, err
 	}
 	s.config = c
 	return s.overrides.Apply(c), nil

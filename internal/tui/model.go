@@ -10,6 +10,7 @@ import (
 
 	"arcana-world/internal/app"
 	"arcana-world/internal/bili"
+	"arcana-world/internal/config"
 	"arcana-world/internal/coverimage"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
@@ -17,6 +18,7 @@ import (
 	"arcana-world/internal/obs"
 	"arcana-world/internal/overlay"
 	"arcana-world/internal/store"
+
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
@@ -67,7 +69,7 @@ type Model struct {
 	ctx                    context.Context
 	store                  *store.Store
 	client                 *bili.Client
-	config                 domain.Config
+	config                 config.Config
 	theme                  tuiTheme
 	themeID                string
 	darkBackground         bool
@@ -247,8 +249,9 @@ func clean(s string) string {
 }
 func (m *Model) safe(s string) string {
 	if m.account != nil {
-		for _, v := range m.account.Cookies {
-			if v != "" {
+		for name, v := range m.account.Cookies {
+			// UID 是公开身份信息，保留它以便核对操作目标。
+			if name != "DedeUserID" && v != "" {
 				s = strings.ReplaceAll(s, v, i18n.T(i18n.TUISecurityHidden))
 			}
 		}
@@ -592,7 +595,10 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.speakerKey(msg)
 	}
 	if m.mode == "confirm" && m.confirmAction == "speaker-apply" && msg.String() == "esc" {
-		return m.returnChatSpeaker()
+		return m.speakerConfirmationBack()
+	}
+	if msg.String() == "esc" && (m.mode == "pick" || m.mode == "form") && (m.editKind == "mute-duration" || m.editKind == "mute-hours") {
+		return m.muteDurationBack()
 	}
 	if msg.String() == "esc" && m.moderation != nil {
 		if m.mode == "confirm" && m.confirmAction == "moderation-apply" {
@@ -601,9 +607,17 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 		if (m.mode == "pick" || m.mode == "form") && strings.HasPrefix(m.editKind, "moderation-") {
 			m.input.Blur()
 			if m.editKind == "moderation-menu" {
+				m.view = m.moderation.parentView
+				if m.chat != nil {
+					m.chat.scrollToLatest = m.view.AtBottom()
+					m.chat.shown = true
+				}
 				m.moderation = nil
 				m.mode = ""
 				return nil
+			}
+			if m.editKind == "moderation-search" {
+				m.moderation.query = m.input.Value()
 			}
 			return m.moderationMenu()
 		}
@@ -694,7 +708,7 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 				return m.perform(action)
 			}
 			if action == "speaker-apply" {
-				return m.returnChatSpeaker()
+				return m.speakerConfirmationBack()
 			}
 			if action == "moderation-apply" {
 				return m.moderationBack()

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"arcana-world/internal/config"
 	"arcana-world/internal/i18n"
 
 	"crypto/sha256"
@@ -16,6 +17,7 @@ import (
 	"arcana-world/internal/domain"
 	"arcana-world/internal/overlay"
 	"arcana-world/internal/tts"
+
 	"github.com/zalando/go-keyring"
 )
 
@@ -44,17 +46,17 @@ type Store struct {
 	mu        sync.Mutex
 	dir       string
 	backend   Backend
-	config    domain.Config
+	config    config.Config
 	overrides ConfigOverrides
 	closed    bool
 }
 
 // DefaultConfig 返回新配置和设置重置所用的默认值。
-func DefaultConfig() domain.Config {
-	return domain.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", OBSAutoConnect: true, OBSAutoStream: true, DanmakuLimit: 30, Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
+func DefaultConfig() config.Config {
+	return config.Config{Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", OBSAutoConnect: true, OBSAutoStream: true, DanmakuLimit: 30, Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
 }
 
-func applyConfigDefaults(c *domain.Config) {
+func applyConfigDefaults(c *config.Config) {
 	defaults := DefaultConfig()
 	if c.Protocol == "" {
 		c.Protocol = defaults.Protocol
@@ -150,23 +152,23 @@ func openStore(dir string) (*Store, error) {
 
 // ReadConfig 加载并校验设置，不创建文件、更改权限，
 // 也不访问凭据存储。配置不存在时使用默认值。
-func ReadConfig(dir string) (domain.Config, error) {
+func ReadConfig(dir string) (config.Config, error) {
 	dir, err := ResolveDir(dir)
 	if err != nil {
-		return domain.Config{}, err
+		return config.Config{}, err
 	}
 	info, err := os.Lstat(dir)
 	if errors.Is(err, os.ErrNotExist) {
 		return DefaultConfig(), nil
 	}
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return domain.Config{}, errors.New(i18n.T(i18n.StoreConfigDirectoryRequired))
+		return config.Config{}, errors.New(i18n.T(i18n.StoreConfigDirectoryRequired))
 	}
 	c, _, err := readConfig(dir, false)
 	return c, err
 }
 
-func readConfig(dir string, secure bool) (domain.Config, bool, error) {
+func readConfig(dir string, secure bool) (config.Config, bool, error) {
 	c := DefaultConfig()
 	path := filepath.Join(dir, "config.json")
 	info, err := os.Lstat(path)
@@ -174,31 +176,31 @@ func readConfig(dir string, secure bool) (domain.Config, bool, error) {
 		return c, true, nil
 	}
 	if err != nil || !info.Mode().IsRegular() {
-		return domain.Config{}, false, errors.New(i18n.T(i18n.StoreConfigRegularFileRequired))
+		return config.Config{}, false, errors.New(i18n.T(i18n.StoreConfigRegularFileRequired))
 	}
 	if secure {
 		if err := os.Chmod(path, 0600); err != nil {
-			return domain.Config{}, false, errors.New(i18n.T(i18n.StoreConfigFileSecureFailed))
+			return config.Config{}, false, errors.New(i18n.T(i18n.StoreConfigFileSecureFailed))
 		}
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return domain.Config{}, false, errors.New(i18n.T(i18n.StoreConfigReadFailed))
+		return config.Config{}, false, errors.New(i18n.T(i18n.StoreConfigReadFailed))
 	}
 	if err = json.Unmarshal(data, &c); err != nil {
-		return domain.Config{}, false, errors.New(i18n.T(i18n.StoreConfigJsonInvalid))
+		return config.Config{}, false, errors.New(i18n.T(i18n.StoreConfigJsonInvalid))
 	}
 	if c.Overlay, err = c.Overlay.Normalize(); err != nil {
-		return domain.Config{}, false, err
+		return config.Config{}, false, err
 	}
 	if c.TTS, err = c.TTS.Normalize(); err != nil {
-		return domain.Config{}, false, err
+		return config.Config{}, false, err
 	}
 	applyConfigDefaults(&c)
 	seen := make(map[string]bool, len(c.Accounts))
 	for _, a := range c.Accounts {
 		if strings.TrimSpace(a.UID) == "" || seen[a.UID] {
-			return domain.Config{}, false, errors.New(i18n.T(i18n.StoreAccountIndexInvalid))
+			return config.Config{}, false, errors.New(i18n.T(i18n.StoreAccountIndexInvalid))
 		}
 		seen[a.UID] = true
 	}
@@ -206,7 +208,7 @@ func readConfig(dir string, secure bool) (domain.Config, bool, error) {
 }
 
 func (s *Store) Dir() string { return s.dir }
-func clone(c domain.Config) domain.Config {
+func clone(c config.Config) config.Config {
 	c.Accounts = append([]domain.AccountInfo(nil), c.Accounts...)
 	c.RecentTitles = append([]string(nil), c.RecentTitles...)
 	c.RecentAreas = append([]domain.Area(nil), c.RecentAreas...)
@@ -217,7 +219,7 @@ func clone(c domain.Config) domain.Config {
 	c.TTS.DisabledEvents = append([]string(nil), c.TTS.DisabledEvents...)
 	return c
 }
-func (s *Store) Config() domain.Config {
+func (s *Store) Config() config.Config {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.overrides.Apply(s.config)
@@ -225,7 +227,7 @@ func (s *Store) Config() domain.Config {
 func (s *Store) Accounts() []domain.AccountInfo { return s.Config().Accounts }
 
 // SaveConfig 保留由凭据存储支持的账号索引；请使用 Save/Delete 修改索引。
-func (s *Store) SaveConfig(c domain.Config) error {
+func (s *Store) SaveConfig(c config.Config) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -355,7 +357,7 @@ func (s *Store) Delete(uid string) error {
 
 // commitCredentialsLocked 在凭据变更和索引持久化都成功后发布配置。
 // change 为 nil 表示凭据原本不存在，不执行变更或补偿。
-func (s *Store) commitCredentialsLocked(c domain.Config, user, old string, exists bool, change func() error) error {
+func (s *Store) commitCredentialsLocked(c config.Config, user, old string, exists bool, change func() error) error {
 	if change != nil {
 		if err := change(); err != nil {
 			return err
@@ -407,7 +409,7 @@ func (s *Store) SetOBSSecret(password string) error {
 }
 
 // 重命名是提交点：此前发生的错误不会影响原有索引。
-func (s *Store) persist(c domain.Config) error {
+func (s *Store) persist(c config.Config) error {
 	if s.closed {
 		return errors.New(i18n.T(i18n.StoreCleared))
 	}

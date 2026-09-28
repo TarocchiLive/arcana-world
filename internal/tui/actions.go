@@ -9,8 +9,10 @@ import (
 
 	"arcana-world/internal/app"
 	"arcana-world/internal/bili"
+	"arcana-world/internal/config"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
+
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 )
@@ -391,6 +393,9 @@ func (m *Model) choose() tea.Cmd {
 		return nil
 	}
 	ch := m.choices[m.selected]
+	if m.editKind == "mute-duration" {
+		return m.chooseMuteDuration(ch.value)
+	}
 	if strings.HasPrefix(m.editKind, "moderation-") {
 		return m.chooseModeration(ch.value)
 	}
@@ -443,6 +448,9 @@ func (m *Model) setArea(a domain.Area) tea.Cmd {
 func (m *Model) submitForm() tea.Cmd {
 	value := strings.TrimSpace(m.input.Value())
 	kind := m.editKind
+	if kind == "mute-hours" {
+		return m.submitMuteHours()
+	}
 	if kind == "moderation-search" {
 		if value == "" {
 			m.warnStatus(i18n.T(i18n.ModerationSearchRequired))
@@ -555,7 +563,7 @@ func (m *Model) submitForm() tea.Cmd {
 	}
 	return nil
 }
-func (m *Model) saveConfig(cfg domain.Config, replaceClient bool) tea.Cmd {
+func (m *Model) saveConfig(cfg config.Config, replaceClient bool) tea.Cmd {
 	if replaceClient {
 		return m.rebuildClientAndSave(configOperation(), cfg.Proxy, func() error { return m.store.SaveConfig(cfg) })
 	}

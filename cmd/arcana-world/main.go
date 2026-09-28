@@ -21,7 +21,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-var version = "0.3.0-alpha.4"
+var version = "0.3.0-rc.1"
 
 func run() (err error) {
 	return runArgs(os.Args[1:])

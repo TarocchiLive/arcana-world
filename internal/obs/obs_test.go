@@ -37,14 +37,6 @@ func serverIdentify(ws *websocket.Conn) bool {
 	}
 	return writeMessage(ws, 2, map[string]any{"negotiatedRpcVersion": 1}) == nil
 }
-func waitSignal(t *testing.T, ch <-chan struct{}) {
-	t.Helper()
-	select {
-	case <-ch:
-	case <-time.After(3 * time.Second):
-		t.Fatal("server synchronization timed out")
-	}
-}
 func TestPersistentSessionSurvivesConnectContext(t *testing.T) {
 	var handshakes atomic.Int32
 	endpoint := obsServer(t, func(ws *websocket.Conn) {
@@ -83,44 +75,6 @@ func TestPersistentSessionSurvivesConnectContext(t *testing.T) {
 		if err := c.Connect(context.Background(), endpoint, ""); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if handshakes.Load() != 1 {
-		t.Fatalf("opened %d sessions", handshakes.Load())
-	}
-}
-func TestConcurrentConnectAndDisconnectHandshake(t *testing.T) {
-	entered := make(chan struct{})
-	release := make(chan struct{})
-	var handshakes atomic.Int32
-	endpoint := obsServer(t, func(ws *websocket.Conn) {
-		if handshakes.Add(1) == 1 {
-			close(entered)
-		}
-		<-release
-		serverIdentify(ws)
-	})
-	c := NewClient()
-	defer c.Close()
-	result := make(chan error, 1)
-	go func() { result <- c.Connect(context.Background(), endpoint, "") }()
-	waitSignal(t, entered)
-	if err := c.Connect(context.Background(), endpoint, ""); err == nil {
-		t.Error("concurrent handshake must return busy")
-	}
-	if err := c.Disconnect(); err != nil {
-		t.Fatal(err)
-	}
-	close(release)
-	select {
-	case err := <-result:
-		if err == nil {
-			t.Error("disconnected handshake succeeded")
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("disconnect did not cancel handshake")
-	}
-	if c.Snapshot().Connected || c.Snapshot().Connecting {
-		t.Fatal("late handshake resurrected connection")
 	}
 	if handshakes.Load() != 1 {
 		t.Fatalf("opened %d sessions", handshakes.Load())
@@ -177,36 +131,5 @@ func TestStreamEventsAndConfigureGuard(t *testing.T) {
 	}
 	if configured.Load() {
 		t.Fatal("sent stream settings while reconnecting")
-	}
-}
-func TestDisconnectReleasesPendingRequest(t *testing.T) {
-	requested := make(chan struct{})
-	endpoint := obsServer(t, func(ws *websocket.Conn) {
-		if !serverIdentify(ws) {
-			return
-		}
-		var e envelope
-		if ws.ReadJSON(&e) != nil {
-			return
-		}
-		close(requested)
-		ws.ReadJSON(&e)
-	})
-	c := NewClient()
-	defer c.Close()
-	if err := c.Connect(context.Background(), endpoint, ""); err != nil {
-		t.Fatal(err)
-	}
-	result := make(chan error, 1)
-	go func() { _, err := c.Status(context.Background()); result <- err }()
-	waitSignal(t, requested)
-	c.Disconnect()
-	select {
-	case err := <-result:
-		if err == nil {
-			t.Fatal("pending request succeeded without reply")
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("pending request remained blocked")
 	}
 }

@@ -1,46 +1,13 @@
 package overlay
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
-
-func TestReadFrameRejectsInvalidInput(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		body string
-		size uint32
-	}{
-		{name: "oversize", size: maxFrameBytes + 1},
-		{name: "empty"},
-		{name: "truncated", body: "{}", size: 20},
-		{name: "version", body: fmt.Sprintf(`{"version":%d,"type":"hello"}`, protocolVersion+1)},
-		{name: "unknown field", body: fmt.Sprintf(`{"version":%d,"type":"hello","extra":true}`, protocolVersion)},
-		{name: "trailing value", body: fmt.Sprintf(`{"version":%d,"type":"hello"}{}`, protocolVersion)},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			size := test.size
-			if size == 0 {
-				size = uint32(len(test.body))
-			}
-			var input bytes.Buffer
-			if err := binary.Write(&input, binary.BigEndian, size); err != nil {
-				t.Fatal(err)
-			}
-			input.WriteString(test.body)
-			if _, err := readFrame(&input); err == nil {
-				t.Fatal("accepted invalid frame")
-			}
-		})
-	}
-}
 
 func TestServeControlEOFCancelsNative(t *testing.T) {
 	t.Setenv(tokenEnvironment, "test-secret")

@@ -1,6 +1,8 @@
 {
   "bili.api_http_status": "API HTTP status %d",
   "bili.api_operation_failed": "%s failed (Bilibili code %d)",
+  "bili.mute_rejected": "Bilibili rejected the mute: check that the target is neither yourself nor the host, and that you have mute permission (Bilibili code %d)",
+  "bili.mute_self_forbidden": "You cannot mute yourself; choose another user",
   "bili.api_request_failed": "Unable to create API request",
   "bili.api_response_invalid": "Invalid API response format",
   "bili.api_response_read_failed": "Failed to read API response",

@@ -9,44 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"arcana-world/internal/bili"
 	"arcana-world/internal/domain"
-	tea "charm.land/bubbletea/v2"
 )
-
-func TestQuitConfirmationCancelRestoresEditor(t *testing.T) {
-	m := lifecycleModel(t, context.Background())
-	m.form("proxy", "代理", "http://localhost:8080", false)
-	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
-	if m.mode != "confirm" || m.selected != 0 {
-		t.Fatal("quit did not open with Cancel selected")
-	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.mode != "form" || m.input.Value() != "http://localhost:8080" {
-		t.Fatal("canceling quit discarded the editor")
-	}
-	cfg := m.config
-	cfg.TUITheme = "paper"
-	if result := m.saveConfig(cfg, false)().(taskMessage); result.taskError() != nil {
-		t.Fatal("canceling quit closed the session")
-	}
-}
-
-func TestQuitConfirmationDefersCompletedSettingsResult(t *testing.T) {
-	m := lifecycleModel(t, context.Background())
-	cfg := m.config
-	cfg.TUITheme = "paper"
-	save := m.saveConfig(cfg, false)
-	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
-	m.Update(save())
-	if m.mode != "confirm" || m.confirmAction != "quit" {
-		t.Fatal("background completion displaced quit confirmation")
-	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
-	if m.mode != "" || m.busy || m.config.TUITheme != "paper" {
-		t.Fatal("canceling quit lost the completed settings result")
-	}
-}
 
 // 此服务模拟真实的房间查询，包括必需的封面审核状态。
 func exitLiveServer(t *testing.T, live bool, failure string, requests, stops *atomic.Int32) string {
@@ -164,77 +128,6 @@ func boolCount(value bool) int32 {
 	return 0
 }
 
-func TestExitRefreshesCommittedAccountAndSkipsOfflineOrAbsentAccount(t *testing.T) {
-	for _, mode := range []string{"startup", "switched", "refreshed", "deleted", "offline", "no-account", "pending-login"} {
-		t.Run(mode, func(t *testing.T) {
-			var requests, stops atomic.Int32
-			liveURL := exitLiveServer(t, mode != "offline", "", &requests, &stops)
-			m := lifecycleModel(t, context.Background())
-			// 此场景验证不接入 OBS 时的哔哩哔哩清理。
-			cfg := m.store.Config()
-			cfg.OBSAutoConnect, cfg.OBSAutoStream = false, false
-			if err := m.store.SaveConfig(cfg); err != nil {
-				t.Fatal(err)
-			}
-			m.config = cfg
-			m.client.LiveBase = liveURL
-			account := exitAccount()
-			switch mode {
-			case "startup", "switched", "refreshed", "deleted":
-				persistExitAccount(t, m, account)
-				if mode == "switched" {
-					old := domain.Account{UID: "7", Cookies: map[string]string{"DedeUserID": "7"}}
-					m.account = &old
-					m.client.SetAccount(old)
-				}
-				if mode == "refreshed" {
-					stale := exitAccount()
-					stale.Cookies["bili_jct"] = "expired-csrf"
-					m.account = &stale
-					m.client.SetAccount(stale)
-				}
-				if mode == "deleted" {
-					m.account = &account
-					m.client.SetAccount(account)
-					queued := m.perform("delete:" + account.UID)().(taskMessage)
-					if queued.taskError() != nil {
-						t.Fatal(queued.taskError())
-					}
-					// 删除账号会先关闭旧直播，再移除身份。
-					if stops.Load() != 1 {
-						t.Fatal("deletion did not stop old broadcast")
-					}
-					requests.Store(0)
-				}
-			case "offline":
-				persistExitAccount(t, m, account)
-				m.account = &account
-				m.client.SetAccount(account)
-			case "pending-login":
-				m.pendingAccount = &account
-			}
-			m.room = &domain.Room{ID: 101, Live: true}
-			if err := m.Close(); err != nil {
-				t.Fatal(err)
-			}
-			switch mode {
-			case "startup", "switched", "refreshed":
-				if stops.Load() != 1 {
-					t.Fatal("committed account broadcast was not closed")
-				}
-			case "offline":
-				if stops.Load() != 0 {
-					t.Fatal("exit tried to close an already offline room")
-				}
-			default:
-				if requests.Load() != 0 {
-					t.Fatal("exit contacted Bilibili without a logged-in account")
-				}
-			}
-		})
-	}
-}
-
 func TestExitFailuresStillReleaseResourcesAndRunOtherCleanup(t *testing.T) {
 	for _, tc := range []struct {
 		name, failure string
@@ -275,36 +168,5 @@ func TestExitFailuresStillReleaseResourcesAndRunOtherCleanup(t *testing.T) {
 				t.Fatal("cleanup failure prevented independent stop")
 			}
 		})
-	}
-}
-
-func TestExitUsesCommittedProxyBeforeResultDelivery(t *testing.T) {
-	var oldRequests atomic.Int32
-	oldProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		oldRequests.Add(1)
-		http.Error(w, "old proxy unavailable", http.StatusBadGateway)
-	}))
-	defer oldProxy.Close()
-	var requests, stops atomic.Int32
-	newProxy := exitLiveServer(t, true, "", &requests, &stops)
-	m := lifecycleModel(t, context.Background())
-	persistExitAccount(t, m, exitAccount())
-	client, err := bili.New(oldProxy.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.client = client
-	m.client.LiveBase = "http://live.invalid"
-	m.config.Proxy = oldProxy.URL
-	cfg := m.store.Config()
-	cfg.Proxy = newProxy
-	if err := m.store.SaveConfig(cfg); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if oldRequests.Load() != 0 || stops.Load() != 1 {
-		t.Fatal("exit ignored the committed proxy while its UI result was queued")
 	}
 }

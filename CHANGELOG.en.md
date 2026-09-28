@@ -4,6 +4,23 @@
 
 Versions are listed newest first.
 
+## [v0.3.0-rc.1]: 2026-09-28 (prerelease)
+
+### Changed
+
+- Use the live blocklist APIs to block users, list blocked users, and unblock them. Confirmation explains that blocking removes relationships and restricts interactions.
+- Mute users for a chosen positive whole number of hours or permanently, with the duration shown before confirmation. Add separate mute management (`s`) to Chat for listing and unmuting users; `b` still opens the blocklist.
+- Move application configuration into a separate package so domain types, Bilibili APIs, and OBS no longer depend indirectly on overlay or TTS code. Keep the configuration file format and defaults unchanged.
+
+### Fixed
+
+- Reject attempts to mute the signed-in account with a clear explanation. For mute API code `100004`, suggest checking the target and moderation permissions while retaining the code and keeping raw responses private.
+- Keep public UIDs visible in logs and status messages so operation targets can be identified. Login credentials and stream keys remain hidden.
+
+### Upgrade notes
+
+- Replace both the main executable and the complete `libexec` directory. Back up the data directory before upgrading; history databases upgraded by 0.3.0 cannot be used directly with 0.2.x.
+
 ## [v0.3.0-alpha.4]: 2026-09-25 (prerelease)
 
 ### Added
@@ -313,3 +330,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.3.0-alpha.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.2
 [v0.3.0-alpha.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.3
 [v0.3.0-alpha.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.4
+[v0.3.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-rc.1

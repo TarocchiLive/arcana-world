@@ -2,6 +2,7 @@ package app
 
 import (
 	"arcana-world/internal/bili"
+	"arcana-world/internal/config"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/obs"
@@ -9,10 +10,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/zalando/go-keyring"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/zalando/go-keyring"
 )
 
 // 每个关闭阶段都有独立的截止时间，避免某一阶段失败
@@ -82,7 +84,7 @@ func (m *Session) ConnectOBS(ctx context.Context, endpoint string) error {
 }
 
 // 调用方持有 session gate；断线时使用既有凭据恢复会话，而非假定推流已停止。
-func (m *Session) stopControlledOBS(ctx context.Context, cfg domain.Config, live bool) (bool, error) {
+func (m *Session) stopControlledOBS(ctx context.Context, cfg config.Config, live bool) (bool, error) {
 	state := m.obsClient.Snapshot()
 	if !state.Connected {
 		// 自动推流是偏好，不是正在推流的证据；已知活动状态在断线后仍需清理。
@@ -112,7 +114,7 @@ type StartOutcome struct {
 }
 type StopOutcome struct{ OBSStopped bool }
 
-func (m *Session) Start(ctx context.Context, client *bili.Client, room domain.Room, cfg domain.Config) (StartOutcome, error) {
+func (m *Session) Start(ctx context.Context, client *bili.Client, room domain.Room, cfg config.Config) (StartOutcome, error) {
 	if err := m.Lock(ctx); err != nil {
 		return StartOutcome{}, err
 	}
@@ -157,7 +159,7 @@ func (m *Session) Start(ctx context.Context, client *bili.Client, room domain.Ro
 	}
 	return outcome, nil
 }
-func (m *Session) Stop(ctx context.Context, client *bili.Client, room domain.Room, cfg domain.Config) (StopOutcome, error) {
+func (m *Session) Stop(ctx context.Context, client *bili.Client, room domain.Room, cfg config.Config) (StopOutcome, error) {
 	if err := m.Lock(ctx); err != nil {
 		return StopOutcome{}, err
 	}
@@ -175,7 +177,7 @@ func (m *Session) Stop(ctx context.Context, client *bili.Client, room domain.Roo
 	}
 	return outcome, nil
 }
-func (m *Session) stopExitLive(ctx context.Context, cfg domain.Config, source *bili.Client) error {
+func (m *Session) stopExitLive(ctx context.Context, cfg config.Config, source *bili.Client) error {
 	if cfg.ActiveUID == "" {
 		return nil
 	}

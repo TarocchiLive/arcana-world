@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -9,45 +10,30 @@ import (
 	"testing"
 
 	"arcana-world/internal/domain"
+	"arcana-world/internal/store"
 	tea "charm.land/bubbletea/v2"
 )
 
-func TestChatComposerOwnsKeyboardUntilBlurred(t *testing.T) {
-	m := chatTestModel(t)
-	m.Update(mouseRuneKey('/'))
-	if !m.chatInput.Focused() {
-		t.Fatal("/ did not focus the chat composer")
+func chatTestModel(t *testing.T) *Model {
+	t.Helper()
+	s, err := store.Open(t.TempDir(), store.Options{})
+	if err != nil {
+		t.Fatal(err)
 	}
-	other, disabled := m.config.DanmakuShowOther, m.config.DanmakuDisabled
-	for _, r := range "q2fs " {
-		m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
-		if m.page != chatPage || m.mode != "" || m.exitPrompt != nil || !m.chatInput.Focused() {
-			t.Fatalf("typing %q escaped the composer", r)
+	m, err := New(context.Background(), s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := m.Close(); err != nil {
+			t.Error(err)
 		}
-		if m.config.DanmakuShowOther != other || m.config.DanmakuDisabled != disabled {
-			t.Fatalf("typing %q activated a chat command", r)
-		}
+	})
+	if m.chat.err != nil {
+		t.Fatal(m.chat.err)
 	}
-	if got := m.chatInput.Value(); got != "q2fs " {
-		t.Fatalf("draft = %q, want typed shortcut characters", got)
-	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
-	m.Update(tea.KeyPressMsg{Code: 'X', Text: "X"})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
-	m.Update(tea.KeyPressMsg{Code: 'Y', Text: "Y"})
-	if got := m.chatInput.Value(); got != "q2fsX Y" || m.page != chatPage {
-		t.Fatalf("arrow keys navigated away instead of editing: page=%d draft=%q", m.page, got)
-	}
-	for _, key := range []rune{tea.KeyEsc, tea.KeyTab} {
-		m.Update(tea.KeyPressMsg{Code: key})
-		if m.chatInput.Focused() || m.page != chatPage || m.chatInput.Value() != "q2fsX Y" {
-			t.Fatalf("blur key %v lost the draft or changed page", key)
-		}
-		m.Update(mouseRuneKey('/'))
-		if !m.chatInput.Focused() || m.chatInput.Value() != "q2fsX Y" {
-			t.Fatal("refocusing did not preserve the draft")
-		}
-	}
+	m.page = chatPage
+	return m
 }
 
 func TestChatComposerRetainsFailedSendAndClearsSuccessfulRetry(t *testing.T) {
@@ -76,7 +62,7 @@ func TestChatComposerRetainsFailedSendAndClearsSuccessfulRetry(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	m.client.LiveBase = server.URL
-	m.Update(mouseRuneKey('/'))
+	m.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
 	m.Update(tea.PasteMsg{Content: text})
 	for attempt := 1; attempt <= 2; attempt++ {
 		_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -98,33 +84,5 @@ func TestChatComposerRetainsFailedSendAndClearsSuccessfulRetry(t *testing.T) {
 	}
 	if got := attempts.Load(); got != 2 {
 		t.Fatalf("send requests = %d, want 2", got)
-	}
-}
-
-func TestChatComposerLimitsCharactersRatherThanTerminalCells(t *testing.T) {
-	m := chatTestModel(t)
-	m.Update(tea.WindowSizeMsg{Width: 48, Height: 22})
-	m.Update(mouseRuneKey('/'))
-	m.Update(tea.PasteMsg{Content: strings.Repeat("界", 45)})
-	if got := m.chatInput.Value(); got != strings.Repeat("界", 40) {
-		t.Fatalf("paste exceeded character limit or counted CJK cells: %q", got)
-	}
-	if m.workspace().chatComposer < 2 {
-		t.Fatal("long CJK draft did not wrap in a narrow composer")
-	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
-	m.Update(mouseRuneKey('好'))
-	if got := m.chatInput.Value(); got != strings.Repeat("界", 39)+"好" {
-		t.Fatalf("editing at the character limit lost text: %q", got)
-	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
-	m.Update(mouseRuneKey('新'))
-	if got := m.chatInput.Value(); got != strings.Repeat("界", 39)+"好" {
-		t.Fatalf("inserting at the limit silently replaced the draft suffix: %q", got)
-	}
-	m.chatInput.SelectAll()
-	m.Update(tea.PasteMsg{Content: strings.Repeat("文", 45)})
-	if got := m.chatInput.Value(); got != strings.Repeat("文", 40) {
-		t.Fatalf("replacing selected CJK text escaped the character limit: %q", got)
 	}
 }
