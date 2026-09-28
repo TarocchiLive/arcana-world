@@ -158,6 +158,7 @@ func (m *Model) rebuildMouseTargets(l workspaceLayout, content string) {
 			{i18n.T(i18n.FleetTitle) + " [g]", 'g'},
 			{i18n.T(i18n.ModerationAdmins) + " [m]", 'm'},
 			{i18n.T(i18n.ModerationBlocks) + " [b]", 'b'},
+			{i18n.T(i18n.ModerationMutes) + " [s]", 's'},
 			{i18n.T(i18n.DanmakuHistory) + " [h]", 'h'},
 		} {
 			width := ansi.StringWidth(entry.label)

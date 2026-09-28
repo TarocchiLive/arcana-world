@@ -592,7 +592,10 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.speakerKey(msg)
 	}
 	if m.mode == "confirm" && m.confirmAction == "speaker-apply" && msg.String() == "esc" {
-		return m.returnChatSpeaker()
+		return m.speakerConfirmationBack()
+	}
+	if msg.String() == "esc" && (m.mode == "pick" || m.mode == "form") && (m.editKind == "mute-duration" || m.editKind == "mute-hours") {
+		return m.muteDurationBack()
 	}
 	if msg.String() == "esc" && m.moderation != nil {
 		if m.mode == "confirm" && m.confirmAction == "moderation-apply" {
@@ -601,9 +604,17 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 		if (m.mode == "pick" || m.mode == "form") && strings.HasPrefix(m.editKind, "moderation-") {
 			m.input.Blur()
 			if m.editKind == "moderation-menu" {
+				m.view = m.moderation.parentView
+				if m.chat != nil {
+					m.chat.scrollToLatest = m.view.AtBottom()
+					m.chat.shown = true
+				}
 				m.moderation = nil
 				m.mode = ""
 				return nil
+			}
+			if m.editKind == "moderation-search" {
+				m.moderation.query = m.input.Value()
 			}
 			return m.moderationMenu()
 		}
@@ -694,7 +705,7 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 				return m.perform(action)
 			}
 			if action == "speaker-apply" {
-				return m.returnChatSpeaker()
+				return m.speakerConfirmationBack()
 			}
 			if action == "moderation-apply" {
 				return m.moderationBack()
