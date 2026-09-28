@@ -11,6 +11,10 @@ Versions are listed newest first.
 - Use the live blocklist APIs to block users, list blocked users, and unblock them. Confirmation explains that blocking removes relationships and restricts interactions.
 - Mute users for a chosen positive whole number of hours or permanently, with the duration shown before confirmation. Add separate mute management (`s`) to Chat for listing and unmuting users; `b` still opens the blocklist.
 
+### Fixed
+
+- Reject attempts to mute the signed-in account with a clear explanation. For mute API code `100004`, suggest checking the target and moderation permissions while retaining the code and keeping raw responses private.
+
 ## [v0.3.0-alpha.4]: 2026-09-25 (prerelease)
 
 ### Added

@@ -219,6 +219,13 @@ func (c *Client) MuteRoomUser(ctx context.Context, roomID, uid, hours int64) err
 	if roomID <= 0 || uid <= 0 || (hours <= 0 && hours != -1) {
 		return errors.New(i18n.T(i18n.BiliModerationInputInvalid))
 	}
+	accountUID := c.account.UID
+	if accountUID == "" {
+		accountUID = c.account.Cookies["DedeUserID"]
+	}
+	if accountUID == decimal(uid) {
+		return errors.New(i18n.T(i18n.BiliMuteSelfForbidden))
+	}
 	return c.moderationPost(ctx, "/xlive/web-ucenter/v1/banned/AddSilentUser", values("room_id", decimal(roomID), "tuid", decimal(uid), "mobile_app", "web", "type", "1", "hour", decimal(hours)), nil)
 }
 

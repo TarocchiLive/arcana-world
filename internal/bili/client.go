@@ -50,7 +50,13 @@ type APIError struct {
 	Operation string
 }
 
+// 此码仅在禁言接口按拒绝处理，不能据此断言唯一原因或跨接口复用。
+const codeMuteRejected = 100004
+
 func (e *APIError) Error() string {
+	if e.Operation == "/xlive/web-ucenter/v1/banned/AddSilentUser" && e.Code == codeMuteRejected {
+		return fmt.Sprintf(i18n.T(i18n.BiliMuteRejected), e.Code)
+	}
 	return fmt.Sprintf(i18n.T(i18n.BiliApiOperationFailed), e.Operation, e.Code)
 }
 

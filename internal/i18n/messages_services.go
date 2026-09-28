@@ -5,6 +5,8 @@ const (
 	StoreMemoryStorage                   Key = "store.memory_storage"
 	BiliApiHttpStatus                    Key = "bili.api_http_status"
 	BiliApiOperationFailed               Key = "bili.api_operation_failed"
+	BiliMuteRejected                     Key = "bili.mute_rejected"
+	BiliMuteSelfForbidden                Key = "bili.mute_self_forbidden"
 	BiliApiRequestFailed                 Key = "bili.api_request_failed"
 	BiliApiResponseInvalid               Key = "bili.api_response_invalid"
 	BiliApiResponseReadFailed            Key = "bili.api_response_read_failed"

@@ -1,6 +1,8 @@
 {
   "bili.api_http_status": "API HTTP 状态 %d",
   "bili.api_operation_failed": "%s失败（B 站代码 %d）",
+  "bili.mute_rejected": "禁言被平台拒绝：请确认目标不是自己或主播，并检查禁言权限（B 站代码 %d）",
+  "bili.mute_self_forbidden": "不能禁言自己，请选择其他用户",
   "bili.api_request_failed": "无法创建 API 请求",
   "bili.api_response_invalid": "API 响应格式无效",
   "bili.api_response_read_failed": "读取 API 响应失败",
