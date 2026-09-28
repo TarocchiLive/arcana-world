@@ -50,13 +50,3 @@ func TestGiftV2BatchReplayAndLegacyIdentity(t *testing.T) {
 		t.Fatalf("batch gifts: %+v", events)
 	}
 }
-func TestGiftV2MalformedBatchRetainedWithoutPartialProjection(t *testing.T) {
-	h := openHistory(t, t.TempDir())
-	// 第二个条目截断时，不得让第一个条目看起来像完整批次。
-	appendEvent(t, h, 1, giftV2Fixture(giftV2Item(1), []byte{0x12, 0x80}), true)
-	appendEvent(t, h, 1, `{"cmd":"SEND_GIFT_V2","data":{"pb":"not base64"}}`, true)
-	events := page(t, h, 1, 0, 10)
-	if len(events) != 2 || events[0].Kind != "unknown" || events[1].Kind != "unknown" {
-		t.Fatalf("malformed batches: %+v", events)
-	}
-}

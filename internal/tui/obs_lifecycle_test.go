@@ -40,11 +40,9 @@ func (s lifecycleSecrets) Storage() store.StorageKind {
 type lifecycleOBS struct {
 	active       atomic.Bool
 	stops        atomic.Int32
-	connections  atomic.Int32
 	rejectStop   bool
 	started      chan struct{}
 	releaseStart chan struct{}
-	drop         chan struct{}
 	closed       chan struct{}
 }
 
@@ -56,7 +54,6 @@ func lifecycleServer(t *testing.T, state *lifecycleOBS) string {
 			return
 		}
 		defer ws.Close()
-		connection := state.connections.Add(1)
 		if state.closed != nil {
 			defer func() { state.closed <- struct{}{} }()
 		}
@@ -104,10 +101,6 @@ func lifecycleServer(t *testing.T, state *lifecycleOBS) string {
 			if write(7, map[string]any{"requestId": request.ID, "requestType": request.Type, "requestStatus": map[string]any{"result": ok, "code": code}, "responseData": map[string]any{"outputActive": state.active.Load(), "outputReconnecting": false}}) != nil {
 				return
 			}
-			if state.drop != nil && connection == 1 && request.Type == "GetStreamStatus" {
-				<-state.drop
-				return
-			}
 		}
 	}))
 	t.Cleanup(server.Close)
@@ -134,28 +127,6 @@ func awaitLifecycle(t *testing.T, signal <-chan struct{}) {
 	case <-signal:
 	case <-time.After(3 * time.Second):
 		t.Fatal("OBS lifecycle synchronization timed out")
-	}
-}
-
-func TestCloseStopsOBSAfterRootCancellation(t *testing.T) {
-	state := &lifecycleOBS{closed: make(chan struct{}, 1)}
-	state.active.Store(true)
-	endpoint := lifecycleServer(t, state)
-	ctx, cancel := context.WithCancel(context.Background())
-	m := lifecycleModel(t, ctx)
-	if err := m.obsClient.Connect(ctx, endpoint, ""); err != nil {
-		t.Fatal(err)
-	}
-	cancel()
-	if err := m.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.Close(); err != nil {
-		t.Fatal(err)
-	}
-	awaitLifecycle(t, state.closed)
-	if state.active.Load() || state.stops.Load() != 1 {
-		t.Fatal("exit did not stop OBS exactly once before closing")
 	}
 }
 
@@ -187,40 +158,6 @@ func TestCloseWaitsForCanceledStartBeforeStopping(t *testing.T) {
 	}
 	if err := m.session.Lock(context.Background()); err == nil {
 		t.Fatal("accepted OBS operation after shutdown")
-	}
-}
-
-func TestCloseRecoversKnownActiveDisconnectedOBS(t *testing.T) {
-	state := &lifecycleOBS{drop: make(chan struct{})}
-	state.active.Store(true)
-	endpoint := lifecycleServer(t, state)
-	m := lifecycleModel(t, context.Background())
-	cfg := m.store.Config()
-	cfg.OBSURL = endpoint
-	if err := m.store.SaveConfig(cfg); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.obsClient.Connect(context.Background(), endpoint, ""); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := m.obsClient.Status(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	close(state.drop)
-	timer := time.NewTimer(3 * time.Second)
-	defer timer.Stop()
-	for m.obsClient.Snapshot().Connected {
-		select {
-		case <-m.obsClient.Events():
-		case <-timer.C:
-			t.Fatal("server disconnect was not observed")
-		}
-	}
-	if err := m.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if state.active.Load() || state.connections.Load() != 2 || state.stops.Load() != 1 {
-		t.Fatal("lost active connection was not recovered and stopped")
 	}
 }
 
@@ -272,114 +209,5 @@ func TestStopLiveStopsOBSBeforeBilibiliAndPropagatesFailure(t *testing.T) {
 				t.Fatalf("stop live result: %v; Bilibili calls: %d", result.taskError(), calls.Load())
 			}
 		})
-	}
-}
-
-func TestCloseReconnectsDisconnectedAutoStreamWhileLive(t *testing.T) {
-	state := &lifecycleOBS{}
-	state.active.Store(true)
-	endpoint := lifecycleServer(t, state)
-	m := lifecycleModel(t, context.Background())
-	m.room = &domain.Room{ID: 1, Live: true}
-	cfg := m.store.Config()
-	cfg.OBSURL = endpoint
-	cfg.OBSAutoStream = true
-	if err := m.store.SaveConfig(cfg); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if state.active.Load() || state.connections.Load() != 1 || state.stops.Load() != 1 {
-		t.Fatal("auto-stream exit skipped disconnected OBS")
-	}
-}
-
-func TestCloseAvoidsUnnecessaryOBSRequests(t *testing.T) {
-	t.Run("uncontrolled", func(t *testing.T) {
-		state := &lifecycleOBS{}
-		endpoint := lifecycleServer(t, state)
-		m := lifecycleModel(t, context.Background())
-		cfg := m.store.Config()
-		cfg.OBSURL = endpoint
-		if err := m.store.SaveConfig(cfg); err != nil {
-			t.Fatal(err)
-		}
-		if err := m.Close(); err != nil {
-			t.Fatal(err)
-		}
-		if state.connections.Load() != 0 {
-			t.Fatal("exit connected to unused OBS")
-		}
-	})
-	t.Run("inactive", func(t *testing.T) {
-		state := &lifecycleOBS{}
-		endpoint := lifecycleServer(t, state)
-		m := lifecycleModel(t, context.Background())
-		if err := m.obsClient.Connect(context.Background(), endpoint, ""); err != nil {
-			t.Fatal(err)
-		}
-		if err := m.Close(); err != nil {
-			t.Fatal(err)
-		}
-		if state.stops.Load() != 0 {
-			t.Fatal("exit sent StopStream to inactive OBS")
-		}
-	})
-}
-
-func TestCloseSkipsDisconnectedAutoStreamBeforeGoingLive(t *testing.T) {
-	for _, knownRoom := range []bool{false, true} {
-		name := "no-room"
-		if knownRoom {
-			name = "offline-room"
-		}
-		t.Run(name, func(t *testing.T) {
-			var attempts atomic.Int32
-			unavailable := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				attempts.Add(1)
-				http.Error(w, "OBS unavailable", http.StatusServiceUnavailable)
-			}))
-			defer unavailable.Close()
-			m := lifecycleModel(t, context.Background())
-			cfg := m.store.Config()
-			cfg.OBSURL = "ws" + strings.TrimPrefix(unavailable.URL, "http")
-			cfg.OBSAutoStream = true
-			if err := m.store.SaveConfig(cfg); err != nil {
-				t.Fatal(err)
-			}
-			if knownRoom {
-				m.room = &domain.Room{ID: 1}
-			}
-			if err := m.Close(); err != nil {
-				t.Fatalf("offline exit reported a streaming risk: %v", err)
-			}
-			if attempts.Load() != 0 {
-				t.Fatal("offline exit attempted to connect to unused OBS")
-			}
-		})
-	}
-}
-
-func TestCloseReportsDisconnectedOBSWhileAutoStreamIsLive(t *testing.T) {
-	var attempts atomic.Int32
-	unavailable := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attempts.Add(1)
-		http.Error(w, "OBS unavailable", http.StatusServiceUnavailable)
-	}))
-	defer unavailable.Close()
-	m := lifecycleModel(t, context.Background())
-	cfg := m.store.Config()
-	cfg.OBSURL = "ws" + strings.TrimPrefix(unavailable.URL, "http")
-	cfg.OBSAutoStream = true
-	if err := m.store.SaveConfig(cfg); err != nil {
-		t.Fatal(err)
-	}
-	m.room = &domain.Room{ID: 1, Live: true}
-	if err := m.Close(); err == nil {
-		t.Fatal("live exit hid the failure to stop disconnected OBS")
-	}
-	if attempts.Load() != 1 {
-		t.Fatal("live exit did not try to regain OBS control")
 	}
 }

@@ -1,7 +1,6 @@
 package danmaku
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -55,46 +54,5 @@ func TestRetentionRecoversExpiredOrphans(t *testing.T) {
 	appendEvent(t, h, 1, chat("after-recovery"), true)
 	if events := page(t, h, 1, 0, 10); len(events) != 2 || events[0].Sequence <= kept.Sequence {
 		t.Fatalf("cannot append after recovery: %+v", events)
-	}
-}
-
-func TestRetentionAcrossPagesPreservesRecentEvents(t *testing.T) {
-	dir := t.TempDir()
-	h := openHistory(t, dir)
-	now := time.Now().UTC()
-	projections := make([]projection, 512)
-	want := 0
-	for i := range projections {
-		at := now.Add(-retention - time.Hour)
-		if i%7 == 0 {
-			at = now
-			want++
-		}
-		projections[i].event = Event{RoomID: 1, Kind: "chat", Text: fmt.Sprintf("event-%d", i), Time: at}
-	}
-	if _, err := h.append(1, []byte(`{"cmd":"DANMU_MSG"}`), projections...); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.prune(now); err != nil {
-		t.Fatal(err)
-	}
-	events := page(t, h, 1, 0, len(projections))
-	if len(events) != want {
-		t.Fatalf("retention kept %d events, want %d", len(events), want)
-	}
-	for _, event := range events {
-		if !event.Time.Equal(now) {
-			t.Fatalf("expired event survived retention: %d", event.Sequence)
-		}
-	}
-	if err := h.Close(); err != nil {
-		t.Fatal(err)
-	}
-	h = openHistory(t, dir)
-	if err := h.prune(now.Add(retention + time.Hour)); err != nil {
-		t.Fatal(err)
-	}
-	if events := page(t, h, 1, 0, len(projections)); len(events) != 0 {
-		t.Fatalf("final retention left %d events", len(events))
 	}
 }

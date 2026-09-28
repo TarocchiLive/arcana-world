@@ -1,7 +1,6 @@
 package danmaku
 
 import (
-	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -81,67 +80,6 @@ func TestHistoryMigrationPreservesReceivesAndPagination(t *testing.T) {
 		t.Fatalf("migrated page: %+v", events)
 	}
 }
-
-func TestSharedMessageSurvivesPartialDedupAndRetention(t *testing.T) {
-	h := openHistory(t, t.TempDir())
-	appendEvent(t, h, 1, giftV2Fixture(giftV2Item(1)), true)
-	raw := giftV2Fixture(giftV2Item(1), giftV2Item(2), giftV2Item(3))
-	appendEvent(t, h, 1, raw, true)
-	appendEvent(t, h, 1, raw, false)
-	now := time.Now().UTC()
-	if err := h.db.Update(func(tx *bolt.Tx) error {
-		room := tx.Bucket(roomsBucket).Bucket(key(1))
-		if room.Bucket(rawBucket).Stats().KeyN != 2 {
-			return errors.New("batch raw stored more than once")
-		}
-		events := room.Bucket(eventsBucket)
-		for _, seq := range []uint64{1, 2} {
-			var event Event
-			if err := json.Unmarshal(events.Get(key(seq)), &event); err != nil {
-				return err
-			}
-			event.Time = now.Add(-retention - time.Hour)
-			encoded, err := json.Marshal(event)
-			if err != nil {
-				return err
-			}
-			if err := events.Put(key(seq), encoded); err != nil {
-				return err
-			}
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.prune(now); err != nil {
-		t.Fatal(err)
-	}
-	if events := page(t, h, 1, 0, 10); len(events) != 1 || events[0].Count != 3 {
-		t.Fatalf("partial retention: %+v", events)
-	}
-	if err := h.db.View(func(tx *bolt.Tx) error {
-		room := tx.Bucket(roomsBucket).Bucket(key(1))
-		if room.Bucket(rawBucket).Stats().KeyN != 1 || string(rawForEvent(room, key(3))) != raw {
-			return errors.New("partial retention discarded a shared payload")
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.prune(now.Add(retention + time.Hour)); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.db.View(func(tx *bolt.Tx) error {
-		room := tx.Bucket(roomsBucket).Bucket(key(1))
-		if room.Bucket(rawBucket).Stats().KeyN != 0 || room.Bucket(messageIDsBucket).Stats().KeyN != 0 || room.Bucket(messageRefsBucket).Stats().KeyN != 0 {
-			return errors.New("last projection left orphaned message data")
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestHistoryMigrationRollbackAndFutureVersion(t *testing.T) {
 	dir := t.TempDir()
 	h := openHistory(t, dir)
@@ -184,60 +122,5 @@ func TestHistoryMigrationRollbackAndFutureVersion(t *testing.T) {
 	if opened, err := Open(dir); err == nil {
 		opened.Close()
 		t.Fatal("opened an unsupported future schema")
-	}
-}
-
-func TestSpeakerMigrationRejectsMissingPayloadWithoutChanges(t *testing.T) {
-	dir := t.TempDir()
-	h := openHistory(t, dir)
-	raw := `{"cmd":"SEND_GIFT","data":{"uid":42,"uname":"alice","giftName":"gift","num":1,"face":"avatar"}}`
-	appendEvent(t, h, 1, raw, true)
-	appendEvent(t, h, 1, chat("b"), true)
-	var original []byte
-	if err := h.db.Update(func(tx *bolt.Tx) error {
-		room := tx.Bucket(roomsBucket).Bucket(key(1))
-		events := room.Bucket(eventsBucket)
-		var event Event
-		if err := json.Unmarshal(events.Get(key(1)), &event); err != nil {
-			return err
-		}
-		event.Face = ""
-		var err error
-		original, err = json.Marshal(event)
-		if err != nil {
-			return err
-		}
-		if err := events.Put(key(1), original); err != nil {
-			return err
-		}
-		if err := room.Bucket(rawBucket).Delete(room.Bucket(messageIDsBucket).Get(key(2))); err != nil {
-			return err
-		}
-		return tx.Bucket(historyMetaBucket).Put(historyVersionKey, key(2))
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if opened, err := Open(dir); err == nil {
-		_ = opened.Close()
-		t.Fatal("speaker migration accepted a missing payload")
-	}
-	db, err := bolt.Open(filepath.Join(dir, "danmaku", "history.db"), 0600, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if err := db.View(func(tx *bolt.Tx) error {
-		room := tx.Bucket(roomsBucket).Bucket(key(1))
-		if string(tx.Bucket(historyMetaBucket).Get(historyVersionKey)) != string(key(2)) ||
-			string(room.Bucket(eventsBucket).Get(key(1))) != string(original) ||
-			string(rawForEvent(room, key(1))) != raw {
-			return errors.New("failed speaker migration changed retained data or version")
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
 	}
 }

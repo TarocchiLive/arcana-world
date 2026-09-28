@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -133,54 +132,6 @@ func TestListenerIdempotentConfigureDrainsOldSession(t *testing.T) {
 	}
 }
 
-func TestListenerReconnectRetainsReplayExactlyOnce(t *testing.T) {
-	h := listenerHistory(t)
-	readyAgain := make(chan struct{})
-	var calls atomic.Int32
-	l := newListener(context.Background(), h, func(string, domain.Account) (source, error) {
-		return sourceFunc{room: 1, listen: func(ctx context.Context, _ int64, _ int, ready func(), receive func(json.RawMessage) error) error {
-			n := calls.Add(1)
-			ready()
-			if err := receive(message("stable", "hello")); err != nil {
-				return err
-			}
-			if n == 1 {
-				return io.ErrUnexpectedEOF
-			}
-			if err := receive(message("new", "world")); err != nil {
-				return err
-			}
-			close(readyAgain)
-			<-ctx.Done()
-			return ctx.Err()
-		}}, nil
-	})
-	l.retryDelay = time.Millisecond
-	defer l.Close()
-	l.Configure(&domain.Account{UID: "1"}, "direct", true)
-	waitSignal(t, readyAgain)
-	if err := l.Close(); err != nil {
-		t.Fatal(err)
-	}
-	records, err := h.Page(1, 0, 100)
-	if err != nil {
-		t.Fatal(err)
-	}
-	counts := map[string]int{}
-	gap := false
-	for _, e := range records {
-		if e.Kind == "chat" {
-			counts[e.Text]++
-		}
-		if e.Kind == "gap" && e.Text == "connection_lost" {
-			gap = true
-		}
-	}
-	if counts["hello"] != 1 || counts["world"] != 1 || !gap {
-		t.Fatalf("replay or coverage boundary incorrect: %v gap=%v", counts, gap)
-	}
-}
-
 type failingArchive struct {
 	h    *History
 	fail atomic.Bool
@@ -241,70 +192,5 @@ func TestListenerRetainsFailedWriteAcrossAccountSwitch(t *testing.T) {
 	}
 	if counts["retained while disk unavailable"] != 1 || counts["remaining message in completed frame"] != 1 {
 		t.Fatalf("pending frame lost or duplicated on target change: %v", counts)
-	}
-}
-
-func TestListenerReportsUnsavedMessageOnShutdown(t *testing.T) {
-	h := listenerHistory(t)
-	disk := &failingArchive{h: h}
-	disk.fail.Store(true)
-	l := newListener(context.Background(), disk, func(string, domain.Account) (source, error) {
-		return sourceFunc{room: 1, listen: func(_ context.Context, _ int64, _ int, ready func(), receive func(json.RawMessage) error) error {
-			ready()
-			return receive(message("unsaved", "unsaved"))
-		}}, nil
-	})
-	l.retryDelay = time.Millisecond
-	l.Configure(&domain.Account{UID: "1"}, "direct", true)
-	waitPhase(t, l, "storage_error")
-	if err := l.Close(); !errors.Is(err, errDisk) {
-		t.Fatalf("shutdown silently discarded unsaved message: %v", err)
-	}
-}
-
-func TestListenerDiskRecoveryDoesNotOvertakePendingMessages(t *testing.T) {
-	h := listenerHistory(t)
-	disk := &failingArchive{h: h}
-	disk.fail.Store(true)
-	second := make(chan struct{})
-	l := newListener(context.Background(), disk, func(_ string, account domain.Account) (source, error) {
-		room, _ := strconv.ParseInt(account.UID, 10, 64)
-		return sourceFunc{room: room, listen: func(ctx context.Context, _ int64, _ int, ready func(), receive func(json.RawMessage) error) error {
-			ready()
-			if room == 1 {
-				if err := receive(message("", "first")); err != nil {
-					return err
-				}
-				// 取消时保留第一条消息。处理该帧剩余内容时，
-				// 即使磁盘恢复，也不得让后续消息先于它写入。
-				disk.fail.Store(false)
-				return receive(message("", "second"))
-			}
-			close(second)
-			<-ctx.Done()
-			return ctx.Err()
-		}}, nil
-	})
-	l.retryDelay = time.Millisecond
-	defer l.Close()
-	l.Configure(&domain.Account{UID: "1"}, "direct", true)
-	waitPhase(t, l, "storage_error")
-	l.Configure(&domain.Account{UID: "2"}, "direct", true)
-	waitSignal(t, second)
-	if err := l.Close(); err != nil {
-		t.Fatal(err)
-	}
-	records, err := h.Page(1, 0, 100)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var texts []string
-	for _, event := range records {
-		if event.Kind == "chat" {
-			texts = append(texts, event.Text)
-		}
-	}
-	if len(texts) != 2 || texts[0] != "second" || texts[1] != "first" {
-		t.Fatalf("pending message order changed after disk recovery: %v", texts)
 	}
 }

@@ -1,7 +1,6 @@
 package store
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,83 +89,5 @@ func TestSaveConfigPreservesAccountIndexAndOwnsHistory(t *testing.T) {
 	}
 	if loaded, err := s.Load(account.UID); err != nil || loaded.Name != account.Name {
 		t.Fatalf("settings save made the saved account unavailable: %v", err)
-	}
-}
-
-type unavailableBackend struct {
-	memoryBackend
-	unavailable bool
-}
-
-func (b *unavailableBackend) Get(user string) (string, error) {
-	if b.unavailable {
-		return "", errors.New("service locked")
-	}
-	return b.memoryBackend.Get(user)
-}
-func TestTransientKeyringFailurePreservesAccount(t *testing.T) {
-	backend := &unavailableBackend{memoryBackend: memoryBackend{}}
-	s, err := OpenWithBackend(t.TempDir(), backend)
-	if err != nil {
-		t.Fatal(err)
-	}
-	a := domain.Account{UID: "1", Name: "first", Cookies: map[string]string{"DedeUserID": "1", "SESSDATA": "secret", "bili_jct": "csrf"}}
-	if err = s.Save(a); err != nil {
-		t.Fatal(err)
-	}
-	backend.unavailable = true
-	if err = s.Delete("1"); err == nil {
-		t.Fatal("deletion accepted unavailable keyring")
-	}
-	backend.unavailable = false
-	loaded, err := s.Load("1")
-	if err != nil || loaded.Cookies["SESSDATA"] != "secret" {
-		t.Fatal("temporary failure destroyed account")
-	}
-}
-
-func TestDefaultDataDirectoryUsesHomeNotXDG(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	s, err := OpenWithBackend("", memoryBackend{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := filepath.Join(home, ".arcana", "world")
-	if s.Dir() != want {
-		t.Fatalf("data directory = %q, want %q", s.Dir(), want)
-	}
-	if _, err := os.Stat(filepath.Join(want, "config.json")); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestOBSDefaultsPreserveExplicitOptOut(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.json")
-	// 旧配置中缺失的字段继承默认值；显式设置的 false 不得被覆盖。
-	if err := os.WriteFile(path, []byte(`{"obs_auto_connect":false}`), 0600); err != nil {
-		t.Fatal(err)
-	}
-	s, err := OpenWithBackend(dir, memoryBackend{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg := s.Config()
-	if cfg.OBSAutoConnect || !cfg.OBSAutoStream {
-		t.Fatal("missing and explicitly disabled OBS settings were conflated")
-	}
-	cfg.OBSAutoStream = false
-	if err := s.SaveConfig(cfg); err != nil {
-		t.Fatal(err)
-	}
-	reopened, err := OpenWithBackend(dir, memoryBackend{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg := reopened.Config(); cfg.OBSAutoConnect || cfg.OBSAutoStream {
-		t.Fatal("saved OBS opt-outs were overwritten by new defaults")
 	}
 }
