@@ -10,6 +10,7 @@ Versions are listed newest first.
 
 - Use the live blocklist APIs to block users, list blocked users, and unblock them. Confirmation explains that blocking removes relationships and restricts interactions.
 - Mute users for a chosen positive whole number of hours or permanently, with the duration shown before confirmation. Add separate mute management (`s`) to Chat for listing and unmuting users; `b` still opens the blocklist.
+- Move application configuration into a separate package so domain types, Bilibili APIs, and OBS no longer depend indirectly on overlay or TTS code. Keep the configuration file format and defaults unchanged.
 
 ### Fixed
 

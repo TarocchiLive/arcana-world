@@ -9,8 +9,10 @@ import (
 
 	"arcana-world/internal/app"
 	"arcana-world/internal/bili"
+	"arcana-world/internal/config"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
+
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 )
@@ -561,7 +563,7 @@ func (m *Model) submitForm() tea.Cmd {
 	}
 	return nil
 }
-func (m *Model) saveConfig(cfg domain.Config, replaceClient bool) tea.Cmd {
+func (m *Model) saveConfig(cfg config.Config, replaceClient bool) tea.Cmd {
 	if replaceClient {
 		return m.rebuildClientAndSave(configOperation(), cfg.Proxy, func() error { return m.store.SaveConfig(cfg) })
 	}

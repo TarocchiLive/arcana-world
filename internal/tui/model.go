@@ -10,6 +10,7 @@ import (
 
 	"arcana-world/internal/app"
 	"arcana-world/internal/bili"
+	"arcana-world/internal/config"
 	"arcana-world/internal/coverimage"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
@@ -17,6 +18,7 @@ import (
 	"arcana-world/internal/obs"
 	"arcana-world/internal/overlay"
 	"arcana-world/internal/store"
+
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
@@ -67,7 +69,7 @@ type Model struct {
 	ctx                    context.Context
 	store                  *store.Store
 	client                 *bili.Client
-	config                 domain.Config
+	config                 config.Config
 	theme                  tuiTheme
 	themeID                string
 	darkBackground         bool

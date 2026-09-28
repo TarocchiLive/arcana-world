@@ -1,6 +1,6 @@
 package store
 
-import "arcana-world/internal/domain"
+import "arcana-world/internal/config"
 
 // Options 选择凭据存储方式和仅在当前会话生效的配置覆盖项。
 // CredentialBackend 为空时采用自动后端策略。
@@ -34,7 +34,7 @@ func (o ConfigOverrides) detached() ConfigOverrides {
 }
 
 // Apply 返回有效配置，其中的切片均独立持有。
-func (o ConfigOverrides) Apply(c domain.Config) domain.Config {
+func (o ConfigOverrides) Apply(c config.Config) config.Config {
 	c = clone(c)
 	if o.Proxy != nil {
 		c.Proxy = *o.Proxy
