@@ -154,7 +154,7 @@ func New(ctx context.Context, s *store.Store) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, err := bili.New(cfg.Proxy)
+	c, err := bili.New(cfg.Proxy, s.DeviceID())
 	if err != nil {
 		return nil, errors.Join(err, disk.Write(i18n.T(i18n.TUILogStartupFailed)+err.Error()), disk.Close())
 	}

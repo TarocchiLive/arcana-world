@@ -6,14 +6,12 @@ import (
 
 	"context"
 	"crypto/md5"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -75,7 +73,7 @@ func (e *ValidationError) Error() string {
 }
 func (e *ValidationError) Unwrap() error { return e.Cause }
 
-func New(proxy string) (*Client, error) {
+func New(proxy, buvid string) (*Client, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	switch proxy {
 	case "":
@@ -88,13 +86,6 @@ func New(proxy string) (*Client, error) {
 		}
 		transport.Proxy = http.ProxyURL(u)
 	}
-	var id [16]byte
-	if _, err := rand.Read(id[:]); err != nil {
-		return nil, errors.New(i18n.T(i18n.BiliDeviceIdentifierFailed))
-	}
-	id[6] = (id[6] & 0x0f) | 0x40
-	id[8] = (id[8] & 0x3f) | 0x80
-	buvid := fmt.Sprintf("%X-%X-%X-%X-%X%duser", id[:4], id[4:6], id[6:8], id[8:10], id[10:], os.Getpid())
 	return &Client{HTTP: &http.Client{Transport: transport, Timeout: requestTimeout}, APIBase: "https://api.bilibili.com", LiveBase: "https://api.live.bilibili.com", PassportBase: "https://passport.bilibili.com", account: domain.Account{Cookies: make(map[string]string)}, buvid: buvid}, nil
 }
 

@@ -139,6 +139,9 @@ func (s *Store) clearFiles() error {
 			return err
 		}
 	}
+	if err := removeOwnedFile(root, deviceFile); err != nil {
+		return err
+	}
 	// 在其他删除操作全部成功前保留 config.json，以保留重试所需的索引。
 	if err := removeOwnedFiles(root, nil, ".config-"); err != nil {
 		return err

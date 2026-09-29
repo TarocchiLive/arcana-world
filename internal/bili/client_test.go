@@ -33,7 +33,7 @@ func TestSendDanmakuRejectsZeroCodeMessage(t *testing.T) {
 		fmt.Fprint(w, `{"code":0,"message":"","data":{}}`)
 	}))
 	defer server.Close()
-	c, err := New("direct")
+	c, err := New("direct", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestQRIsAnonymousAndAccountSwitchDropsOldCookies(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	c, err := New("direct")
+	c, err := New("direct", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestRedirectCannotForwardAuthenticatedPOST(t *testing.T) {
 		http.Redirect(w, r, destination.URL, http.StatusTemporaryRedirect)
 	}))
 	defer origin.Close()
-	c, err := New("direct")
+	c, err := New("direct", "")
 	if err != nil {
 		t.Fatal(err)
 	}

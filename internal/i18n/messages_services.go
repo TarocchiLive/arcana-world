@@ -41,7 +41,7 @@ const (
 	BiliCoverUrlInvalid                  Key = "bili.cover_url_invalid"
 	BiliCredentialRedacted               Key = "bili.credential_redacted"
 	BiliCredentialsExpired               Key = "bili.credentials_expired"
-	BiliDeviceIdentifierFailed           Key = "bili.device_identifier_failed"
+	StoreDeviceIdentifierFailed          Key = "store.device_identifier_failed"
 	BiliDeviceResponseInvalid            Key = "bili.device_response_invalid"
 	BiliDeviceTicketInvalid              Key = "bili.device_ticket_invalid"
 	BiliHttpClientMissing                Key = "bili.http_client_missing"

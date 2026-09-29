@@ -85,9 +85,9 @@ type Listener struct {
 	retryDelay      time.Duration
 }
 
-func NewListener(ctx context.Context, history *History) *Listener {
+func NewListener(ctx context.Context, history *History, deviceID string) *Listener {
 	return newListener(ctx, history, func(proxy string, account domain.Account) (source, error) {
-		c, err := bili.New(proxy)
+		c, err := bili.New(proxy, deviceID)
 		if err != nil {
 			return nil, err
 		}

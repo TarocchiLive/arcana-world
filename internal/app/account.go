@@ -16,7 +16,7 @@ type AccountOutcome struct {
 }
 
 func (m *Session) client(source *bili.Client, account *domain.Account, proxy string) (*bili.Client, error) {
-	c, err := bili.New(proxy)
+	c, err := bili.New(proxy, m.store.DeviceID())
 	if err != nil {
 		return nil, err
 	}

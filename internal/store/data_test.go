@@ -68,6 +68,9 @@ func TestResetSettingsPreservesConnectionsAccountsAndHistory(t *testing.T) {
 	if !reflect.DeepEqual(reopened.Config(), want) {
 		t.Fatal("reset did not persist")
 	}
+	if reopened.DeviceID() != s.DeviceID() {
+		t.Fatal("reset or reopen changed the device identity")
+	}
 	loaded, err := reopened.Load(a.UID)
 	if err != nil || !reflect.DeepEqual(loaded, a) {
 		t.Fatalf("account changed: %v", err)
@@ -107,6 +110,7 @@ func TestClearDataRemovesOwnedFilesAndRejectsStaleWrites(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	owned = append(owned, deviceFile)
 	stale := s.Config()
 	if err := s.ClearData(); err != nil {
 		t.Fatal(err)
@@ -146,5 +150,12 @@ func TestClearDataRemovesOwnedFilesAndRejectsStaleWrites(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(s.Dir(), "config.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("stale operation recreated config")
+	}
+	reopened, err := OpenWithBackend(s.Dir(), backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reopened.DeviceID() == s.DeviceID() {
+		t.Fatal("cleared device identity was reused")
 	}
 }

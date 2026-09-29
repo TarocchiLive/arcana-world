@@ -40,7 +40,7 @@ func TestModerationScopeAndIndependentActions(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	client, err := New("direct")
+	client, err := New("direct", "")
 	if err != nil {
 		t.Fatal(err)
 	}

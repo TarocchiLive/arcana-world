@@ -37,7 +37,7 @@
   "bili.cover_url_invalid": "Invalid cover URL",
   "bili.credential_redacted": "[redacted]",
   "bili.credentials_expired": "Login credentials have expired or do not match the account; sign in again (existing credentials retained)",
-  "bili.device_identifier_failed": "Failed to generate device identifier",
+  "store.device_identifier_failed": "Cannot read or save the device identifier; check the data directory",
   "bili.device_response_invalid": "Invalid device identifier response",
   "bili.device_ticket_invalid": "Invalid device ticket response",
   "bili.http_client_missing": "HTTP client is not configured",

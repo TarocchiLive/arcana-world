@@ -25,11 +25,9 @@ type Config struct {
 	ExitOBSStopDisabled  bool `json:"exit_obs_stop_disabled"`
 	ExitLiveStopDisabled bool `json:"exit_live_stop_disabled"`
 	// 默认启用；使用禁用字段使旧配置无需迁移即可自动监听。
-	DanmakuDisabled  bool `json:"danmaku_disabled"`
-	DanmakuLimit     int  `json:"danmaku_limit"`
-	DanmakuShowOther bool `json:"danmaku_show_other"`
-	// 默认忽略自身；缺省字段兼容旧配置。
-	AudienceIncludeSelf   bool             `json:"audience_include_self,omitempty"`
+	DanmakuDisabled       bool             `json:"danmaku_disabled"`
+	DanmakuLimit          int              `json:"danmaku_limit"`
+	DanmakuShowOther      bool             `json:"danmaku_show_other"`
 	RecentTitles          []string         `json:"recent_titles"`
 	RecentAreas           []domain.Area    `json:"recent_areas"`
 	Overlay               overlay.Settings `json:"overlay"`

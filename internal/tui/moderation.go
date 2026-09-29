@@ -90,7 +90,7 @@ func (m *Model) chooseModeration(value string) tea.Cmd {
 		case "search":
 			return m.form("moderation-search", i18n.T(i18n.ModerationSearch), s.query, false)
 		case "list":
-			return m.loadModerationUsers("")
+			return m.loadModerationUsers("", false)
 		}
 	}
 	index, err := strconv.Atoi(value)
@@ -123,7 +123,7 @@ func (m *Model) moderationUsers() tea.Cmd {
 	return cmd
 }
 
-func (m *Model) loadModerationUsers(name string) tea.Cmd {
+func (m *Model) loadModerationUsers(name string, refresh bool) tea.Cmd {
 	s := m.moderation
 	if m.busy || !m.moderationValid(s) {
 		return nil
@@ -160,7 +160,9 @@ func (m *Model) loadModerationUsers(name string) tea.Cmd {
 		}
 		s.users = users
 		if len(users) == 0 {
-			m.warnStatus(i18n.T(i18n.ModerationEmpty))
+			if !refresh {
+				m.warnStatus(i18n.T(i18n.ModerationEmpty))
+			}
 			if name != "" {
 				return m.form("moderation-search", i18n.T(i18n.ModerationSearch), name, false)
 			}
@@ -314,7 +316,7 @@ func (m *Model) applyModeration() tea.Cmd {
 		if m.canceled || !m.moderationValid(s) {
 			return nil
 		}
-		return m.loadModerationUsers("")
+		return m.loadModerationUsers("", true)
 	}}
 	return work(m, op, func(ctx context.Context) (struct{}, error) {
 		var err error

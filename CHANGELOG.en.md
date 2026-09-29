@@ -4,6 +4,35 @@
 
 Versions are listed newest first.
 
+## [v0.3.0]: 2026-09-29
+
+### Added
+
+- Add a wrapping chat input with a 40-character limit and retain drafts after failed sends. Select text in chat, history, logs, and notifications by dragging, then press `y` to copy.
+- Add viewer rankings and Fleet lists showing the top 20 entries. Show the viewer count beside the live status and refresh it every 30 seconds.
+- Add room-admin, live-blocklist, and separate mute management with username or UID lookup and identity confirmation. Mute for a chosen number of hours or permanently; click a chat username to open a profile and moderation actions.
+- Save TTS volume from 0 to 100. Choose from five themes and configure animation, compact headers, and notifications.
+- Support mouse clicks, scrolling, and hover feedback, with exit confirmation enabled by default. Organize in-app help by topic.
+
+### Changed
+
+- Upgrade to Charm v2 and redesign TUI pages, forms, and pickers. Improve Chinese input cursor positioning and IME candidate placement.
+- Load the latest 10 messages from the past 24 hours at startup and retain up to 30 by default in the main chat view. Query history on a separate page while preserving drafts and reading position.
+- Share the chat snapshot between the overlay and TUI so new messages, retractions, and expired entries stay in sync. Reduce idle and mouse-movement redraw work.
+- Render profile images natively in Kitty/Ghostty and use character previews elsewhere. Keep public UIDs visible in logs while hiding login credentials and stream keys.
+
+### Fixed
+
+- Stop showing an empty-list warning when the automatic refresh after unmuting, dismissing an admin, or unblocking a user returns no entries. Explicit queries and API errors still show feedback.
+- Save the request device identifier in `device.db` inside the data directory. Instances sharing that directory reuse it across restarts and client rebuilds. Resetting settings preserves it; clearing application data removes it.
+- Remove the option to ignore the current account in viewer counts and lists. Display the API's viewer count without subtraction and keep the current account in the returned list.
+- Fix Windows 32-bit borders and layout, username click targets after live updates, and stale viewer-count responses replacing newer results. Reject self-mutes and explain the checks needed when the platform refuses a moderation action.
+
+### Upgrade notes
+
+- Replace both the main executable and the complete `libexec` directory. Do not mix overlay or TTS helpers from different versions.
+- Back up the data directory before upgrading. History databases upgraded by 0.3.0 cannot be used directly with 0.2.x.
+
 ## [v0.3.0-rc.1]: 2026-09-28 (prerelease)
 
 ### Changed
@@ -331,3 +360,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.3.0-alpha.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.3
 [v0.3.0-alpha.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.4
 [v0.3.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-rc.1
+[v0.3.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0

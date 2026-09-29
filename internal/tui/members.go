@@ -118,18 +118,8 @@ func (m *Model) roomMembersView() string {
 	if !s.loaded {
 		return strings.Join(rows, "\n")
 	}
-	count := s.list.Total
-	ignoreSelf := !s.fleet && !m.config.AudienceIncludeSelf
-	if !s.fleet {
-		count = m.visibleAudienceCount(count)
-	}
-	rows = append(rows, m.theme.hintText(fmt.Sprintf(i18n.T(total), count), width), "")
-	visible := 0
+	rows = append(rows, m.theme.hintText(fmt.Sprintf(i18n.T(total), s.list.Total), width), "")
 	for _, member := range s.list.Members {
-		if ignoreSelf && member.Self {
-			continue
-		}
-		visible++
 		var role i18n.Key
 		switch member.GuardLevel {
 		case 1:
@@ -168,7 +158,7 @@ func (m *Model) roomMembersView() string {
 			)
 		}
 	}
-	if visible == 0 {
+	if len(s.list.Members) == 0 {
 		rows = append(rows, m.theme.hintText(i18n.T(empty), width))
 	}
 	return strings.TrimRight(strings.Join(rows, "\n"), "\n")

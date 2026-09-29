@@ -45,7 +45,7 @@ func (m *Model) openChat() {
 	h, err := danmaku.Open(m.store.Dir())
 	m.chat = &danmakuUI{history: h, err: err}
 	if err == nil {
-		m.chat.listener = danmaku.NewListener(m.ctx, h)
+		m.chat.listener = danmaku.NewListener(m.ctx, h, m.store.DeviceID())
 		m.syncChat()
 	}
 }

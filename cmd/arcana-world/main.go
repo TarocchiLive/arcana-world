@@ -21,7 +21,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-var version = "0.3.0-rc.1"
+var version = "0.3.0"
 
 func run() (err error) {
 	return runArgs(os.Args[1:])
@@ -101,7 +101,7 @@ func runArgs(args []string) (err error) {
 		}
 	})
 	if options.Overrides.Proxy != nil {
-		client, err := bili.New(*proxy)
+		client, err := bili.New(*proxy, "")
 		if err != nil {
 			return err
 		}

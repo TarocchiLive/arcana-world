@@ -26,7 +26,7 @@ func (m *Model) rebuildClientAndSave(op operation[*bili.Client], proxy string, s
 			return nil, err
 		}
 		defer m.session.Unlock()
-		client, err := bili.New(proxy)
+		client, err := bili.New(proxy, m.store.DeviceID())
 		if err != nil {
 			return nil, err
 		}

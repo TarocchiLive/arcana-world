@@ -45,6 +45,7 @@ func (systemBackend) Storage() StorageKind             { return StorageSystem }
 type Store struct {
 	mu        sync.Mutex
 	dir       string
+	deviceID  string
 	backend   Backend
 	config    config.Config
 	overrides ConfigOverrides
@@ -141,7 +142,11 @@ func openStore(dir string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Store{dir: dir, config: c}
+	deviceID, err := loadDeviceID(dir)
+	if err != nil {
+		return nil, errors.New(i18n.T(i18n.StoreDeviceIdentifierFailed))
+	}
+	s := &Store{dir: dir, deviceID: deviceID, config: c}
 	if missing {
 		if err := s.persist(c); err != nil {
 			return nil, err

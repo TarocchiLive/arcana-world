@@ -37,7 +37,7 @@
   "bili.cover_url_invalid": "封面地址无效",
   "bili.credential_redacted": "[已隐藏]",
   "bili.credentials_expired": "登录凭据已失效或账号不匹配，请重新登录（已保留原凭据）",
-  "bili.device_identifier_failed": "生成设备标识失败",
+  "store.device_identifier_failed": "无法读取或保存设备标识，请检查数据目录",
   "bili.device_response_invalid": "设备标识响应无效",
   "bili.device_ticket_invalid": "设备票据响应无效",
   "bili.http_client_missing": "HTTP 客户端未配置",

@@ -63,7 +63,6 @@ func (m *Model) menu() []menuItem {
 		return []menuItem{
 			{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"},
 			{toggleLabel(i18n.T(i18n.DanmakuOther), m.config.DanmakuShowOther), "chat-other"},
-			{toggleLabel(i18n.T(i18n.TUIAudienceIgnoreSelf), !m.config.AudienceIncludeSelf), "audience-ignore-self"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
 			{i18n.T(i18n.LumenTheme) + " · " + m.themeName(), "theme"},
@@ -165,10 +164,6 @@ func (m *Model) perform(action string) tea.Cmd {
 		return m.resetSettings()
 	case "clear-data":
 		return m.form("clear-data", i18n.T(i18n.TUISettingsClearDataConfirm), "", false)
-	case "audience-ignore-self":
-		cfg := m.config
-		cfg.AudienceIncludeSelf = !cfg.AudienceIncludeSelf
-		return m.saveConfig(cfg, false)
 	case "exit-obs-stop":
 		cfg := m.config
 		cfg.ExitOBSStopDisabled = !cfg.ExitOBSStopDisabled
@@ -456,7 +451,7 @@ func (m *Model) submitForm() tea.Cmd {
 			m.warnStatus(i18n.T(i18n.ModerationSearchRequired))
 			return nil
 		}
-		return m.loadModerationUsers(value)
+		return m.loadModerationUsers(value, false)
 	}
 	if kind == "clear-data" {
 		if m.input.Value() != "arcanaworldclear" {
@@ -518,7 +513,7 @@ func (m *Model) submitForm() tea.Cmd {
 			m.warn(i18n.T(i18n.TUISessionOverride))
 			return nil
 		}
-		client, err := bili.New(value)
+		client, err := bili.New(value, m.store.DeviceID())
 		if err != nil {
 			m.warnStatus(clean(err.Error()))
 			return nil

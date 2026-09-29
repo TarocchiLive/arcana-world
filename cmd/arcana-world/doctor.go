@@ -54,7 +54,7 @@ func runDoctor(ctx context.Context, out io.Writer, dir string, options store.Opt
 			r.line("ERROR", "config", "cannot read configuration: invalid contents, file type or access permissions")
 		} else {
 			cfg = options.Overrides.Apply(cfg)
-			client, proxyErr := bili.New(cfg.Proxy)
+			client, proxyErr := bili.New(cfg.Proxy, "")
 			if proxyErr != nil {
 				r.line("ERROR", "proxy", "invalid proxy configuration; value omitted")
 			} else {
