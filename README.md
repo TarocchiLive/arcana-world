@@ -40,6 +40,28 @@ Arcana World 是一款基于 Go 的 bilibili 直播姬 + 弹幕姬。
 
 从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载对应平台的包，如 arcana-world-windows-amd64.zip，完整解压后运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`）即可。
 
+### Windows（Scoop）
+
+```powershell
+scoop bucket add tarocchilive https://github.com/TarocchiLive/scoop-bucket
+scoop install tarocchilive/arcana-world
+```
+
+### Debian / Ubuntu（APT）
+
+支持 amd64 和 arm64。
+
+```sh
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://tarocchilive.github.io/apt/tarocchilive-archive-keyring.gpg | sudo tee /etc/apt/keyrings/tarocchilive.gpg >/dev/null
+sudo chmod 0644 /etc/apt/keyrings/tarocchilive.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/tarocchilive.gpg] https://tarocchilive.github.io/apt stable main" | sudo tee /etc/apt/sources.list.d/tarocchilive.list
+sudo apt-get update
+sudo apt-get install arcana-world
+```
+
 ### 从源码构建
 
 从源码构建需要 Go 1.26.8+ 和对应平台的[浮层构建依赖](cmd/arcana-world-overlay/README.md#构建与启动)。Linux 下还需安装 ALSA 开发库与 `pkg-config`，用于构建配套音频程序（Debian/Ubuntu：`libasound2-dev pkg-config`）：
@@ -70,7 +92,8 @@ make desktop
 - [ ] 支持 iterm2 图片协议。
 - [ ] 终端缩放裁剪封面图。
 - [ ] 版本更新检查。
-- [ ] Scoop、Homebrew、nixpkgs 等软件仓库支持。
+- [x] Scoop、APT 软件仓库支持。
+- [ ] Homebrew、nixpkgs 软件仓库支持。
 - [ ] 机器人协议接口。
 - [?] GUI / WebUI 支持（待定）。
 

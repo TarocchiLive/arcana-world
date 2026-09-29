@@ -39,6 +39,28 @@ Native support for Windows, Linux, and macOS.
 
 Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest) for your platform, such as `arcana-world-windows-amd64.zip`, extract the entire archive, and run `arcana-world` at its root (`arcana-world.exe` on Windows).
 
+### Windows (Scoop)
+
+```powershell
+scoop bucket add tarocchilive https://github.com/TarocchiLive/scoop-bucket
+scoop install tarocchilive/arcana-world
+```
+
+### Debian / Ubuntu (APT)
+
+Supports amd64 and arm64.
+
+```sh
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://tarocchilive.github.io/apt/tarocchilive-archive-keyring.gpg | sudo tee /etc/apt/keyrings/tarocchilive.gpg >/dev/null
+sudo chmod 0644 /etc/apt/keyrings/tarocchilive.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/tarocchilive.gpg] https://tarocchilive.github.io/apt stable main" | sudo tee /etc/apt/sources.list.d/tarocchilive.list
+sudo apt-get update
+sudo apt-get install arcana-world
+```
+
 ### Build from source
 
 Building from source requires Go 1.26.8+ and the platform's [overlay build dependencies](cmd/arcana-world-overlay/README.en.md#build-and-launch). On Linux, the bundled audio helper also requires ALSA development libraries and `pkg-config` (`libasound2-dev pkg-config` on Debian/Ubuntu):
@@ -69,7 +91,8 @@ Press `0` or open Help in the app for instructions and common questions. Run `ar
 - [ ] Support the iTerm2 image protocol.
 - [ ] Support resizing and cropping cover images in the terminal.
 - [ ] Check for new versions.
-- [ ] Support package repositories such as Scoop, Homebrew, and nixpkgs.
+- [x] Support Scoop and APT repositories.
+- [ ] Support Homebrew and nixpkgs repositories.
 - [ ] Add a bot protocol interface.
 - [?] GUI / WebUI support (under consideration).
 
