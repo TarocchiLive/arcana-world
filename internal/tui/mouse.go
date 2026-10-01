@@ -189,7 +189,7 @@ func (m *Model) rebuildMouseTargets(l workspaceLayout, content string) {
 		}
 	}
 	if m.mode == "" {
-		if l.rail > 0 {
+		if !m.zoom && l.rail > 0 {
 			y := l.panelY + l.border + l.paddingY
 			for i := range pageNames() {
 				if i == 4 || i == 8 {
@@ -200,7 +200,7 @@ func (m *Model) rebuildMouseTargets(l workspaceLayout, content string) {
 				}
 				y++
 			}
-		} else {
+		} else if !m.zoom {
 			start, end := m.compactNavigationRange(l.width)
 			x := l.margin
 			names := pageNames()
