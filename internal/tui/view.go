@@ -146,6 +146,24 @@ func (m *Model) statusBar(width int) string {
 	return m.theme.paintSurface(style.Height(height).MaxHeight(height).MaxWidth(width).Render(body), m.theme.elevatedColor)
 }
 
+// 空块不占高度：Lip Gloss 会把空字符串视为一行。
+func blockHeight(block string) int {
+	if block == "" {
+		return 0
+	}
+	return lipgloss.Height(block)
+}
+
+// 缩放模式隐藏顶栏、页面导航与底栏，为正文留出完整高度；再按 z 恢复。
+func (m *Model) toggleZoom() {
+	m.zoom = !m.zoom
+	if m.zoom {
+		m.setStatus(i18n.T(i18n.LumenZoomOn))
+	} else {
+		m.setStatus(i18n.T(i18n.LumenZoomOff))
+	}
+}
+
 // 渲染、编辑器与鼠标命中区域共用同一套布局尺寸。
 func (m *Model) workspace() workspaceLayout {
 	if m.theme.id == "" || m.themeID != m.config.TUITheme {
@@ -166,20 +184,26 @@ func (m *Model) workspace() workspaceLayout {
 		l.paddingY = 1
 	}
 	l.width = max(1, m.width-2*l.margin)
-	if m.width >= 100 && m.height >= 24 {
+	if !m.zoom && m.width >= 100 && m.height >= 24 {
 		l.rail = 24
 	}
-	l.header = m.workspaceHeader(l.width)
-	if l.rail == 0 {
-		l.header = lipgloss.JoinVertical(lipgloss.Left, l.header, m.compactNavigation(l.width))
+	if m.zoom {
+		l.header = ""
+	} else {
+		l.header = m.workspaceHeader(l.width)
+		if l.rail == 0 {
+			l.header = lipgloss.JoinVertical(lipgloss.Left, l.header, m.compactNavigation(l.width))
+		}
+		if m.height < 5 {
+			l.header = m.compactNavigation(l.width)
+		}
 	}
-	if m.height < 5 {
-		l.header = m.compactNavigation(l.width)
+	if !m.zoom {
+		l.footer = m.statusBar(l.width)
 	}
-	l.footer = m.statusBar(l.width)
-	l.panelX, l.panelY = l.margin+l.rail, lipgloss.Height(l.header)
+	l.panelX, l.panelY = l.margin+l.rail, blockHeight(l.header)
 	l.panelWidth = max(1, l.width-l.rail)
-	l.panelHeight = max(1, m.height-l.panelY-lipgloss.Height(l.footer))
+	l.panelHeight = max(1, m.height-l.panelY-blockHeight(l.footer))
 	l.innerWidth = max(1, l.panelWidth-2*l.border-2*l.paddingX)
 	l.innerHeight = max(1, l.panelHeight-2*l.border-2*l.paddingY)
 	m.view.SetWidth(l.innerWidth)
@@ -187,7 +211,8 @@ func (m *Model) workspace() workspaceLayout {
 	m.pickerLeft = l.panelX + l.border + l.paddingX
 	m.pickerTop = l.panelY + l.border + l.paddingY
 	if m.page == chatPage && (m.mode == "" || m.mode == "chat-history") && m.chat != nil {
-		if l.innerHeight >= 3 {
+		// 缩放模式隐藏弹幕页顶部的快捷键与状态行；浏览历史时保留返回与时间范围。
+		if (m.mode == "chat-history" || !m.zoom) && l.innerHeight >= 3 {
 			l.chatTop = 1
 		}
 		if l.innerWidth >= 12 && l.innerHeight >= 8 {
@@ -383,31 +408,41 @@ func (m *Model) View() tea.View {
 			rail := lipgloss.NewStyle().MarginRight(2).MarginBackground(m.theme.canvasColor).Render(m.navigationRail(l))
 			panel = lipgloss.JoinHorizontal(lipgloss.Top, rail, panel)
 		}
-		screen = lipgloss.JoinVertical(lipgloss.Left, l.header, panel, l.footer)
+		blocks := make([]string, 0, 3)
+		if l.header != "" {
+			blocks = append(blocks, l.header)
+		}
+		blocks = append(blocks, panel)
+		if l.footer != "" {
+			blocks = append(blocks, l.footer)
+		}
+		screen = lipgloss.JoinVertical(lipgloss.Left, blocks...)
 		screen = m.theme.paintSurface(lipgloss.NewStyle().Foreground(m.theme.textColor).Background(m.theme.canvasColor).
 			Width(max(1, m.width)).Height(max(1, m.height)).MaxWidth(max(1, m.width)).MaxHeight(max(1, m.height)).Padding(0, l.margin).Render(screen), m.theme.canvasColor)
 		if !m.floatingModal() {
 			m.backdrop, m.backdropWidth, m.backdropHeight = screen, m.width, m.height
-			m.backdropFooterHeight = lipgloss.Height(l.footer)
+			m.backdropFooterHeight = blockHeight(l.footer)
 		}
 	}
 	var overlaySlots [4]floatingLayer
 	layers := overlaySlots[:0]
 	if m.floatingModal() {
 		// 固定并淡化原页面，顶栏状态和确认操作的快捷键继续更新。
-		height := lipgloss.Height(l.footer)
-		if cachedBackdrop {
-			height = max(height, m.backdropFooterHeight)
-		}
-		footer := m.theme.paintSurface(lipgloss.NewStyle().Width(m.width).Height(height).
-			AlignVertical(lipgloss.Bottom).Background(m.theme.canvasColor).Padding(0, l.margin).Render(l.footer), m.theme.canvasColor)
 		screen = m.theme.dim(screen)
-		if cachedBackdrop {
+		if cachedBackdrop && l.header != "" {
 			header := m.theme.paintSurface(lipgloss.NewStyle().Width(m.width).
 				Background(m.theme.canvasColor).Padding(0, l.margin).Render(l.header), m.theme.canvasColor)
-			layers = append(layers, floatingLayer{content: m.theme.dim(header), width: m.width, height: lipgloss.Height(l.header)})
+			layers = append(layers, floatingLayer{content: m.theme.dim(header), width: m.width, height: blockHeight(l.header)})
 		}
-		layers = append(layers, floatingLayer{content: footer, y: m.height - height, width: m.width, height: height})
+		if l.footer != "" {
+			height := blockHeight(l.footer)
+			if cachedBackdrop {
+				height = max(height, m.backdropFooterHeight)
+			}
+			footer := m.theme.paintSurface(lipgloss.NewStyle().Width(m.width).Height(height).
+				AlignVertical(lipgloss.Bottom).Background(m.theme.canvasColor).Padding(0, l.margin).Render(l.footer), m.theme.canvasColor)
+			layers = append(layers, floatingLayer{content: footer, y: m.height - height, width: m.width, height: height})
+		}
 		dialog := m.theme.panel(m.view.View(), l.dialogWidth, l.dialogHeight, l.paddingX, l.paddingY, l.border, true)
 		layers = append(layers, floatingLayer{content: dialog, x: l.dialogX, y: l.dialogY, width: l.dialogWidth, height: l.dialogHeight})
 	}

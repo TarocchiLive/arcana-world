@@ -32,6 +32,8 @@ const (
 	LumenFooterChat          Key = "lumen.footer_chat"
 	LumenFooterBack          Key = "lumen.footer_back"
 	LumenFooterBusy          Key = "lumen.footer_busy"
+	LumenZoomOn              Key = "lumen.zoom_on"
+	LumenZoomOff             Key = "lumen.zoom_off"
 	LumenThemeLumen          Key = "lumen.theme_lumen"
 	LumenThemeMidnight       Key = "lumen.theme_midnight"
 	LumenThemeNord           Key = "lumen.theme_nord"

@@ -74,6 +74,7 @@ type Model struct {
 	themeID                string
 	darkBackground         bool
 	showcase               showcaseState
+	zoom                   bool
 	blurred                bool
 	mouseTargets           []mouseTarget
 	mouseScrolling         bool
@@ -546,6 +547,8 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		case "0":
 			m.page = helpPage
 			m.view.GotoTop()
+		case "z":
+			m.toggleZoom()
 		case "up", "k":
 			if m.cursors[m.page] > 0 {
 				m.cursors[m.page]--
