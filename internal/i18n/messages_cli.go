@@ -19,4 +19,5 @@ const (
 	CLITTSUsage                       Key = "cli.tts_usage"
 	CLIDoctorUsage                    Key = "cli.doctor_usage"
 	CLIWebSocketAddrUsage             Key = "cli.websocket_addr_usage"
+	TUIWebSocketEnabled               Key = "cli.websocket_enabled"
 )

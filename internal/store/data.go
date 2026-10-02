@@ -29,6 +29,8 @@ func (s *Store) ResetSettings() (config.Config, error) {
 	c.ExitLiveStopDisabled = d.ExitLiveStopDisabled
 	c.DanmakuLimit = d.DanmakuLimit
 	c.DanmakuShowOther = d.DanmakuShowOther
+	c.WebSocketEnabled = d.WebSocketEnabled
+	c.WebSocketAddr = d.WebSocketAddr
 	c.Overlay = d.Overlay
 	c.OverlayDisabledEvents = d.OverlayDisabledEvents
 	c.TTS = d.TTS

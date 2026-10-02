@@ -12,7 +12,6 @@ import (
 	"syscall"
 
 	"arcana-world/internal/bili"
-	"arcana-world/internal/broadcast"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/overlay"
 	"arcana-world/internal/store"
@@ -124,15 +123,8 @@ func runArgs(args []string) (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, model.Close()) }()
-	if *websocketAddr != "" {
-		server, listenErr := broadcast.Listen(*websocketAddr)
-		if listenErr != nil {
-			return listenErr
-		}
-		defer func() { err = errors.Join(err, server.Close()) }()
-		if err := model.SetChatBroadcast(server.Publish); err != nil {
-			return err
-		}
+	if err := model.ConfigureWebSocket(*websocketAddr); err != nil {
+		return err
 	}
 	if ttsOverride != nil {
 		if err := model.ConfigureTTS(*ttsOverride); err != nil {

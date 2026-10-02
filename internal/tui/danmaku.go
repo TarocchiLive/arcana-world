@@ -51,8 +51,8 @@ func (m *Model) openChat() {
 	}
 }
 
-// SetChatBroadcast 在启动界面前接入实时广播，不读取历史快照。
-func (m *Model) SetChatBroadcast(publish func(int64, json.RawMessage)) error {
+// setChatBroadcast 接入实时广播，不读取历史快照。
+func (m *Model) setChatBroadcast(publish func(int64, json.RawMessage)) error {
 	if m.chat == nil || m.chat.listener == nil {
 		if m.chat != nil && m.chat.err != nil {
 			return m.chat.err

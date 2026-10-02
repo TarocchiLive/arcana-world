@@ -10,6 +10,7 @@ import (
 
 	"arcana-world/internal/app"
 	"arcana-world/internal/bili"
+	"arcana-world/internal/broadcast"
 	"arcana-world/internal/config"
 	"arcana-world/internal/coverimage"
 	"arcana-world/internal/domain"
@@ -145,6 +146,8 @@ type Model struct {
 	reveal                 bool
 	view                   viewport.Model
 	chat                   *danmakuUI
+	websocket              *broadcast.Server
+	websocketAddr          string
 	audience               audienceUI
 }
 

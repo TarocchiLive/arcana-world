@@ -63,6 +63,7 @@ func (m *Model) menu() []menuItem {
 		return []menuItem{
 			{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"},
 			{toggleLabel(i18n.T(i18n.DanmakuOther), m.config.DanmakuShowOther), "chat-other"},
+			{toggleLabel(i18n.T(i18n.TUIWebSocketEnabled), m.websocket != nil), "websocket-toggle"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
 			{i18n.T(i18n.LumenTheme) + " · " + m.themeName(), "theme"},
@@ -154,6 +155,8 @@ func (m *Model) perform(action string) tea.Cmd {
 		return work(m, deleteOperation(), func(ctx context.Context) (app.AccountOutcome, error) { return m.session.Delete(ctx, client, uid) })
 	}
 	switch action {
+	case "websocket-toggle":
+		return m.toggleWebSocket()
 	case "theme":
 		return m.pickTheme()
 	case "appearance":
