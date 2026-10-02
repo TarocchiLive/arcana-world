@@ -2,6 +2,8 @@ package tui
 
 import (
 	"errors"
+	"net"
+	"strconv"
 
 	"arcana-world/internal/broadcast"
 	"arcana-world/internal/i18n"
@@ -24,10 +26,7 @@ func (m *Model) startWebSocket() error {
 	if m.websocket != nil {
 		return nil
 	}
-	addr := m.websocketAddr
-	if addr == "" {
-		addr = m.config.WebSocketAddr
-	}
+	addr := m.effectiveWebSocketAddr()
 	server, err := broadcast.Listen(addr)
 	if err != nil {
 		return err
@@ -72,6 +71,62 @@ func (m *Model) toggleWebSocket() tea.Cmd {
 			return nil
 		}
 	}
+	m.log(i18n.T(i18n.TUILogSettingsSaved))
+	return m.finishResult()
+}
+
+func (m *Model) effectiveWebSocketAddr() string {
+	if m.websocketAddr != "" {
+		return m.websocketAddr
+	}
+	return m.config.WebSocketAddr
+}
+
+func (m *Model) saveWebSocketAddr(addr string) tea.Cmd {
+	if m.websocketAddr != "" {
+		m.warn(i18n.T(i18n.TUISessionOverride))
+		return nil
+	}
+	_, port, err := net.SplitHostPort(addr)
+	n, portErr := strconv.Atoi(port)
+	if err != nil || portErr != nil || n < 1 || n > 65535 {
+		m.warnStatus(i18n.T(i18n.TUIWebSocketAddrInvalid))
+		return nil
+	}
+	if _, err := net.ResolveTCPAddr("tcp", addr); err != nil {
+		m.warnStatus(err.Error())
+		return nil
+	}
+	var replacement *broadcast.Server
+	if m.websocket != nil && addr != m.config.WebSocketAddr {
+		var err error
+		replacement, err = broadcast.Listen(addr)
+		if err != nil {
+			m.warnStatus(err.Error())
+			return nil
+		}
+	}
+	cfg := m.config
+	cfg.WebSocketAddr = addr
+	if err := m.store.SaveConfig(cfg); err != nil {
+		if replacement != nil {
+			err = errors.Join(err, replacement.Close())
+		}
+		m.warnStatus(err.Error())
+		return nil
+	}
+	m.config = m.store.Config()
+	if replacement != nil {
+		old := m.websocket
+		m.websocket = replacement
+		m.chat.listener.SetBroadcast(replacement.Publish)
+		if err := old.Close(); err != nil {
+			m.warn(err.Error())
+		}
+	}
+	m.mode = ""
+	m.input.SetValue("")
+	m.input.Blur()
 	m.log(i18n.T(i18n.TUILogSettingsSaved))
 	return m.finishResult()
 }
