@@ -33,6 +33,8 @@ type Config struct {
 	DanmakuDisabled       bool             `json:"danmaku_disabled"`
 	DanmakuLimit          int              `json:"danmaku_limit"`
 	DanmakuShowOther      bool             `json:"danmaku_show_other"`
+	WebSocketEnabled      bool             `json:"websocket_enabled"`
+	WebSocketAddr         string           `json:"websocket_addr"`
 	RecentTitles          []string         `json:"recent_titles"`
 	RecentAreas           []domain.Area    `json:"recent_areas"`
 	Overlay               overlay.Settings `json:"overlay"`

@@ -43,4 +43,5 @@ const (
 	CLIDefaultUISaved                 Key = "cli.default_ui_saved"
 	CLIWebUILauncherFailed            Key = "cli.webui_launcher_failed"
 	CLIWebSocketAddrUsage             Key = "cli.websocket_addr_usage"
+	TUIWebSocketEnabled               Key = "cli.websocket_enabled"
 )

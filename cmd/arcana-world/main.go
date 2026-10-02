@@ -15,7 +15,6 @@ import (
 	"syscall"
 
 	"arcana-world/internal/bili"
-	"arcana-world/internal/broadcast"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/journal"
 	"arcana-world/internal/overlay"
@@ -301,15 +300,8 @@ func runArgs(args []string) (err error) {
 	defer func() { err = errors.Join(err, model.Close()) }()
 	// 后注册先执行：必须在 model.Close 关闭日志之前写入失败原因。
 	defer logRunFailure(&err)
-	if *websocketAddr != "" {
-		server, listenErr := broadcast.Listen(*websocketAddr)
-		if listenErr != nil {
-			return listenErr
-		}
-		defer func() { err = errors.Join(err, server.Close()) }()
-		if err := model.SetChatBroadcast(server.Publish); err != nil {
-			return err
-		}
+	if err := model.ConfigureWebSocket(*websocketAddr); err != nil {
+		return err
 	}
 	if ttsOverride != nil {
 		if err := model.ConfigureTTS(*ttsOverride); err != nil {
