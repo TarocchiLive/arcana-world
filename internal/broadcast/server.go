@@ -48,7 +48,10 @@ func Listen(addr string) (*Server, error) {
 }
 
 func (s *Server) accept(w http.ResponseWriter, r *http.Request) {
-	conn, err := websocket.Accept(w, r, nil)
+	// 本地 HTML 和 OBS 本地浏览器源使用 null；其他网页仍执行同源检查。
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		InsecureSkipVerify: r.Header.Get("Origin") == "null",
+	})
 	if err != nil {
 		return
 	}
