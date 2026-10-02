@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"arcana-world/internal/bili"
+	"arcana-world/internal/broadcast"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/overlay"
 	"arcana-world/internal/store"
@@ -41,6 +42,7 @@ func runArgs(args []string) (err error) {
 	obsAutoStream := flags.Bool("obs-auto-stream", false, "")
 	enableTTS := flags.Bool("tts", false, "")
 	doctor := flags.Bool("doctor", false, "")
+	websocketAddr := flags.String("websocket-addr", "", "")
 	help := flags.Bool("help", false, "")
 	shortHelp := flags.Bool("h", false, "")
 	parseErr := flags.Parse(args)
@@ -59,6 +61,7 @@ func runArgs(args []string) (err error) {
 	flags.Lookup("obs-auto-stream").Usage = i18n.T(i18n.CLIOBSAutoStreamUsage)
 	flags.Lookup("tts").Usage = i18n.T(i18n.CLITTSUsage)
 	flags.Lookup("doctor").Usage = i18n.T(i18n.CLIDoctorUsage)
+	flags.Lookup("websocket-addr").Usage = i18n.T(i18n.CLIWebSocketAddrUsage)
 	flags.Lookup("help").Usage = i18n.T(i18n.CLIHelpUsage)
 	flags.Lookup("h").Usage = flags.Lookup("help").Usage
 	flags.Usage = func() {
@@ -121,6 +124,16 @@ func runArgs(args []string) (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, model.Close()) }()
+	if *websocketAddr != "" {
+		server, listenErr := broadcast.Listen(*websocketAddr)
+		if listenErr != nil {
+			return listenErr
+		}
+		defer func() { err = errors.Join(err, server.Close()) }()
+		if err := model.SetChatBroadcast(server.Publish); err != nil {
+			return err
+		}
+	}
 	if ttsOverride != nil {
 		if err := model.ConfigureTTS(*ttsOverride); err != nil {
 			return err
