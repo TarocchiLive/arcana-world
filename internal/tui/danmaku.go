@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -48,6 +49,18 @@ func (m *Model) openChat() {
 		m.chat.listener = danmaku.NewListener(m.ctx, h, m.store.DeviceID())
 		m.syncChat()
 	}
+}
+
+// setChatBroadcast 接入实时广播，不读取历史快照。
+func (m *Model) setChatBroadcast(publish func(int64, json.RawMessage)) error {
+	if m.chat == nil || m.chat.listener == nil {
+		if m.chat != nil && m.chat.err != nil {
+			return m.chat.err
+		}
+		return errors.New("danmaku listener unavailable")
+	}
+	m.chat.listener.SetBroadcast(publish)
+	return nil
 }
 func (m *Model) syncChat() {
 	if m.chat == nil || m.chat.listener == nil {

@@ -83,6 +83,7 @@ type Listener struct {
 	closeOnce       sync.Once
 	closeErr        error
 	retryDelay      time.Duration
+	broadcast       func(int64, json.RawMessage)
 }
 
 func NewListener(ctx context.Context, history *History, deviceID string) *Listener {
@@ -101,6 +102,13 @@ func newListener(ctx context.Context, history archive, factory func(string, doma
 	l := &Listener{history: history, factory: factory, wake: make(chan struct{}, 1), cancel: cancel, done: make(chan struct{}), retryDelay: initialRetryDelay, state: Snapshot{Phase: PhaseWaiting}}
 	go l.control(ctx)
 	return l
+}
+
+// SetBroadcast 设置非阻塞的实时消息接收器，不影响历史持久化。
+func (l *Listener) SetBroadcast(publish func(int64, json.RawMessage)) {
+	l.mu.Lock()
+	l.broadcast = publish
+	l.mu.Unlock()
 }
 
 // Configure 包括凭据配置在内均为幂等操作；绝不等待网络 I/O。
@@ -321,6 +329,11 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 				authenticated = true
 				l.publish(gen, PhaseConnected, room, nil, false)
 			}, func(raw json.RawMessage) error {
+				l.mu.Lock()
+				if gen == l.generation && ctx.Err() == nil && l.broadcast != nil {
+					l.broadcast(room, raw)
+				}
+				l.mu.Unlock()
 				return l.save(ctx, gen, room, func() (bool, error) { return l.history.Append(room, raw) })
 			})
 			// 不要仅因认证成功就重置退避：否则反复断开的连接
