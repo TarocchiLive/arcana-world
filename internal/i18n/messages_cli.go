@@ -20,4 +20,6 @@ const (
 	CLIDoctorUsage                    Key = "cli.doctor_usage"
 	CLIWebSocketAddrUsage             Key = "cli.websocket_addr_usage"
 	TUIWebSocketEnabled               Key = "cli.websocket_enabled"
+	TUIWebSocketAddr                  Key = "cli.websocket_addr"
+	TUIWebSocketAddrInvalid           Key = "cli.websocket_addr_invalid"
 )
