@@ -1,4 +1,4 @@
-// Package broadcast 提供只读的弹幕与礼物实时广播。
+// Package broadcast 提供只读的弹幕、礼物与观众互动实时广播。
 package broadcast
 
 import (
@@ -87,7 +87,7 @@ func (s *Server) accept(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Publish 保留原始字段，过滤非弹幕、非礼物消息；不等待客户端网络写入。
+// Publish 保留原始字段，仅转发弹幕、礼物与观众互动消息；不等待客户端网络写入。
 func (s *Server) Publish(room int64, raw json.RawMessage) {
 	var command struct {
 		Cmd string `json:"cmd"`
@@ -96,7 +96,7 @@ func (s *Server) Publish(room int64, raw json.RawMessage) {
 		return
 	}
 	switch strings.SplitN(command.Cmd, ":", 2)[0] {
-	case "DANMU_MSG", "SEND_GIFT":
+	case "DANMU_MSG", "SEND_GIFT", "INTERACT_WORD", "INTERACT_WORD_V2", "LIKE_INFO_V3_CLICK":
 	default:
 		return
 	}
