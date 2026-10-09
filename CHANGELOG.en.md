@@ -4,6 +4,12 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+### Added
+
+- Customize overlay and TTS text with language-specific YAML files containing Go templates. Generate missing defaults at startup and fall back per file on template errors; add an in-app help article for custom formats.
+
 ## [v0.3.0]: 2026-09-29
 
 ### Added

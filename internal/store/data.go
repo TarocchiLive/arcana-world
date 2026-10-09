@@ -111,6 +111,7 @@ func (s *Store) clearFiles() error {
 		{"danmaku", []string{"history.db"}, ""},
 		{"logs", []string{"arcana-world.log", "journal.lock"}, ".journal-"},
 		{"credentials", []string{"secrets.json"}, ".secrets-"},
+		{"templates", []string{"overlay.zh-CN.yaml", "overlay.en.yaml", "tts.zh-CN.yaml", "tts.en.yaml"}, ""},
 	} {
 		info, err := root.Lstat(child.name)
 		if errors.Is(err, os.ErrNotExist) {

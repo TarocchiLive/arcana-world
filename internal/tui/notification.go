@@ -21,6 +21,7 @@ type notificationState struct {
 	generation uint64
 	pending    bool
 	dismissed  bool
+	persistent bool
 	scroll     int
 }
 
@@ -33,6 +34,10 @@ func (m *Model) progressStatus(text string) {
 }
 
 func (m *Model) resetNotification() {
+	// 配置错误保留到用户关闭，后台连接结果只更新状态与日志。
+	if m.notification.persistent && !m.notification.dismissed {
+		return
+	}
 	if m.selectingNotice() {
 		m.textSelection = nil
 	}
@@ -48,7 +53,7 @@ func (m *Model) resetNotification() {
 
 // 每次新结果只安排一次计时，与背景动画和任务忙碌状态无关。
 func (m *Model) notificationCommand() tea.Cmd {
-	if !m.notification.pending || m.selectingNotice() {
+	if !m.notification.pending || m.notification.persistent || m.selectingNotice() {
 		return nil
 	}
 	m.notification.pending = false
@@ -63,7 +68,7 @@ func (m *Model) notificationCommand() tea.Cmd {
 }
 
 func (m *Model) updateNotification(msg notificationExpired) tea.Cmd {
-	if msg.generation == m.notification.generation && !m.selectingNotice() {
+	if msg.generation == m.notification.generation && !m.notification.persistent && !m.selectingNotice() {
 		m.notification.dismissed = true
 		m.noticeLayer = floatingLayer{}
 	}
@@ -73,7 +78,7 @@ func (m *Model) updateNotification(msg notificationExpired) tea.Cmd {
 func (m *Model) notificationVisible() bool {
 	return m.mode != "confirm" && strings.TrimSpace(m.notification.text) != "" && !m.notification.dismissed &&
 		(!m.config.TUINotificationsWarningsOnly || m.notification.warning) &&
-		(m.selectingNotice() || time.Since(m.notification.started) < notificationDuration)
+		(m.notification.persistent || m.selectingNotice() || time.Since(m.notification.started) < notificationDuration)
 }
 
 // 渲染与鼠标滚动共用可见行数，并为滚动位置预留一行。

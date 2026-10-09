@@ -62,6 +62,8 @@ const (
 	TUIHelpChat                        Key = "tui.help.chat"
 	TUIHelpOutputTitle                 Key = "tui.help.output_title"
 	TUIHelpOutput                      Key = "tui.help.output"
+	TUIHelpOutputTemplatesTitle        Key = "tui.help.output_templates_title"
+	TUIHelpOutputTemplates             Key = "tui.help.output_templates"
 	TUIHelpControlsTitle               Key = "tui.help.controls_title"
 	TUIHelpControls                    Key = "tui.help.controls"
 	TUILiveConfigureHint               Key = "tui.live.configure_hint"
