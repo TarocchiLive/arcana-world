@@ -58,7 +58,15 @@ func (m *Model) syncOverlayChatSource() {
 		if event.Deleted || !presentation.Enabled(m.config.OverlayDisabledEvents, event) {
 			continue
 		}
-		text := overlayChatPlain(presentation.RenderOverlay(event), overlayChatTextLimit)
+		rendered, err := m.outputTemplates.RenderOverlay(event)
+		if err != nil {
+			m.warnOutputTemplates(err)
+			// 文件已整体回退，重新生成本批内容，避免混用之前的自定义结果。
+			c.entries = nil
+			m.syncOverlayChatSource()
+			return
+		}
+		text := overlayChatPlain(rendered, overlayChatTextLimit)
 		if text == "" {
 			continue
 		}

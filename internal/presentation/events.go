@@ -1,10 +1,10 @@
-// Package presentation 定义浮层与语音共享的事件目录及各自的中文模板。
+// Package presentation 定义浮层与语音共享的事件目录及外部模板。
 package presentation
 
 import (
 	"strconv"
 	"strings"
-	"text/template"
+	"time"
 	"unicode"
 
 	"arcana-world/internal/danmaku"
@@ -45,22 +45,6 @@ var specs = []EventSpec{
 	{"ROOM_ADMIN_REVOKE", i18n.OutputEventAdminRevoke, `已撤销房管{{with .N "uid"}}（用户{{.}}）{{end}}{{with .F "msg" ""}}：{{.}}{{end}}`, `直播间撤销了房管权限{{with .F "msg" ""}}。{{.}}{{end}}`},
 }
 
-type templates struct{ overlay, tts *template.Template }
-
-var compiled = func() map[string]templates {
-	result := make(map[string]templates, len(specs))
-	for _, spec := range specs {
-		if _, exists := result[spec.ID]; exists {
-			panic("事件模板标识重复")
-		}
-		result[spec.ID] = templates{
-			overlay: template.Must(template.New(spec.ID).Parse(spec.OverlayTemplate)),
-			tts:     template.Must(template.New(spec.ID).Parse(spec.TTSTemplate)),
-		}
-	}
-	return result
-}()
-
 func Specs() []EventSpec { return append([]EventSpec(nil), specs...) }
 
 func ID(e danmaku.Event) string {
@@ -72,7 +56,7 @@ func ID(e danmaku.Event) string {
 
 func Enabled(disabled []string, e danmaku.Event) bool {
 	id := ID(e)
-	if _, exists := compiled[id]; !exists {
+	if !knownEvent(id) {
 		return false
 	}
 	for _, value := range disabled {
@@ -83,9 +67,6 @@ func Enabled(disabled []string, e danmaku.Event) bool {
 	return true
 }
 
-func RenderOverlay(e danmaku.Event) string { return render(e, false) }
-func RenderTTS(e danmaku.Event) string     { return render(e, true) }
-
 // OverlayRole 无需检查渲染文本即可识别购买类别。
 func OverlayRole(e danmaku.Event) byte {
 	if e.Kind == "sc" {
@@ -95,7 +76,7 @@ func OverlayRole(e danmaku.Event) byte {
 	if e.Kind == "guard" {
 		guard = e.Gift
 	} else if id := ID(e); id == "USER_TOAST_MSG" || id == "LIVE_OPEN_PLATFORM_GUARD" {
-		guard = (eventData{e}).Guard()
+		guard = (eventData{Event: &e}).Guard()
 	}
 	switch guard {
 	case "舰长":
@@ -108,28 +89,33 @@ func OverlayRole(e danmaku.Event) byte {
 	return 'n'
 }
 
-func render(e danmaku.Event, spoken bool) string {
-	t, exists := compiled[ID(e)]
-	if !exists {
-		return ""
-	}
-	selected, limit := t.overlay, 2048
-	if spoken {
-		selected, limit = t.tts, 500
-	}
-	var out strings.Builder
-	if err := selected.Execute(&out, eventData{e}); err != nil {
-		return ""
-	}
-	return clean(out.String(), limit)
+type eventData struct {
+	*danmaku.Event
+	english bool
 }
 
-type eventData struct{ danmaku.Event }
+func (d eventData) Time() time.Time { return d.Event.Time.Local() }
 
 func (d eventData) GuardDuration() string {
 	count, unit := d.Event.GuardPeriod()
 	if count <= 0 {
 		return clean(unit, 32)
+	}
+	if d.english {
+		switch unit {
+		case "月", "个月":
+			unit = "month"
+		case "年":
+			unit = "year"
+		case "天":
+			unit = "day"
+		default:
+			return strconv.FormatInt(count, 10) + " " + clean(unit, 32)
+		}
+		if count != 1 {
+			unit += "s"
+		}
+		return strconv.FormatInt(count, 10) + " " + unit
 	}
 	if unit == "月" {
 		unit = "个月"
@@ -137,17 +123,19 @@ func (d eventData) GuardDuration() string {
 	return strconv.FormatInt(count, 10) + unit
 }
 
-func (d eventData) User() string { return fallback(clean(d.Event.User, 80), "观众") }
+func (d eventData) User() string {
+	return fallback(clean(d.Event.User, 80), localized(d.english, "观众", "Viewer"))
+}
 func (d eventData) Text() string {
 	if d.Deleted {
-		return "内容已删除"
+		return localized(d.english, "内容已删除", "Content deleted")
 	}
-	return fallback(clean(d.Event.Text, 1600), "未提供内容")
+	return fallback(clean(d.Event.Text, 1600), localized(d.english, "未提供内容", "No content provided"))
 }
 func (d eventData) Gift() string {
-	name := "礼物"
+	name := localized(d.english, "礼物", "gift")
 	if d.Kind == "guard" {
-		name = "大航海"
+		name = localized(d.english, "大航海", "Guard membership")
 	}
 	return fallback(clean(d.Event.Gift, 80), name)
 }
@@ -158,12 +146,15 @@ func (d eventData) Coins() string {
 	unit := ""
 	switch d.CoinType {
 	case "gold":
-		unit = "金瓜子"
+		unit = localized(d.english, "金瓜子", " gold seeds")
 	case "silver":
-		unit = "银瓜子"
+		unit = localized(d.english, "银瓜子", " silver seeds")
 	}
 	if unit == "" {
 		return ""
+	}
+	if d.english {
+		return " (" + strconv.FormatInt(d.Amount, 10) + unit + ")"
 	}
 	return "（" + strconv.FormatInt(d.Amount, 10) + unit + "）"
 }
@@ -188,29 +179,32 @@ func (d eventData) N(name string) string {
 	return strconv.FormatInt(n, 10)
 }
 func (d eventData) Guard() string {
+	if d.Kind == "guard" {
+		return d.Gift()
+	}
 	if role := d.F("data.role_name", ""); role != "" {
 		return role
 	}
 	switch d.N("data.guard_level") {
 	case "1":
-		return "总督"
+		return localized(d.english, "总督", "Governor")
 	case "2":
-		return "提督"
+		return localized(d.english, "提督", "Admiral")
 	case "3":
-		return "舰长"
+		return localized(d.english, "舰长", "Captain")
 	}
-	return "大航海"
+	return localized(d.english, "大航海", "Guard membership")
 }
 func (d eventData) Silent() string {
 	switch d.field("data.type") {
 	case "level":
-		return "等级禁言"
+		return localized(d.english, "等级禁言", "level-based chat restrictions")
 	case "medal":
-		return "粉丝勋章禁言"
+		return localized(d.english, "粉丝勋章禁言", "fan-medal chat restrictions")
 	case "member":
-		return "会员禁言"
+		return localized(d.english, "会员禁言", "member-only chat restrictions")
 	}
-	return "禁言规则"
+	return localized(d.english, "禁言规则", "chat restrictions")
 }
 func fallback(value, missing string) string {
 	if value == "" {

@@ -17,6 +17,7 @@ import (
 	"arcana-world/internal/journal"
 	"arcana-world/internal/obs"
 	"arcana-world/internal/overlay"
+	"arcana-world/internal/presentation"
 	"arcana-world/internal/store"
 
 	"charm.land/bubbles/v2/textarea"
@@ -103,6 +104,8 @@ type Model struct {
 	overlayColorPreview    *overlay.Colors
 	overlaySettings        *overlaySettingsNavigation
 	overlayChat            overlayChatState
+	outputTemplates        *presentation.TemplateSet
+	templateLanguage       string
 	selection              *roomSelection
 	textSelection          *textSelection
 	cover                  *coverimage.Prepared
@@ -178,6 +181,7 @@ func New(ctx context.Context, s *store.Store) (*Model, error) {
 	m.session = app.New(s, m.obsClient, c)
 	m.openChat()
 	m.logCredentialStorage()
+	m.syncOutputTemplates()
 	m.syncWorkspace()
 	return m, nil
 }
@@ -280,6 +284,7 @@ func (m *Model) updatePolling() tea.Cmd {
 	return tea.Batch(append(cmds, m.notificationCommand())...)
 }
 func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
+	m.syncOutputTemplates()
 	// 原始终端输出已由 Bubble Tea 执行，不改变界面状态，也不再次设置指针。
 	switch msg.(type) {
 	case pointerRefreshMsg:

@@ -4,6 +4,14 @@
 
 版本按时间倒序记录。
 
+## [v0.3.1]：2026-10-09
+
+### 新增
+
+- 浮层与 TTS 支持独立的 YAML 格式 Go 模板；中文和英文配置分别保存，启动时自动生成缺少的默认文件，修改后重启生效。
+- 模板配置错误会显示文件和具体原因，本次运行按文件回退到内置默认；提示保留到手动关闭，已有配置不会被覆盖。
+- 帮助中心新增《自定义浮层与 TTS 播报格式》，提供字段说明、常用示例、恢复默认方法和 Go 模板文档链接。TUI 弹幕列表格式保持不变。
+
 ## [v0.3.0]：2026-09-29
 
 ### 新增
@@ -361,3 +369,4 @@
 [v0.3.0-alpha.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.4
 [v0.3.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-rc.1
 [v0.3.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0
+[v0.3.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.1

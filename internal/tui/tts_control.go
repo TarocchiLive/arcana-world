@@ -265,7 +265,11 @@ func (m *Model) handleTTSEvents(msg ttsEventsMsg) tea.Cmd {
 		if event.Deleted || event.RoomID != r.room || !presentation.Enabled(r.disabled, event) {
 			continue
 		}
-		text := overlayChatPlain(presentation.RenderTTS(event), tts.MaxTextRunes-1)
+		rendered, err := m.outputTemplates.RenderTTS(event)
+		if err != nil {
+			m.warnOutputTemplates(err)
+		}
+		text := overlayChatPlain(rendered, tts.MaxTextRunes-1)
 		if text == "" {
 			continue
 		}

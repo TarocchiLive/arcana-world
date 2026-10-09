@@ -4,6 +4,14 @@
 
 Versions are listed newest first.
 
+## [v0.3.1]: 2026-10-09
+
+### Added
+
+- Customize overlay and TTS text independently with Go templates in YAML files. Chinese and English configurations are separate; missing defaults are generated at startup, and edits take effect after restarting.
+- Template errors identify the file and cause, then fall back to built-in defaults for that file during the current session. Warnings remain until dismissed, and existing configuration files are never overwritten.
+- Add the in-app “Customize overlay and TTS formats” article with fields, examples, recovery instructions, and the Go template documentation link. TUI chat formatting remains unchanged.
+
 ## [v0.3.0]: 2026-09-29
 
 ### Added
@@ -361,3 +369,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.3.0-alpha.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.4
 [v0.3.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-rc.1
 [v0.3.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0
+[v0.3.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.1
