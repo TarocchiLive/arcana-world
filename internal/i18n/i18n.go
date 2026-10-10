@@ -42,6 +42,14 @@ func T(key Key) string {
 	return string(key)
 }
 
+// Language 返回启动时确定的语言标识，供非终端界面选择对应词表。
+func Language() string {
+	if english.Load() {
+		return "en"
+	}
+	return "zh-CN"
+}
+
 func loadCatalog(language string) map[Key]string {
 	catalog := make(map[Key]string)
 	files, err := localeFiles.ReadDir("locales/" + language)

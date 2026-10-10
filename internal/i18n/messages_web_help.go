@@ -1,0 +1,25 @@
+package i18n
+
+const (
+	WebHelpStartTitle             Key = "web.help.start.title"
+	WebHelpStartSummary           Key = "web.help.start.summary"
+	WebHelpStartBody              Key = "web.help.start.body"
+	WebHelpOBSTitle               Key = "web.help.obs.title"
+	WebHelpOBSSummary             Key = "web.help.obs.summary"
+	WebHelpOBSBody                Key = "web.help.obs.body"
+	WebHelpRoomTitle              Key = "web.help.room.title"
+	WebHelpRoomSummary            Key = "web.help.room.summary"
+	WebHelpRoomBody               Key = "web.help.room.body"
+	WebHelpChatTitle              Key = "web.help.chat.title"
+	WebHelpChatSummary            Key = "web.help.chat.summary"
+	WebHelpChatBody               Key = "web.help.chat.body"
+	WebHelpOutputsTitle           Key = "web.help.outputs.title"
+	WebHelpOutputsSummary         Key = "web.help.outputs.summary"
+	WebHelpOutputsBody            Key = "web.help.outputs.body"
+	WebHelpPrivacyTitle           Key = "web.help.privacy.title"
+	WebHelpPrivacySummary         Key = "web.help.privacy.summary"
+	WebHelpPrivacyBody            Key = "web.help.privacy.body"
+	WebHelpTroubleshootingTitle   Key = "web.help.troubleshooting.title"
+	WebHelpTroubleshootingSummary Key = "web.help.troubleshooting.summary"
+	WebHelpTroubleshootingBody    Key = "web.help.troubleshooting.body"
+)

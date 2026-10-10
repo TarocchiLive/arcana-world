@@ -1,0 +1,10 @@
+{
+  "web.panel.InteractionChanged": "The interaction changed. Review the current state and try again.",
+  "web.panel.OperationBusy": "An operation is still in progress.",
+  "web.panel.ActionUnavailable": "This action is not available in the current context.",
+  "web.panel.StreamProtocol": "Stream protocol",
+  "web.panel.StreamCredentials": "Stream credentials",
+  "web.panel.CoverPathHint": "Enter an image path on the computer running Arcana World (not a browser upload).",
+  "web.panel.ScanVerify": "Scan to verify",
+  "web.panel.SaveLogin": "Save signed-in account"
+}

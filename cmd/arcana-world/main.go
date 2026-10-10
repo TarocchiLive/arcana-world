@@ -41,6 +41,8 @@ func runArgs(args []string) (err error) {
 	obsAutoStream := flags.Bool("obs-auto-stream", false, "")
 	enableTTS := flags.Bool("tts", false, "")
 	doctor := flags.Bool("doctor", false, "")
+	enableWeb := flags.Bool("web", false, "")
+	webPort := flags.Int("web-port", 0, "")
 	help := flags.Bool("help", false, "")
 	shortHelp := flags.Bool("h", false, "")
 	parseErr := flags.Parse(args)
@@ -59,6 +61,8 @@ func runArgs(args []string) (err error) {
 	flags.Lookup("obs-auto-stream").Usage = i18n.T(i18n.CLIOBSAutoStreamUsage)
 	flags.Lookup("tts").Usage = i18n.T(i18n.CLITTSUsage)
 	flags.Lookup("doctor").Usage = i18n.T(i18n.CLIDoctorUsage)
+	flags.Lookup("web").Usage = i18n.T(i18n.CLIWebUsage)
+	flags.Lookup("web-port").Usage = i18n.T(i18n.CLIWebPortUsage)
 	flags.Lookup("help").Usage = i18n.T(i18n.CLIHelpUsage)
 	flags.Lookup("h").Usage = flags.Lookup("help").Usage
 	flags.Usage = func() {
@@ -86,8 +90,11 @@ func runArgs(args []string) (err error) {
 	}
 	options := store.Options{CredentialBackend: *credentialBackend}
 	var overlayOverride, ttsOverride *bool
+	webPortSet := false
 	flags.Visit(func(f *flag.Flag) {
 		switch f.Name {
+		case "web-port":
+			webPortSet = true
 		case "proxy":
 			options.Overrides.Proxy = proxy
 		case "obs-auto-connect":
@@ -100,6 +107,12 @@ func runArgs(args []string) (err error) {
 			ttsOverride = enableTTS
 		}
 	})
+	if webPortSet && !*enableWeb {
+		return errors.New(i18n.T(i18n.WebPortRequiresWeb))
+	}
+	if *webPort < 0 || *webPort > 65535 {
+		return errors.New(i18n.T(i18n.WebPortInvalid))
+	}
 	if options.Overrides.Proxy != nil {
 		client, err := bili.New(*proxy, "")
 		if err != nil {
@@ -133,6 +146,9 @@ func runArgs(args []string) (err error) {
 	}
 	if err := model.ConfigureOverlay(overlay.Options{Executable: *overlayExecutable, Config: cfg.Overlay.Config("")}, effectiveOverlay); err != nil {
 		return err
+	}
+	if *enableWeb {
+		return runWeb(ctx, model, *webPort)
 	}
 	defer func() { _, _ = fmt.Fprint(os.Stdout, ansi.SetPointerShape("default")) }()
 	_, err = tea.NewProgram(model, tea.WithContext(ctx)).Run()

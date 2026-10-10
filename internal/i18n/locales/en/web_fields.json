@@ -1,0 +1,16 @@
+{
+  "web.field.title": "Title",
+  "web.field.announcement": "Announcement",
+  "web.field.obs_url": "WebSocket address",
+  "web.field.obs_password": "Password",
+  "web.field.obs_auto_connect": "Auto-connect OBS",
+  "web.field.obs_auto_stream": "Start OBS when going live",
+  "web.field.proxy": "Network proxy",
+  "web.field.chat_enabled": "Receive chat",
+  "web.field.chat_other": "Show other events",
+  "web.field.chat_limit": "Message limit",
+  "web.field.exit_obs_stop": "Stop OBS on exit",
+  "web.field.exit_live_stop": "End live room on exit",
+  "web.field.overlay_enabled": "Desktop overlay",
+  "web.field.tts_enabled": "Speech"
+}
