@@ -491,6 +491,9 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 					m.closeRoomMembers()
 				}
 				m.qrGeneration++
+				if m.mode == "cover-review" {
+					m.cover = nil
+				}
 				m.mode = ""
 				m.qr = nil
 				m.qrText = ""

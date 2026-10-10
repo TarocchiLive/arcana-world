@@ -24,6 +24,7 @@ const (
 	TUICoverCropped                    Key = "tui.cover.cropped"
 	TUICoverCurrentPreviewTitle        Key = "tui.cover.current_preview_title"
 	TUICoverEmpty                      Key = "tui.cover.empty"
+	TUICoverFraming                    Key = "tui.cover.framing"
 	TUICoverProcessedDetails           Key = "tui.cover.processed_details"
 	TUICoverRequirements               Key = "tui.cover.requirements"
 	TUICoverReviewControls             Key = "tui.cover.review_controls"

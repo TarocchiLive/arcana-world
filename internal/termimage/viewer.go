@@ -69,7 +69,7 @@ func (v *Viewer) Run() (result error) {
 	}
 	out, outputFile := v.stdout.(*os.File)
 	if !outputFile || !term.IsTerminal(out.Fd()) {
-		return v.frame(dimensions{cols: 80, rows: 24}, false, 0, nil)
+		return v.frame(dimensions{cols: 80, rows: 24}, false, false, 0, nil)
 	}
 	in, ok := v.stdin.(*os.File)
 	if !ok || !term.IsTerminal(in.Fd()) {
@@ -92,12 +92,11 @@ func (v *Viewer) Run() (result error) {
 		id = 1
 	}
 	var encoded bytes.Buffer
-	native := supportsGraphics(os.Getenv)
-	if native {
-		if err = png.Encode(&encoded, v.img); err != nil {
-			return err
-		}
-	}
+	iterm := supportsITerm(os.Getenv)
+	native := !iterm && supportsGraphics(os.Getenv)
+	viewport := imageViewport{Image: v.img, rect: v.img.Bounds(), zoom: 1}
+	frame := *v
+	dirty := true
 	// 首次写入前即安装清理逻辑，覆盖部分写入后失败的情况。
 	defer func() {
 		if native {
@@ -119,7 +118,21 @@ func (v *Viewer) Run() (result error) {
 		if sizeErr != nil {
 			return fmt.Errorf(i18n.T(i18n.TermImageTerminalSizeFailed), sizeErr)
 		}
-		if size != previous {
+		if dirty || size != previous {
+			if dirty {
+				frame.img = &viewport
+				if viewport.zoom == 1 {
+					frame.img = v.img
+				}
+				frame.caption = fmt.Sprintf("%s · %d×", v.caption, viewport.zoom)
+				if native || iterm {
+					encoded.Reset()
+					if err = png.Encode(&encoded, frame.img); err != nil {
+						return err
+					}
+				}
+				dirty = false
+			}
 			// 调整尺寸前仅删除本查看器的图像，绝不留下过期的放置记录。
 			if native {
 				if err = deleteImage(v.stdout, id); err != nil {
@@ -129,9 +142,8 @@ func (v *Viewer) Run() (result error) {
 			if _, err = io.WriteString(v.stdout, "\x1b[2J\x1b[H"); err != nil {
 				return err
 			}
-			// 没有像素尺寸信息时，无法可靠限定保持宽高比的原生图像范围；
-			// 半块渲染则始终限制在字符网格内。
-			if err = v.frame(size, native && size.width > 0 && size.height > 0, id, encoded.Bytes()); err != nil {
+			// Kitty 缺少像素尺寸时使用半块回退；iTerm2 可直接按字符网格限制尺寸。
+			if err = frame.frame(size, native && size.width > 0 && size.height > 0, iterm, id, encoded.Bytes()); err != nil {
 				if errors.Is(err, errPreviewClosed) {
 					return nil
 				}
@@ -150,6 +162,9 @@ func (v *Viewer) Run() (result error) {
 			if key == 27 || key == 'q' || key == 'Q' || key == '\r' || key == '\n' || key == 3 {
 				return nil
 			}
+			if viewport.key(key) {
+				dirty = true
+			}
 		}
 	}
 }
@@ -162,6 +177,14 @@ func supportsGraphics(getenv func(string) string) bool {
 	return name == "xterm-kitty" || name == "xterm-ghostty" || strings.EqualFold(getenv("TERM_PROGRAM"), "ghostty") || getenv("KITTY_WINDOW_ID") != ""
 }
 
+// supportsITerm 仅启用直连 iTerm2；多路复用器继续使用字符回退。
+func supportsITerm(getenv func(string) string) bool {
+	name := strings.ToLower(getenv("TERM"))
+	return strings.EqualFold(getenv("TERM_PROGRAM"), "iTerm.app") &&
+		getenv("TMUX") == "" && getenv("STY") == "" &&
+		!strings.HasPrefix(name, "screen") && !strings.HasPrefix(name, "tmux")
+}
+
 func cleanCaption(text string, width int) string {
 	text = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
@@ -172,12 +195,27 @@ func cleanCaption(text string, width int) string {
 	return ansi.Truncate(text, max(0, width), "")
 }
 
-func (v *Viewer) frame(size dimensions, native bool, id uint32, payload []byte) error {
+func (v *Viewer) frame(size dimensions, native, iterm bool, id uint32, payload []byte) error {
 	cols, rows := size.cols-1, size.rows-previewReservedRows // 预留最后一列，避免自动换行。
 	if cols < 1 || rows < 1 {
 		return nil
 	}
 	if _, err := fmt.Fprintf(v.stdout, "%s\r\n", cleanCaption(v.caption, cols)); err != nil {
+		return err
+	}
+	if iterm {
+		// 同时限制字符宽高，终端负责保持比例；不依赖像素尺寸报告。
+		if _, err := fmt.Fprintf(v.stdout, "\x1b]1337;File=size=%d;inline=1;width=%d;height=%d;preserveAspectRatio=1:", len(payload), cols, rows); err != nil {
+			return err
+		}
+		encoder := base64.NewEncoder(base64.StdEncoding, v.stdout)
+		if _, err := encoder.Write(payload); err != nil {
+			return err
+		}
+		if err := encoder.Close(); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintf(v.stdout, "\a\x1b[%d;1H%s", size.rows, cleanCaption(i18n.T(i18n.TermImageReturnHint), cols))
 		return err
 	}
 	if !native {

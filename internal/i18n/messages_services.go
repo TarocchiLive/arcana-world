@@ -85,6 +85,7 @@ const (
 	CoverImageFileOpenFailed             Key = "coverimage.file_open_failed"
 	CoverImageFileReadFailed             Key = "coverimage.file_read_failed"
 	CoverImageFileSizeInvalid            Key = "coverimage.file_size_invalid"
+	CoverImageFramingInvalid             Key = "coverimage.framing_invalid"
 	CoverImageImageFormatInvalid         Key = "coverimage.image_format_invalid"
 	CoverImagePngEncodeFailed            Key = "coverimage.png_encode_failed"
 	CoverImageRegularFileRequired        Key = "coverimage.regular_file_required"
