@@ -78,6 +78,8 @@ After building, run `bin/arcana-world` (`bin/arcana-world.exe` on Windows). For 
 
 Press `0` or open Help in the app for instructions and common questions. Run `arcana-world --help` for command-line options.
 
+The opt-in local bot interface uses JSON-RPC 2.0 over stdin/stdout for status queries, current-room event pagination, and sending chat. It pins the startup account and opens no listening port. Close any TUI using the same data directory and expose the pipes only to trusted programs. See `arcana-world --help` for the protocol, parameters, and an example.
+
 ## TODO
 - [x] Fetch direct Bilibili stream URLs, connect to OBS, and start broadcasts automatically.
 - [x] Receive Bilibili live chat messages and browse gifts and chat history in the TUI.
@@ -87,13 +89,13 @@ Press `0` or open Help in the app for instructions and common questions. Run `ar
 - [x] Add mouse support to the TUI.
 - [x] Refactor and improve the TUI layout and appearance.
 - [x] Send live chat messages from the terminal.
-- [ ] Refactor and improve the overlay layout and appearance.
-- [ ] Support the iTerm2 image protocol.
-- [ ] Support resizing and cropping cover images in the terminal.
-- [ ] Check for new versions.
+- [x] Refactor and improve the overlay layout and appearance.
+- [x] Support the iTerm2 image protocol for cover previews.
+- [x] Support resizing and cropping cover images in the terminal.
+- [x] Check for new versions.
 - [x] Support Scoop and APT repositories.
 - [ ] Support Homebrew and nixpkgs repositories.
-- [ ] Add a bot protocol interface.
+- [x] Add a bot protocol interface.
 - [?] GUI / WebUI support (under consideration).
 
 ## Development
