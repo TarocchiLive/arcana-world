@@ -93,9 +93,9 @@ func (m *Model) handleOverlayConfigResult(_ struct{}, err error, label i18n.Key)
 		}
 	}()
 	if err != nil {
-		m.clearOverlayColorPreview()
+		m.clearOverlayAppearancePreview()
 	} else {
-		m.overlayColorPreview = nil
+		m.overlayAppearancePreview = nil
 	}
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd

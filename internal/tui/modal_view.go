@@ -66,6 +66,14 @@ func (m *Model) modalContent() string {
 		if m.editKind == "cover-path" {
 			controls = i18n.T(i18n.TUIFormCoverControls)
 		}
+		if field := m.editingOverlayField(); field != nil {
+			if m.overlay != nil && m.overlay.state == "running" {
+				controls = i18n.T(i18n.TUIOverlayAppearanceControls)
+			}
+			if field.step != 0 {
+				controls += " · " + fmt.Sprintf(i18n.T(i18n.TUIOverlayNumberControls), field.step)
+			}
+		}
 		return lipgloss.JoinVertical(lipgloss.Left,
 			m.formPrompt(),
 			m.input.View()+m.overlayColorSample(),
