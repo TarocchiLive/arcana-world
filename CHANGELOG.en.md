@@ -4,6 +4,19 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+### Added
+
+- Add an optional, off-by-default local Web control panel sharing account, live, OBS, chat, and helper lifecycles with the terminal mode. See `--help` for startup options.
+- Add Chinese/English UI, light/dark/system themes, and pausable chat and log updates. Refreshes preserve form drafts; failed chat sends retain the draft.
+- Bind the Web server only to loopback, generate a private access token at each startup, reject cross-site requests and stale interactions, and reveal stream keys only on explicit request.
+
+### Changed
+
+- Organize the Web panel into Studio, Outputs, Accounts, Settings, and Help instead of terminal-style menus and generic action cards. Edit ordinary settings in place; complete sign-in and room-selection workflows inline. Search and read help without a popup.
+- Keep desktop live controls and the chat composer together, with separate conversation and room views on narrow screens. Preview overlay appearance as a scaled illustration while editing; preserve keyboard focus for risk confirmations.
+
 ## [v0.3.0]: 2026-09-29
 
 ### Added
