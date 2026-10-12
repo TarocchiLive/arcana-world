@@ -134,7 +134,16 @@
           pkgs = import nixpkgs { inherit system; };
         in
         rec {
-          default = arcana-world;
+          default = pkgs.mkShell {
+            inputsFrom = [
+              arcana-world
+              arcana-world-overlay
+              arcana-world-tts
+            ];
+            packages = [ pkgs.go ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+            CGO_ENABLED = "1";
+            GOFLAGS = "-mod=readonly";
+          };
           arcana-world = pkgs.mkShell {
             packages = [ pkgs.go ];
             CGO_ENABLED = "0";

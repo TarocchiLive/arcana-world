@@ -4,6 +4,12 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+### Fixed
+
+- Include native overlay and TTS build dependencies in the default `nix develop` environment so `make desktop` works directly; component-specific development shells remain unchanged.
+
 ## [v0.3.2]: 2026-10-12
 
 ### Fixed
