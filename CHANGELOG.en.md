@@ -4,6 +4,12 @@
 
 Versions are listed newest first.
 
+## [v0.3.2]: 2026-10-12
+
+### Fixed
+
+- Fix Edge TTS handshake failures caused by HTTP 403 from the legacy synthesis endpoint; migrate to Microsoft's new endpoint and use its hostname for proxy bypass rules.
+
 ## [v0.3.1]: 2026-10-09
 
 ### Added
@@ -370,3 +376,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.3.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-rc.1
 [v0.3.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0
 [v0.3.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.1
+[v0.3.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.2

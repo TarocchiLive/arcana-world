@@ -20,13 +20,13 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          vendorHash = "sha256-kG8kZI6CClYJRjJc1Xyq9gSuNNwKiijGcCPbUixWoYs=";
+          vendorHash = "sha256-45KAfn1nIAAYxHAX4N+MdG1pvwDjIBLMfEVQv4bwzHQ=";
         in
         rec {
           default = arcana-world-desktop;
           arcana-world = pkgs.buildGoModule rec {
             pname = "arcana-world";
-            version = "0.3.1";
+            version = "0.3.2";
 
             src = pkgs.lib.fileset.toSource {
               root = ./.;
@@ -35,6 +35,7 @@
                 ./go.sum
                 ./cmd
                 ./internal
+                ./third_party
                 ./LICENSE
               ];
             };
