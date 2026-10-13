@@ -147,6 +147,7 @@
   "store.config_replace_failed": "cannot replace configuration",
   "store.config_temporary_file_failed": "cannot create temporary configuration",
   "store.config_write_failed": "cannot write configuration",
+  "store.default_ui_invalid": "default_ui must be empty, tui, or webui",
   "store.credential_backend_required": "credential backend is required",
   "store.credential_not_found": "cannot %s: %w",
   "store.credential_rollback_failed": "%w; credential rollback failed: the credential store needs attention",

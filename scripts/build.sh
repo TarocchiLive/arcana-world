@@ -33,15 +33,25 @@ build() {
   local cgo tags output flags
   case "$component" in
     build) cgo=0; tags=; output="arcana-world$suffix"; flags="$tui_ldflags" ;;
+    webui)
+      if [[ "$GOOS" != windows ]]; then
+        echo "webui: the launcher is Windows-only" >&2
+        exit 2
+      fi
+      cgo=0; tags=; output="arcana-world-webui.exe"; flags="$ldflags"
+      ;;
     overlay) cgo="$overlay_cgo"; tags="$overlay_tags"; output="libexec/arcana-world-overlay$suffix"; flags="$ldflags" ;;
     tts) cgo="$audio_cgo"; tags=tts_audio; output="libexec/arcana-world-tts$suffix"; flags="$ldflags" ;;
-    *) echo "Usage: bash scripts/build.sh {build|overlay|tts|desktop}" >&2; exit 2 ;;
+    *) echo "Usage: bash scripts/build.sh {build|webui|overlay|tts|desktop}" >&2; exit 2 ;;
   esac
   local command="${output##*/}"
   command="${command%.exe}"
   mkdir -p "$(dirname "$out_dir/$output")"
   CGO_ENABLED="$cgo" go build -tags "$tags" -trimpath -buildvcs=false \
     -ldflags="$flags" -o "$out_dir/$output" "./cmd/$command"
+  if [[ "$component" == build && "$GOOS" == windows ]]; then
+    build webui
+  fi
 }
 
 if [[ "${1:-build}" == desktop ]]; then

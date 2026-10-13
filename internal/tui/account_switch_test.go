@@ -10,6 +10,7 @@ import (
 
 	"arcana-world/internal/bili"
 	"arcana-world/internal/domain"
+	"arcana-world/internal/journal"
 	"arcana-world/internal/store"
 	"arcana-world/internal/webui"
 	tea "charm.land/bubbletea/v2"
@@ -30,11 +31,17 @@ func (s *switchSecrets) Set(key, value string) error {
 func switchModel(t *testing.T, failure string) (*Model, domain.Account, *atomic.Int32, *switchSecrets) {
 	t.Helper()
 	secrets := &switchSecrets{lifecycleSecrets: lifecycleSecrets{}}
-	storage, err := store.OpenWithBackend(t.TempDir(), secrets)
+	dir := t.TempDir()
+	disk, err := journal.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := New(context.Background(), storage)
+	t.Cleanup(func() { _ = disk.Close() })
+	storage, err := store.OpenWithBackend(dir, secrets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := New(context.Background(), storage, disk)
 	if err != nil {
 		t.Fatal(err)
 	}

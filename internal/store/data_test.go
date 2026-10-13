@@ -26,6 +26,7 @@ func TestResetSettingsPreservesConnectionsAccountsAndHistory(t *testing.T) {
 	}
 	c := s.Config()
 	c.ActiveUID = a.UID
+	c.DefaultUI = "webui"
 	c.OBSURL = "ws://localhost:1234"
 	c.OBSAutoConnect = true
 	c.OBSAutoStream = true

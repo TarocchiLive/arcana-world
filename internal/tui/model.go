@@ -149,12 +149,9 @@ type Model struct {
 	audience               audienceUI
 }
 
-func New(ctx context.Context, s *store.Store) (*Model, error) {
+// New 接管已锁定数据目录的日志；初始化失败或模型关闭时释放。
+func New(ctx context.Context, s *store.Store, disk *journal.Log) (*Model, error) {
 	cfg := s.Config()
-	disk, err := journal.Open(s.Dir())
-	if err != nil {
-		return nil, err
-	}
 	c, err := bili.New(cfg.Proxy, s.DeviceID())
 	if err != nil {
 		return nil, errors.Join(err, disk.Write(i18n.T(i18n.TUILogStartupFailed)+err.Error()), disk.Close())

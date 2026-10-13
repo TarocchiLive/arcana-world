@@ -8,12 +8,15 @@ Versions are listed newest first.
 
 ### Added
 
-- Add an optional, off-by-default local Web control panel sharing account, live, OBS, chat, and helper lifecycles with the terminal mode. See `--help` for startup options.
+- Add an optional local Web control panel sharing account, live, OBS, chat, and helper lifecycles with the terminal mode. See `--help` for startup options.
 - Add Chinese/English UI, light/dark/system themes, and pausable chat and log updates. Refreshes preserve form drafts; failed chat sends retain the draft.
 - Open the Web panel without an access token at the default fixed address `http://127.0.0.1:5273`. Change the bind address only through the configuration file. Retain cross-site and stale-interaction checks, and reveal stream keys only on explicit request.
+- Save a default interface or select TUI / WebUI for one run, without detecting the OS version or terminal type. Windows packages include an `arcana-world-webui.exe` launcher. WebUI opens the default browser on startup and keeps the address available if opening fails.
 
 ### Changed
 
+- Handle process exit signals in one place to prevent the terminal interface from hanging on interruption.
+- Share the directory lock between startup and default-interface changes to prevent concurrent configuration overwrites. Saving the default preserves account indexes, unknown fields, and large integers, and rejects invalid configuration.
 - Split the Web panel into Studio, Chat, Outputs, Accounts, Settings, and Help. Configure the room and OBS in Studio; read and send messages in Chat. Edit ordinary settings in place, complete sign-in and room selection inline, and search and read help on its own page.
 - Constrain workspace widths and use columns and dividers instead of large cards. Remove the overlay appearance sample and preserve keyboard focus for risk confirmations.
 - Use the TUI's WORLD wordmark on the Web panel connection screen and top navigation, with theme colors and narrow-screen sizing.

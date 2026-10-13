@@ -4,6 +4,7 @@ import (
 	"arcana-world/internal/config"
 	"arcana-world/internal/i18n"
 
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -15,6 +16,7 @@ import (
 	"sync"
 
 	"arcana-world/internal/domain"
+	"arcana-world/internal/journal"
 	"arcana-world/internal/overlay"
 	"arcana-world/internal/tts"
 
@@ -141,7 +143,7 @@ func openStore(dir string) (*Store, error) {
 	if err = os.Chmod(dir, 0700); err != nil {
 		return nil, errors.New(i18n.T(i18n.StoreConfigDirectorySecureFailed))
 	}
-	c, missing, err := readConfig(dir, true)
+	c, data, err := readConfig(dir, true)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +152,7 @@ func openStore(dir string) (*Store, error) {
 		return nil, errors.New(i18n.T(i18n.StoreDeviceIdentifierFailed))
 	}
 	s := &Store{dir: dir, deviceID: deviceID, config: c}
-	if missing {
+	if data == nil {
 		if err := s.persist(c); err != nil {
 			return nil, err
 		}
@@ -176,43 +178,96 @@ func ReadConfig(dir string) (config.Config, error) {
 	return c, err
 }
 
-func readConfig(dir string, secure bool) (config.Config, bool, error) {
+// SaveDefaultUI 仅更新启动界面，不读取凭据或创建设备标识。
+// 保留原始配置中的其他字段，避免保存偏好时改写账号索引和设置。
+func SaveDefaultUI(dir, ui string) (err error) {
+	if err := validateDefaultUI(ui); err != nil {
+		return err
+	}
+	dir, err = ResolveDir(dir)
+	if err != nil {
+		return err
+	}
+	lock, err := journal.LockDirectory(dir)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, lock.Close()) }()
+	c, data, err := readConfig(dir, false)
+	if err != nil {
+		return err
+	}
+	if data == nil {
+		data, err = json.Marshal(c)
+	}
+	if err != nil {
+		return errors.New(i18n.T(i18n.StoreConfigReadFailed))
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil || fields == nil {
+		return errors.New(i18n.T(i18n.StoreConfigJsonInvalid))
+	}
+	fields["default_ui"], err = json.Marshal(ui)
+	if err != nil {
+		return errors.New(i18n.T(i18n.StoreConfigEncodeFailed))
+	}
+	data, err = json.MarshalIndent(fields, "", "  ")
+	if err != nil {
+		return errors.New(i18n.T(i18n.StoreConfigEncodeFailed))
+	}
+	return writeConfig(dir, data)
+}
+
+func validateDefaultUI(ui string) error {
+	switch ui {
+	case "", "tui", "webui":
+		return nil
+	default:
+		return errors.New(i18n.T(i18n.StoreDefaultUIInvalid))
+	}
+}
+
+// readConfig 同时返回已校验的原始内容；nil 表示文件不存在。
+func readConfig(dir string, secure bool) (config.Config, []byte, error) {
 	c := DefaultConfig()
 	path := filepath.Join(dir, "config.json")
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return c, true, nil
+		return c, nil, nil
 	}
 	if err != nil || !info.Mode().IsRegular() {
-		return config.Config{}, false, errors.New(i18n.T(i18n.StoreConfigRegularFileRequired))
+		return config.Config{}, nil, errors.New(i18n.T(i18n.StoreConfigRegularFileRequired))
 	}
 	if secure {
 		if err := os.Chmod(path, 0600); err != nil {
-			return config.Config{}, false, errors.New(i18n.T(i18n.StoreConfigFileSecureFailed))
+			return config.Config{}, nil, errors.New(i18n.T(i18n.StoreConfigFileSecureFailed))
 		}
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return config.Config{}, false, errors.New(i18n.T(i18n.StoreConfigReadFailed))
+		return config.Config{}, nil, errors.New(i18n.T(i18n.StoreConfigReadFailed))
 	}
-	if err = json.Unmarshal(data, &c); err != nil {
-		return config.Config{}, false, errors.New(i18n.T(i18n.StoreConfigJsonInvalid))
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) || json.Unmarshal(data, &c) != nil {
+		return config.Config{}, nil, errors.New(i18n.T(i18n.StoreConfigJsonInvalid))
+	}
+	if err := validateDefaultUI(c.DefaultUI); err != nil {
+		return config.Config{}, nil, err
 	}
 	if c.Overlay, err = c.Overlay.Normalize(); err != nil {
-		return config.Config{}, false, err
+		return config.Config{}, nil, err
 	}
 	if c.TTS, err = c.TTS.Normalize(); err != nil {
-		return config.Config{}, false, err
+		return config.Config{}, nil, err
 	}
 	applyConfigDefaults(&c)
 	seen := make(map[string]bool, len(c.Accounts))
 	for _, a := range c.Accounts {
 		if strings.TrimSpace(a.UID) == "" || seen[a.UID] {
-			return config.Config{}, false, errors.New(i18n.T(i18n.StoreAccountIndexInvalid))
+			return config.Config{}, nil, errors.New(i18n.T(i18n.StoreAccountIndexInvalid))
 		}
 		seen[a.UID] = true
 	}
-	return c, false, nil
+	return c, data, nil
 }
 
 func (s *Store) Dir() string { return s.dir }
@@ -421,6 +476,9 @@ func (s *Store) persist(c config.Config) error {
 	if s.closed {
 		return errors.New(i18n.T(i18n.StoreCleared))
 	}
+	if err := validateDefaultUI(c.DefaultUI); err != nil {
+		return err
+	}
 	if _, err := c.Overlay.Normalize(); err != nil {
 		return err
 	}
@@ -431,7 +489,11 @@ func (s *Store) persist(c config.Config) error {
 	if err != nil {
 		return errors.New(i18n.T(i18n.StoreConfigEncodeFailed))
 	}
-	f, err := os.CreateTemp(s.dir, ".config-*")
+	return writeConfig(s.dir, data)
+}
+
+func writeConfig(dir string, data []byte) error {
+	f, err := os.CreateTemp(dir, ".config-*")
 	if err != nil {
 		return errors.New(i18n.T(i18n.StoreConfigTemporaryFileFailed))
 	}
@@ -450,7 +512,7 @@ func (s *Store) persist(c config.Config) error {
 	if err != nil {
 		return errors.New(i18n.T(i18n.StoreConfigWriteFailed))
 	}
-	if err = os.Rename(name, filepath.Join(s.dir, "config.json")); err != nil {
+	if err = os.Rename(name, filepath.Join(dir, "config.json")); err != nil {
 		return errors.New(i18n.T(i18n.StoreConfigReplaceFailed))
 	}
 	return nil

@@ -1,10 +1,10 @@
 {
-  "web.cli_usage": "启用 Web 控制面板，替代终端界面（默认关闭）；默认访问 http://127.0.0.1:5273，Ctrl+C 停止服务并执行退出清理",
-  "web.cli_port_usage": "Web 面板端口（需 --web；默认 5273；0 自动选择）",
+  "web.cli_port_usage": "WebUI 端口（需以 WebUI 启动；默认 5273；0 自动选择）",
   "web.started": "Web 控制面板：%s\n关闭浏览器不会退出；在此按 Ctrl+C 停止服务并按配置清理直播与 OBS。\n",
+  "web.browser_open_failed": "无法自动打开浏览器，请手动访问 %s：%v\n",
   "web.port_invalid": "Web 端口必须在 0 到 65535 之间",
   "web.bind_invalid": "Web 监听地址只支持 127.0.0.1 或 0.0.0.0",
-  "web.port_requires_web": "--web-port 需要同时启用 --web",
+  "web.port_requires_web": "--web-port 仅适用于 WebUI；请指定 --gui 或将默认启动项设为 WebUI",
   "web.origin_denied": "已拒绝跨站请求或无效访问地址，请通过服务所在电脑的 IP 地址直接打开面板",
   "web.method_invalid": "此接口不支持该请求方式",
   "web.json_required": "请求必须使用 application/json",

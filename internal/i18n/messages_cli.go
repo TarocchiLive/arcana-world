@@ -18,4 +18,11 @@ const (
 	CLIOBSAutoStreamUsage             Key = "cli.obs_auto_stream_usage"
 	CLITTSUsage                       Key = "cli.tts_usage"
 	CLIDoctorUsage                    Key = "cli.doctor_usage"
+	CLITUIUsage                       Key = "cli.tui_usage"
+	CLIGUIUsage                       Key = "cli.gui_usage"
+	CLIDefaultTUIUsage                Key = "cli.default_tui_usage"
+	CLIDefaultGUIUsage                Key = "cli.default_gui_usage"
+	CLIUIModeConflict                 Key = "cli.ui_mode_conflict"
+	CLIDefaultUISaved                 Key = "cli.default_ui_saved"
+	CLIWebUILauncherFailed            Key = "cli.webui_launcher_failed"
 )
