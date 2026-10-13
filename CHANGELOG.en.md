@@ -13,7 +13,6 @@ Versions are listed newest first.
 - Adjust the crop in the cover upload confirmation screen by zooming and panning; press `0` to restore the centered crop. The screen shows the zoom and crop center, with a preview before upload. Adjustments use the original image and keep the output at 704×396; canceled processing is discarded.
 - Check for the latest stable release manually and show the comparison and release page. The check uses proxy settings without reading login credentials, downloading, or installing. Report cancellation, timeouts, and access limits without recommending a downgrade from a newer prerelease.
 - Add sample preview to the Overlay tab for checking appearance and event colors without signing in. Samples do not enter history or TTS; turning preview off, leaving the tab, or disabling the overlay restores actual content.
-- Add an opt-in local JSON-RPC 2.0 stdio bot interface for status, current-room event pagination, and chat sending. Pin the startup account without opening a port or starting the TUI, OBS, overlay, or TTS. Support batches and notifications with credential-safe errors; confirm sends only after API success and never retry automatically.
 
 ### Changed
 
@@ -26,6 +25,7 @@ Versions are listed newest first.
 
 - Preserve ZWJ/ZWNJ in overlay text and speech input so text cleanup does not break joined emoji or script shaping. Continue removing terminal escapes and bidirectional control characters.
 - Truncate overlay and speech text at grapheme boundaries without increasing existing length limits, keeping joined emoji, flags, skin tones, and accents intact. Removed control characters no longer cause an unnecessary ellipsis.
+- Fix lost zoom and pan input while Kitty/Ghostty cover previews wait for image acknowledgments.
 
 ## [v0.3.0]: 2026-09-29
 

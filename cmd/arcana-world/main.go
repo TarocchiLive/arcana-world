@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"arcana-world/internal/bili"
@@ -43,22 +42,9 @@ func runArgs(args []string) (err error) {
 	enableTTS := flags.Bool("tts", false, "")
 	doctor := flags.Bool("doctor", false, "")
 	checkUpdate := flags.Bool("check-update", false, "")
-	botStdio := flags.Bool("bot-stdio", false, "")
 	help := flags.Bool("help", false, "")
 	shortHelp := flags.Bool("h", false, "")
 	parseErr := flags.Parse(args)
-	botRequested := *botStdio
-	for _, arg := range args {
-		name, value, hasValue := strings.Cut(arg, "=")
-		if (name == "--bot-stdio" || name == "-bot-stdio") && (!hasValue || value != "false") {
-			botRequested = true
-		}
-	}
-	defer func() {
-		if botRequested && err != nil && err.Error() != i18n.T(i18n.CLIBotConflict) {
-			err = errors.New(i18n.T(i18n.CLIBotFailed))
-		}
-	}()
 	if err := i18n.SetLanguage(*language); err != nil {
 		return err
 	}
@@ -75,19 +61,14 @@ func runArgs(args []string) (err error) {
 	flags.Lookup("tts").Usage = i18n.T(i18n.CLITTSUsage)
 	flags.Lookup("doctor").Usage = i18n.T(i18n.CLIDoctorUsage)
 	flags.Lookup("check-update").Usage = i18n.T(i18n.CLIUpdateUsage)
-	flags.Lookup("bot-stdio").Usage = i18n.T(i18n.CLIBotUsage)
 	flags.Lookup("help").Usage = i18n.T(i18n.CLIHelpUsage)
 	flags.Lookup("h").Usage = flags.Lookup("help").Usage
 	flags.Usage = func() {
 		fmt.Fprint(flags.Output(), i18n.T(i18n.CLIHelp))
 		flags.PrintDefaults()
-		fmt.Fprint(flags.Output(), i18n.T(i18n.CLIBotHelp))
 	}
 	if parseErr != nil {
 		return fmt.Errorf("%s: %w", i18n.T(i18n.CLIInvalidArguments), parseErr)
-	}
-	if *botStdio && (*doctor || *checkUpdate || *showVersion) {
-		return errors.New(i18n.T(i18n.CLIBotConflict))
 	}
 	if *help || *shortHelp {
 		flags.Usage()
@@ -135,9 +116,6 @@ func runArgs(args []string) (err error) {
 			return err
 		}
 		client.HTTP.CloseIdleConnections()
-	}
-	if *botStdio {
-		return runBot(ctx, *dir, options)
 	}
 	if *doctor {
 		return runDoctor(ctx, os.Stdout, *dir, options, *overlayExecutable, overlayOverride, ttsOverride)

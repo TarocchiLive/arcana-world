@@ -36,12 +36,13 @@ const (
 // 交互输入必须是终端文件；绝不读取可能任意阻塞的读取器，
 // 以免产生无法取消的读取协程。
 type Viewer struct {
-	ctx     context.Context
-	img     image.Image
-	caption string
-	stdin   io.Reader
-	stdout  io.Writer
-	stderr  io.Writer
+	ctx      context.Context
+	img      image.Image
+	caption  string
+	stdin    io.Reader
+	stdout   io.Writer
+	stderr   io.Writer
+	viewport *imageViewport
 }
 
 func New(ctx context.Context, img image.Image, caption string) *Viewer {
@@ -95,7 +96,9 @@ func (v *Viewer) Run() (result error) {
 	iterm := supportsITerm(os.Getenv)
 	native := !iterm && supportsGraphics(os.Getenv)
 	viewport := imageViewport{Image: v.img, rect: v.img.Bounds(), zoom: 1}
+	rendered := viewport
 	frame := *v
+	frame.viewport = &viewport
 	dirty := true
 	// 首次写入前即安装清理逻辑，覆盖部分写入后失败的情况。
 	defer func() {
@@ -119,8 +122,10 @@ func (v *Viewer) Run() (result error) {
 			return fmt.Errorf(i18n.T(i18n.TermImageTerminalSizeFailed), sizeErr)
 		}
 		if dirty || size != previous {
+			// 当前帧使用独立视口快照，ACK 期间的输入只影响下一帧。
+			rendered = viewport
 			if dirty {
-				frame.img = &viewport
+				frame.img = &rendered
 				if viewport.zoom == 1 {
 					frame.img = v.img
 				}
@@ -143,7 +148,9 @@ func (v *Viewer) Run() (result error) {
 				return err
 			}
 			// Kitty 缺少像素尺寸时使用半块回退；iTerm2 可直接按字符网格限制尺寸。
-			if err = frame.frame(size, native && size.width > 0 && size.height > 0, iterm, id, encoded.Bytes()); err != nil {
+			err = frame.frame(size, native && size.width > 0 && size.height > 0, iterm, id, encoded.Bytes())
+			dirty = viewport.rect != rendered.rect || viewport.zoom != rendered.zoom
+			if err != nil {
 				if errors.Is(err, errPreviewClosed) {
 					return nil
 				}
@@ -153,6 +160,9 @@ func (v *Viewer) Run() (result error) {
 				return err
 			}
 			previous = size
+			if dirty {
+				continue
+			}
 		}
 		n, readErr := pollInput(in, input[:])
 		if readErr != nil {
