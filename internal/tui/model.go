@@ -17,6 +17,7 @@ import (
 	"arcana-world/internal/journal"
 	"arcana-world/internal/obs"
 	"arcana-world/internal/overlay"
+	"arcana-world/internal/presentation"
 	"arcana-world/internal/store"
 
 	"charm.land/bubbles/v2/textarea"
@@ -66,86 +67,88 @@ type pollTick struct{ generation int }
 type choice struct{ label, value string }
 
 type Model struct {
-	ctx                    context.Context
-	store                  *store.Store
-	client                 *bili.Client
-	config                 config.Config
-	theme                  tuiTheme
-	themeID                string
-	darkBackground         bool
-	showcase               showcaseState
-	blurred                bool
-	mouseTargets           []mouseTarget
-	mouseScrolling         bool
-	mouseX, mouseY         int
-	mouseKnown             bool
-	pointerShape           string
-	frame                  renderFrame
-	exitPrompt             *exitConfirmation
-	backdrop               string
-	backdropWidth          int
-	backdropHeight         int
-	backdropFooterHeight   int
-	account                *domain.Account
-	room                   *domain.Room
-	stream                 *domain.Stream
-	obsClient              *obs.Client
-	obsState               obs.Snapshot
-	obsBusy                bool
-	obsCancel              context.CancelFunc
-	obsOperation           int
-	session                *app.Session
-	initialized            bool
-	overlay                *overlayRuntime
-	tts                    *ttsRuntime
-	ttsOverride            *bool
-	overlayEnabled         bool
-	overlayColorPreview    *overlay.Colors
-	overlaySettings        *overlaySettingsNavigation
-	overlayChat            overlayChatState
-	selection              *roomSelection
-	textSelection          *textSelection
-	cover                  *coverimage.Prepared
-	moderation             *moderationState
-	members                *roomMembersState
-	speaker                *chatSpeaker
-	inlineImage            inlineImage
-	previewing             bool
-	page                   int
-	cursors                [pageCount]int
-	width, height          int
-	mode, editKind, prompt string
-	input                  textinput.Model
-	chatInput              textarea.Model
-	choices                []choice
-	selected               int
-	pickerTop              int
-	pickerLeft             int
-	overlayDisplays        []overlay.Display
-	confirmAction          string
-	busy                   bool
-	canceled               bool
-	cancel                 context.CancelFunc
-	operation              int
-	qrGeneration           int
-	qr                     *domain.QR
-	qrText                 string
-	qrImageOpening         bool
-	faceURL                string
-	pendingAccount         *domain.Account
-	status                 string
-	statusWarning          bool
-	notification           notificationState
-	noticeLayer            floatingLayer
-	logs                   []string
-	journal                *journal.Log
-	closeOnce              sync.Once
-	closeErr               error
-	clearDataOnExit        bool
-	reveal                 bool
-	view                   viewport.Model
-	chat                   *danmakuUI
-	audience               audienceUI
+	ctx                      context.Context
+	store                    *store.Store
+	client                   *bili.Client
+	config                   config.Config
+	theme                    tuiTheme
+	themeID                  string
+	darkBackground           bool
+	showcase                 showcaseState
+	blurred                  bool
+	mouseTargets             []mouseTarget
+	mouseScrolling           bool
+	mouseX, mouseY           int
+	mouseKnown               bool
+	pointerShape             string
+	frame                    renderFrame
+	exitPrompt               *exitConfirmation
+	backdrop                 string
+	backdropWidth            int
+	backdropHeight           int
+	backdropFooterHeight     int
+	account                  *domain.Account
+	room                     *domain.Room
+	stream                   *domain.Stream
+	obsClient                *obs.Client
+	obsState                 obs.Snapshot
+	obsBusy                  bool
+	obsCancel                context.CancelFunc
+	obsOperation             int
+	session                  *app.Session
+	initialized              bool
+	overlay                  *overlayRuntime
+	tts                      *ttsRuntime
+	ttsOverride              *bool
+	overlayEnabled           bool
+	overlayAppearancePreview *overlay.Config
+	overlaySettings          *overlaySettingsNavigation
+	overlayChat              overlayChatState
+	outputTemplates          *presentation.TemplateSet
+	templateLanguage         string
+	selection                *roomSelection
+	textSelection            *textSelection
+	cover                    *coverimage.Prepared
+	moderation               *moderationState
+	members                  *roomMembersState
+	speaker                  *chatSpeaker
+	inlineImage              inlineImage
+	previewing               bool
+	page                     int
+	cursors                  [pageCount]int
+	width, height            int
+	mode, editKind, prompt   string
+	input                    textinput.Model
+	chatInput                textarea.Model
+	choices                  []choice
+	selected                 int
+	pickerTop                int
+	pickerLeft               int
+	overlayDisplays          []overlay.Display
+	confirmAction            string
+	busy                     bool
+	canceled                 bool
+	cancel                   context.CancelFunc
+	operation                int
+	qrGeneration             int
+	qr                       *domain.QR
+	qrText                   string
+	qrImageOpening           bool
+	faceURL                  string
+	pendingAccount           *domain.Account
+	status                   string
+	statusWarning            bool
+	notification             notificationState
+	noticeLayer              floatingLayer
+	logs                     []string
+	journal                  *journal.Log
+	closeOnce                sync.Once
+	closeErr                 error
+	clearDataOnExit          bool
+	reveal                   bool
+	view                     viewport.Model
+	chat                     *danmakuUI
+	audience                 audienceUI
 }
 
 func New(ctx context.Context, s *store.Store) (*Model, error) {
@@ -178,6 +181,7 @@ func New(ctx context.Context, s *store.Store) (*Model, error) {
 	m.session = app.New(s, m.obsClient, c)
 	m.openChat()
 	m.logCredentialStorage()
+	m.syncOutputTemplates()
 	m.syncWorkspace()
 	return m, nil
 }
@@ -280,6 +284,7 @@ func (m *Model) updatePolling() tea.Cmd {
 	return tea.Batch(append(cmds, m.notificationCommand())...)
 }
 func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
+	m.syncOutputTemplates()
 	// 原始终端输出已由 Bubble Tea 执行，不改变界面状态，也不再次设置指针。
 	switch msg.(type) {
 	case pointerRefreshMsg:
@@ -491,12 +496,15 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 					m.closeRoomMembers()
 				}
 				m.qrGeneration++
+				if m.mode == "cover-review" {
+					m.cover = nil
+				}
 				m.mode = ""
 				m.qr = nil
 				m.qrText = ""
 				m.faceURL = ""
 				m.progressStatus(i18n.T(i18n.TUIStatusCancelRequested))
-				m.clearOverlayColorPreview()
+				m.clearOverlayAppearancePreview()
 				if m.overlaySettings != nil {
 					return m, m.showOverlaySettings()
 				}
@@ -584,7 +592,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		return m, cmd
 	}
 	m.input, cmd = m.input.Update(msg)
-	m.updateOverlayColorPreview()
+	m.updateOverlayAppearancePreview()
 	return m, cmd
 }
 func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -644,9 +652,14 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	if key == "esc" && m.overlaySettings != nil {
 		if m.mode == "pick" && m.editKind == "overlay-fields" {
+			if navigation := m.overlaySettings; navigation.group != overlaySettingsRoot {
+				navigation.positions[navigation.group] = overlaySettingsPosition{m.selected, m.view.YOffset()}
+				navigation.group = overlaySettingsRoot
+				return m.showOverlaySettings()
+			}
 			m.overlaySettings = nil
 		} else {
-			m.clearOverlayColorPreview()
+			m.clearOverlayAppearancePreview()
 			return m.showOverlaySettings()
 		}
 	}
@@ -660,7 +673,7 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.input.SetValue("")
 		m.input.Blur()
 		m.view.GotoTop()
-		m.clearOverlayColorPreview()
+		m.clearOverlayAppearancePreview()
 		return nil
 	}
 	switch m.mode {
@@ -668,9 +681,12 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 		if key == "enter" {
 			return m.submitForm()
 		}
+		if m.stepOverlayNumber(key) {
+			return nil
+		}
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
-		m.updateOverlayColorPreview()
+		m.updateOverlayAppearancePreview()
 		return cmd
 	case "pick":
 		switch key {

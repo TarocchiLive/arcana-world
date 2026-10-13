@@ -15,6 +15,7 @@ func (m *Model) outputMenu() []menuItem {
 			{toggleLabel(i18n.T(i18n.TUIOverlayEnabled), m.overlayEnabled), "overlay-toggle"},
 			{i18n.T(i18n.OutputDisplays), "overlay-displays"},
 			{i18n.T(i18n.TUIOverlaySettings), "overlay-settings"},
+			{toggleLabel(i18n.T(i18n.TUIOverlayPreview), m.overlay != nil && m.overlay.preview), "overlay-preview"},
 			{i18n.T(i18n.OutputEvents), "output-events"},
 		}
 	}

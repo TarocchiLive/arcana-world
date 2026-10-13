@@ -19,6 +19,7 @@ type overlayRuntime struct {
 	lastError error
 	last      overlay.Config
 	published bool
+	preview   bool
 	started   chan struct{}
 	startDone chan struct{}
 	created   *overlay.Manager
@@ -77,7 +78,7 @@ func (m *Model) startOverlay() tea.Cmd {
 	options := owner.options
 	options.Config.Text = m.overlayContentText()
 	options.Config.TextRoles = m.overlayChat.contentRoles
-	options.Config = m.previewOverlayColors(options.Config)
+	options.Config = m.previewOverlayAppearance(options.Config)
 	return func() tea.Msg {
 		close(owner.started)
 		defer close(owner.startDone)
@@ -91,6 +92,7 @@ func (m *Model) stopOverlay() tea.Cmd {
 	if owner == nil || owner.state == "off" {
 		return nil
 	}
+	owner.preview = false
 	if owner.state == "failed" {
 		owner.state = "off"
 		return nil
@@ -139,6 +141,7 @@ func (m *Model) handleOverlayStopped(msg overlayStoppedMsg) tea.Cmd {
 	owner := msg.owner
 	owner.cancel()
 	requested := owner.state == "stopping"
+	owner.preview = false
 	owner.manager = nil
 	owner.state = "off"
 	if !requested {
@@ -159,13 +162,22 @@ func (m *Model) handleOverlayStopped(msg overlayStoppedMsg) tea.Cmd {
 }
 func (m *Model) publishOverlay() {
 	owner := m.overlay
+	if owner != nil && (m.page != overlayPage || !m.overlayEnabled) {
+		owner.preview = false
+	}
 	if owner == nil || owner.manager == nil || owner.state != "running" {
 		return
 	}
 	cfg := owner.options.Config
-	cfg.Text = m.overlayContentText()
-	cfg.TextRoles = m.overlayChat.contentRoles
-	cfg = m.previewOverlayColors(cfg)
+	if owner.preview {
+		// 示例只覆盖展示快照，不进入弹幕源、历史或语音播报路径。
+		cfg.Text = i18n.T(i18n.TUIOverlayPreviewText)
+		cfg.TextRoles = "ncags"
+	} else {
+		cfg.Text = m.overlayContentText()
+		cfg.TextRoles = m.overlayChat.contentRoles
+	}
+	cfg = m.previewOverlayAppearance(cfg)
 	if owner.published && owner.last == cfg {
 		return
 	}

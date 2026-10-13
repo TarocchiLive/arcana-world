@@ -150,6 +150,24 @@ static NSColor *colorForRGB(uint32_t rgb, CGFloat alpha) {
     CGFloat capacity = floor(NSHeight(bounds) / _lineHeight);
     NSUInteger visible = capacity >= (CGFloat)lineCount ? lineCount : (NSUInteger)capacity;
     NSUInteger first = lineCount - visible;
+    if (first > 0) {
+        // 优先从后续完整消息开始；没有可容纳的消息开头时仍显示长消息尾部。
+        __block NSUInteger index = 0, preferred = first;
+        [_layout enumerateLineFragmentsForGlyphRange:allGlyphs usingBlock:
+            ^(NSRect rect, NSRect used, NSTextContainer *container, NSRange glyphs, BOOL *stop) {
+                NSUInteger row = index++;
+                if (row < first || !glyphs.length) return;
+                NSUInteger start = [self->_layout characterIndexForGlyphAtIndex:glyphs.location];
+                if (start >= self.text.length) return;
+                unichar current = [self.text characterAtIndex:start];
+                if ((start == 0 || [self.text characterAtIndex:start - 1] == '\n') &&
+                    current != '\n' && current != '\r') {
+                    preferred = row;
+                    *stop = YES;
+                }
+            }];
+        first = preferred;
+    }
     [NSGraphicsContext saveGraphicsState];
     NSRectClip(bounds);
     NSRange textRange = NSMakeRange(0, _storage.length);

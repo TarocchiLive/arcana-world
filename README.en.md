@@ -87,13 +87,12 @@ Press `0` or open Help in the app for instructions and common questions. Run `ar
 - [x] Add mouse support to the TUI.
 - [x] Refactor and improve the TUI layout and appearance.
 - [x] Send live chat messages from the terminal.
-- [ ] Refactor and improve the overlay layout and appearance.
-- [ ] Support the iTerm2 image protocol.
-- [ ] Support resizing and cropping cover images in the terminal.
-- [ ] Check for new versions.
+- [x] Refactor and improve the overlay layout and appearance.
+- [x] Support the iTerm2 image protocol for cover previews.
+- [x] Support resizing and cropping cover images in the terminal.
+- [x] Check for new versions.
 - [x] Support Scoop and APT repositories.
 - [ ] Support Homebrew and nixpkgs repositories.
-- [ ] Add a bot protocol interface.
 - [?] GUI / WebUI support (under consideration).
 
 ## Development

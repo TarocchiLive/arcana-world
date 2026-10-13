@@ -58,7 +58,7 @@ Position names:
 | `left` | `center` | `right` |
 | `bottom-left` | `bottom` | `bottom-right` |
 
-Position, size, and padding use logical units that follow display scaling. All text wraps to the available width with a fixed line height determined by the configured font. On overflow, the overlay shows the last complete lines that fit, even if they begin partway through a message or username. Text is top-aligned; any height left over stays blank below it. No text is drawn if the content area cannot fit one line. Increase the height or reduce the font size to show more lines. Text updates do not move or resize the overlay.
+Position, size, and padding use logical units that follow display scaling. All text wraps to the available width with a fixed line height determined by the configured font. On overflow, the overlay prefers complete messages at the end, treating newline-separated paragraphs as messages. If no nonempty message starts within the visible range, it shows the last complete lines of the long message. Text is top-aligned, with unused height left blank below it. No text is drawn if the content area cannot fit one line. Increase the height or reduce the font size to show more lines. Text updates do not move or resize the overlay.
 
 ### Live updates
 
@@ -99,6 +99,14 @@ Extract the entire portable bundle, run `arcana-world` at its root (`arcana-worl
 ```
 
 By default, the overlay displays live events and closes when the main program exits. Its content is empty until the main chat list loads or when no displayable events are available. On the Overlay tab, toggle Native overlay or open Overlay content and appearance to change the content mode, position, size, padding, font, and opacity. Use Select overlay displays to choose the monitors. Settings persist across launches. Startup failures do not block other features; Overlay and Logs show the reason. Turn the overlay off and on again to retry.
+
+Overlay content and appearance keeps content mode and Restore default appearance on its first screen. Other options are grouped under Layout, Text, and Colors and opacity. Esc goes back one level; saving or canceling an edit returns to the same field. Each group remembers its selection until you close settings.
+
+Without live messages, enable Sample preview on the Overlay tab to check wrapping, fonts, colors, and size without signing in. First enable the native overlay and wait until it is ready. Samples show normal chat, Fleet, and Super Chat colors in the interface language, with every line marked as a sample. They are not added to history or read by TTS, and the preview switch is not saved. Turning preview off, leaving the Overlay tab, or disabling the overlay ends the preview. Actual content then includes any events received while previewing.
+
+While the native overlay is running, valid values in appearance input fields preview immediately, including position offsets, size, padding, fonts, colors, and opacity. Press Enter to save or Esc to restore saved values. Invalid input keeps the last valid preview. Previewing does not write configuration; combine it with Sample preview to adjust the appearance.
+
+Use ↑/↓ in numeric fields to adjust position, size, padding, or font size by 1, font weight by 100, and opacity by 0.01 (rounded to two decimal places). Invalid values and steps beyond the allowed range leave the input unchanged. Left/right still move the cursor, and direct typing remains available. Press Enter to save or Esc to cancel stepped changes.
 
 Content modes are listed as Live chat, Room status, and Status and chat. Chat modes share the TUI main chat list's data and refresh results without loading additional history. They display the latest six selected events from that list; the visible portion depends on wrapping and available height. At startup, both use the main list's limit of up to 10 messages from the past 24 hours. New messages, withdrawals, and removal of older entries update together. Templates use Chinese, and overlay event selections are independent of TTS. Browsing history or switching pages does not change the overlay's data source. Disabling chat listening clears overlay events.
 

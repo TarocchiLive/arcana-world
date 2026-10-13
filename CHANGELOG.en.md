@@ -4,6 +4,45 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+### Added
+
+- Display native cover previews in iTerm2, fitting the terminal size while preserving the image aspect ratio. Keep character previews in tmux, screen, and redirected output.
+- Zoom cover previews with `+` / `-`, pan with `h/j/k/l`, and reset with `0` in both native and character previews. These controls do not change the cover being uploaded.
+- Adjust the crop in the cover upload confirmation screen by zooming and panning; press `0` to restore the centered crop. The screen shows the zoom and crop center, with a preview before upload. Adjustments use the original image and keep the output at 704×396; canceled processing is discarded.
+- Check for the latest stable release manually and show the comparison and release page. The check uses proxy settings without reading login credentials, downloading, or installing. Report cancellation, timeouts, and access limits without recommending a downgrade from a newer prerelease.
+- Add sample preview to the Overlay tab for checking appearance and event colors without signing in. Samples do not enter history or TTS; turning preview off, leaving the tab, or disabling the overlay restores actual content.
+
+### Changed
+
+- Prefer complete recent messages when overlay text exceeds its height, reducing cuts through usernames or messages. Keep the tail when a single long message cannot fit. Apply the same rule on macOS, Windows, and Linux.
+- Preview overlay position offsets, size, padding, fonts, and opacity while editing, using the existing color preview save and cancel flow. Enter saves, Esc restores, and invalid input keeps the last valid preview.
+- Adjust numeric overlay fields with ↑/↓ and preview changes immediately. Show each field's step size, leave invalid or out-of-range values unchanged, and keep Enter to save and Esc to cancel.
+- Group overlay settings into Layout, Text, and Colors and opacity, keeping content mode and restore on the first screen. Esc goes back one level; saving and canceling return to the same field, with each group retaining its selection while settings remain open.
+
+### Fixed
+
+- Preserve ZWJ/ZWNJ in overlay text and speech input so text cleanup does not break joined emoji or script shaping. Continue removing terminal escapes and bidirectional control characters.
+- Truncate overlay and speech text at grapheme boundaries without increasing existing length limits, keeping joined emoji, flags, skin tones, and accents intact. Removed control characters no longer cause an unnecessary ellipsis.
+- Fix lost zoom and pan input while Kitty/Ghostty cover previews wait for image acknowledgments.
+- Include native overlay and TTS build dependencies in the default `nix develop` environment so `make desktop` works directly; component-specific development shells remain unchanged.
+- Retry failed TTS synthesis requests or empty audio up to twice, waiting 500ms and 1500ms before skipping the item if it still fails. Retries share the existing 30-second deadline and end immediately on stop or exit; playback is not retried.
+
+## [v0.3.2]: 2026-10-12
+
+### Fixed
+
+- Fix Edge TTS handshake failures caused by HTTP 403 from the legacy synthesis endpoint; migrate to Microsoft's new endpoint and use its hostname for proxy bypass rules.
+
+## [v0.3.1]: 2026-10-09
+
+### Added
+
+- Customize overlay and TTS text independently with Go templates in YAML files. Chinese and English configurations are separate; missing defaults are generated at startup, and edits take effect after restarting.
+- Template errors identify the file and cause, then fall back to built-in defaults for that file during the current session. Warnings remain until dismissed, and existing configuration files are never overwritten.
+- Add the in-app “Customize overlay and TTS formats” article with fields, examples, recovery instructions, and the Go template documentation link. TUI chat formatting remains unchanged.
+
 ## [v0.3.0]: 2026-09-29
 
 ### Added
@@ -361,3 +400,5 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.3.0-alpha.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.4
 [v0.3.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-rc.1
 [v0.3.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0
+[v0.3.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.1
+[v0.3.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.2

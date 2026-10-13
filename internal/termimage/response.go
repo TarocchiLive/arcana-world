@@ -46,7 +46,7 @@ func (v *Viewer) waitAck(id uint32) error {
 		if n == 0 && len(parser.packet) == 1 {
 			return errPreviewClosed
 		}
-		done, err := parser.feed(input[:n], id)
+		done, err := parser.feed(input[:n], id, v.viewport)
 		if err != nil {
 			return err
 		}
@@ -77,7 +77,7 @@ func (v *Viewer) checkSize(expected dimensions) error {
 // 仅接受大小受限的数据包，以及属于本查看器图像的响应。
 type responseParser struct{ packet []byte }
 
-func (p *responseParser) feed(data []byte, id uint32) (bool, error) {
+func (p *responseParser) feed(data []byte, id uint32, viewport *imageViewport) (bool, error) {
 	done := false
 	for _, c := range data {
 		if len(p.packet) == 0 {
@@ -86,6 +86,11 @@ func (p *responseParser) feed(data []byte, id uint32) (bool, error) {
 				p.packet = append(p.packet, c)
 			case 'q', 'Q', '\r', '\n', 3:
 				return false, errPreviewClosed
+			default:
+				// 立即合并视口操作，不为等待确认的按键建立无界队列。
+				if viewport != nil {
+					viewport.key(c)
+				}
 			}
 			continue
 		}
