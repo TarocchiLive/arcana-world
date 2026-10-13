@@ -26,6 +26,13 @@ Versions are listed newest first.
 - Preserve ZWJ/ZWNJ in overlay text and speech input so text cleanup does not break joined emoji or script shaping. Continue removing terminal escapes and bidirectional control characters.
 - Truncate overlay and speech text at grapheme boundaries without increasing existing length limits, keeping joined emoji, flags, skin tones, and accents intact. Removed control characters no longer cause an unnecessary ellipsis.
 - Fix lost zoom and pan input while Kitty/Ghostty cover previews wait for image acknowledgments.
+- Include native overlay and TTS build dependencies in the default `nix develop` environment so `make desktop` works directly; component-specific development shells remain unchanged.
+
+## [v0.3.2]: 2026-10-12
+
+### Fixed
+
+- Fix Edge TTS handshake failures caused by HTTP 403 from the legacy synthesis endpoint; migrate to Microsoft's new endpoint and use its hostname for proxy bypass rules.
 
 ## [v0.3.1]: 2026-10-09
 
@@ -393,3 +400,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.3.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-rc.1
 [v0.3.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0
 [v0.3.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.1
+[v0.3.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.2

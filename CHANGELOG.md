@@ -26,6 +26,13 @@
 - 浮层文本与语音输入保留组合表情和连字所需的 ZWJ/ZWNJ，避免清理文本时拆开这些字符；仍会移除终端转义和双向文本控制符。
 - 浮层及语音文本在完整字素之间截断，避免长度上限拆开组合表情、国旗、肤色和重音字符；保留现有长度上限，清理掉的控制符不再触发多余省略号。
 - 修复 Kitty/Ghostty 封面预览等待图像确认时丢失缩放和平移按键的问题。
+- 默认 `nix develop` 环境补齐浮层和 TTS 的原生构建依赖，支持直接运行 `make desktop`；各组件独立开发环境保持不变。
+
+## [v0.3.2]：2026-10-12
+
+### 修复
+
+- 修复 Edge TTS 旧合成端点返回 HTTP 403 导致的握手失败，迁移到微软新端点，并同步代理绕过规则使用的目标域名。
 
 ## [v0.3.1]：2026-10-09
 
@@ -393,3 +400,4 @@
 [v0.3.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-rc.1
 [v0.3.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0
 [v0.3.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.1
+[v0.3.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.2
