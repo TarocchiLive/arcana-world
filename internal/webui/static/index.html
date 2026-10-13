@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Arcana World</title>
+    <link rel="stylesheet" href="/app.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <section id="auth" class="auth" aria-labelledby="auth-title">
+      <div class="brand">
+        <span class="mark" aria-hidden="true"></span>Arcana World
+      </div>
+      <h1 id="auth-title">Connect to your studio</h1>
+      <p id="auth-note"></p>
+      <form id="auth-form">
+        <label for="token" id="token-label">Access token</label
+        ><input id="token" type="password" autocomplete="off" required /><button
+          id="auth-submit"
+          class="primary"
+          type="submit"
+        >
+          Connect
+        </button>
+      </form>
+      <p id="auth-error" class="error" role="alert"></p>
+    </section>
+    <div id="app" hidden>
+      <header class="appbar">
+        <a class="brand" href="#studio"
+          ><span class="mark" aria-hidden="true"></span
+          ><span>Arcana World</span></a
+        >
+        <nav id="navigation" aria-label="Workspace"></nav>
+        <div class="utilities">
+          <span id="identity"></span
+          ><label class="sr-only" for="theme">Appearance</label
+          ><select id="theme"></select
+          ><button id="lock" type="button">Lock</button>
+        </div>
+      </header>
+      <div class="connection-line">
+        <span id="connection" role="status"></span
+        ><span id="status" role="status"></span
+        ><button id="retry" type="button"></button>
+      </div>
+      <div id="pending" class="pending" hidden></div>
+      <p id="global-error" class="global-error error" role="alert" hidden></p>
+      <main id="main" tabindex="-1"></main>
+    </div>
+    <dialog
+      id="confirm"
+      aria-labelledby="confirm-title"
+      aria-describedby="confirm-text"
+    >
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-text"></p>
+      <p id="confirm-error" class="error" role="alert"></p>
+      <div id="confirm-actions" class="actions"></div>
+    </dialog>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "web.panel.InteractionChanged": "界面已更新，请重新操作。",
+  "web.panel.OperationBusy": "操作进行中，请稍候。",
+  "web.panel.ActionUnavailable": "当前界面不支持此操作。",
+  "web.panel.StreamProtocol": "推流协议",
+  "web.panel.StreamCredentials": "推流凭据",
+  "web.panel.CoverPathHint": "输入运行 Arcana World 的电脑上的图片路径（不是浏览器上传）。",
+  "web.panel.ScanVerify": "扫码验证",
+  "web.panel.SaveLogin": "保存登录账号"
+}

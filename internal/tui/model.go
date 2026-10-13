@@ -67,6 +67,7 @@ type pollTick struct{ generation int }
 type choice struct{ label, value string }
 
 type Model struct {
+	web                      webState
 	ctx                      context.Context
 	store                    *store.Store
 	client                   *bili.Client
@@ -190,7 +191,10 @@ func (m *Model) Init() tea.Cmd {
 		return nil
 	}
 	m.initialized = true
-	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.watchOBS(), chatTickCmd(), m.syncShowcase(), m.notificationCommand(), m.pointerCommand(), m.initInlineImage()}
+	cmds := []tea.Cmd{m.watchOBS(), chatTickCmd()}
+	if !m.web.enabled {
+		cmds = append(cmds, tea.RequestBackgroundColor, m.syncShowcase(), m.notificationCommand(), m.pointerCommand(), m.initInlineImage())
+	}
 	if m.overlay != nil && m.overlayEnabled {
 		cmds = append(cmds, m.startOverlay())
 	}
@@ -270,6 +274,9 @@ func (m *Model) safe(s string) string {
 func (m *Model) updatePolling() tea.Cmd {
 	cmds := []tea.Cmd{m.updateChat(), m.updateTTS(), m.updateAudience()}
 	m.publishOverlay()
+	if m.web.enabled {
+		return tea.Batch(cmds...)
+	}
 	if m.frame.base != "" && m.frame.poll == m.pollViewState() {
 		m.frame.reuse = true
 	} else {
@@ -285,6 +292,12 @@ func (m *Model) updatePolling() tea.Cmd {
 }
 func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	m.syncOutputTemplates()
+	if m.web.enabled {
+		defer m.observeWebContext()
+		if request, ok := msg.(webRequest); ok {
+			return m, m.handleWebRequest(request)
+		}
+	}
 	// 原始终端输出已由 Bubble Tea 执行，不改变界面状态，也不再次设置指针。
 	switch msg.(type) {
 	case pointerRefreshMsg:
@@ -363,6 +376,9 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		m.noticeLayer = floatingLayer{}
 	}
 	defer func() {
+		if m.web.enabled {
+			return
+		}
 		m.syncWorkspace()
 		if m.confirmationAvatar() != m.inlineImage.thumbnail || !m.nativeAvatar() {
 			cmd = tea.Batch(cmd, m.clearInlineImage())

@@ -32,6 +32,7 @@ Native support for Windows, Linux, and macOS.
 - **Browse and send live chat in real time, with a click-through floating overlay that stays out of the way of your mouse and keyboard.**
 - **High-quality chat, gift, and Super Chat announcements powered by Edge TTS, with zero resource overhead.**
 - **Typical memory usage of 40 MB: lightweight, smooth, and stable.**
+- **Optional local Web control panel.**
 
 ## Install
 
@@ -76,7 +77,7 @@ After building, run `bin/arcana-world` (`bin/arcana-world.exe` on Windows). For 
 
 ## Help
 
-Press `0` or open Help in the app for instructions and common questions. Run `arcana-world --help` for command-line options.
+In the terminal interface, press `0` for help. In the Web panel, use Help in the top navigation to search topics and read articles directly. Run `arcana-world --help` for command-line options.
 
 ## TODO
 - [x] Fetch direct Bilibili stream URLs, connect to OBS, and start broadcasts automatically.
@@ -93,7 +94,9 @@ Press `0` or open Help in the app for instructions and common questions. Run `ar
 - [x] Check for new versions.
 - [x] Support Scoop and APT repositories.
 - [ ] Support Homebrew and nixpkgs repositories.
-- [?] GUI / WebUI support (under consideration).
+- [ ] Add a bot protocol interface.
+- [x] Optional WebUI control panel.
+- [?] Native GUI support (under consideration).
 
 ## Development
 
