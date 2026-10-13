@@ -27,6 +27,7 @@ Versions are listed newest first.
 - Truncate overlay and speech text at grapheme boundaries without increasing existing length limits, keeping joined emoji, flags, skin tones, and accents intact. Removed control characters no longer cause an unnecessary ellipsis.
 - Fix lost zoom and pan input while Kitty/Ghostty cover previews wait for image acknowledgments.
 - Include native overlay and TTS build dependencies in the default `nix develop` environment so `make desktop` works directly; component-specific development shells remain unchanged.
+- Retry failed TTS synthesis requests or empty audio up to twice, waiting 500ms and 1500ms before skipping the item if it still fails. Retries share the existing 30-second deadline and end immediately on stop or exit; playback is not retried.
 
 ## [v0.3.2]: 2026-10-12
 

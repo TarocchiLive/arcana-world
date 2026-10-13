@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gorilla/websocket"
@@ -43,12 +44,22 @@ func RunEdge(in io.Reader, out io.Writer) error {
 	if err != nil {
 		return errors.New("tts: invalid synthesis configuration")
 	}
-	audio, err := communicator.Stream()
-	if err != nil {
-		return safeEdgeError(err)
-	}
-	if len(audio) == 0 {
-		return errors.New("tts: synthesis returned empty audio")
+	var audio []byte
+	// 重试留在专用进程内；宿主的总超时或取消会直接终止进程，包括等待阶段。
+	for attempt, delay := range [...]time.Duration{0, 500 * time.Millisecond, 1500 * time.Millisecond} {
+		if delay > 0 {
+			time.Sleep(delay)
+		}
+		audio, err = communicator.Stream()
+		if err == nil && len(audio) > 0 {
+			break
+		}
+		if attempt == 2 {
+			if err != nil {
+				return safeEdgeError(err)
+			}
+			return errors.New("tts: synthesis returned empty audio")
+		}
 	}
 	if len(audio) > MaxAudioBytes {
 		return errors.New("tts: synthesis audio exceeds limit")
