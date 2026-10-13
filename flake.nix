@@ -46,7 +46,6 @@
             ldflags = [
               "-s"
               "-w"
-              "-buildid="
               "-X main.version=${version}"
             ];
 
@@ -81,7 +80,7 @@
               pkgs.pango
               pkgs.cairo
             ];
-            ldflags = [ "-s" "-w" "-buildid=" ];
+            ldflags = [ "-s" "-w" ];
             postInstall = ''
               install -Dm644 LICENSE "$out/share/licenses/arcana-world-overlay/LICENSE"
             '';
@@ -102,7 +101,7 @@
             tags = [ "tts_audio" ];
             nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
             buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.alsa-lib ];
-            ldflags = [ "-s" "-w" "-buildid=" ];
+            ldflags = [ "-s" "-w" ];
             checkPhase = ''
               runHook preCheck
               go test -tags tts_audio ./internal/tts/audio ./cmd/arcana-world-tts
