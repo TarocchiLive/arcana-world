@@ -9,4 +9,6 @@ const (
 	WebCoverPathHint      Key = "web.panel.CoverPathHint"
 	WebScanVerify         Key = "web.panel.ScanVerify"
 	WebSaveLogin          Key = "web.panel.SaveLogin"
+	WebSwitchAccount      Key = "web.panel.SwitchAccount"
+	WebStopListening      Key = "web.panel.StopListening"
 )

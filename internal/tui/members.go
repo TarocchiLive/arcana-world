@@ -65,9 +65,9 @@ func (m *Model) refreshRoomMembers() tea.Cmd {
 		return nil
 	}
 	s.loading, s.err = true, nil
-	fetch, failed := i18n.MembersFetch, i18n.MembersLoadFailed
+	fetch, failed, total := i18n.MembersFetch, i18n.MembersLoadFailed, i18n.MembersTotal
 	if s.fleet {
-		fetch, failed = i18n.FleetFetch, i18n.FleetLoadFailed
+		fetch, failed, total = i18n.FleetFetch, i18n.FleetLoadFailed, i18n.FleetTotal
 	}
 	op := operation[bili.RoomMemberList]{label: fetch, discardOnCancel: true, handle: func(m *Model, list bili.RoomMemberList, err error, _ i18n.Key) tea.Cmd {
 		if !m.roomMembersValid(s) {
@@ -77,6 +77,7 @@ func (m *Model) refreshRoomMembers() tea.Cmd {
 		m.mode = "members"
 		if err == nil {
 			s.list, s.loaded = list, true
+			m.setStatus(fmt.Sprintf(i18n.T(total), list.Total))
 		} else {
 			m.warnStatus(fmt.Sprintf(i18n.T(failed), m.safe(err.Error())))
 		}

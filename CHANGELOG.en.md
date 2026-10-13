@@ -13,9 +13,10 @@ Versions are listed newest first.
 - Adjust the crop in the cover upload confirmation screen by zooming and panning; press `0` to restore the centered crop. The screen shows the zoom and crop center, with a preview before upload. Adjustments use the original image and keep the output at 704×396; canceled processing is discarded.
 - Check for the latest stable release manually and show the comparison and release page. The check uses proxy settings without reading login credentials, downloading, or installing. Report cancellation, timeouts, and access limits without recommending a downgrade from a newer prerelease.
 - Add sample preview to the Overlay tab for checking appearance and event colors without signing in. Samples do not enter history or TTS; turning preview off, leaving the tab, or disabling the overlay restores actual content.
-- Add an optional, off-by-default local Web control panel sharing account, live, OBS, chat, and helper lifecycles with the terminal mode. See `--help` for startup options.
+- Add an optional local Web control panel sharing account, live, OBS, chat, and helper lifecycles with the terminal mode. See `--help` for startup options.
 - Add Chinese/English UI, light/dark/system themes, and pausable chat and log updates. Refreshes preserve form drafts; failed chat sends retain the draft.
-- Bind the Web server only to loopback, generate a private access token at each startup, reject cross-site requests and stale interactions, and reveal stream keys only on explicit request.
+- Open the Web panel without an access token at the default fixed address `http://127.0.0.1:5273`. Change the bind address only through the configuration file. Retain cross-site and stale-interaction checks, and reveal stream keys only on explicit request.
+- Save a default interface or select TUI / WebUI for one run, without detecting the OS version or terminal type. Windows packages include an `arcana-world-webui.exe` launcher. WebUI opens the default browser on startup and keeps the address available if opening fails.
 
 ### Changed
 
@@ -23,8 +24,18 @@ Versions are listed newest first.
 - Preview overlay position offsets, size, padding, fonts, and opacity while editing, using the existing color preview save and cancel flow. Enter saves, Esc restores, and invalid input keeps the last valid preview.
 - Adjust numeric overlay fields with ↑/↓ and preview changes immediately. Show each field's step size, leave invalid or out-of-range values unchanged, and keep Enter to save and Esc to cancel.
 - Group overlay settings into Layout, Text, and Colors and opacity, keeping content mode and restore on the first screen. Esc goes back one level; saving and canceling return to the same field, with each group retaining its selection while settings remain open.
-- Organize the Web panel into Studio, Outputs, Accounts, Settings, and Help instead of terminal-style menus and generic action cards. Edit ordinary settings in place; complete sign-in and room-selection workflows inline. Search and read help without a popup.
-- Keep desktop live controls and the chat composer together, with separate conversation and room views on narrow screens. Preview overlay appearance as a scaled illustration while editing; preserve keyboard focus for risk confirmations.
+- Handle process exit signals in one place to prevent the terminal interface from hanging on interruption.
+- Share the directory lock between startup and default-interface changes to prevent concurrent configuration overwrites. Saving the default preserves account indexes, unknown fields, and large integers, and rejects invalid configuration.
+- Split the Web panel into Studio, Chat, Outputs, Accounts, Settings, and Help. Configure the room and OBS in Studio; read and send messages in Chat. Edit ordinary settings in place, complete sign-in and room selection inline, and search and read help on its own page.
+- Constrain workspace widths and use columns and dividers instead of large cards. Remove the overlay appearance sample and preserve keyboard focus for risk confirmations.
+- Use the TUI's WORLD wordmark on the Web panel connection screen and top navigation, with theme colors and narrow-screen sizing.
+- Show Web operation errors as dismissible top-right notifications with expandable details, without shifting forms or page layout.
+- Fix legacy HTTP cover URLs blocked by browser security policy, and hide broken images when cover loading fails.
+- Reuse TUI event text in Web chat, including fan medals, UIDs, gift amounts, Super Chats, and Guard purchases. Preserve removed-message and mystery-user handling, order messages chronologically, and retain the scroll position while reading history.
+- Add message context menus, touch-friendly Actions buttons, and keyboard menus for copying messages, viewing profiles and homepages, muting, blocking, and appointing moderators. Audience and Fleet lists support refresh; moderator, blacklist, and mute lists support user search, adding, and removal. Management reuses the terminal workflows, including custom-hour or permanent mutes, confirmation, and account and target identity checks.
+- Use Cancel and a named action in confirmation dialogs, without repeating the detailed prompt in the title. Before submission, Cancel or Esc returns to the previous step and preserves selections and duration drafts. Cover previews and subsequent QR-login confirmations also return to the preceding step.
+- Open chat management submenus in dialogs instead of a sidebar, including audience lists, profiles, and management forms. Close or Esc restores the action entry point; cancelling confirmation returns to the original form.
+- Fix horizontal overflow in long management lists, controls re-enabled during refresh, and dialogs left open during navigation. Preserve unsubmitted management drafts on Back and submit the latest interaction revision. Keep messages visible when navigating with chat paused, and clear old messages when the account or room changes.
 
 ### Fixed
 

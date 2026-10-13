@@ -152,6 +152,7 @@ const (
 	StoreConfigReplaceFailed             Key = "store.config_replace_failed"
 	StoreConfigTemporaryFileFailed       Key = "store.config_temporary_file_failed"
 	StoreConfigWriteFailed               Key = "store.config_write_failed"
+	StoreDefaultUIInvalid                Key = "store.default_ui_invalid"
 	StoreCredentialBackendRequired       Key = "store.credential_backend_required"
 	StoreCredentialNotFound              Key = "store.credential_not_found"
 	StoreCredentialRollbackFailed        Key = "store.credential_rollback_failed"

@@ -38,7 +38,7 @@ Native support for Windows, Linux, and macOS.
 
 ### Quick start
 
-Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest) for your platform, such as `arcana-world-windows-amd64.zip`, extract the entire archive, and run `arcana-world` at its root (`arcana-world.exe` on Windows).
+Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest) for your platform, such as `arcana-world-windows-amd64.zip`, and extract the entire archive. Run `arcana-world` at its root (`arcana-world.exe` on Windows) to use your saved default interface, or the terminal interface if none is set. Windows users can also run `arcana-world-webui.exe` in the same directory to open the browser interface directly.
 
 ### Windows (Scoop)
 

@@ -6,5 +6,7 @@
   "web.panel.StreamCredentials": "推流凭据",
   "web.panel.CoverPathHint": "输入运行 Arcana World 的电脑上的图片路径（不是浏览器上传）。",
   "web.panel.ScanVerify": "扫码验证",
-  "web.panel.SaveLogin": "保存登录账号"
+  "web.panel.SaveLogin": "保存登录账号",
+  "web.panel.SwitchAccount": "切换账号",
+  "web.panel.StopListening": "停止监听弹幕"
 }

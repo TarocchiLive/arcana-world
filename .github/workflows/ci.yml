@@ -81,6 +81,9 @@ jobs:
           "./bin/arcana-world${{ matrix.suffix }}" -help
           "./bin/libexec/arcana-world-overlay${{ matrix.suffix }}" -help
           "./bin/libexec/arcana-world-tts${{ matrix.suffix }}" -help
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            ./bin/arcana-world-webui.exe -help
+          fi
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ runner.os }}-${{ matrix.goarch }}

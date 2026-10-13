@@ -234,7 +234,7 @@ func (m *Model) webSubmit(value string) (tea.Cmd, error) {
 	previousMode := m.mode
 	m.input.SetValue(value)
 	cmd := m.submitForm()
-	if cmd == nil && m.statusWarning {
+	if cmd == nil && m.statusWarning && (!strings.HasPrefix(m.webTarget(), "chat-") || m.mode == previousMode) {
 		m.mode = previousMode
 		m.input.SetValue(value)
 		return nil, errors.New(m.webText(m.status))
@@ -276,6 +276,18 @@ func (m *Model) webAction(page, action string) (tea.Cmd, error) {
 }
 
 func (m *Model) webTarget() string {
+	if m.members != nil {
+		return "chat-members"
+	}
+	if m.speaker != nil {
+		if m.mode == "speaker" {
+			return "chat-speaker"
+		}
+		return "chat-moderation"
+	}
+	if m.moderation != nil {
+		return "chat-moderation"
+	}
 	switch m.mode {
 	case "qr", "face", "login-save":
 		return "account-login"

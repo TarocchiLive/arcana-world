@@ -2,10 +2,7 @@ package webui
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/subtle"
 	"embed"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +10,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -23,28 +21,32 @@ import (
 //go:embed static/*
 var assets embed.FS
 
-// Server 仅绑定 IPv4 回环地址。每次启动换用随机凭证，不写入磁盘。
+// Server 默认仅绑定 IPv4 回环地址；全接口监听必须通过配置显式启用。
 type Server struct {
-	http     *http.Server
-	listener net.Listener
-	token    string
-	host     string
-	request  Request
+	http        *http.Server
+	listener    net.Listener
+	bindAddress string
+	host        string
+	request     Request
 }
 
-func Listen(port int, request Request) (*Server, error) {
+func Listen(bindAddress string, port int, request Request) (*Server, error) {
+	if bindAddress == "" {
+		bindAddress = "127.0.0.1"
+	}
+	if bindAddress != "127.0.0.1" && bindAddress != "0.0.0.0" {
+		return nil, errors.New(i18n.T(i18n.WebBindInvalid))
+	}
 	if port < 0 || port > 65535 {
 		return nil, errors.New(i18n.T(i18n.WebPortInvalid))
 	}
-	var secret [32]byte
-	if _, err := rand.Read(secret[:]); err != nil {
-		return nil, err
-	}
-	listener, err := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	listener, err := net.Listen("tcp4", net.JoinHostPort(bindAddress, strconv.Itoa(port)))
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{listener: listener, token: base64.RawURLEncoding.EncodeToString(secret[:]), host: listener.Addr().String(), request: request}
+	// 启动链接始终使用本机可访问地址，不把通配监听地址当作浏览器目的地址。
+	host := net.JoinHostPort("127.0.0.1", strconv.Itoa(listener.Addr().(*net.TCPAddr).Port))
+	s := &Server{listener: listener, bindAddress: bindAddress, host: host, request: request}
 	s.http = &http.Server{
 		Handler:           http.HandlerFunc(s.serveHTTP),
 		ReadHeaderTimeout: 5 * time.Second,
@@ -57,7 +59,7 @@ func Listen(port int, request Request) (*Server, error) {
 }
 
 func (s *Server) URL() string {
-	return "http://" + strings.TrimSuffix(s.host, ":80") + "/#token=" + s.token
+	return "http://" + strings.TrimSuffix(s.host, ":80") + "/"
 }
 
 func (s *Server) Serve() error {
@@ -82,6 +84,27 @@ func fail(w http.ResponseWriter, code int, key i18n.Key) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": i18n.T(key)})
 }
 
+func (s *Server) validHost(r *http.Request) bool {
+	if s.bindAddress == "127.0.0.1" {
+		return r.Host == s.host || r.Host == strings.TrimSuffix(s.host, ":80")
+	}
+	// 全接口监听也只接受当前连接实际到达的 IPv4 地址，拒绝域名及伪造目的地址。
+	local, ok := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
+	if !ok || local.IP.To4() == nil {
+		return false
+	}
+	host := r.Host
+	if local.Port == 80 && !strings.Contains(host, ":") {
+		host += ":80"
+	}
+	address, err := netip.ParseAddrPort(host)
+	return err == nil && address.Addr().Is4() &&
+		int(address.Port()) == local.Port &&
+		local.Port == s.listener.Addr().(*net.TCPAddr).Port &&
+		address.Addr().String() == local.IP.String() &&
+		host == address.String()
+}
+
 func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -90,12 +113,18 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
 	w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
-	// 严格匹配启动地址，拒绝 DNS 重绑定及其他站点对本机服务的访问。
-	if r.Host != s.host && r.Host != strings.TrimSuffix(s.host, ":80") {
+	// 严格匹配连接地址，拒绝 DNS 重绑定及其他站点对服务的访问。
+	if !s.validHost(r) {
 		fail(w, http.StatusForbidden, i18n.WebOriginDenied)
 		return
 	}
-	if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+s.host && origin != "http://"+strings.TrimSuffix(s.host, ":80") {
+	origin := r.Header.Get("Origin")
+	sameOrigin := origin == "http://"+r.Host
+	if s.listener.Addr().(*net.TCPAddr).Port == 80 {
+		host := strings.TrimSuffix(r.Host, ":80")
+		sameOrigin = origin == "http://"+host || origin == "http://"+host+":80"
+	}
+	if origin != "" && !sameOrigin {
 		fail(w, http.StatusForbidden, i18n.WebOriginDenied)
 		return
 	}
@@ -104,11 +133,6 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.HasPrefix(r.URL.Path, "/api/") {
-		provided := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if subtle.ConstantTimeCompare([]byte(provided), []byte(s.token)) != 1 {
-			fail(w, http.StatusUnauthorized, i18n.WebUnauthorized)
-			return
-		}
 		s.api(w, r)
 		return
 	}
