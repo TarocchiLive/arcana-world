@@ -13,12 +13,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-func runWeb(ctx context.Context, model *tui.Model, port int) (err error) {
+func runWeb(ctx context.Context, model *tui.Model, bindAddress string, port int) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	model.EnableWeb()
 	program := tea.NewProgram(model, tea.WithContext(ctx), tea.WithoutRenderer(), tea.WithInput(nil), tea.WithOutput(io.Discard), tea.WithoutSignalHandler())
-	server, err := webui.Listen(port, func(requestCtx context.Context, page string, command *webui.Command) (webui.Snapshot, error) {
+	server, err := webui.Listen(bindAddress, port, func(requestCtx context.Context, page string, command *webui.Command) (webui.Snapshot, error) {
 		requestCtx, requestCancel := context.WithCancel(requestCtx)
 		stop := context.AfterFunc(ctx, requestCancel)
 		defer stop()

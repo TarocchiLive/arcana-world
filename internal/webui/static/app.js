@@ -9,16 +9,16 @@
   };
   let language = navigator.language.startsWith("zh") ? "zh" : "en";
   const t = (en, zh) => (language === "zh" ? zh : en);
-  const routes = ["studio", "outputs", "accounts", "settings", "help"];
+  const routes = ["studio", "chat", "outputs", "accounts", "settings", "help"];
   const labels = () => ({
     studio: t("Studio", "直播台"),
+    chat: t("Chat", "弹幕"),
     outputs: t("Outputs", "输出"),
     accounts: t("Accounts", "账号"),
     settings: t("Settings", "设置"),
     help: t("Help", "帮助"),
   });
-  let token = "",
-    page = "studio",
+  let page = "studio",
     state = null,
     timer,
     controller,
@@ -29,7 +29,7 @@
     tab = "",
     stale = false,
     commandError = "",
-    errorTarget = "",
+    notificationKey = "",
     chatDraft = "",
     pendingSend = null;
   let pausedChat = false,
@@ -39,18 +39,19 @@
     interactionKey = "",
     interactionRevision = 0,
     focusReturn = null,
+    chatFocusReturn = null,
+    chatFocusMessage = "",
     commandFocus = null;
   let helpQuery = "",
     helpTopic = "",
     helpSignature = "";
-  let studioPane = "chat";
   const drafts = new Map(),
+    interactionDrafts = new Map(),
     fieldNodes = new Map();
-  function storage(name, key, value) {
+  function storage(key, value) {
     try {
-      if (value === undefined) return window[name].getItem(key);
-      if (value === null) window[name].removeItem(key);
-      else window[name].setItem(key, value);
+      if (value === undefined) return localStorage.getItem(key);
+      localStorage.setItem(key, value);
     } catch (_) {}
     return "";
   }
@@ -110,23 +111,12 @@
       }),
     );
     $("navigation").setAttribute("aria-label", t("Workspace", "工作空间"));
-    setText("auth-title", t("Connect to your studio", "连接你的直播工作台"));
-    setText(
-      "auth-note",
-      t(
-        "Enter the access token from your running Arcana World. It stays in this browser tab only.",
-        "输入正在运行的 Arcana World 提供的访问令牌。令牌仅保存在当前浏览器标签页。",
-      ),
-    );
-    setText("token-label", t("Access token", "访问令牌"));
-    setText("auth-submit", t("Connect", "连接"));
-    setText("lock", t("Lock", "锁定"));
     setText("retry", t("Refresh connection", "刷新连接"));
     document.querySelector(".skip").textContent = t(
       "Skip to content",
       "跳至主要内容",
     );
-    const theme = storage("localStorage", "arcana-theme") || "system";
+    const theme = storage("arcana-theme") || "system";
     $("theme").replaceChildren(
       ...[
         ["system", t("System theme", "跟随系统")],
@@ -144,35 +134,26 @@
   }
   function schedule() {
     clearTimeout(timer);
-    if (token && !document.hidden) timer = setTimeout(poll, 1000);
+    if (!document.hidden) timer = setTimeout(poll, 1000);
   }
-  function authGate(message = "") {
-    generation++;
-    controller?.abort();
-    clearTimeout(timer);
-    token = "";
-    storage("sessionStorage", "arcana-token", null);
-    state = null;
-    drafts.clear();
-    chatDraft = "";
-    pendingSend = null;
-    commandError = "";
-    errorTarget = "";
-    pageKey = "";
-    interactionKey = "";
-    if ($("confirm").open) $("confirm").close();
-    $("main").replaceChildren();
-    $("app").hidden = true;
-    $("auth").hidden = false;
-    setText("auth-error", message);
-    $("auth-submit").disabled = false;
-    $("token").focus();
+  function renderConnection() {
+    $("main").replaceChildren(
+      heading(labels()[page]),
+      note(
+        stale
+          ? t(
+              "Cannot reach Arcana World. Check that it is running, then refresh the connection. Retrying automatically.",
+              "无法连接 Arcana World。请确认程序正在运行，然后刷新连接。页面也会自动重试。",
+            )
+          : t("Loading studio…", "正在加载工作台…"),
+      ),
+    );
+    renderStatus();
   }
   async function request(path, body, signal) {
     const response = await fetch(path, {
       method: body ? "POST" : "GET",
       headers: {
-        Authorization: "Bearer " + token,
         ...(body ? { "Content-Type": "application/json" } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -181,16 +162,6 @@
       redirect: "error",
       signal,
     });
-    if (response.status === 401) {
-      const e = new Error(
-        t(
-          "Token missing or expired. Enter the token for your running studio.",
-          "令牌缺失或已失效，请输入当前工作台的访问令牌。",
-        ),
-      );
-      e.auth = true;
-      throw e;
-    }
     const data = await response.json();
     if (!response.ok) {
       const e = new Error(data.error || t("Request failed", "请求失败"));
@@ -201,8 +172,9 @@
   }
   async function poll() {
     clearTimeout(timer);
-    if (!token || fetching || sending || document.hidden) return;
+    if (fetching || sending || document.hidden) return;
     fetching = true;
+    $("retry").disabled = true;
     const current = generation;
     const own = new AbortController();
     controller = own;
@@ -212,39 +184,33 @@
       if (current === generation) accept(next);
     } catch (e) {
       if (current !== generation) return;
-      if (e.auth) authGate(e.message);
-      else {
-        stale = true;
-        const message =
-          e.name === "AbortError"
+      stale = true;
+      hideChatMenu();
+      commandError =
+        e.name === "AbortError"
+          ? state
             ? t(
                 "Connection timed out. Last known state is shown.",
                 "连接超时，当前显示上次已知状态。",
               )
-            : e.message;
-        if (state) {
-          commandError = message;
-          renderStatus();
-        } else setText("auth-error", message);
-      }
+            : t("Connection timed out.", "连接超时。")
+          : e.message;
+      if (state) renderStatus();
+      else renderConnection();
     } finally {
       clearTimeout(deadline);
       fetching = false;
       if (controller === own) controller = null;
-      $("auth-submit").disabled = false;
-      if (current !== generation && token && !sending && !document.hidden)
+      $("retry").disabled = false;
+      if (current !== generation && !sending && !document.hidden)
         queueMicrotask(poll);
       else schedule();
     }
   }
-  async function command(
-    action,
-    value = "",
-    fromInteraction = false,
-    target = "",
-  ) {
+  async function command(action, value = "", fromInteraction = false) {
     if (sending || !state || (state.busy && action !== "cancel")) return;
     if (!state.interaction) commandFocus = document.activeElement;
+    hideChatMenu();
     sending = true;
     clearTimeout(timer);
     generation++;
@@ -254,7 +220,6 @@
     controller = own;
     const deadline = setTimeout(() => own.abort(), 30000);
     commandError = "";
-    errorTarget = target;
     renderStatus();
     updateBusy();
     try {
@@ -280,19 +245,16 @@
       }
     } catch (e) {
       if (current !== generation) return;
-      if (e.auth) authGate(e.message);
-      else {
-        stale = !e.status;
-        commandError =
-          e.name === "AbortError"
-            ? t(
-                "The request timed out. Check the result before retrying.",
-                "请求超时，请确认操作结果后再重试。",
-              )
-            : e.message;
-        if (action === "send" && e.status) pendingSend = null;
-        renderStatus();
-      }
+      stale = !e.status;
+      commandError =
+        e.name === "AbortError"
+          ? t(
+              "The request timed out. Check the result before retrying.",
+              "请求超时，请确认操作结果后再重试。",
+            )
+          : e.message;
+      if (action === "send" && e.status) pendingSend = null;
+      renderStatus();
     } finally {
       clearTimeout(deadline);
       sending = false;
@@ -321,6 +283,9 @@
     const nextLanguage = String(next.language || language).startsWith("zh")
       ? "zh"
       : "en";
+    if (nextLanguage !== language || next.busy || next.interaction ||
+        (state && (state.accountUID !== next.accountUID || state.room?.id !== next.room?.id)))
+      hideChatMenu();
     if (nextLanguage !== language) {
       language = nextLanguage;
       pageKey = "";
@@ -332,11 +297,12 @@
       chatDraft = "";
       pendingSend = null;
     }
-    if (stale && !errorTarget) commandError = "";
+    if (state && (state.accountUID !== next.accountUID || state.room?.id !== next.room?.id))
+      feedSignature = "";
+    if (!next.interaction) interactionDrafts.clear();
+    if (stale) commandError = "";
     state = next;
     stale = false;
-    $("auth").hidden = true;
-    $("app").hidden = false;
     if (pendingSend && next.chatDraft === pendingSend.value)
       pendingSend.acknowledged = true;
     if (pendingSend && !next.busy) {
@@ -367,6 +333,7 @@
   function navigate(next) {
     if (!routes.includes(next)) next = "studio";
     if (next === page && pageKey) return;
+    hideChatMenu();
     page = next;
     history.replaceState(
       null,
@@ -379,7 +346,38 @@
     controller?.abort();
     localize();
     if (state) render();
+    else renderConnection();
     poll();
+  }
+  function notify(message) {
+    const host = $("notifications");
+    if (Array.from(host.children).some((toast) => toast.notificationMessage === message)) return;
+    const toast = node("section", "toast");
+    toast.notificationMessage = message;
+    const content = node("div", "toast-content");
+    const title = node("strong", "", t("Operation failed", "操作失败"));
+    const summary = message.split(/[:：\n]/, 1)[0];
+    const detailed = message.length > 160;
+    content.append(
+      title,
+      node("p", "", detailed && summary.length < 80 ? summary : detailed
+        ? t("See details for the full error.", "展开详情查看完整错误。")
+        : message),
+    );
+    if (detailed) {
+      const details = node("details");
+      details.append(
+        node("summary", "", t("Error details", "错误详情")),
+        node("p", "toast-details", message),
+      );
+      content.append(details);
+    }
+    const close = button("×", null, "toast-close");
+    close.setAttribute("aria-label", t("Dismiss notification", "关闭通知"));
+    close.onclick = () => toast.remove();
+    toast.append(content, close);
+    host.append(toast);
+    while (host.children.length > 3) host.firstElementChild.remove();
   }
   function renderStatus() {
     setText(
@@ -388,35 +386,33 @@
     );
     setText(
       "connection",
-      stale
-        ? t("Last known state", "上次已知状态")
-        : t("Local connection", "本机连接"),
+      !state
+        ? stale
+          ? t("Disconnected", "连接已断开")
+          : t("Connecting…", "正在连接…")
+        : stale
+          ? t("Last known state", "上次已知状态")
+          : t("Connected", "已连接"),
     );
     $("connection").classList.toggle("stale", stale);
     setText(
       "status",
-      state?.busy ? t("Working…", "处理中…") : state?.status || "",
+      state?.busy ? t("Working…", "处理中…") : state?.warning ? "" : state?.status || "",
     );
-    $("status").classList.toggle("warning", !!state?.warning);
-    const error =
-      commandError ||
-      (errorTarget && !sending && !state?.busy && state?.warning
-        ? state.status
-        : "");
-    const inline = errorTarget && $(errorTarget);
-    $("global-error").hidden = !error || !!inline || $("confirm").open;
-    setText("global-error", error);
-    document.querySelectorAll(".field-error,.flow-error").forEach((n) => {
-      n.textContent = n === inline ? error : "";
-    });
-    setText("confirm-error", $("confirm").open ? error : "");
+    const host = $("notifications");
+    const parent = $("confirm").open ? $("confirm")
+      : $("chat-dialog").open ? $("chat-dialog") : document.body;
+    if (host.parentElement !== parent) parent.append(host);
+    const error = commandError || (!state?.busy && state?.warning ? state.status : "");
+    if (error && error !== notificationKey) notify(error);
+    notificationKey = error;
   }
   function updateBusy() {
     const busy = sending || state?.busy;
     document.querySelectorAll("[data-command]").forEach((n) => {
       n.disabled = !!(
         n.dataset.disabled === "true" ||
-        (busy && n.dataset.command !== "cancel") ||
+        sending || (state?.busy && n.dataset.command !== "cancel") ||
         (state?.interaction &&
           !n.dataset.interaction &&
           n.dataset.command !== "cancel")
@@ -454,7 +450,9 @@
         $("main").replaceChildren(loading);
         $("main").dataset.loading = page;
       }
+      renderInteraction();
       renderStatus();
+      updateBusy();
       return;
     }
     delete $("main").dataset.loading;
@@ -468,6 +466,7 @@
       $("main").replaceChildren(buildPage());
     }
     if (page === "studio") updateStudio();
+    if (page === "chat") updateChat();
     if (page === "accounts") updateAccounts();
     if (page === "help") updateHelp();
     if (page === "settings" && tab === "diagnostics") updateLogs();
@@ -485,7 +484,6 @@
       settingsOBS.onclick = () => command(settingsOBS.dataset.command);
     }
     updateFields();
-    if (page === "outputs") updateOutputPreview();
     renderInteraction();
     renderStatus();
     updateBusy();
@@ -493,6 +491,7 @@
   function buildPage() {
     const root = node("div", "page " + page + "-page");
     if (page === "studio") buildStudio(root);
+    else if (page === "chat") buildChat(root);
     else if (page === "outputs") buildOutputs(root);
     else if (page === "accounts") buildAccounts(root);
     else if (page === "settings") buildSettings(root);
@@ -535,9 +534,6 @@
     }
     input.id = "field-" + f.id;
     input.autocomplete = "off";
-    const err = node("p", "error field-error");
-    err.id = "error-" + f.id;
-    input.setAttribute("aria-describedby", err.id);
     let save = null;
     const direct = ["select", "switch"].includes(f.kind);
     const value = () =>
@@ -548,14 +544,13 @@
         save.hidden = false;
         save.disabled = input.disabled;
       }
-      if (page === "outputs") updateOutputPreview();
     };
     input.addEventListener("input", changed);
     if (direct)
       input.addEventListener("change", () => {
         changed();
         drafts.get(f.id).submitted = true;
-        command("set:" + f.id, value(), false, err.id);
+        command("set:" + f.id, value());
       });
     else {
       save = button(t("Save", "保存"));
@@ -563,7 +558,7 @@
       save.dataset.command = "set:" + f.id;
       save.onclick = () => {
         drafts.set(f.id, { value: value(), submitted: true });
-        command("set:" + f.id, value(), false, err.id);
+        command("set:" + f.id, value());
       };
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
@@ -591,11 +586,11 @@
       clear.onclick = () => {
         input.value = "";
         drafts.set(f.id, { value: "", submitted: true });
-        command("set:" + f.id, "", false, err.id);
+        command("set:" + f.id, "");
       };
       line.append(clear);
     }
-    wrap.append(label, line, err);
+    wrap.append(label, line);
     fieldNodes.set(f.id, { input, label, save, clear });
     return wrap;
   }
@@ -677,36 +672,11 @@
       }
     }
   }
-  function selectStudioPane(id) {
-    studioPane = id;
-    const studio = document.querySelector(".studio-page");
-    if (studio) studio.dataset.mobilePane = id;
-    document.querySelectorAll("[data-studio-pane]").forEach((button) => {
-      button.setAttribute(
-        "aria-pressed",
-        String(button.dataset.studioPane === id),
-      );
-    });
-  }
   function buildStudio(root) {
-    root.dataset.mobilePane = studioPane;
-    const views = node("div", "studio-views");
-    views.setAttribute("role", "group");
-    views.setAttribute("aria-label", t("Studio view", "直播台视图"));
-    for (const [id, label] of [
-      ["chat", t("Conversation", "实时互动")],
-      ["room", t("Room & connection", "房间与连接")],
-    ]) {
-      const choice = button(label);
-      choice.dataset.studioPane = id;
-      choice.setAttribute("aria-pressed", String(studioPane === id));
-      choice.onclick = () => selectStudioPane(id);
-      views.append(choice);
-    }
     const session = node("section", "session");
     session.setAttribute("aria-label", t("Broadcast session", "直播会话"));
     const statuses = node("div", "session-state");
-    for (const id of ["live-state", "obs-state", "chat-state"]) {
+    for (const id of ["live-state", "obs-state"]) {
       const n = node("span", "badge");
       n.id = id;
       statuses.append(n);
@@ -717,12 +687,11 @@
       statuses,
       actionRow(button(t("Refresh room", "刷新房间"), "refresh"), live),
     );
-    const desk = node("div", "desk"),
-      room = node("section", "room-desk"),
-      chat = node("section", "chat-desk");
+    const desk = node("div", "studio-layout"),
+      room = node("section", "room-desk");
     const roomHead = node("div", "section-head");
     roomHead.append(
-      node("h2", "", t("Room & connection", "房间与连接")),
+      node("h2", "", t("Live room", "直播间")),
       button(t("Help", "帮助")),
     );
     roomHead.lastChild.onclick = () => openHelp("room");
@@ -737,16 +706,41 @@
     );
     const connection = node("section", "connection-fields");
     const ch = node("div", "section-head");
-    ch.append(node("h3", "", t("OBS Studio", "OBS Studio")));
+    ch.append(node("h2", "", "OBS Studio"));
     const connect = button("", "obs-connect");
     connect.id = "obs-action";
     ch.append(connect);
     connection.append(ch, fieldsRoot("connection-fields"));
     const flow = node("div");
     flow.id = "studio-flow";
-    room.append(roomHead, summary, roomFields, roomActions, connection, flow);
+    room.append(roomHead, summary, roomFields, roomActions, flow);
+    desk.append(room, connection);
+    root.append(session, desk);
+  }
+  function buildChat(root) {
+    const status = node("div", "chat-session");
+    const connection = node("span", "badge");
+    connection.id = "chat-state";
+    const audience = node("span", "note");
+    audience.id = "chat-audience";
+    status.append(connection, audience);
+    const title = heading(t("Chat", "弹幕"), status);
+    const room = node("p", "note");
+    room.id = "chat-room";
+    const tools = actionRow(
+      button(t("Audience", "观众"), "audience"),
+      button(t("Fleet", "大航海"), "fleet"),
+      button(t("Moderators", "房管"), "moderation-admins"),
+      button(t("Blacklist", "黑名单"), "moderation-blocks"),
+      button(t("Muted users", "禁言名单"), "moderation-mutes"),
+    );
+    tools.classList.add("chat-tools");
+    const help = button(t("Help", "帮助"));
+    help.onclick = () => openHelp("chat");
+    tools.append(help);
+    const chat = node("section", "chat-desk");
     const chatHead = node("div", "chat-head");
-    const pause = button(t("Pause updates", "暂停更新"));
+    const pause = button(pausedChat ? t("Resume updates", "恢复更新") : t("Pause updates", "暂停更新"));
     pause.onclick = () => {
       pausedChat = !pausedChat;
       pause.textContent = pausedChat
@@ -763,7 +757,12 @@
       );
       if (!pausedChat) updateMessages();
     };
-    chatHead.append(node("h2", "", t("Conversation", "实时互动")), pause);
+    const latest = button(t("Latest messages", "最新消息"));
+    latest.onclick = () => {
+      const feed = $("chat-feed");
+      feed.scrollTop = feed.scrollHeight;
+    };
+    chatHead.append(node("h2", "", t("Live messages", "实时消息")), actionRow(latest, pause));
     const feed = node("div", "feed");
     feed.id = "chat-feed";
     feed.setAttribute("role", "log");
@@ -780,7 +779,7 @@
     label.htmlFor = "chat-draft";
     const input = node("textarea");
     input.id = "chat-draft";
-    input.rows = 1;
+    input.rows = 2;
     input.value = chatDraft;
     input.setAttribute("aria-describedby", "chat-note");
     input.oninput = () => {
@@ -802,18 +801,15 @@
     hint.id = "chat-note";
     const paused = node("p", "note");
     paused.id = "chat-pause-note";
-    const err = node("p", "error field-error");
-    err.id = "chat-error";
-    composer.append(label, row, hint, paused, err);
+    composer.append(label, row, hint, paused);
     composer.onsubmit = (e) => {
       e.preventDefault();
       if (send.disabled) return;
       pendingSend = { value: chatDraft, acknowledged: false };
-      command("send", chatDraft, false, "chat-error");
+      command("send", chatDraft);
     };
     chat.append(chatHead, feed, composer);
-    desk.append(room, chat);
-    root.append(session, views, desk);
+    root.append(title, room, tools, chat);
   }
   function updateStudio() {
     const room = state.room || {};
@@ -835,13 +831,6 @@
           : t("OBS disconnected", "OBS 未连接"),
     );
     $("obs-state").className = "badge" + (state.obs ? " good" : "");
-    setText(
-      "chat-state",
-      state.chatConnected
-        ? t("Chat connected", "弹幕已连接")
-        : t("Chat disconnected", "弹幕未连接"),
-    );
-    $("chat-state").className = "badge" + (state.chatConnected ? " good" : "");
     const live = $("live-action");
     if (!state.accountUID) {
       live.textContent = t("Connect an account", "连接账号");
@@ -889,9 +878,15 @@
         const url = safeURL(room.cover, true);
         if (url) {
           const img = node("img", "room-cover");
-          img.src = url;
           img.alt = t("Current room cover", "当前直播间封面");
+          img.referrerPolicy = "no-referrer";
+          img.hidden = true;
+          img.onload = () => {
+            img.hidden = false;
+          };
+          img.onerror = () => img.remove();
           summary.append(img);
+          img.src = url;
         }
         const text = node("div");
         text.append(
@@ -934,6 +929,22 @@
     document.querySelectorAll('[data-command="refresh"]').forEach((button) => {
       button.dataset.disabled = String(!state.accountUID);
     });
+  }
+  function updateChat() {
+    setText("chat-room", state.room
+      ? `${state.room.title || t("Untitled room", "未设置标题")} · ${t("Room ", "房间 ")}${state.room.id}`
+      : t("Load your room in Studio to receive and send messages.", "请先在直播台载入房间，再收发弹幕。"));
+    setText("chat-state", state.chatConnected
+      ? t("Chat connected", "弹幕已连接")
+      : t("Chat disconnected", "弹幕未连接"));
+    $("chat-state").className = "badge" + (state.chatConnected ? " good" : "");
+    setText("chat-audience", state.audience || "");
+    document.querySelectorAll(".chat-tools [data-command]").forEach((control) => {
+      control.dataset.disabled = String(!state.accountUID || !state.room);
+    });
+    setText("chat-pause-note", pausedChat
+      ? t("Updates paused; receiving continues.", "消息更新已暂停，后台仍在接收。")
+      : "");
     updateMessages();
     updateComposer();
   }
@@ -953,14 +964,276 @@
     );
     updateBusy();
   }
+  const messageKinds = {
+    chat: ["Chat", "弹幕"],
+    gift: ["Gift", "礼物"],
+    sc: ["Super Chat", "醒目留言"],
+    guard: ["Guard", "大航海"],
+    enter: ["Joined", "进入直播间"],
+    follow: ["Follow", "关注"],
+    mutual_follow: ["Mutual follow", "互相关注"],
+    special_follow: ["Special follow", "特别关注"],
+    share: ["Share", "分享"],
+    like: ["Like", "点赞"],
+    likes: ["Likes", "点赞统计"],
+    watched: ["Views", "观看统计"],
+    rank_count: ["Ranking", "榜单人数"],
+    notice: ["Notice", "公告"],
+    recommendation: ["Recommendation", "推荐"],
+    stop_rooms: ["Stream ended", "停播"],
+    live: ["Live", "开播"],
+    preparing: ["Offline", "下播"],
+    room_change: ["Room update", "房间更新"],
+    room_block: ["Muted", "禁言"],
+    cut_off: ["Interrupted", "直播切断"],
+    delete: ["Removed", "消息撤回"],
+    detail: ["Event", "互动事件"],
+    gap: ["Connection", "连接记录"],
+  };
+  let chatMenu = null;
+  const messageUserKinds = new Set([
+    "chat", "gift", "sc", "guard", "enter", "follow", "mutual_follow",
+    "special_follow", "share", "like", "room_block", "detail",
+  ]);
+  function messageUID(m) {
+    return !m.mystery && messageUserKinds.has(m.kind) &&
+      typeof m.uid === "string" && /^[1-9]\d*$/.test(m.uid) ? m.uid : "";
+  }
+  function messageMenuTrigger(id) {
+    return Array.from($("chat-feed")?.children || [])
+      .find((row) => row.dataset.messageId === String(id))
+      ?.querySelector(".message-menu-trigger");
+  }
+  function hideChatMenu({ restoreFocus = false } = {}) {
+    if (!chatMenu) return;
+    const current = chatMenu;
+    chatMenu = null;
+    current.listeners.abort();
+    current.menu.remove();
+    const trigger = messageMenuTrigger(current.message.id) || current.trigger;
+    trigger?.setAttribute("aria-expanded", "false");
+    if (restoreFocus && trigger?.isConnected) trigger.focus({ preventScroll: true });
+  }
+  async function copyMessageText(value) {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch (_) {
+      notify(t("Could not copy. Check clipboard permission in your browser.",
+        "复制失败，请检查浏览器的剪贴板权限。"));
+    }
+  }
+  function showChatMenu(m, trigger, event) {
+    event?.preventDefault();
+    if (sending || stale || state?.busy || state?.interaction || !m.id) return;
+    const live = (state.messages || []).find((entry) => entry.id === m.id);
+    if (!live || JSON.stringify(live) !== JSON.stringify(m)) return;
+    hideChatMenu();
+    const menu = node("div", "context-menu");
+    menu.id = "chat-context-menu";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", t("Message actions", "消息操作"));
+    const listeners = new AbortController();
+    chatMenu = { menu, trigger, message: m, listeners, feedScrollTop: $("chat-feed")?.scrollTop };
+    trigger.setAttribute("aria-expanded", "true");
+    const add = (label, run) => {
+      const item = button(label, "", "context-menu-item");
+      item.setAttribute("role", "menuitem");
+      item.tabIndex = -1;
+      item.onclick = () => {
+        hideChatMenu({ restoreFocus: true });
+        run();
+      };
+      menu.append(item);
+    };
+    add(t("Copy message", "复制正文"), () => copyMessageText(m.text || ""));
+    const uid = messageUID(m);
+    if (uid) {
+      add(t("Copy UID", "复制 UID"), () => copyMessageText(uid));
+      add(t("View user", "查看用户"), () => command("speaker-open", m.id));
+      const link = node("a", "context-menu-item", t("Open homepage", "打开主页"));
+      link.href = "https://space.bilibili.com/" + uid;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.tabIndex = -1;
+      link.setAttribute("role", "menuitem");
+      link.onclick = () => hideChatMenu({ restoreFocus: true });
+      menu.append(link);
+      add(t("Mute", "禁言"), () => command("speaker-mute", m.id));
+      add(t("Add to blacklist", "加入黑名单"), () => command("speaker-block", m.id));
+      add(t("Set as moderator", "设为房管"), () => command("speaker-admin", m.id));
+    }
+    document.body.append(menu);
+    const rect = trigger.getBoundingClientRect();
+    const pointer = event?.type === "contextmenu" && (event.clientX || event.clientY);
+    const x = pointer ? event.clientX : rect.left;
+    const y = pointer ? event.clientY : rect.bottom;
+    menu.style.left = Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8)) + "px";
+    menu.style.top = Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8)) + "px";
+    const items = Array.from(menu.children);
+    items[0].focus({ preventScroll: true });
+    menu.addEventListener("keydown", (e) => {
+      const index = items.indexOf(document.activeElement);
+      let next;
+      if (e.key === "ArrowDown") next = (index + 1) % items.length;
+      else if (e.key === "ArrowUp") next = (index + items.length - 1) % items.length;
+      else if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = items.length - 1;
+      else if (e.key === " " && document.activeElement?.tagName === "A") {
+        e.preventDefault();
+        document.activeElement.click();
+      } else if (e.key === "Tab") {
+        hideChatMenu({ restoreFocus: true });
+      }
+      if (next !== undefined) {
+        e.preventDefault();
+        items[next].focus({ preventScroll: true });
+      }
+    });
+    const options = { capture: true, signal: listeners.signal };
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      hideChatMenu({ restoreFocus: true });
+    }, options);
+    document.addEventListener("pointerdown", (e) => {
+      if (!menu.contains(e.target) && !trigger.contains(e.target)) hideChatMenu();
+    }, options);
+    document.addEventListener("focusin", (e) => {
+      if (!menu.contains(e.target)) hideChatMenu();
+    }, options);
+    document.addEventListener("scroll", (e) => {
+      // 新消息的自动跟随不关闭菜单，读者主动滚动才关闭。
+      if (e.target === $("chat-feed") && e.target.scrollTop === chatMenu?.feedScrollTop) return;
+      if (!menu.contains(e.target)) hideChatMenu({ restoreFocus: true });
+    }, options);
+    window.addEventListener("resize", () => hideChatMenu({ restoreFocus: true }), options);
+  }
+  function bindMessageMenu(row, m, heading) {
+    if (!m.id) return;
+    const trigger = button(t("Actions", "操作"), "", "message-menu-trigger");
+    trigger.setAttribute("aria-label", t("Message actions", "消息操作") +
+      (m.name ? ": " + m.name : ""));
+    trigger.setAttribute("aria-haspopup", "menu");
+    trigger.setAttribute("aria-controls", "chat-context-menu");
+    trigger.setAttribute("aria-expanded", String(chatMenu?.message.id === m.id));
+    trigger.onclick = (event) => {
+      if (chatMenu?.message.id === m.id) hideChatMenu({ restoreFocus: true });
+      else showChatMenu(m, trigger, event);
+    };
+    row.oncontextmenu = (event) => showChatMenu(m, trigger, event);
+    row.onkeydown = (event) => {
+      if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))
+        showChatMenu(m, trigger, event);
+    };
+    heading.append(trigger);
+  }
+  function renderChatMembers(root, i) {
+    const members = i.members || {};
+    let view = root.chatMembersView;
+    if (!view || view.id !== i.id || view.language !== language ||
+        !root.contains(view.section)) {
+      const section = node("section", "chat-members");
+      const title = node("h2");
+      const status = node("p", "chat-members-status");
+      status.setAttribute("role", "status");
+      const refresh = button(t("Refresh", "刷新"), "", "secondary");
+      refresh.dataset.command = "members-refresh";
+      refresh.dataset.interaction = "true";
+      refresh.onclick = () => command("members-refresh", "", true);
+      const back = button(t("Back", "返回"), "", "secondary");
+      back.dataset.command = "back";
+      back.dataset.interaction = "true";
+      back.onclick = () => command("back", "", true);
+      const close = button(t("Close", "关闭"), "", "secondary");
+      close.dataset.command = "cancel";
+      close.dataset.interaction = "true";
+      close.onclick = () => command("cancel", "", true);
+      const viewport = node("div", "chat-members-scroll");
+      viewport.tabIndex = 0;
+      viewport.setAttribute("role", "region");
+      const table = node("table", "chat-members-table");
+      const head = node("thead"), row = node("tr"), body = node("tbody");
+      for (const text of [t("Rank", "排名"), t("Viewer", "观众"),
+        t("Guard", "大航海"), t("Contribution", "贡献"), "UID", t("Medal", "粉丝牌")]) {
+        const cell = node("th", "", text);
+        cell.scope = "col";
+        row.append(cell);
+      }
+      head.append(row);
+      table.append(head, body);
+      viewport.append(table);
+      const empty = node("p", "chat-members-empty");
+      section.append(title, actionRow(refresh, back, close), status, viewport, empty);
+      root.replaceChildren(section);
+      view = { id: i.id, language, section, title, status, refresh, back, close,
+        viewport, body, empty, entries: "" };
+      root.chatMembersView = view;
+    }
+    view.title.textContent = i.title || t("Viewers", "观众");
+    view.viewport.setAttribute("aria-label", view.title.textContent);
+    // 禁用原因交给统一的 busy 更新合并，避免随后被重新启用。
+    view.refresh.dataset.disabled = String(!!members.loading || stale);
+    view.back.hidden = !i.back;
+    view.back.dataset.disabled = String(stale);
+    view.section.setAttribute("aria-busy", String(!!members.loading));
+    const total = members.total ?? 0;
+    view.status.textContent = [
+      t("Total: ", "共 ") + total + t("", " 人"),
+      t("Top 20", "前 20 名"),
+      members.loading ? t("Loading…", "正在加载…") : "",
+      members.previous ? t("Showing previous data", "显示上次数据") : "",
+    ].filter(Boolean).join(" · ");
+    const entries = members.entries || [];
+    view.empty.hidden = entries.length > 0;
+    view.viewport.hidden = !entries.length;
+    view.empty.textContent = members.loading ? t("Loading…", "正在加载…") :
+      members.loaded ? t("No viewers to display", "暂无观众") :
+        t("No data loaded. Refresh to try again.", "尚未加载数据，请刷新重试。");
+    const signature = JSON.stringify(entries);
+    if (signature === view.entries) return;
+    view.entries = signature;
+    const scrollTop = view.viewport.scrollTop, scrollLeft = view.viewport.scrollLeft;
+    view.body.replaceChildren();
+    const columns = Array.from(view.body.closest("table").querySelectorAll("th"), (cell) => cell.textContent);
+    for (const member of entries) {
+      const row = node("tr");
+      const uid = !member.mystery && /^[1-9]\d*$/.test(member.uid || "") ? member.uid : "";
+      for (const [index, text] of [member.rank ?? "", member.name || t("Mystery user", "神秘用户"),
+        member.role || "", member.score || "",
+        member.mystery ? t("Mystery user", "神秘用户") : uid,
+        member.medalName && member.medalLevel > 0 ?
+          member.medalName + " · Lv." + member.medalLevel : ""].entries()) {
+        const cell = node("td", "", text);
+        cell.dataset.label = columns[index];
+        row.append(cell);
+      }
+      view.body.append(row);
+    }
+    view.viewport.scrollTop = scrollTop;
+    view.viewport.scrollLeft = scrollLeft;
+  }
   function updateMessages() {
-    if (pausedChat || !$("chat-feed")) return;
     const messages = state.messages || [];
-    const signature = JSON.stringify(messages);
+    if (chatMenu) {
+      const current = messages.find((m) => m.id === chatMenu.message.id);
+      if (!current || JSON.stringify(current) !== JSON.stringify(chatMenu.message))
+        hideChatMenu({ restoreFocus: true });
+    }
+    if ((pausedChat && feedSignature) || !$("chat-feed")) return;
+    const signature = JSON.stringify([state.language, messages]);
     if (signature === feedSignature) return;
     feedSignature = signature;
     const feed = $("chat-feed");
     const atEnd = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 70;
+    const scrollTop = feed.scrollTop;
+    const feedTop = feed.getBoundingClientRect().top;
+    const anchor = atEnd ? null : Array.from(feed.children).find(
+      (row) => row.dataset.messageId && row.getBoundingClientRect().bottom > feedTop,
+    );
+    const anchorID = anchor?.dataset.messageId;
+    const anchorOffset = anchor ? anchor.getBoundingClientRect().top - feedTop : 0;
+    const focusedMessage = document.activeElement?.closest(".message")?.dataset.messageId;
     feed.replaceChildren();
     if (!messages.length)
       feed.append(
@@ -975,28 +1248,61 @@
       );
     else
       for (const m of messages) {
-        const row = node("div", "message"),
-          time = node("time");
+        const row = node("article", "message"),
+          time = node("time", "message-time");
+        row.dataset.messageId = m.id;
+        if (m.kind === "sc" || m.kind === "guard")
+          row.classList.add("message-highlight");
+        else if (m.kind === "gift" || m.kind === "follow" || m.kind === "live")
+          row.classList.add("message-positive");
+        else if (m.kind === "cut_off" || m.kind === "room_block")
+          row.classList.add("message-warning");
+        if (m.deleted) row.classList.add("message-deleted");
         const date = new Date(m.time);
         time.textContent = Number.isNaN(date.getTime())
           ? ""
           : date.toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
+              second: "2-digit",
               hour12: false,
             });
         time.dateTime = m.time || "";
-        const body = node("div"),
-          name = node("div");
-        name.append(
-          node("strong", "", m.name || ""),
-          node("span", "message-kind", m.kind || ""),
-        );
-        body.append(name, node("p", "", m.text || ""));
+        time.title = Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
+        const body = node("div", "message-body"),
+          heading = node("div", "message-heading"),
+          identity = node("div", "message-identity");
+        heading.append(node("strong", "message-name", m.name || t("System", "系统")));
+        const label = Object.hasOwn(messageKinds, m.kind)
+          ? t(...messageKinds[m.kind])
+          : t("Event", "事件");
+        heading.append(node("span", "message-kind", label));
+        if (m.mystery)
+          identity.append(node("span", "message-badge", t("Mystery user", "神秘用户")));
+        else if (m.uid)
+          identity.append(node("span", "message-uid", "UID " + m.uid));
+        if (m.medalName && m.medalLevel > 0)
+          identity.append(node("span", "message-medal", m.medalName + " · Lv." + m.medalLevel));
+        if (m.deleted)
+          identity.append(node("span", "message-badge", t("Removed", "已撤回")));
+        body.append(heading);
+        if (identity.childElementCount) heading.append(identity);
+        bindMessageMenu(row, m, heading);
+        body.append(node("p", "message-text", m.text || ""));
         row.append(time, body);
         feed.append(row);
       }
     if (atEnd) feed.scrollTop = feed.scrollHeight;
+    else {
+      const restored = anchorID && Array.from(feed.children).find(
+        (row) => row.dataset.messageId === anchorID,
+      );
+      feed.scrollTop = restored
+        ? feed.scrollTop + restored.getBoundingClientRect().top - feedTop - anchorOffset
+        : scrollTop;
+    }
+    if (chatMenu) chatMenu.feedScrollTop = feed.scrollTop;
+    if (focusedMessage) (messageMenuTrigger(focusedMessage) || feed).focus({ preventScroll: true });
   }
   function tabs(items, onSelect) {
     const root = node("div", "tabs");
@@ -1053,8 +1359,7 @@
         switchTab,
       ),
     );
-    const layout = node("div", "editor-layout"),
-      main = node("div", "editor-main");
+    const main = node("div", "editor-main");
     main.append(
       fieldsRoot(
         "output-fields",
@@ -1079,115 +1384,16 @@
     const flow = node("div");
     flow.id = "outputs-flow";
     main.append(flow);
-    const aside = node("details", "output-note");
-    aside.open = !matchMedia("(max-width: 1150px)").matches;
-    aside.append(
-      node(
-        "summary",
-        "",
-        tab.startsWith("voice")
-          ? t("Playback guide", "播放说明")
-          : t("Appearance preview", "外观预览"),
-      ),
-      note(
-        tab.startsWith("voice")
-          ? t(
-              "Voice preview plays on the computer running Arcana World, not in this browser.",
-              "试听将在运行 Arcana World 的电脑上播放，而不是当前浏览器。",
-            )
-          : t(
-              "Changes apply to the overlay on the studio computer. Use layout, typography and colors to keep messages readable over your stream.",
-              "更改会应用到工作台电脑上的弹幕姬。通过布局、文字和配色，让消息在直播画面上清晰可读。",
-            ),
-      ),
-    );
+    if (tab.startsWith("voice"))
+      main.append(note(t(
+        "Voice preview plays on the computer running Arcana World, not in this browser.",
+        "试听将在运行 Arcana World 的电脑上播放，而不是当前浏览器。",
+      )));
     const help = button(t("Output guide", "输出使用指南"));
     help.onclick = () => openHelp("outputs");
-    aside.append(help);
-    if (!tab.startsWith("voice")) {
-      const preview = node("figure", "output-preview");
-      const caption = node(
-        "figcaption",
-        "",
-        t("Appearance sample · scaled illustration", "外观样本 · 缩略示意"),
-      );
-      const stage = node("div", "preview-stage");
-      stage.id = "preview-stage";
-      const bubble = node("div", "preview-bubble");
-      bubble.id = "preview-bubble";
-      bubble.append(
-        node("strong", "", t("Viewer", "观众")),
-        node(
-          "p",
-          "",
-          t("Good evening. Welcome to the stream.", "晚上好，欢迎来到直播间。"),
-        ),
-      );
-      stage.append(bubble);
-      const dimensions = node("p", "note");
-      dimensions.id = "preview-dimensions";
-      preview.append(caption, stage, dimensions);
-      aside.insertBefore(preview, aside.children[1]);
-    }
-    layout.append(main, aside);
-    editor.append(layout);
+    actions.append(help);
+    editor.append(main);
     root.append(editor);
-  }
-  function updateOutputPreview() {
-    if (!$("preview-stage")) return;
-    const values = new Map(
-      (state?.fields || []).map((f) => [
-        f.id,
-        drafts.get(f.id)?.value ?? f.value,
-      ]),
-    );
-    const number = (key, fallback) => {
-      const value = Number(values.get("overlay-" + key));
-      return Number.isFinite(value) ? value : fallback;
-    };
-    const color = (key, fallback) => {
-      const value = values.get("overlay-" + key) || "";
-      return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
-    };
-    const alpha = (key) => Math.max(0, Math.min(1, number(key, 1)));
-    const stage = $("preview-stage"),
-      bubble = $("preview-bubble");
-    const anchor = values.get("overlay-anchor") || "left";
-    stage.style.alignItems = anchor.includes("top")
-      ? "flex-start"
-      : anchor.includes("bottom")
-        ? "flex-end"
-        : "center";
-    stage.style.justifyContent = anchor.includes("left")
-      ? "flex-start"
-      : anchor.includes("right")
-        ? "flex-end"
-        : "center";
-    bubble.style.backgroundColor =
-      color("background-color", "#181C24") +
-      Math.round(alpha("background-alpha") * 255)
-        .toString(16)
-        .padStart(2, "0");
-    bubble.style.color =
-      color("text-color", "#FFFFFF") +
-      Math.round(alpha("text-alpha") * 255)
-        .toString(16)
-        .padStart(2, "0");
-    bubble.style.fontSize =
-      Math.max(12, Math.min(26, number("font-size", 16))) + "px";
-    bubble.style.fontWeight = Math.max(
-      100,
-      Math.min(900, number("font-weight", 500)),
-    );
-    bubble.style.fontStyle =
-      values.get("overlay-italic") === "true" ? "italic" : "normal";
-    bubble.style.fontFamily = values.get("overlay-font-family") || "inherit";
-    bubble.style.textShadow =
-      values.get("overlay-outline") === "true" ? "0 1px 2px #000" : "none";
-    setText(
-      "preview-dimensions",
-      `${number("width", 420)} × ${number("height", 180)} · ${number("font-size", 16)} px`,
-    );
   }
   function outputFilter(f) {
     if (["overlay-enabled", "tts-enabled"].includes(f.id)) return false;
@@ -1488,24 +1694,64 @@
   }
   function interactionPage(i) {
     if (i.target?.startsWith("account") || i.kind === "qr") return "accounts";
+    if (i.target?.startsWith("chat-")) return "chat";
     if (i.target?.startsWith("overlay")) return "outputs";
     if (i.target === "maintenance") return "settings";
     return "studio";
   }
+  function openChatDialog(changed) {
+    const dialog = $("chat-dialog");
+    const root = $("chat-flow");
+    const title = root.querySelector("h2, h3");
+    if (title) title.id = "chat-dialog-title";
+    const opening = !dialog.open;
+    if (opening) {
+      if (!chatFocusReturn) {
+        chatFocusReturn = commandFocus?.isConnected ? commandFocus
+          : focusReturn?.isConnected ? focusReturn : document.activeElement;
+        chatFocusMessage = chatFocusReturn?.closest(".message")?.dataset.messageId || "";
+      }
+      commandFocus = null;
+      dialog.showModal();
+    }
+    if (opening || changed)
+      queueMicrotask(() => {
+        if (!dialog.open || $("confirm").open) return;
+        const control = root.querySelector('input:not(:disabled), textarea:not(:disabled)') ||
+          root.querySelector('[data-command="cancel"]');
+        control?.focus({ preventScroll: true });
+      });
+  }
+  function restoreChatFocus() {
+    const previous = chatFocusReturn;
+    const message = chatFocusMessage;
+    chatFocusReturn = null;
+    chatFocusMessage = "";
+    queueMicrotask(() => {
+      if ($("chat-dialog").open || $("confirm").open || $("app").hidden) return;
+      const target = previous?.isConnected ? previous : messageMenuTrigger(message);
+      if (target && !target.disabled) target.focus({ preventScroll: true });
+      else $("main").focus({ preventScroll: true });
+    });
+  }
   function renderInteraction() {
     const i = state.interaction;
+    const owner = i ? interactionPage(i) : "";
     const key = i ? i.id + ":" + i.kind : "";
     const changed = key !== interactionKey;
-    if (changed) {
-      interactionKey = key;
-      interactionRevision = i ? i.revision || state.revision : 0;
-    }
+    if (changed) interactionKey = key;
+    interactionRevision = i ? i.revision || state.revision : 0;
     const modal = $("confirm");
+    const chatDialog = $("chat-dialog");
+    const restoringChatFocus = !i && !!chatFocusReturn;
+    const chatOpen = i && i.kind !== "confirm" && owner === "chat" && page === "chat";
+    if (!chatOpen && chatDialog.open) chatDialog.close();
+    if (!i && chatFocusReturn) restoreChatFocus();
     if (!i || i.kind !== "confirm") {
       if (modal.open) {
         modal.close();
         queueMicrotask(() => {
-          if (!modal.open && !$("app").hidden) {
+          if (!restoringChatFocus && !modal.open && !chatDialog.open && !$("app").hidden) {
             if (focusReturn?.isConnected && !focusReturn.disabled)
               focusReturn.focus();
             else $("main").focus();
@@ -1515,12 +1761,14 @@
     }
     for (const id of [
       "studio-flow",
+      "chat-flow",
       "outputs-flow",
       "accounts-flow",
       "settings-flow",
     ]) {
       const root = $(id);
-      if (root && (!i || interactionPage(i) !== page || i.kind === "confirm")) {
+      if (root && (!i || id !== owner + "-flow" ||
+          owner !== page || i.kind === "confirm")) {
         if (root.dataset.interaction) {
           root.replaceChildren();
           delete root.dataset.interaction;
@@ -1557,17 +1805,13 @@
           image.id = "confirm-image";
           image.alt = i.title;
           image.src = source;
-          modal.insertBefore(image, $("confirm-error"));
+          modal.insertBefore(image, $("confirm-actions"));
         }
         const actions = $("confirm-actions");
         actions.replaceChildren();
         const cancel = interactionButton(t("Cancel", "取消"), "cancel");
         actions.append(cancel);
-        const choices = i.choices?.length
-          ? i.choices
-          : [{ id: "confirm", label: t("Confirm", "确认") }];
-        for (const c of choices) {
-          if (c.id === "cancel") continue;
+        for (const c of i.choices || []) {
           actions.append(interactionButton(c.label, c.id, "danger", c.id));
         }
         if (!modal.open) modal.showModal();
@@ -1575,25 +1819,30 @@
       }
       return;
     }
-    const owner = interactionPage(i);
     if (owner !== page) {
       const pending = $("pending");
       pending.hidden = false;
       pending.replaceChildren(node("span", "", i.title));
       const go = button(t("Continue in ", "前往") + labels()[owner]);
       go.onclick = () => navigate(owner);
-      pending.append(go, interactionButton(t("Cancel", "取消"), "cancel"));
+      pending.append(go, interactionButton(t("Close", "关闭"), "cancel"));
       return;
     }
     const root = $(owner + "-flow");
     if (!root) return;
+    if (i.kind === "members") {
+      renderChatMembers(root, i);
+      root.dataset.interaction = key + ":" + pageKey;
+      openChatDialog(changed);
+      return;
+    }
     const flowKey = key + ":" + pageKey;
     if (root.dataset.interaction !== flowKey) {
-      if (owner === "studio") selectStudioPane("room");
       root.replaceChildren();
       root.dataset.interaction = flowKey;
       const panel = node("section", "inline-flow");
       panel.id = "inline-flow";
+      panel.tabIndex = -1;
       panel.append(node("h3", "", i.title));
       const text = node("p", "note");
       text.id = "flow-text";
@@ -1613,7 +1862,8 @@
         const input = node("input");
         input.id = "flow-input";
         input.type = i.secret ? "password" : "text";
-        input.value = i.value || "";
+        input.value = interactionDrafts.get(key) ?? i.value ?? "";
+        input.oninput = () => interactionDrafts.set(key, input.value);
         input.autocomplete = "off";
         const submit = button(
           i.kind === "selection"
@@ -1632,7 +1882,6 @@
             i.kind === "selection" ? "search" : "submit",
             input.value,
             true,
-            "flow-error",
           );
         };
         panel.append(label, form);
@@ -1661,21 +1910,23 @@
       img.id = "flow-image";
       img.alt = i.title;
       img.hidden = true;
-      const link = node("a", "", t("Open verification link", "打开验证链接"));
+      const link = node("a", "", i.kind === "speaker"
+        ? t("Open homepage", "打开主页")
+        : t("Open verification link", "打开验证链接"));
       link.id = "flow-link";
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       link.hidden = true;
       const choices = node("div", "choices");
       choices.id = "flow-choices";
-      const error = node("p", "error flow-error");
-      error.id = "flow-error";
+      const navigation = actionRow();
+      if (i.back) navigation.append(interactionButton(t("Back", "返回"), "back"));
+      navigation.append(interactionButton(t("Close", "关闭"), "cancel"));
       panel.append(
         img,
         link,
         choices,
-        error,
-        actionRow(interactionButton(t("Close", "关闭"), "cancel")),
+        navigation,
       );
       if (i.kind === "qr")
         panel.append(
@@ -1718,63 +1969,60 @@
       );
       choices.dataset.choices = signature;
     }
+    if (owner === "chat") openChatDialog(changed);
   }
   function interactionButton(label, action, cls = "", value = "") {
     const b = button(label, null, cls);
     b.dataset.command = action;
     b.dataset.interaction = "true";
-    b.onclick = () => command(action, value, true, "flow-error");
+    b.onclick = () => {
+      const i = state?.interaction;
+      // 返回时也提交未确认的表单文本，由服务端保存所属步骤的草稿。
+      const draft = action === "back" && i?.kind === "form" &&
+        interactionPage(i) === "chat" ? $("flow-input")?.value : undefined;
+      command(action, draft ?? value, true);
+    };
     return b;
   }
-  $("confirm").addEventListener("cancel", (e) => {
-    e.preventDefault();
-    command("cancel", "", true);
-  });
-  $("confirm").addEventListener("keydown", (event) => {
-    if (event.key !== "Tab") return;
-    const controls = [
-      ...$("confirm").querySelectorAll("button, input, a[href], [tabindex]"),
-    ].filter(
-      (n) => !n.disabled && n.tabIndex >= 0 && n.getClientRects().length,
-    );
-    if (!controls.length) {
-      event.preventDefault();
-      return;
-    }
-    const first = controls[0],
-      last = controls[controls.length - 1];
-    if (
-      event.shiftKey &&
-      (document.activeElement === first ||
-        !controls.includes(document.activeElement))
-    ) {
-      event.preventDefault();
-      last.focus();
-    } else if (
-      !event.shiftKey &&
-      (document.activeElement === last ||
-        !controls.includes(document.activeElement))
-    ) {
-      event.preventDefault();
-      first.focus();
-    }
-  });
-  $("auth-form").onsubmit = (e) => {
-    e.preventDefault();
-    const value = $("token").value.trim();
-    if (!value || fetching || sending) return;
-    token = value;
-    $("token").value = "";
-    storage("sessionStorage", "arcana-token", token);
-    setText("auth-error", "");
-    $("auth-submit").disabled = true;
-    poll();
-  };
-  $("lock").onclick = () => authGate();
+  for (const dialog of [$("confirm"), $("chat-dialog")]) {
+    dialog.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      command("cancel", "", true);
+    });
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key !== "Tab") return;
+      const controls = [
+        ...dialog.querySelectorAll("button, input, textarea, select, a[href], summary, [tabindex]"),
+      ].filter(
+        (n) => !n.disabled && n.tabIndex >= 0 && n.getClientRects().length,
+      );
+      if (!controls.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = controls[0],
+        last = controls[controls.length - 1];
+      if (
+        event.shiftKey &&
+        (document.activeElement === first ||
+          !controls.includes(document.activeElement))
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === last ||
+          !controls.includes(document.activeElement))
+      ) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+  }
   $("retry").onclick = () => poll();
   $("theme").onchange = () => {
     const value = $("theme").value;
-    storage("localStorage", "arcana-theme", value);
+    storage("arcana-theme", value);
     document.documentElement.dataset.theme = value;
   };
   document.querySelector(".appbar .brand").onclick = (e) => {
@@ -1789,13 +2037,8 @@
     const next = location.hash.slice(1);
     if (routes.includes(next)) navigate(next);
   });
-  const fragment = new URLSearchParams(location.hash.slice(1));
-  token =
-    fragment.get("token") || storage("sessionStorage", "arcana-token") || "";
   if (routes.includes(location.hash.slice(1))) page = location.hash.slice(1);
-  if (location.hash)
-    history.replaceState(null, "", location.pathname + location.search);
-  if (token) storage("sessionStorage", "arcana-token", token);
   localize();
-  if (token) poll();
+  renderConnection();
+  poll();
 })();

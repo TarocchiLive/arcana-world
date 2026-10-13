@@ -3,16 +3,19 @@ package webui
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
 )
 
-// 防止恶意网页或未授权本机客户端触发直播控制，且不锁死合法会话。
-func TestControlRequiresPrivateTokenAndSameOrigin(t *testing.T) {
+// 防止恶意网页触发直播控制，同时允许无需凭证的同源访问。
+func TestControlRequiresSameOrigin(t *testing.T) {
 	var mutations atomic.Int32
-	server, err := Listen(0, func(_ context.Context, _ string, command *Command) (Snapshot, error) {
+	server, err := Listen("127.0.0.1", 0, func(_ context.Context, _ string, command *Command) (Snapshot, error) {
 		if command != nil {
 			mutations.Add(1)
 		}
@@ -26,14 +29,13 @@ func TestControlRequiresPrivateTokenAndSameOrigin(t *testing.T) {
 	base := "http://" + server.host
 	client := &http.Client{}
 	for _, tc := range []struct {
-		name, token, host, origin, site string
-		status                          int
+		name, host, origin, site string
+		status                   int
 	}{
-		{name: "missing credential", status: http.StatusUnauthorized},
-		{name: "incorrect credential", token: "incorrect", status: http.StatusUnauthorized},
-		{name: "cross origin", token: server.token, origin: "https://attacker.invalid", status: http.StatusForbidden},
-		{name: "rebound host", token: server.token, host: "attacker.invalid", status: http.StatusForbidden},
-		{name: "cross site fetch", token: server.token, site: "cross-site", status: http.StatusForbidden},
+		{name: "cross origin", origin: "https://attacker.invalid", status: http.StatusForbidden},
+		{name: "malformed origin", origin: base + ":80", status: http.StatusForbidden},
+		{name: "rebound host", host: "attacker.invalid", status: http.StatusForbidden},
+		{name: "cross site fetch", site: "cross-site", status: http.StatusForbidden},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			request, err := http.NewRequest(http.MethodPost, base+"/api/command", strings.NewReader(`{"page":"studio","action":"start-confirm"}`))
@@ -41,7 +43,6 @@ func TestControlRequiresPrivateTokenAndSameOrigin(t *testing.T) {
 				t.Fatal(err)
 			}
 			request.Header.Set("Content-Type", "application/json")
-			request.Header.Set("Authorization", "Bearer "+tc.token)
 			if tc.host != "" {
 				request.Host = tc.host
 			}
@@ -67,7 +68,6 @@ func TestControlRequiresPrivateTokenAndSameOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+server.token)
 	request.Header.Set("Origin", base)
 	response, err := client.Do(request)
 	if err != nil {
@@ -75,6 +75,70 @@ func TestControlRequiresPrivateTokenAndSameOrigin(t *testing.T) {
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK || mutations.Load() != 1 {
-		t.Fatalf("authorized control failed: status=%d mutations=%d", response.StatusCode, mutations.Load())
+		t.Fatalf("same-origin control failed: status=%d mutations=%d", response.StatusCode, mutations.Load())
+	}
+}
+
+// 用连接目的地址模拟局域网访问，不依赖测试机器拥有特定网卡。
+func TestWildcardHostMustMatchLocalIPv4(t *testing.T) {
+	server, err := Listen("0.0.0.0", 0, func(context.Context, string, *Command) (Snapshot, error) {
+		return Snapshot{}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = server.listener.Close() })
+	port := server.listener.Addr().(*net.TCPAddr).Port
+	local := &net.TCPAddr{IP: net.ParseIP("192.168.1.10"), Port: port}
+	host := net.JoinHostPort(local.IP.String(), strconv.Itoa(port))
+	for _, tc := range []struct {
+		name, host, origin, contentType string
+		status                          int
+	}{
+		{name: "LAN same origin", host: host, origin: "http://" + host, contentType: "application/json", status: http.StatusOK},
+		{name: "DNS rebound", host: net.JoinHostPort("attacker.invalid", strconv.Itoa(port)), status: http.StatusForbidden},
+		{name: "different local address", host: server.host, status: http.StatusForbidden},
+		{name: "wrong port", host: net.JoinHostPort(local.IP.String(), strconv.Itoa(port+1)), status: http.StatusForbidden},
+		{name: "LAN cross origin", host: host, origin: server.URL(), status: http.StatusForbidden},
+		{name: "JSON required", host: host, origin: "http://" + host, contentType: "text/plain", status: http.StatusUnsupportedMediaType},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "http://"+host+"/api/command", strings.NewReader(`{"page":"studio","action":"start-confirm"}`))
+			request.Host = tc.host
+			request.Header.Set("Origin", tc.origin)
+			request.Header.Set("Content-Type", tc.contentType)
+			request = request.WithContext(context.WithValue(request.Context(), http.LocalAddrContextKey, local))
+			response := httptest.NewRecorder()
+			server.serveHTTP(response, request)
+			if response.Code != tc.status {
+				t.Fatalf("status=%d, want %d", response.Code, tc.status)
+			}
+			if response.Header().Get("X-Frame-Options") != "DENY" {
+				t.Fatal("missing frame protection")
+			}
+		})
+	}
+}
+
+func TestListenRejectsInvalidBind(t *testing.T) {
+	for _, address := range []string{"localhost", "192.168.1.10", "::1", " 0.0.0.0", "127.0.0.2"} {
+		t.Run(address, func(t *testing.T) {
+			server, err := Listen(address, 0, nil)
+			if err == nil {
+				_ = server.listener.Close()
+				t.Fatal("invalid bind address accepted")
+			}
+		})
+	}
+	server, err := Listen("", 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.listener.Close()
+	if address := server.listener.Addr().(*net.TCPAddr); !address.IP.Equal(net.ParseIP("127.0.0.1")) {
+		t.Fatalf("default bind address=%s", address)
+	}
+	if strings.Contains(server.URL(), "#") {
+		t.Fatalf("unexpected URL fragment: %s", server.URL())
 	}
 }

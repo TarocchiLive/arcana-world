@@ -42,7 +42,7 @@ func runArgs(args []string) (err error) {
 	enableTTS := flags.Bool("tts", false, "")
 	doctor := flags.Bool("doctor", false, "")
 	enableWeb := flags.Bool("web", false, "")
-	webPort := flags.Int("web-port", 0, "")
+	webPort := flags.Int("web-port", 5273, "")
 	help := flags.Bool("help", false, "")
 	shortHelp := flags.Bool("h", false, "")
 	parseErr := flags.Parse(args)
@@ -148,7 +148,7 @@ func runArgs(args []string) (err error) {
 		return err
 	}
 	if *enableWeb {
-		return runWeb(ctx, model, *webPort)
+		return runWeb(ctx, model, cfg.WebBindAddress, *webPort)
 	}
 	defer func() { _, _ = fmt.Fprint(os.Stdout, ansi.SetPointerShape("default")) }()
 	_, err = tea.NewProgram(model, tea.WithContext(ctx)).Run()

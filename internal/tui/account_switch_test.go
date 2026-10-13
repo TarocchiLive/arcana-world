@@ -8,8 +8,10 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"arcana-world/internal/bili"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/store"
+	"arcana-world/internal/webui"
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -153,5 +155,47 @@ func TestAccountSwitchSaveFailureKeepsConfirmedStopVisible(t *testing.T) {
 	}
 	if stops.Load() != 1 || m.room == nil || m.room.Live || m.room.ID != 202 {
 		t.Fatal("confirmed old-account stop was lost after local save failure")
+	}
+}
+
+// 浏览器确认必须绑定账号和具体目标，而不是仅绑定相同的弹层标题。
+func TestWebModerationRejectsStaleIdentity(t *testing.T) {
+	for _, changed := range []string{"account", "target", "list"} {
+		t.Run(changed, func(t *testing.T) {
+			m, target, _, _ := switchModel(t, "")
+			m.EnableWeb()
+			m.openModeration(moderationAdmins)
+			m.moderation.action = moderationRemoveAdmin
+			m.moderation.user = bili.RoomUser{UID: 99, Name: "same"}
+			m.moderation.users = []bili.RoomUser{m.moderation.user}
+			m.confirmModeration()
+			m.observeWebContext()
+			revision := m.web.revision
+			switch changed {
+			case "account":
+				m.account = &target
+				m.config.ActiveUID = target.UID
+			case "target":
+				m.moderation.user.UID = 100
+			case "list":
+				m.moderation.users = []bili.RoomUser{{UID: 100, Name: "same"}}
+			}
+			reply := make(chan webReply, 1)
+			cmd := m.handleWebRequest(webRequest{ctx: context.Background(), page: "chat", command: &webui.Command{Action: "confirm", Revision: revision}, reply: reply})
+			if result := <-reply; result.err == nil || cmd != nil {
+				t.Fatal("stale browser confirmation reached management operation")
+			}
+			if cmd, err := m.webCommand("chat", webui.Command{Action: "cancel"}); err != nil || cmd != nil || m.mode == "confirm" || (m.moderation != nil && m.moderation.pending) {
+				t.Fatal("cancel submitted or retained the pending management action")
+			}
+			if m.mode != "" {
+				if _, err := m.webCommand("chat", webui.Command{Action: "cancel"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if m.moderation != nil || m.speaker != nil || m.members != nil || m.confirmAction != "" {
+				t.Fatal("closing management retained the operation identity")
+			}
+		})
 	}
 }

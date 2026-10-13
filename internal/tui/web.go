@@ -15,6 +15,7 @@ import (
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/overlay"
+	"arcana-world/internal/termimage"
 	"arcana-world/internal/webui"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -30,11 +31,13 @@ type webState struct {
 	context     webInteraction
 	imageSource string
 	image       string
+	imageAvatar *termimage.Thumbnail
 }
 type webInteraction struct {
 	account, mode, edit, prompt, confirmation string
 	selection                                 *roomSelection
 	qr                                        *domain.QR
+	chatContext                               webChatInteraction
 }
 type webRequest struct {
 	ctx     context.Context
@@ -73,7 +76,7 @@ func (m *Model) WebRequest(ctx context.Context, send func(tea.Msg), page string,
 
 func webPage(id string) (string, bool) {
 	switch id {
-	case "studio", "outputs", "accounts", "settings", "help":
+	case "studio", "chat", "outputs", "accounts", "settings", "help":
 		return id, true
 	}
 	return "", false
@@ -93,6 +96,17 @@ func webURL(s string) string {
 	return u.String()
 }
 
+func webCoverURL(s string) string {
+	// 封面 CDN 支持 HTTPS；统一旧式地址以满足页面图片安全策略。
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "//") {
+		s = "https:" + s
+	} else if strings.HasPrefix(s, "http://") {
+		s = "https://" + strings.TrimPrefix(s, "http://")
+	}
+	return webURL(s)
+}
+
 func (m *Model) observeWebContext() {
 	if !m.web.enabled {
 		return
@@ -101,13 +115,14 @@ func (m *Model) observeWebContext() {
 	if m.account != nil {
 		uid = m.account.UID
 	}
-	context := webInteraction{uid, m.mode, m.editKind, m.prompt, m.confirmAction, m.selection, m.qr}
+	context := webInteraction{uid, m.mode, m.editKind, m.prompt, m.confirmAction, m.selection, m.qr, m.webChatContext()}
 	if context != m.web.context {
 		m.web.context = context
 		m.web.revision++
 		m.web.dialog++
 		m.web.imageSource = ""
 		m.web.image = ""
+		m.web.imageAvatar = nil
 	}
 }
 func (m *Model) handleWebRequest(r webRequest) tea.Cmd {
@@ -149,6 +164,20 @@ func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {
 		if m.mode == "" {
 			return invalid()
 		}
+		// 尚未提交的确认只退回上一层；执行中的取消仍清理整个操作。
+		if !m.busy {
+			if m.mode == "confirm" && m.webChatValid() &&
+				(m.confirmAction == "speaker-apply" || m.confirmAction == "moderation-apply") {
+				return m.modalKey(webKey(tea.KeyEsc)), nil
+			}
+			if m.mode == "cover-review" {
+				return m.coverKey(webKey(tea.KeyEsc)), nil
+			}
+			if m.mode == "confirm" && m.confirmAction == "login-switch" && m.pendingAccount != nil {
+				m.mode, m.confirmAction = "login-save", ""
+				return nil, nil
+			}
+		}
 		m.reveal = false
 		if m.busy {
 			if m.cancel != nil {
@@ -157,6 +186,7 @@ func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {
 			}
 			m.qrGeneration++
 		}
+		m.clearWebChat()
 		m.mode = ""
 		m.selection = nil
 		m.cover = nil
@@ -172,6 +202,24 @@ func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {
 		return nil, nil
 	}
 	if m.mode != "" {
+		if strings.HasPrefix(m.webTarget(), "chat-") {
+			if page != "chat" || !m.webChatValid() {
+				return invalid()
+			}
+			if c.Action == "back" && m.webChatBackAvailable() {
+				// 浏览器草稿尚未提交，先同步再复用终端的返回逻辑。
+				if m.mode == "form" {
+					m.input.SetValue(c.Value)
+				}
+				return m.modalKey(webKey(tea.KeyEsc)), nil
+			}
+			if m.mode == "members" && c.Action == "members-refresh" {
+				return m.refreshRoomMembers(), nil
+			}
+			if m.mode == "speaker" {
+				return m.webSpeakerAction(c.Action)
+			}
+		}
 		switch m.mode {
 		case "form":
 			if c.Action == "submit" {
@@ -189,6 +237,19 @@ func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {
 		case "confirm":
 			if c.Action == "confirm" {
 				m.selected = 1
+				// 保留管理弹层直到结果到达，允许取消并清除异步回调的目标。
+				if m.confirmAction == "moderation-apply" {
+					if !m.moderationValid(m.moderation) || !m.moderation.pending {
+						return invalid()
+					}
+					return m.applyModeration(), nil
+				}
+				if m.confirmAction == "speaker-apply" {
+					if !m.speakerValid(m.speaker) || !m.speaker.pending {
+						return invalid()
+					}
+					return m.applyChatSpeaker(), nil
+				}
 				return m.modalKey(webKey(tea.KeyEnter)), nil
 			}
 		case "selection":
@@ -234,43 +295,58 @@ func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {
 		m.mode = "web-stream"
 		return nil, nil
 	}
-	if c.Action == "send" && page == "studio" && m.account != nil && m.room != nil {
+	if c.Action == "send" && page == "chat" && m.account != nil && m.room != nil {
 		if strings.TrimSpace(c.Value) == "" {
 			return invalid()
 		}
 		m.chatInput.SetValue(c.Value)
 		return m.sendChat(), nil
 	}
+	if page == "chat" {
+		return m.webChatAction(c)
+	}
 	return m.webAction(page, c.Action)
 }
 func (m *Model) webSnapshot(page string) webui.Snapshot {
 	s := webui.Snapshot{Revision: m.web.revision, Language: i18n.Language(), Page: page, Busy: m.busy || m.obsBusy, Status: m.webText(m.status), Warning: m.statusWarning, OBS: m.obsState.Connected, OBSConnecting: m.obsBusy, StreamAvailable: m.stream != nil, Overlay: m.overlayEnabled, Fields: m.webFields(page), Accounts: []webui.Account{}, Help: []webui.HelpArticle{}, Messages: []webui.Message{}, Logs: []string{}}
-	s.ChatDraft = m.chatInput.Value()
+	if page == "chat" {
+		s.ChatDraft = m.chatInput.Value()
+		s.Audience = m.webText(m.audienceText())
+	}
 	if m.account != nil {
 		s.Account = m.webText(m.account.Name + " · " + m.account.UID)
 		s.AccountUID = m.account.UID
 	}
 	if m.room != nil {
-		s.Room = &webui.Room{ID: m.room.ID, Title: m.webText(m.room.Title), Area: m.webText(m.room.ParentName + " / " + m.room.AreaName), Live: m.room.Live, Cover: webURL(m.room.CoverURL), Announcement: m.webText(m.room.Announcement), CoverStatus: m.webText(m.room.CoverStatus)}
+		s.Room = &webui.Room{ID: m.room.ID, Title: m.webText(m.room.Title), Area: m.webText(m.room.ParentName + " / " + m.room.AreaName), Live: m.room.Live, Cover: webCoverURL(m.room.CoverURL), Announcement: m.webText(m.room.Announcement), CoverStatus: m.webText(m.room.CoverStatus)}
 	}
 	if m.tts != nil {
 		s.TTS = m.tts.enabled
 	}
 	if m.chat != nil {
 		s.ChatConnected = m.chat.state.Phase == "connected" && m.account != nil && m.chat.state.AccountUID == m.account.UID
-		if page == "studio" && m.room != nil && m.account != nil && m.chat.state.AccountUID == m.account.UID {
-			for _, e := range m.chat.entries {
-				if e.RoomID != m.room.ID || e.Deleted {
+		if page == "chat" && m.room != nil && m.account != nil && m.chat.state.AccountUID == m.account.UID {
+			// 与终端共用事件文案，并按时间从旧到新显示。
+			for index := len(m.chat.entries) - 1; index >= 0; index-- {
+				e := m.chat.entries[index]
+				if e.RoomID != m.room.ID {
 					continue
 				}
-				text := e.Text
-				if text == "" && e.Gift != "" {
-					text = fmt.Sprintf("%s × %d", e.Gift, e.Count)
+				text := chatEventText(e)
+				if e.Kind == "chat" {
+					text = strings.TrimPrefix(text, chatText(e.User, 128)+"：")
 				}
-				if text == "" {
-					text = e.Title
+				uid := e.UID
+				if e.Mystery || uid == "0" {
+					uid = ""
 				}
-				s.Messages = append(s.Messages, webui.Message{ID: fmt.Sprintf("%d:%d:%d", e.RoomID, e.Sequence, e.Time.UnixNano()), Time: e.Time.Format(time.RFC3339), Name: m.webText(e.User), Text: m.webText(text), Kind: m.webText(e.Kind)})
+				s.Messages = append(s.Messages, webui.Message{
+					ID:   fmt.Sprintf("%d:%d:%d", e.RoomID, e.Sequence, e.Time.UnixNano()),
+					Time: e.Time.Format(time.RFC3339), Name: m.webText(chatText(e.User, 128)),
+					Text: m.webText(text), Kind: m.webText(e.Kind), UID: m.webText(uid),
+					MedalName: m.webText(chatText(e.MedalName, 128)), MedalLevel: e.MedalLevel,
+					Mystery: e.Mystery, Deleted: e.Deleted,
+				})
 			}
 		}
 	}
@@ -291,8 +367,52 @@ func (m *Model) webSnapshot(page string) webui.Snapshot {
 	}
 	return s
 }
+func (m *Model) webConfirmationLabel() string {
+	switch m.mode {
+	case "cover-review":
+		return i18n.T(i18n.TUIOperationUploadCover)
+	case "login-save":
+		return i18n.T(i18n.WebSaveLogin)
+	}
+	switch m.confirmAction {
+	case "speaker-apply":
+		if m.speakerValid(m.speaker) && m.speaker.action >= 0 && m.speaker.action < 3 {
+			return i18n.T(speakerActionLabel(m.speaker.action))
+		}
+	case "moderation-apply":
+		if m.moderationValid(m.moderation) {
+			return i18n.T(moderationActionLabel(m.moderation.action))
+		}
+	case "start":
+		return i18n.T(i18n.TUIMenuStartLive)
+	case "stop":
+		return i18n.T(i18n.TUIMenuStopLive)
+	case "obs-disconnect":
+		return i18n.T(i18n.TUIOBSDisconnect)
+	case "settings-reset":
+		return i18n.T(i18n.TUISettingsReset)
+	case "overlay-restore":
+		return i18n.T(i18n.TUIOverlayRestore)
+	case "chat-disable":
+		return i18n.T(i18n.WebStopListening)
+	case "login-switch":
+		return i18n.T(i18n.WebSwitchAccount)
+	}
+	if strings.HasPrefix(m.confirmAction, "switch:") {
+		return i18n.T(i18n.WebSwitchAccount)
+	}
+	if strings.HasPrefix(m.confirmAction, "delete:") {
+		return i18n.T(i18n.TUIOperationRemoveAccount)
+	}
+	return i18n.T(i18n.TUIConfirmExecuteLabel)
+}
+
 func (m *Model) webDialog() *webui.Interaction {
 	d := &webui.Interaction{ID: strconv.FormatUint(m.web.dialog, 10), Kind: "info", Title: m.webText(m.prompt), Choices: []webui.Option{}, Target: m.webTarget(), Revision: m.web.revision}
+	d.Back = m.webChatBackAvailable()
+	if m.webChatDialog(d) {
+		return d
+	}
 	switch m.mode {
 	case "web-stream":
 		d.Title = i18n.T(i18n.WebStreamCredentials)
@@ -339,7 +459,7 @@ func (m *Model) webDialog() *webui.Interaction {
 		d.Title = i18n.T(i18n.TUICoverTitle)
 		d.Text = i18n.T(i18n.WebCoverPathHint)
 		if m.room != nil {
-			d.Image = webURL(m.room.CoverURL)
+			d.Image = webCoverURL(m.room.CoverURL)
 		}
 	case "cover-review":
 		d.Kind = "confirm"
@@ -373,6 +493,10 @@ func (m *Model) webDialog() *webui.Interaction {
 		if m.pendingAccount != nil {
 			d.Text = m.webText(m.pendingAccount.Name + " · " + m.pendingAccount.UID)
 		}
+	}
+	if d.Kind == "confirm" {
+		d.Title = m.webConfirmationLabel()
+		d.Choices = []webui.Option{{ID: "confirm", Label: d.Title}}
 	}
 	return d
 }

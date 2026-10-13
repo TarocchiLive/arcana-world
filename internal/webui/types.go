@@ -24,6 +24,7 @@ type Snapshot struct {
 	OBSConnecting   bool          `json:"obsConnecting"`
 	StreamAvailable bool          `json:"streamAvailable"`
 	ChatConnected   bool          `json:"chatConnected"`
+	Audience        string        `json:"audience"`
 	Overlay         bool          `json:"overlay"`
 	TTS             bool          `json:"tts"`
 	Fields          []Field       `json:"fields"`
@@ -79,11 +80,16 @@ type HelpArticle struct {
 }
 
 type Message struct {
-	ID   string `json:"id"`
-	Time string `json:"time"`
-	Name string `json:"name"`
-	Text string `json:"text"`
-	Kind string `json:"kind"`
+	ID         string `json:"id"`
+	Time       string `json:"time"`
+	Name       string `json:"name"`
+	Text       string `json:"text"`
+	Kind       string `json:"kind"`
+	UID        string `json:"uid,omitempty"`
+	MedalName  string `json:"medalName,omitempty"`
+	MedalLevel int64  `json:"medalLevel,omitempty"`
+	Mystery    bool   `json:"mystery,omitempty"`
+	Deleted    bool   `json:"deleted,omitempty"`
 }
 
 type Interaction struct {
@@ -98,6 +104,28 @@ type Interaction struct {
 	URL      string   `json:"url,omitempty"`
 	Target   string   `json:"target"`
 	Revision uint64   `json:"revision"`
+	Back     bool     `json:"back,omitempty"`
+	Members  *Members `json:"members,omitempty"`
+}
+
+// Members 保留上次成功名单及加载状态，供浏览器增量更新。
+type Members struct {
+	Total    int64    `json:"total"`
+	Loaded   bool     `json:"loaded"`
+	Loading  bool     `json:"loading"`
+	Previous bool     `json:"previous"`
+	Entries  []Member `json:"entries"`
+}
+
+type Member struct {
+	Rank       int64  `json:"rank"`
+	Name       string `json:"name"`
+	UID        string `json:"uid"`
+	Role       string `json:"role"`
+	Score      string `json:"score"`
+	MedalName  string `json:"medalName"`
+	MedalLevel int64  `json:"medalLevel"`
+	Mystery    bool   `json:"mystery"`
 }
 
 // Request 将请求交给已有的单写入者事件循环；HTTP 层不读取业务状态。

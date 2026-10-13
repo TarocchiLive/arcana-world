@@ -10,12 +10,20 @@ Versions are listed newest first.
 
 - Add an optional, off-by-default local Web control panel sharing account, live, OBS, chat, and helper lifecycles with the terminal mode. See `--help` for startup options.
 - Add Chinese/English UI, light/dark/system themes, and pausable chat and log updates. Refreshes preserve form drafts; failed chat sends retain the draft.
-- Bind the Web server only to loopback, generate a private access token at each startup, reject cross-site requests and stale interactions, and reveal stream keys only on explicit request.
+- Open the Web panel without an access token at the default fixed address `http://127.0.0.1:5273`. Change the bind address only through the configuration file. Retain cross-site and stale-interaction checks, and reveal stream keys only on explicit request.
 
 ### Changed
 
-- Organize the Web panel into Studio, Outputs, Accounts, Settings, and Help instead of terminal-style menus and generic action cards. Edit ordinary settings in place; complete sign-in and room-selection workflows inline. Search and read help without a popup.
-- Keep desktop live controls and the chat composer together, with separate conversation and room views on narrow screens. Preview overlay appearance as a scaled illustration while editing; preserve keyboard focus for risk confirmations.
+- Split the Web panel into Studio, Chat, Outputs, Accounts, Settings, and Help. Configure the room and OBS in Studio; read and send messages in Chat. Edit ordinary settings in place, complete sign-in and room selection inline, and search and read help on its own page.
+- Constrain workspace widths and use columns and dividers instead of large cards. Remove the overlay appearance sample and preserve keyboard focus for risk confirmations.
+- Use the TUI's WORLD wordmark on the Web panel connection screen and top navigation, with theme colors and narrow-screen sizing.
+- Show Web operation errors as dismissible top-right notifications with expandable details, without shifting forms or page layout.
+- Fix legacy HTTP cover URLs blocked by browser security policy, and hide broken images when cover loading fails.
+- Reuse TUI event text in Web chat, including fan medals, UIDs, gift amounts, Super Chats, and Guard purchases. Preserve removed-message and mystery-user handling, order messages chronologically, and retain the scroll position while reading history.
+- Add message context menus, touch-friendly Actions buttons, and keyboard menus for copying messages, viewing profiles and homepages, muting, blocking, and appointing moderators. Audience and Fleet lists support refresh; moderator, blacklist, and mute lists support user search, adding, and removal. Management reuses the terminal workflows, including custom-hour or permanent mutes, confirmation, and account and target identity checks.
+- Use Cancel and a named action in confirmation dialogs, without repeating the detailed prompt in the title. Before submission, Cancel or Esc returns to the previous step and preserves selections and duration drafts. Cover previews and subsequent QR-login confirmations also return to the preceding step.
+- Open chat management submenus in dialogs instead of a sidebar, including audience lists, profiles, and management forms. Close or Esc restores the action entry point; cancelling confirmation returns to the original form.
+- Fix horizontal overflow in long management lists, controls re-enabled during refresh, and dialogs left open during navigation. Preserve unsubmitted management drafts on Back and submit the latest interaction revision. Keep messages visible when navigating with chat paused, and clear old messages when the account or room changes.
 
 ## [v0.3.0]: 2026-09-29
 

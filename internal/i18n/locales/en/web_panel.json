@@ -6,5 +6,7 @@
   "web.panel.StreamCredentials": "Stream credentials",
   "web.panel.CoverPathHint": "Enter an image path on the computer running Arcana World (not a browser upload).",
   "web.panel.ScanVerify": "Scan to verify",
-  "web.panel.SaveLogin": "Save signed-in account"
+  "web.panel.SaveLogin": "Save signed-in account",
+  "web.panel.SwitchAccount": "Switch account",
+  "web.panel.StopListening": "Stop listening to chat"
 }
