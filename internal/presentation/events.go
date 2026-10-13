@@ -6,10 +6,13 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"arcana-world/internal/danmaku"
 	"arcana-world/internal/i18n"
+
 	"github.com/charmbracelet/x/ansi"
+	"github.com/rivo/uniseg"
 )
 
 type EventSpec struct {
@@ -213,19 +216,21 @@ func fallback(value, missing string) string {
 	return value
 }
 
-// 限制源输入与输出，移除终端转义、控制字符和双向文本控制符。
+// 限制源输入与输出，移除终端转义和控制符；保留组合表情及连字所需的 ZWJ/ZWNJ。
 func clean(value string, limit int) string {
-	if len(value) > 16<<10 {
+	clipped := len(value) > 16<<10
+	if clipped {
 		value = value[:16<<10]
 	}
 	value = ansi.Strip(value)
 	var out strings.Builder
 	count := 0
 	for _, r := range value {
-		if count >= limit {
+		// 多保留一个有效 rune，用于判断上限是否落在字素内部。
+		if count > limit {
 			break
 		}
-		if unicode.IsControl(r) || unicode.In(r, unicode.Cf) || r == unicode.ReplacementChar {
+		if unicode.IsControl(r) || (unicode.In(r, unicode.Cf) && r != '\u200c' && r != '\u200d') || r == unicode.ReplacementChar {
 			if unicode.IsSpace(r) {
 				out.WriteByte(' ')
 				count++
@@ -235,5 +240,28 @@ func clean(value string, limit int) string {
 		out.WriteRune(r)
 		count++
 	}
-	return strings.TrimSpace(out.String())
+	if clipped {
+		// 原始输入的字节上限可能切开字素，丢弃无法确认完整的末尾。
+		limit = min(limit, count-1)
+	}
+	return strings.TrimSpace(TruncateText(out.String(), limit))
+}
+
+// TruncateText 在 rune 上限内保留完整字素，不附加省略号。
+func TruncateText(value string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	if utf8.RuneCountInString(value) <= limit {
+		return value
+	}
+	count := 0
+	for graphemes := uniseg.NewGraphemes(value); graphemes.Next(); {
+		count += utf8.RuneCountInString(graphemes.Str())
+		if count > limit {
+			start, _ := graphemes.Positions()
+			return value[:start]
+		}
+	}
+	return value
 }

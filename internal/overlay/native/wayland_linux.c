@@ -1027,6 +1027,21 @@ static bool paint_pixels(struct view *s, struct pixels *p)
         int visible = (int)fmin(floor(height / line_height), line_count);
         for (int skip = line_count - visible; skip > 0; --skip)
             lines = lines->next;
+        if (line_count > visible)
+        {
+            // 优先显示后续完整消息；只有长消息尾部或末尾空行时保留原裁切。
+            int skipped = 0;
+            for (GSList *candidate = lines; candidate; candidate = candidate->next, ++skipped)
+            {
+                PangoLayoutLine *line = candidate->data;
+                if (line->is_paragraph_start && line->length > 0)
+                {
+                    lines = candidate;
+                    visible -= skipped;
+                    break;
+                }
+            }
+        }
         cairo_set_source_rgba(cr, ((c->text_rgb >> 16) & 255) / 255.0,
                               ((c->text_rgb >> 8) & 255) / 255.0,
                               (c->text_rgb & 255) / 255.0, c->text_alpha);

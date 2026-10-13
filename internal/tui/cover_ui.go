@@ -18,6 +18,32 @@ type coverPreviewFinished struct{ err error }
 
 func (m *Model) coverKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
+	case "+", "=", "-", "h", "j", "k", "l", "left", "down", "up", "right", "0":
+		if m.mode != "cover-review" || m.cover == nil {
+			return nil
+		}
+		prepared := m.cover
+		zoom, x, y := prepared.Framing()
+		step := 0.05 / float64(zoom)
+		switch msg.String() {
+		case "+", "=":
+			zoom = min(8, zoom*2)
+		case "-":
+			zoom = max(1, zoom/2)
+		case "h", "left":
+			x -= step
+		case "l", "right":
+			x += step
+		case "k", "up":
+			y -= step
+		case "j", "down":
+			y += step
+		case "0":
+			zoom, x, y = 1, 0.5, 0.5
+		}
+		return work(m, coverPrepareOperation(), func(ctx context.Context) (*coverimage.Prepared, error) {
+			return prepared.Reframe(ctx, zoom, x, y)
+		})
 	case "esc":
 		if m.mode == "cover-review" {
 			m.mode = "cover"
@@ -69,6 +95,8 @@ func (m *Model) coverView() string {
 			processing = i18n.T(i18n.TUICoverCropped)
 		}
 		details := fmt.Sprintf(i18n.T(i18n.TUICoverProcessedDetails), m.cover.SourceWidth, m.cover.SourceHeight, coverimage.Width, coverimage.Height, float64(len(m.cover.PNG))/1024, processing)
+		zoom, x, y := m.cover.Framing()
+		details = strings.TrimRight(details, "\n") + "\n" + fmt.Sprintf(i18n.T(i18n.TUICoverFraming), zoom, x*100, y*100)
 		return lipgloss.JoinVertical(lipgloss.Left,
 			lipgloss.NewStyle().PaddingBottom(1).Render(m.theme.sectionTitle(i18n.T(i18n.TUICoverConfirmTitle), width)),
 			m.theme.textStyle.Width(width).PaddingBottom(1).Render(clean(strings.TrimSpace(details))),

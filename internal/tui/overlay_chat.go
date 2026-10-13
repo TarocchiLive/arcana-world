@@ -114,16 +114,15 @@ func (m *Model) overlayContentText() string {
 	return c.content
 }
 
-// 移除控制及方向格式字符，将每个字段限制为有界的单行纯文本。
+// 移除控制及方向格式字符，保留 ZWJ/ZWNJ，将每个字段限制为有界的单行纯文本。
 func overlayChatPlain(value string, limit int) string {
 	var b strings.Builder
 	count := 0
 	for _, r := range value {
-		if count == limit {
-			b.WriteRune('…')
+		if count > limit {
 			break
 		}
-		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+		if unicode.IsControl(r) || (unicode.Is(unicode.Cf, r) && r != '\u200c' && r != '\u200d') {
 			if unicode.IsSpace(r) {
 				r = ' '
 			} else {
@@ -136,5 +135,10 @@ func overlayChatPlain(value string, limit int) string {
 		b.WriteRune(r)
 		count++
 	}
-	return strings.TrimSpace(b.String())
+	text := b.String()
+	short := presentation.TruncateText(text, limit)
+	if len(short) < len(text) {
+		short += "…"
+	}
+	return strings.TrimSpace(short)
 }

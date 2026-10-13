@@ -194,6 +194,19 @@ func (state *winState) drawTextLines(text []uint16, rect winRect) error {
 		state.coverageValid = false
 		return nil
 	}
+	if first > 0 {
+		// 优先保留完整消息；空段落不能让唯一一条长消息的尾部消失。
+		for candidate := first; candidate < len(state.layoutLines); candidate++ {
+			line := state.layoutLines[candidate]
+			if state.layoutLines[candidate-1].NewlineLength > 0 && line.Length > line.NewlineLength {
+				for first < candidate {
+					visibleHeight -= state.layoutLines[first].Height
+					first++
+				}
+				break
+			}
+		}
+	}
 	var hiddenHeight float32
 	for _, line := range state.layoutLines[:first] {
 		hiddenHeight += line.Height

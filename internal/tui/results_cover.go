@@ -17,7 +17,9 @@ func (m *Model) handleCoverPrepareResult(value *coverimage.Prepared, err error, 
 		if cmd != nil {
 			return cmd
 		}
-		m.mode = "cover"
+		if m.cover == nil {
+			m.mode = "cover"
+		}
 		return nil
 	}
 	m.cover = value

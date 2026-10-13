@@ -41,6 +41,7 @@ func runArgs(args []string) (err error) {
 	obsAutoStream := flags.Bool("obs-auto-stream", false, "")
 	enableTTS := flags.Bool("tts", false, "")
 	doctor := flags.Bool("doctor", false, "")
+	checkUpdate := flags.Bool("check-update", false, "")
 	help := flags.Bool("help", false, "")
 	shortHelp := flags.Bool("h", false, "")
 	parseErr := flags.Parse(args)
@@ -59,6 +60,7 @@ func runArgs(args []string) (err error) {
 	flags.Lookup("obs-auto-stream").Usage = i18n.T(i18n.CLIOBSAutoStreamUsage)
 	flags.Lookup("tts").Usage = i18n.T(i18n.CLITTSUsage)
 	flags.Lookup("doctor").Usage = i18n.T(i18n.CLIDoctorUsage)
+	flags.Lookup("check-update").Usage = i18n.T(i18n.CLIUpdateUsage)
 	flags.Lookup("help").Usage = i18n.T(i18n.CLIHelpUsage)
 	flags.Lookup("h").Usage = flags.Lookup("help").Usage
 	flags.Usage = func() {
@@ -78,6 +80,9 @@ func runArgs(args []string) (err error) {
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("%s", i18n.T(i18n.CLIPositionalArgumentsUnsupported))
+	}
+	if *checkUpdate && *doctor {
+		return errors.New(i18n.T(i18n.CLIUpdateConflict))
 	}
 	switch *credentialBackend {
 	case "auto", "system", "file", "memory":
@@ -100,6 +105,11 @@ func runArgs(args []string) (err error) {
 			ttsOverride = enableTTS
 		}
 	})
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	if *checkUpdate {
+		return runUpdateCheck(ctx, os.Stdout, *dir, options)
+	}
 	if options.Overrides.Proxy != nil {
 		client, err := bili.New(*proxy, "")
 		if err != nil {
@@ -107,8 +117,6 @@ func runArgs(args []string) (err error) {
 		}
 		client.HTTP.CloseIdleConnections()
 	}
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
 	if *doctor {
 		return runDoctor(ctx, os.Stdout, *dir, options, *overlayExecutable, overlayOverride, ttsOverride)
 	}
