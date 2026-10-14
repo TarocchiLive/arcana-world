@@ -224,12 +224,13 @@
     updateBusy();
     try {
       const next = await request(
-        "/api/command",
+        action === "cover-upload" ? "/api/cover" : "/api/command",
         {
           page,
           action,
           value,
-          revision: fromInteraction ? interactionRevision : state.revision,
+          revision: action === "cover-upload" ? state.revision :
+            fromInteraction ? interactionRevision : state.revision,
         },
         own.signal,
       );
@@ -300,6 +301,9 @@
     if (state && (state.accountUID !== next.accountUID || state.room?.id !== next.room?.id))
       feedSignature = "";
     if (!next.interaction) interactionDrafts.clear();
+    if ((state && (state.accountUID !== next.accountUID || state.room?.id !== next.room?.id)) ||
+        next.interaction?.target !== "room-cover")
+      clearCoverDraft();
     if (stale) commandError = "";
     state = next;
     stale = false;
@@ -1014,11 +1018,22 @@
     trigger?.setAttribute("aria-expanded", "false");
     if (restoreFocus && trigger?.isConnected) trigger.focus({ preventScroll: true });
   }
-  async function copyMessageText(value) {
+  async function copyText(value, fallback) {
     try {
       await navigator.clipboard.writeText(value);
+      if (fallback?.isConnected && fallback.value === value) {
+        fallback.hidden = true;
+        setText("verification-status", t("Link copied.", "链接已复制。"));
+      }
     } catch (_) {
-      notify(t("Could not copy. Check clipboard permission in your browser.",
+      if (fallback?.isConnected) {
+        fallback.hidden = false;
+        fallback.value = safeURL(state?.interaction?.url);
+        fallback.focus();
+        fallback.select();
+        setText("verification-status", t("Select and copy this link manually.",
+          "请选中并手动复制此链接。"));
+      } else notify(t("Could not copy. Check clipboard permission in your browser.",
         "复制失败，请检查浏览器的剪贴板权限。"));
     }
   }
@@ -1045,10 +1060,10 @@
       };
       menu.append(item);
     };
-    add(t("Copy message", "复制正文"), () => copyMessageText(m.text || ""));
+    add(t("Copy message", "复制正文"), () => copyText(m.text || ""));
     const uid = messageUID(m);
     if (uid) {
-      add(t("Copy UID", "复制 UID"), () => copyMessageText(uid));
+      add(t("Copy UID", "复制 UID"), () => copyText(uid));
       add(t("View user", "查看用户"), () => command("speaker-open", m.id));
       const link = node("a", "context-menu-item", t("Open homepage", "打开主页"));
       link.href = "https://space.bilibili.com/" + uid;
@@ -1734,6 +1749,211 @@
       else $("main").focus({ preventScroll: true });
     });
   }
+  let coverDraft = null, coverSelection = 0;
+  function clearCoverDraft() {
+    coverSelection++;
+    if (coverDraft?.image) coverDraft.image.removeAttribute("src");
+    coverDraft = null;
+  }
+  // 在解码前读取尺寸，限制压缩图片的内存膨胀；仅接受 PNG 和 JPEG。
+  function coverDimensions(buffer) {
+    const view = new DataView(buffer);
+    if (view.byteLength >= 24 && view.getUint32(0) === 0x89504e47 &&
+        view.getUint32(4) === 0x0d0a1a0a && view.getUint32(12) === 0x49484452)
+      return [view.getUint32(16), view.getUint32(20)];
+    if (view.byteLength < 4 || view.getUint16(0) !== 0xffd8) return null;
+    let offset = 2;
+    while (offset + 4 <= view.byteLength) {
+      if (view.getUint8(offset++) !== 0xff) return null;
+      while (offset < view.byteLength && view.getUint8(offset) === 0xff) offset++;
+      if (offset + 3 > view.byteLength) return null;
+      const marker = view.getUint8(offset++);
+      if (marker === 0xda || marker === 0xd9) return null;
+      if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+      const length = view.getUint16(offset);
+      if (length < 2 || offset + length > view.byteLength) return null;
+      if ([0xc0, 0xc1, 0xc2].includes(marker) && length >= 8)
+        return [view.getUint16(offset + 5), view.getUint16(offset + 3)];
+      offset += length;
+    }
+    return null;
+  }
+  function coverEditor() {
+    const draft = coverDraft || (coverDraft = { image: null, zoom: 1, x: 0.5, y: 0.5 });
+    const editor = node("div", "cover-editor");
+    const pickerLabel = node("label", "", t("Choose a cover image", "选择封面图片"));
+    pickerLabel.htmlFor = "cover-file";
+    const picker = node("input");
+    picker.id = "cover-file";
+    picker.type = "file";
+    picker.accept = "image/png,image/jpeg,.png,.jpg,.jpeg";
+    const drop = node("div", "cover-dropzone");
+    drop.id = "cover-dropzone";
+    drop.append(note(t("Choose or drop a PNG/JPEG here (up to 12 MiB, 24 megapixels).",
+      "选择或拖入 PNG/JPEG 图片（最大 12 MiB、2400 万像素）。")));
+    const canvas = node("canvas", "cover-canvas");
+    canvas.id = "cover-canvas";
+    canvas.width = 720;
+    canvas.height = 540;
+    canvas.tabIndex = 0;
+    canvas.setAttribute("role", "img");
+    canvas.setAttribute("aria-label", t("Cover crop preview. Drag or use arrow keys to position.",
+      "封面裁剪预览，可拖动或使用方向键调整位置。"));
+    const status = node("p", "note");
+    status.id = "cover-status";
+    status.setAttribute("role", "status");
+    const controls = node("div", "cover-controls");
+    const ranges = {};
+    let loading = false;
+    const reset = button(t("Reset crop", "重置裁剪"));
+    reset.id = "cover-reset";
+    const preview = button(t("Preview cover", "预览封面"));
+    preview.id = "cover-preview";
+    preview.dataset.command = "cover-upload";
+    preview.dataset.interaction = "true";
+    const locked = () => sending || state?.busy || state?.interaction?.kind !== "cover";
+    const geometry = () => {
+      const image = draft.image;
+      const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight) * draft.zoom;
+      return [image.naturalWidth * scale, image.naturalHeight * scale];
+    };
+    const draw = () => {
+      canvas.hidden = !draft.image;
+      controls.hidden = !draft.image;
+      reset.hidden = !draft.image;
+      preview.dataset.disabled = String(!draft.image || loading);
+      preview.disabled = !draft.image || loading || locked();
+      if (!draft.image) return;
+      const [width, height] = geometry();
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#fff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(draft.image, -(width - canvas.width) * draft.x, -(height - canvas.height) * draft.y, width, height);
+      for (const key of ["zoom", "x", "y"]) ranges[key].value = draft[key];
+    };
+    for (const [key, label, min, max, step] of [
+      ["zoom", t("Zoom", "缩放"), 1, 4, 0.01],
+      ["x", t("Horizontal position", "水平位置"), 0, 1, 0.01],
+      ["y", t("Vertical position", "垂直位置"), 0, 1, 0.01],
+    ]) {
+      const labelNode = node("label", "", label);
+      const range = node("input");
+      range.type = "range";
+      range.id = "cover-" + key;
+      labelNode.htmlFor = range.id;
+      range.min = min;
+      range.max = max;
+      range.step = step;
+      range.value = draft[key];
+      range.oninput = () => {
+        if (!locked()) draft[key] = Number(range.value);
+        draw();
+      };
+      ranges[key] = range;
+      controls.append(labelNode, range);
+    }
+    reset.onclick = () => {
+      if (locked()) return;
+      Object.assign(draft, { zoom: 1, x: 0.5, y: 0.5 });
+      draw();
+    };
+    const select = async (file) => {
+      if (!file || locked()) return;
+      const token = ++coverSelection;
+      loading = true;
+      draw();
+      status.textContent = t("Loading image…", "正在加载图片…");
+      let image, url;
+      const current = () => token === coverSelection && coverDraft === draft && editor.isConnected;
+      try {
+        if (!file.size || file.size > 12 * 1024 * 1024)
+          throw new Error(t("Choose an image no larger than 12 MiB.", "请选择不超过 12 MiB 的图片。"));
+        const dimensions = coverDimensions(await file.arrayBuffer());
+        if (!current()) return;
+        if (!dimensions || dimensions.some((n) => !n || n > 16384) ||
+            dimensions[0] * dimensions[1] > 24000000)
+          throw new Error(t("Use a valid PNG/JPEG, at most 24 megapixels and 16384 pixels per side.",
+            "请使用有效的 PNG/JPEG，最多 2400 万像素，单边不超过 16384 像素。"));
+        image = new Image();
+        url = URL.createObjectURL(file);
+        image.src = url;
+        await image.decode();
+        if (!current()) return;
+        if (!image.naturalWidth || !image.naturalHeight ||
+            image.naturalWidth * image.naturalHeight > 24000000 ||
+            Math.max(image.naturalWidth, image.naturalHeight) > 16384)
+          throw new Error(t("Image dimensions exceed the limit.", "图片尺寸超出限制。"));
+        draft.image?.removeAttribute("src");
+        Object.assign(draft, { image, zoom: 1, x: 0.5, y: 0.5 });
+        status.textContent = t("Adjust the crop, then preview. Upload to Bilibili requires final confirmation.",
+          "调整裁剪后预览，最终确认后才会上传到哔哩哔哩。");
+        draw();
+      } catch (error) {
+        if (current()) status.textContent = error instanceof Error && error.name !== "EncodingError"
+          ? error.message : t("Cannot decode this image. Choose another PNG/JPEG.", "无法解码此图片，请选择其他 PNG/JPEG。");
+      } finally {
+        if (url) URL.revokeObjectURL(url);
+        if (image && draft.image !== image) image.removeAttribute("src");
+        if (current()) {
+          loading = false;
+          picker.value = "";
+          draw();
+        }
+      }
+    };
+    picker.onchange = () => select(picker.files[0]);
+    for (const eventName of ["dragenter", "dragover", "dragleave", "drop"])
+      drop.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        drop.classList.toggle("dragging", eventName === "dragenter" || eventName === "dragover");
+        if (eventName === "drop") {
+          if (event.dataTransfer.files.length !== 1)
+            status.textContent = t("Choose one image at a time.", "请每次选择一张图片。");
+          else select(event.dataTransfer.files[0]);
+        }
+      });
+    let drag = null;
+    canvas.onpointerdown = (event) => {
+      if (!draft.image || locked() || event.button !== 0) return;
+      drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      canvas.setPointerCapture(event.pointerId);
+      canvas.focus();
+    };
+    canvas.onpointermove = (event) => {
+      if (!drag || drag.id !== event.pointerId || locked()) return;
+      const [width, height] = geometry();
+      const scale = canvas.width / canvas.getBoundingClientRect().width;
+      if (width > canvas.width) draft.x = Math.max(0, Math.min(1, draft.x - (event.clientX - drag.x) * scale / (width - canvas.width)));
+      if (height > canvas.height) draft.y = Math.max(0, Math.min(1, draft.y - (event.clientY - drag.y) * scale / (height - canvas.height)));
+      drag.x = event.clientX;
+      drag.y = event.clientY;
+      draw();
+    };
+    canvas.onpointerup = canvas.onpointercancel = canvas.onlostpointercapture = () => { drag = null; };
+    canvas.onkeydown = (event) => {
+      if (!draft.image || locked() || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+      event.preventDefault();
+      const key = ["ArrowLeft", "ArrowRight"].includes(event.key) ? "x" : "y";
+      const delta = ["ArrowLeft", "ArrowUp"].includes(event.key) ? -0.02 : 0.02;
+      draft[key] = Math.max(0, Math.min(1, draft[key] + delta));
+      draw();
+    };
+    preview.onclick = () => {
+      if (!draft.image || loading || locked()) return;
+      coverSelection++;
+      command("cover-upload", canvas.toDataURL("image/png"), true);
+    };
+    drop.append(canvas);
+    editor.append(pickerLabel, picker, drop, status, controls, actionRow(reset, preview));
+    draw();
+    return editor;
+  }
+  // 在工作台内丢弃文件也不能触发浏览器跳转。
+  for (const eventName of ["dragover", "drop"])
+    document.addEventListener(eventName, (event) => {
+      if (Array.from(event.dataTransfer?.types || []).includes("Files")) event.preventDefault();
+    });
   function renderInteraction() {
     const i = state.interaction;
     const owner = i ? interactionPage(i) : "";
@@ -1847,16 +2067,15 @@
       const text = node("p", "note");
       text.id = "flow-text";
       panel.append(text);
-      if (["form", "cover", "selection"].includes(i.kind)) {
+      if (i.kind === "cover") panel.append(coverEditor());
+      if (["form", "selection"].includes(i.kind)) {
         const form = node("form", "flow-form"),
           label = node(
             "label",
             "",
-            i.kind === "cover"
-              ? t("Image path on the studio computer", "工作台电脑上的图片路径")
-              : i.kind === "selection"
-                ? t("Search categories", "搜索分区")
-                : i.title,
+            i.kind === "selection"
+              ? t("Search categories", "搜索分区")
+              : i.title,
           );
         label.htmlFor = "flow-input";
         const input = node("input");
@@ -1868,9 +2087,7 @@
         const submit = button(
           i.kind === "selection"
             ? t("Search", "搜索")
-            : i.kind === "cover"
-              ? t("Preview cover", "预览封面")
-              : t("Apply", "应用"),
+            : t("Apply", "应用"),
         );
         submit.type = "submit";
         submit.dataset.command = i.kind === "selection" ? "search" : "submit";
@@ -1885,15 +2102,6 @@
           );
         };
         panel.append(label, form);
-        if (i.kind === "cover")
-          panel.append(
-            note(
-              t(
-                "Not a browser upload: use the full path on the computer running Arcana World.",
-                "这不是浏览器上传：请输入运行 Arcana World 的电脑上的完整路径。",
-              ),
-            ),
-          );
         if (i.secret) {
           const show = button(t("Show value", "显示内容"));
           show.onclick = () => {
@@ -1910,12 +2118,32 @@
       img.id = "flow-image";
       img.alt = i.title;
       img.hidden = true;
-      const link = node("a", "", i.kind === "speaker"
-        ? t("Open homepage", "打开主页")
-        : t("Open verification link", "打开验证链接"));
+      const link = i.kind === "speaker"
+        ? node("a", "", t("Open homepage", "打开主页"))
+        : button(t("Copy verification link", "复制验证链接"));
       link.id = "flow-link";
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
+      if (i.kind === "speaker") {
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+      } else {
+        const hint = note(t(
+          "If the QR code is unavailable, copy the link and open it in your phone’s browser to verify.",
+          "如二维码不可用，请复制链接在手机浏览器上打开并验证。"));
+        hint.id = "verification-hint";
+        const fallback = node("input");
+        fallback.id = "verification-url";
+        fallback.readOnly = true;
+        fallback.hidden = true;
+        fallback.setAttribute("aria-label", t("Verification link for manual copying", "手动复制验证链接"));
+        const status = node("p", "note");
+        status.id = "verification-status";
+        status.setAttribute("role", "status");
+        link.onclick = () => {
+          const currentURL = safeURL(state?.interaction?.url);
+          if (currentURL) copyText(currentURL, fallback);
+        };
+        panel.append(hint, fallback, status);
+      }
       link.hidden = true;
       const choices = node("div", "choices");
       choices.id = "flow-choices";
@@ -1940,15 +2168,26 @@
       root.append(panel);
     }
     setText("flow-text", i.text || "");
-    const image = safeURL(i.image, true);
+    const image = i.kind === "cover" ? "" : safeURL(i.image, true);
     $("flow-image").hidden = !image;
     if (image && $("flow-image").getAttribute("src") !== image)
       $("flow-image").src = image;
     if (!image) $("flow-image").removeAttribute("src");
     const url = safeURL(i.url);
     $("flow-link").hidden = !url;
-    if (url) $("flow-link").href = url;
-    else $("flow-link").removeAttribute("href");
+    if (i.kind === "speaker") {
+      if (url) $("flow-link").href = url;
+      else $("flow-link").removeAttribute("href");
+    } else {
+      $("verification-hint").hidden = !url;
+      $("verification-status").hidden = !url;
+      const fallback = $("verification-url");
+      if (fallback.value !== url) {
+        fallback.value = url;
+        setText("verification-status", "");
+      }
+      if (!url) fallback.hidden = true;
+    }
     const choices = $("flow-choices");
     const signature = JSON.stringify(i.choices || []);
     if (choices.dataset.choices !== signature) {

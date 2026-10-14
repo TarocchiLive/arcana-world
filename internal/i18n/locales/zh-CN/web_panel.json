@@ -4,7 +4,7 @@
   "web.panel.ActionUnavailable": "当前界面不支持此操作。",
   "web.panel.StreamProtocol": "推流协议",
   "web.panel.StreamCredentials": "推流凭据",
-  "web.panel.CoverPathHint": "输入运行 Arcana World 的电脑上的图片路径（不是浏览器上传）。",
+  "web.panel.CoverUploadHint": "选择或拖入图片，裁剪为 720 × 540（4:3），预览后确认上传。B 站 Web 端可能按 16:9 显示，重要内容请靠近中央。",
   "web.panel.ScanVerify": "扫码验证",
   "web.panel.SaveLogin": "保存登录账号",
   "web.panel.SwitchAccount": "切换账号",

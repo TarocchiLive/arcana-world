@@ -8,9 +8,11 @@ Versions are listed newest first.
 
 ### Added
 
+- Choose or drop a Web cover image, zoom, pan, and reset its crop in the browser, then preview and confirm upload. Bilibili authentication and upload remain in the backend. Cover output follows Bilibili's current editor at 720×540 (4:3), with a note about its 16:9 Web crop.
+- Replace desktop navigation to account verification pages with a copy button and instructions to open the link in a phone browser. Show a manually selectable link when clipboard access fails.
 - Display native cover previews in iTerm2, fitting the terminal size while preserving the image aspect ratio. Keep character previews in tmux, screen, and redirected output.
 - Zoom cover previews with `+` / `-`, pan with `h/j/k/l`, and reset with `0` in both native and character previews. These controls do not change the cover being uploaded.
-- Adjust the crop in the cover upload confirmation screen by zooming and panning; press `0` to restore the centered crop. The screen shows the zoom and crop center, with a preview before upload. Adjustments use the original image and keep the output at 704×396; canceled processing is discarded.
+- Adjust the crop in the cover upload confirmation screen by zooming and panning; press `0` to restore the centered crop. The screen shows the zoom and crop center, with a preview before upload. Adjustments use the original image and keep the output at 720×540; canceled processing is discarded.
 - Check for the latest stable release manually and show the comparison and release page. The check uses proxy settings without reading login credentials, downloading, or installing. Report cancellation, timeouts, and access limits without recommending a downgrade from a newer prerelease.
 - Add sample preview to the Overlay tab for checking appearance and event colors without signing in. Samples do not enter history or TTS; turning preview off, leaving the tab, or disabling the overlay restores actual content.
 - Add an optional local Web control panel sharing account, live, OBS, chat, and helper lifecycles with the terminal mode. See `--help` for startup options.
@@ -20,6 +22,7 @@ Versions are listed newest first.
 
 ### Changed
 
+- Fix cover uploads rejected because a correctly sized PNG was too large. The backend produces JPEG files up to 256 KiB, flattens transparency onto white, shows the actual upload image and size for confirmation, and validates the file again before sending.
 - Prefer complete recent messages when overlay text exceeds its height, reducing cuts through usernames or messages. Keep the tail when a single long message cannot fit. Apply the same rule on macOS, Windows, and Linux.
 - Preview overlay position offsets, size, padding, fonts, and opacity while editing, using the existing color preview save and cancel flow. Enter saves, Esc restores, and invalid input keeps the last valid preview.
 - Adjust numeric overlay fields with ↑/↓ and preview changes immediately. Show each field's step size, leave invalid or out-of-range values unchanged, and keep Enter to save and Esc to cancel.

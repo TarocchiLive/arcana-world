@@ -6,7 +6,7 @@ const (
 	WebActionUnavailable  Key = "web.panel.ActionUnavailable"
 	WebStreamProtocol     Key = "web.panel.StreamProtocol"
 	WebStreamCredentials  Key = "web.panel.StreamCredentials"
-	WebCoverPathHint      Key = "web.panel.CoverPathHint"
+	WebCoverUploadHint    Key = "web.panel.CoverUploadHint"
 	WebScanVerify         Key = "web.panel.ScanVerify"
 	WebSaveLogin          Key = "web.panel.SaveLogin"
 	WebSwitchAccount      Key = "web.panel.SwitchAccount"

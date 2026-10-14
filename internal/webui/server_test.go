@@ -142,3 +142,47 @@ func TestListenRejectsInvalidBind(t *testing.T) {
 		t.Fatalf("unexpected URL fragment: %s", server.URL())
 	}
 }
+
+// 图片接口的较大请求上限不能扩大普通命令权限或绕过同源检查。
+func TestCoverRequestBoundary(t *testing.T) {
+	calls := 0
+	server, err := Listen("127.0.0.1", 0, func(context.Context, string, *Command) (Snapshot, error) {
+		calls++
+		return Snapshot{}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = server.listener.Close() })
+	for _, tc := range []struct {
+		name, path, action, origin string
+		size, status               int
+	}{
+		{name: "cover accepts larger JSON", path: "/api/cover", action: "cover-upload", size: 128 << 10, status: http.StatusOK},
+		{name: "cover size limit", path: "/api/cover", action: "cover-upload", size: 2 << 20, status: http.StatusBadRequest},
+		{name: "command size unchanged", path: "/api/command", action: "submit", size: 64 << 10, status: http.StatusBadRequest},
+		{name: "cover action only", path: "/api/cover", action: "confirm", status: http.StatusBadRequest},
+		{name: "cover endpoint required", path: "/api/command", action: "cover-upload", status: http.StatusBadRequest},
+		{name: "cover same origin required", path: "/api/cover", action: "cover-upload", origin: "https://attacker.invalid", status: http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := calls
+			body := `{"page":"studio","action":"` + tc.action + `","value":"` + strings.Repeat("a", tc.size) + `"}`
+			request := httptest.NewRequest(http.MethodPost, "http://"+server.host+tc.path, strings.NewReader(body))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Origin", tc.origin)
+			response := httptest.NewRecorder()
+			server.serveHTTP(response, request)
+			if response.Code != tc.status {
+				t.Fatalf("status=%d, want %d", response.Code, tc.status)
+			}
+			wantCalls := before
+			if tc.status == http.StatusOK {
+				wantCalls++
+			}
+			if calls != wantCalls {
+				t.Fatalf("backend calls=%d, want %d", calls, wantCalls)
+			}
+		})
+	}
+}

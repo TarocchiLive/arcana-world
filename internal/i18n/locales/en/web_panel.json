@@ -4,7 +4,7 @@
   "web.panel.ActionUnavailable": "This action is not available in the current context.",
   "web.panel.StreamProtocol": "Stream protocol",
   "web.panel.StreamCredentials": "Stream credentials",
-  "web.panel.CoverPathHint": "Enter an image path on the computer running Arcana World (not a browser upload).",
+  "web.panel.CoverUploadHint": "Choose or drop an image and crop it to 720 × 540 (4:3). Preview before confirming upload. Bilibili Web may display a 16:9 crop; keep important content near the center.",
   "web.panel.ScanVerify": "Scan to verify",
   "web.panel.SaveLogin": "Save signed-in account",
   "web.panel.SwitchAccount": "Switch account",

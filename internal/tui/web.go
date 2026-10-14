@@ -227,7 +227,7 @@ func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {
 		}
 		switch m.mode {
 		case "form":
-			if c.Action == "submit" {
+			if c.Action == "submit" && m.editKind != "cover-path" {
 				return m.webSubmit(c.Value)
 			}
 		case "pick":
@@ -276,11 +276,10 @@ func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {
 				}
 			}
 		case "cover":
-			if c.Action == "submit" || c.Action == "set:cover-path" {
-				if strings.TrimSpace(c.Value) == "" {
-					return invalid()
-				}
-				return m.prepareCover(strings.TrimSpace(c.Value)), nil
+			if page == "studio" && c.Action == "cover-upload" && m.account != nil && m.room != nil {
+				return work(m, coverPrepareOperation(), func(ctx context.Context) (*coverimage.Prepared, error) {
+					return coverimage.PrepareUpload(ctx, c.Value)
+				}), nil
 			}
 		case "cover-review":
 			if c.Action == "confirm" {
@@ -462,7 +461,7 @@ func (m *Model) webDialog() *webui.Interaction {
 	case "cover":
 		d.Kind = "cover"
 		d.Title = i18n.T(i18n.TUICoverTitle)
-		d.Text = i18n.T(i18n.WebCoverPathHint)
+		d.Text = i18n.T(i18n.WebCoverUploadHint)
 		if m.room != nil {
 			d.Image = webCoverURL(m.room.CoverURL)
 		}
@@ -471,10 +470,10 @@ func (m *Model) webDialog() *webui.Interaction {
 		d.Title = i18n.T(i18n.TUICoverConfirmTitle)
 		if m.cover != nil {
 			if m.web.image == "" {
-				m.web.image = "data:image/png;base64," + base64.StdEncoding.EncodeToString(m.cover.PNG)
+				m.web.image = "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(m.cover.JPEG)
 			}
 			d.Image = m.web.image
-			d.Text = fmt.Sprintf("%d × %d → %d × %d", m.cover.SourceWidth, m.cover.SourceHeight, coverimage.Width, coverimage.Height)
+			d.Text = fmt.Sprintf("%d × %d · JPEG · %.0f KiB", coverimage.Width, coverimage.Height, float64(len(m.cover.JPEG))/1024)
 		}
 	case "qr", "face":
 		d.Kind = "qr"

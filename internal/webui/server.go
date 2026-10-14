@@ -112,7 +112,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
 	w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 	// 严格匹配连接地址，拒绝 DNS 重绑定及其他站点对服务的访问。
 	if !s.validHost(r) {
 		fail(w, http.StatusForbidden, i18n.WebOriginDenied)
@@ -168,7 +168,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 			fail(w, http.StatusMethodNotAllowed, i18n.WebMethodInvalid)
 			return
 		}
-	case "/api/command":
+	case "/api/command", "/api/cover":
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", "POST")
 			fail(w, http.StatusMethodNotAllowed, i18n.WebMethodInvalid)
@@ -178,7 +178,11 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 			fail(w, http.StatusUnsupportedMediaType, i18n.WebJSONRequired)
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+		bodyLimit := int64(64 << 10)
+		if r.URL.Path == "/api/cover" {
+			bodyLimit = 2 << 20
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, bodyLimit)
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
 		command = &Command{}
@@ -187,6 +191,12 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := decoder.Decode(new(any)); err != io.EOF {
+			fail(w, http.StatusBadRequest, i18n.WebRequestInvalid)
+			return
+		}
+		// 图片接口只能准备封面，普通命令接口不能绕过图片请求的边界。
+		if (r.URL.Path == "/api/cover" && (command.Page != "studio" || command.Action != "cover-upload")) ||
+			(r.URL.Path == "/api/command" && command.Action == "cover-upload") {
 			fail(w, http.StatusBadRequest, i18n.WebRequestInvalid)
 			return
 		}

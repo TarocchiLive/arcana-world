@@ -6,28 +6,32 @@ import (
 
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"image"
 	_ "image/gif"
-	_ "image/jpeg"
+	"image/jpeg"
 	"image/png"
 	"io"
 	"math"
 	"os"
+	"strings"
 
 	"golang.org/x/image/draw"
 	"golang.org/x/image/math/f64"
 )
 
 const (
-	Width       = 704
-	Height      = 396
+	Width       = 720
+	Height      = 540
 	MaxFileSize = 20 << 20
-	maxPixels   = 25_000_000
+	// 上传体积单独限制，不能沿用本地原图的大小上限。
+	MaxUploadSize = 256 << 10
+	maxPixels     = 25_000_000
 )
 
 type Prepared struct {
-	PNG                       []byte
+	JPEG                      []byte
 	Image                     image.Image
 	SourceWidth, SourceHeight int
 	Cropped                   bool
@@ -51,6 +55,46 @@ func Decode(raw []byte) (image.Image, error) {
 		return nil, errors.New(i18n.T(i18n.CoverImageDecodeFailed))
 	}
 	return img, nil
+}
+
+// PrepareUpload 接收浏览器裁好的 PNG；先限制编码大小与尺寸，再分配像素内存。
+// 在后端生成限量 JPEG，确认页与发布使用同一份压缩结果。
+func PrepareUpload(ctx context.Context, value string) (*Prepared, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	const prefix = "data:image/png;base64,"
+	if len(value) > 2<<20 || !strings.HasPrefix(value, prefix) {
+		return nil, errors.New(i18n.T(i18n.CoverImageImageFormatInvalid))
+	}
+	encoded := value[len(prefix):]
+	if encoded == "" || strings.ContainsAny(encoded, "\r\n") {
+		return nil, errors.New(i18n.T(i18n.CoverImageImageFormatInvalid))
+	}
+	raw, err := base64.StdEncoding.Strict().DecodeString(encoded)
+	if err != nil {
+		return nil, errors.New(i18n.T(i18n.CoverImageImageFormatInvalid))
+	}
+	config, err := png.DecodeConfig(bytes.NewReader(raw))
+	if err != nil || config.Width != Width || config.Height != Height {
+		return nil, errors.New(i18n.T(i18n.CoverImageImageFormatInvalid))
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	reader := bytes.NewReader(raw)
+	img, err := png.Decode(reader)
+	if err != nil || reader.Len() != 0 {
+		return nil, errors.New(i18n.T(i18n.CoverImageDecodeFailed))
+	}
+	encodedJPEG, preview, err := encodeJPEG(ctx, img)
+	if err != nil {
+		return nil, err
+	}
+	return &Prepared{
+		JPEG: encodedJPEG, Image: preview, SourceWidth: Width, SourceHeight: Height,
+		source: img, zoom: 1, centerX: 0.5, centerY: 0.5,
+	}, nil
 }
 
 func Prepare(ctx context.Context, path string) (*Prepared, error) {
@@ -92,7 +136,7 @@ func (p *Prepared) Framing() (zoom int, centerX, centerY float64) {
 	return p.zoom, p.centerX, p.centerY
 }
 
-// Reframe 从保留的原图重新取景，输出固定为 704×396；旧结果和原图均不修改。
+// Reframe 从保留的原图重新取景，输出固定为 720×540；旧结果和原图均不修改。
 // 中心坐标自动限制在原图内，缩小后也不会留下空白边缘。
 func (p *Prepared) Reframe(ctx context.Context, zoom int, centerX, centerY float64) (*Prepared, error) {
 	if err := ctx.Err(); err != nil {
@@ -118,16 +162,49 @@ func (p *Prepared) Reframe(ctx context.Context, zoom int, centerX, centerY float
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	var encoded bytes.Buffer
-	if err := png.Encode(&encoded, output); err != nil {
-		return nil, errors.New(i18n.T(i18n.CoverImagePngEncodeFailed))
-	}
-	if err := ctx.Err(); err != nil {
+	encoded, preview, err := encodeJPEG(ctx, output)
+	if err != nil {
 		return nil, err
 	}
 	next := *p
-	next.PNG, next.Image = encoded.Bytes(), output
+	next.JPEG, next.Image = encoded, preview
 	next.zoom, next.centerX, next.centerY = zoom, centerX, centerY
-	next.Cropped = zoom > 1 || int64(p.SourceWidth)*9 != int64(p.SourceHeight)*16
+	next.Cropped = zoom > 1 || int64(p.SourceWidth)*Height != int64(p.SourceHeight)*Width
 	return &next, nil
+}
+
+// encodeJPEG 从未压缩的裁剪结果编码，逐级降低质量直到符合上传上限。
+// 透明像素合成白底；预览从最终字节解码，避免确认前后显示不同图片。
+func encodeJPEG(ctx context.Context, img image.Image) ([]byte, image.Image, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	if opaque, ok := img.(interface{ Opaque() bool }); !ok || !opaque.Opaque() {
+		background := image.NewRGBA(img.Bounds())
+		draw.Draw(background, background.Bounds(), image.White, image.Point{}, draw.Src)
+		draw.Draw(background, background.Bounds(), img, img.Bounds().Min, draw.Over)
+		img = background
+	}
+	var encoded bytes.Buffer
+	for quality := 95; quality >= 50; quality -= 5 {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
+		encoded.Reset()
+		if err := jpeg.Encode(&encoded, img, &jpeg.Options{Quality: quality}); err != nil {
+			return nil, nil, errors.New(i18n.T(i18n.CoverImageEncodeFailed))
+		}
+		if encoded.Len() > MaxUploadSize {
+			continue
+		}
+		preview, err := jpeg.Decode(bytes.NewReader(encoded.Bytes()))
+		if err != nil {
+			return nil, nil, errors.New(i18n.T(i18n.CoverImageDecodeFailed))
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
+		return encoded.Bytes(), preview, nil
+	}
+	return nil, nil, errors.New(i18n.T(i18n.CoverImageUploadTooLarge))
 }

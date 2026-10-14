@@ -822,6 +822,54 @@ main {
   align-self: flex-start;
   background: white;
 }
+.cover-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  max-width: 720px;
+}
+.cover-editor input,
+#verification-url {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+.cover-dropzone {
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  min-width: 0;
+}
+.cover-dropzone.dragging {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.cover-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  margin-top: 8px;
+  cursor: grab;
+  touch-action: none;
+}
+.cover-canvas:active {
+  cursor: grabbing;
+}
+.cover-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+.cover-editor [hidden] {
+  display: none;
+}
+#confirm-image {
+  width: 100%;
+  max-height: 40vh;
+}
 .choices {
   display: flex;
   flex-wrap: wrap;
