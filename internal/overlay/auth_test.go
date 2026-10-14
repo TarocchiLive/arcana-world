@@ -27,7 +27,7 @@ func TestUnauthenticatedPeerDoesNotConsumeHostSlot(t *testing.T) {
 	defer stop()
 	result := make(chan error, 1)
 	go func() {
-		conn, err := acceptHost(ctx, listener, "correct-secret")
+		conn, err := acceptHost(ctx, listener, "correct-secret", BackendNative)
 		if conn != nil {
 			_ = conn.Close()
 		}
@@ -53,7 +53,7 @@ func TestUnauthenticatedPeerDoesNotConsumeHostSlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer good.Close()
-	if err = writeFrame(good, wireFrame{Type: "hello", Token: "correct-secret"}); err != nil {
+	if err = writeFrame(good, wireFrame{Type: "hello", Token: "correct-secret", Backend: BackendNative, Capabilities: hostCapabilities}); err != nil {
 		t.Fatal(err)
 	}
 	select {

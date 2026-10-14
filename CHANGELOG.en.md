@@ -13,6 +13,9 @@ Versions are listed newest first.
 - Adjust the crop in the cover upload confirmation screen by zooming and panning; press `0` to restore the centered crop. The screen shows the zoom and crop center, with a preview before upload. Adjustments use the original image and keep the output at 704×396; canceled processing is discarded.
 - Check for the latest stable release manually and show the comparison and release page. The check uses proxy settings without reading login credentials, downloading, or installing. Report cancellation, timeouts, and access limits without recommending a downgrade from a newer prerelease.
 - Add sample preview to the Overlay tab for checking appearance and event colors without signing in. Samples do not enter history or TTS; turning preview off, leaving the tab, or disabling the overlay restores actual content.
+- Choose Native overlay or Elegant overlay. Switching while running reaps the previous overlay first; settings follow the selected style and retain each style's preferences. Elegant overlay adds text, panel, and motion controls.
+- Use layer-shell for Elegant overlay placement, output selection, and stacking on supported Wayland compositors. Report unsupported compositors instead of falling back to an ordinary window.
+- Add a saved, live Dock/taskbar visibility toggle for Elegant overlay on macOS and Windows. Linux retains the preference without enabling it, and Wayland continues to use layer-shell.
 
 ### Changed
 
@@ -20,6 +23,8 @@ Versions are listed newest first.
 - Preview overlay position offsets, size, padding, fonts, and opacity while editing, using the existing color preview save and cancel flow. Enter saves, Esc restores, and invalid input keeps the last valid preview.
 - Adjust numeric overlay fields with ↑/↓ and preview changes immediately. Show each field's step size, leave invalid or out-of-range values unchanged, and keep Enter to save and Esc to cancel.
 - Group overlay settings into Layout, Text, and Colors and opacity, keeping content mode and restore on the first screen. Esc goes back one level; saving and canceling return to the same field, with each group retaining its selection while settings remain open.
+- Remove the Elegant overlay menu-bar/system-tray icon and context menu. Control the overlay through the main application's settings; launch options remain available for standalone use.
+- Move the overlay style selector to the second item on the Overlay page, alongside the enable toggle, and explain the appearance and control differences between Native overlay and Elegant overlay.
 
 ### Fixed
 

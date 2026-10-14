@@ -2,6 +2,7 @@ package overlay
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"os"
 	"path/filepath"
@@ -32,7 +33,7 @@ func TestServeControlEOFCancelsNative(t *testing.T) {
 	defer stopListener()
 	hostDone := make(chan error, 1)
 	go func() {
-		hostDone <- Serve(ctx, socket, func(nativeCtx context.Context, cfg Config, updates <-chan Config, ready func()) error {
+		hostDone <- Serve(ctx, socket, BackendNative, func(nativeCtx context.Context, cfg Config, updates <-chan Config, ready func()) error {
 			ready()
 			<-nativeCtx.Done()
 			return nil
@@ -50,7 +51,7 @@ func TestServeControlEOFCancelsNative(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if hello.Type != "hello" || hello.Token != "test-secret" {
+	if hello.Type != "hello" || hello.Token != "test-secret" || hello.Backend != BackendNative || hello.Capabilities != hostCapabilities {
 		t.Fatal("host did not authenticate")
 	}
 	cfg := DefaultConfig()
@@ -75,5 +76,50 @@ func TestServeControlEOFCancelsNative(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("control EOF did not stop native host")
+	}
+}
+
+func TestSettingsBackendDefaultsAndIsolation(t *testing.T) {
+	var saved Settings
+	if err := json.Unmarshal([]byte(`{"enabled":true,"text_alpha":0,"outline":false}`), &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.Backend != BackendNative || saved.Qt != DefaultQtAppearance() || saved.Qt.ShowInTaskbar || saved.TextAlpha != 0 || saved.Outline {
+		t.Fatalf("legacy settings lost defaults or explicit values: %+v", saved)
+	}
+	if err := json.Unmarshal([]byte(`{"backend":"qt","qt":{"show_in_taskbar":true,"gradient":false,"animation_enabled":false,"animation_duration_ms":0,"history_alpha":0,"line_spacing":0,"border_alpha":0,"shadow_strength":0}}`), &saved); err != nil {
+		t.Fatal(err)
+	}
+	appearance := saved.Qt
+	if !appearance.ShowInTaskbar || appearance.Gradient || appearance.AnimationEnabled || appearance.AnimationDurationMS != 0 || appearance.HistoryAlpha != 0 || appearance.LineSpacing != 0 || appearance.BorderAlpha != 0 || appearance.ShadowStrength != 0 {
+		t.Fatalf("explicit appearance values replaced with defaults: %+v", appearance)
+	}
+	for _, backend := range []Backend{BackendNative, BackendQt} {
+		saved.Backend = backend
+		encoded, err := json.Marshal(saved)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(encoded, &saved); err != nil {
+			t.Fatal(err)
+		}
+		if saved.Backend != backend || saved.Qt != appearance {
+			t.Fatal("switching backend lost its persisted appearance")
+		}
+		cfg := saved.Config("")
+		encoded, err = json.Marshal(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded Config
+		if err := json.Unmarshal(encoded, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if decoded.Qt != appearance {
+			t.Fatal("config round trip lost its persisted appearance")
+		}
+	}
+	if err := json.Unmarshal([]byte(`{"backend":"unknown"}`), &saved); err == nil {
+		t.Fatal("accepted unknown backend")
 	}
 }

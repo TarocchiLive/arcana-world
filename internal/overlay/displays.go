@@ -37,14 +37,22 @@ func ListDisplays(ctx context.Context, options Options) ([]Display, error) {
 		if err != nil {
 			return nil, err
 		}
-		options.Executable, err = bundledExecutable(executable)
+		options.Executable, err = bundledExecutable(executable, options.Config.Backend)
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		path, err := canonicalExecutable(options.Executable)
+		if err != nil {
+			return nil, fmt.Errorf("overlay: resolving helper executable: %w", err)
+		}
+		options.Executable = path
 	}
 	cfg := DefaultConfig()
+	cfg.Backend = options.Config.Backend
 	cfg.DisplayID, cfg.Output, cfg.Displays = options.Config.DisplayID, options.Config.Output, options.Config.Displays
-	if _, err := cfg.Normalize(); err != nil {
+	cfg, err := cfg.Normalize()
+	if err != nil {
 		return nil, err
 	}
 	input, err := json.Marshal(cfg)
@@ -76,10 +84,10 @@ func ListDisplays(ctx context.Context, options Options) ([]Display, error) {
 	seen := make(map[string]struct{}, len(displays))
 	for _, display := range displays {
 		if display.ID == "" || len(display.ID) > 512 || strings.ContainsRune(display.ID, '\x00') || !utf8.ValidString(display.ID) || display.Name == "" || len(display.Name) > 4096 || strings.ContainsRune(display.Name, '\x00') || !utf8.ValidString(display.Name) {
-			return nil, errors.New("overlay: invalid native display ID or name")
+			return nil, errors.New("overlay: invalid display ID or name")
 		}
 		if _, duplicate := seen[display.ID]; duplicate {
-			return nil, errors.New("overlay: duplicate native display ID")
+			return nil, errors.New("overlay: duplicate display ID")
 		}
 		seen[display.ID] = struct{}{}
 	}

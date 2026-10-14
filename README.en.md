@@ -117,6 +117,7 @@ Licensed under [GPL-3.0-only](LICENSE).
 
 - [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive)
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+- [Kotonoha](https://github.com/locez/kotonoha)
 - [Bubbles](https://github.com/charmbracelet/bubbles)
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss)
 - [edge-tts](https://github.com/rany2/edge-tts)

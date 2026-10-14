@@ -78,12 +78,20 @@ func overlayRestoreOperation() operation[struct{}] {
 	return operation[struct{}]{label: i18n.TUIOverlayRestore, handle: (*Model).handleOverlayRestoreResult}
 }
 
-func (m *Model) applyOverlaySettings(notice i18n.Key) {
+func (m *Model) applyOverlaySettings(notice i18n.Key) tea.Cmd {
 	if m.overlay == nil {
 		m.overlay = &overlayRuntime{state: "off"}
 	}
+	backendChanged := m.overlay.options.Config.Backend != m.config.Overlay.Backend
 	m.overlay.options.Config = m.config.Overlay.Config("")
 	m.log(i18n.T(notice))
+	if backendChanged {
+		if m.overlay.state == "running" || m.overlay.state == "starting" || m.overlay.state == "stopping" {
+			return m.stopOverlay()
+		}
+		return m.startOverlay()
+	}
+	return nil
 }
 
 func (m *Model) handleOverlayConfigResult(_ struct{}, err error, label i18n.Key) tea.Cmd {
@@ -100,16 +108,17 @@ func (m *Model) handleOverlayConfigResult(_ struct{}, err error, label i18n.Key)
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
-	m.applyOverlaySettings(i18n.TUILogSettingsSaved)
-	return nil
+	return m.applyOverlaySettings(i18n.TUILogSettingsSaved)
 }
 
 func (m *Model) handleOverlayToggleResult(_ struct{}, err error, label i18n.Key) tea.Cmd {
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
-	m.applyOverlaySettings(i18n.TUILogSettingsSaved)
 	m.overlayEnabled = m.config.Overlay.Enabled
+	if cmd := m.applyOverlaySettings(i18n.TUILogSettingsSaved); cmd != nil {
+		return cmd
+	}
 	var cmd tea.Cmd
 	if m.overlayEnabled {
 		cmd = m.startOverlay()
@@ -128,8 +137,7 @@ func (m *Model) handleOverlayRestoreResult(_ struct{}, err error, label i18n.Key
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
-	m.applyOverlaySettings(i18n.TUIOverlayRestoreDone)
-	return nil
+	return m.applyOverlaySettings(i18n.TUIOverlayRestoreDone)
 }
 
 var (

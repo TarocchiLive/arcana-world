@@ -151,11 +151,12 @@ func (m *Model) handleOverlayStopped(msg overlayStoppedMsg) tea.Cmd {
 		}
 	}
 	if msg.err != nil {
+		owner.state = "failed"
 		owner.lastError = msg.err
 		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayStopped), msg.err))
 	}
 	// 只有停止期间明确收到启用请求，才启动下一进程。
-	if requested && m.overlayEnabled {
+	if requested && m.overlayEnabled && msg.err == nil {
 		return m.startOverlay()
 	}
 	return nil
