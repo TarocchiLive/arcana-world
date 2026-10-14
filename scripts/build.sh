@@ -29,6 +29,10 @@ build_qt() {
   mkdir -p "$out_dir/libexec" "$out_dir/.overlay-qt-build"
   build_dir="$(cd "$out_dir/.overlay-qt-build" && pwd)"
   install_dir="$(cd "$out_dir/libexec" && pwd)"
+  if [[ "$GOOS" == windows ]]; then
+    # CGO 环境变量中的路径不会经过 MSYS 参数转换，链接器需要 Windows 路径。
+    install_dir="$(cygpath -m "$install_dir")"
+  fi
   cmake -S internal/overlay/qt/cpp -B "$build_dir" -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$install_dir" -DCMAKE_INSTALL_LIBDIR=.
   cmake --build "$build_dir" --config Release --parallel "${BUILD_JOBS:-2}"
