@@ -4,6 +4,13 @@
 
 版本按时间倒序记录。
 
+## 未发布
+
+### 修复
+
+- 精美浮层仅打包所需平台插件及其依赖，避免引入无关 WebEngine 模块导致 macOS 签名失败；macOS 构建仅安装 Qt Base。
+- Linux 构建移除未使用的 Qt Quick、QML、ShaderTools、X11 和 Wayland compositor；工具链构建成功后立即保存缓存，不受后续应用打包失败影响。
+
 ## [v0.4.0-alpha.1]：2026-10-14（预发布）
 
 ### 新增

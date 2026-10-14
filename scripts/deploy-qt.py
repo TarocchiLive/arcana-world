@@ -77,8 +77,31 @@ if sys.platform == "win32":
                 shutil.copy2(source, dest)
             queue.append(dest)
 else:
-    # 平台插件随程序部署；Wayland 浮层窗口由 LayerShellQt 单独接管。
-    shutil.copytree(plugins, root / "plugins", dirs_exist_ok=True, symlinks=False)
+    # 浮层只用 QPainter 绘制内存 QPixmap，不读取图片或使用原生控件主题。
+    # 只部署实际使用的插件，避免图片、主题等插件拉入 WebEngine 等无关模块。
+    if sys.platform == "darwin":
+        plugin_names = ["platforms/libqcocoa.dylib"]
+    elif sys.platform.startswith("linux"):
+        # Qt 6.8 使用 qwayland-generic，较新版本改名为 qwayland；均支持光栅绘制。
+        wayland = next((name for name in (
+            "platforms/libqwayland-generic.so", "platforms/libqwayland.so"
+        ) if (plugins / name).is_file()), None)
+        if wayland is None:
+            raise SystemExit(f"Missing raster Wayland platform plugin: {plugins}")
+        # Qt 初始化需要默认 xdg-shell；逐窗口 layer-shell 由 LayerShellQt 接管。
+        plugin_names = [wayland, "wayland-shell-integration/libxdg-shell.so",
+                        "wayland-shell-integration/liblayer-shell.so"]
+    else:
+        raise SystemExit(f"Unsupported deployment platform: {sys.platform}")
+    deployed_plugins = []
+    for name in plugin_names:
+        source = plugins / name
+        if not source.is_file():
+            raise SystemExit(f"Missing runtime plugin: {source}")
+        destination = root / "plugins" / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+        deployed_plugins.append(destination)
     if sys.platform == "darwin":
         # 私有应用包提供真实 Dock 名称；主程序继续通过原 helper 路径启动。
         helper = root / "arcana-world-overlay-qt"
@@ -96,8 +119,7 @@ else:
                      bundle / "Contents/Info.plist")
         (resources / "qt.conf").write_text("[Paths]\nPrefix=../..\nPlugins=plugins\nLibraries=.\n", encoding="utf-8")
         helper.symlink_to(executable.relative_to(root))
-        queue = list(root.glob("*.dylib")) + [executable]
-        queue += [p for p in (root / "plugins").rglob("*") if p.is_file() and p.suffix in (".dylib", ".so")]
+        queue = [root / "libawqt.dylib", executable] + deployed_plugins
         seen = set()
         def resolve(name, binary):
             if name.startswith("@loader_path/"):
@@ -149,7 +171,7 @@ else:
             run("codesign", "--force", "--sign", "-", str(binary))
         run("codesign", "--force", "--sign", "-", str(bundle))
     elif sys.platform.startswith("linux"):
-        queue = [root / "arcana-world-overlay-qt"] + list(root.rglob("*.so*"))
+        queue = [root / "arcana-world-overlay-qt", root / "libawqt.so"] + deployed_plugins
         seen = set()
         # glibc 与加载器必须使用目标系统的版本，不可拆开捆绑。
         system_libraries = re.compile(r"^(?:ld-linux.*|lib(?:c|m|pthread|dl|rt|resolv|util|anl|nss_[^.]+)\.so(?:\..*)?)$")
