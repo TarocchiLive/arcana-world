@@ -117,9 +117,14 @@ func (m *Model) observeWebContext() {
 	}
 	context := webInteraction{uid, m.mode, m.editKind, m.prompt, m.confirmAction, m.selection, m.qr, m.webChatContext()}
 	if context != m.web.context {
+		previous := m.web.context
 		m.web.context = context
 		m.web.revision++
-		m.web.dialog++
+		previous.chatContext = previous.chatContext.dialogIdentity()
+		context.chatContext = context.chatContext.dialogIdentity()
+		if context != previous {
+			m.web.dialog++
+		}
 		m.web.imageSource = ""
 		m.web.image = ""
 		m.web.imageAvatar = nil

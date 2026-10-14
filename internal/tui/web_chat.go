@@ -31,6 +31,12 @@ type webChatInteraction struct {
 	loading    bool
 }
 
+func (c webChatInteraction) dialogIdentity() webChatInteraction {
+	// 名单刷新状态与首项地址只使命令版本失效，不改变同一名单弹层身份。
+	c.member, c.loaded, c.loading = nil, false, false
+	return c
+}
+
 func (m *Model) webChatContext() webChatInteraction {
 	c := webChatInteraction{client: m.client, account: m.config.ActiveUID, speaker: m.speaker, members: m.members, moderation: m.moderation}
 	if m.room != nil {

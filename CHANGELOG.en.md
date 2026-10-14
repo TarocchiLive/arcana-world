@@ -39,6 +39,9 @@ Versions are listed newest first.
 
 ### Fixed
 
+- Update the shared Nix vendor hash to match the current Go dependencies.
+- Preserve dialog identity, scroll position, and focus when refreshing Web audience and fleet lists; account, room, and action target changes still invalidate stale requests.
+- Correct overlay template guidance in both languages: templates follow the interface language and can be customized in the corresponding YAML file.
 - Preserve ZWJ/ZWNJ in overlay text and speech input so text cleanup does not break joined emoji or script shaping. Continue removing terminal escapes and bidirectional control characters.
 - Truncate overlay and speech text at grapheme boundaries without increasing existing length limits, keeping joined emoji, flags, skin tones, and accents intact. Removed control characters no longer cause an unnecessary ellipsis.
 - Fix lost zoom and pan input while Kitty/Ghostty cover previews wait for image acknowledgments.
