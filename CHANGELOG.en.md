@@ -4,13 +4,6 @@
 
 Versions are listed newest first.
 
-## Unreleased
-
-### Fixed
-
-- Package only the platform plugins and dependencies needed by Elegant overlay, avoiding macOS signing failures from unrelated WebEngine modules. Install only Qt Base for macOS builds.
-- Remove unused Qt Quick, QML, ShaderTools, X11, and Wayland compositor builds on Linux. Save the toolchain cache immediately after a successful build, independently of later application packaging.
-
 ## [v0.4.0-alpha.1]: 2026-10-14 (prerelease)
 
 ### Added
@@ -59,6 +52,8 @@ Versions are listed newest first.
 
 ### Fixed
 
+- Package only the platform plugins and dependencies needed by Elegant overlay, avoiding macOS signing failures from unrelated WebEngine modules. Install only Qt Base for macOS builds.
+- Remove unused Qt Quick, QML, ShaderTools, X11, and Wayland compositor builds on Linux. Save the toolchain cache immediately after a successful build, independently of later application packaging.
 - Fix Elegant overlay options being treated as numbers in the Web panel. Edit settings using their actual types and show only options for the selected overlay style.
 - Update the shared Nix vendor hash to match the current Go dependencies.
 - Preserve dialog identity, scroll position, and focus when refreshing Web audience and fleet lists; account, room, and action target changes still invalidate stale requests.
