@@ -90,7 +90,20 @@ QRect frame(const QJsonObject &config, QScreen *screen) {
                              anchor.contains("top"), anchor.contains("bottom")), width, height};
 }
 
-bool selected(const QJsonObject &config, QScreen *screen) {
+#if defined(Q_OS_WIN)
+QString resolveDisplaySelection(const QJsonObject &config, QString &resolvedDisplayId) {
+    if (!config.value("displays").toString().isEmpty() || !config.value("output").toString().isEmpty()) return {};
+    const quint32 index = quint32(config.value("display_id").toDouble());
+    if (!index) return {};
+    const QString id = awqt::screenIdForDisplay(index);
+    if (id.isEmpty()) return QStringLiteral("Elegant overlay: Windows display ID %1 not found").arg(index);
+    // 只在选择改变时解析枚举序号，之后直接匹配稳定设备 ID。
+    resolvedDisplayId = id;
+    return {};
+}
+#endif
+
+bool selected(const QJsonObject &config, QScreen *screen, const QString &resolvedDisplayId = QString()) {
     const QString serialized = config.value("displays").toString();
     if (!serialized.isEmpty()) {
         const auto ids = QJsonDocument::fromJson(serialized.toUtf8()).array();
@@ -98,8 +111,11 @@ bool selected(const QJsonObject &config, QScreen *screen) {
     }
     const QString output = config.value("output").toString();
     if (!output.isEmpty()) return output == screen->name();
+    if (!resolvedDisplayId.isEmpty()) return resolvedDisplayId == awqt::screenId(screen);
+#if !defined(Q_OS_WIN)
     const quint32 id = quint32(config.value("display_id").toDouble());
     if (id) return id == awqt::nativeDisplayId(screen);
+#endif
     return screen == QGuiApplication::primaryScreen();
 }
 
@@ -568,6 +584,10 @@ private:
 class Controller final : public QObject {
 public:
     explicit Controller(QJsonObject config) : config_(std::move(config)) {
+#if defined(Q_OS_WIN)
+        const QString error = resolveDisplaySelection(config_, resolvedDisplayId_);
+        if (!error.isEmpty()) { failPolicy(error); return; }
+#endif
         for (auto *screen : QGuiApplication::screens()) watch(screen);
         connect(qApp, &QGuiApplication::screenAdded, this, [this](QScreen *screen) { watch(screen); sync(true); });
         connect(qApp, &QGuiApplication::screenRemoved, this, [this](QScreen *screen) {
@@ -608,6 +628,16 @@ public:
     }
 
     void apply(QJsonObject config) {
+#if defined(Q_OS_WIN)
+        if (config.value("displays") != config_.value("displays") ||
+            config.value("output") != config_.value("output") ||
+            config.value("display_id") != config_.value("display_id")) {
+            QString resolvedDisplayId;
+            const QString error = resolveDisplaySelection(config, resolvedDisplayId);
+            if (!error.isEmpty()) { failPolicy(error); return; }
+            resolvedDisplayId_ = std::move(resolvedDisplayId);
+        }
+#endif
         config_ = std::move(config);
         sync(false);
     }
@@ -622,7 +652,11 @@ private:
         const bool reduced = config_.value("reduced_motion").toBool() ||
             !config_.value("qt").toObject().value("animation_enabled").toBool(true);
         for (auto *screen : QGuiApplication::screens()) {
+#if defined(Q_OS_WIN)
+            if (!selected(config_, screen, resolvedDisplayId_)) { windows_.erase(screen); continue; }
+#else
             if (!selected(config_, screen)) { windows_.erase(screen); continue; }
+#endif
             auto &window = windows_[screen];
             if (!window) window = std::make_unique<OverlayWindow>(screen);
             window->apply(config_, unlocked, reduced, reposition);
@@ -643,6 +677,9 @@ private:
         return false;
     }
     QJsonObject config_;
+#if defined(Q_OS_WIN)
+    QString resolvedDisplayId_;
+#endif
     std::map<QScreen *, std::unique_ptr<OverlayWindow>> windows_;
     quint64 captureFrame_ = 0;
     QElapsedTimer captureClock_;
@@ -755,9 +792,14 @@ extern "C" char *awqt_displays(const char *json) {
     std::lock_guard<std::mutex> lock(lifecycleMutex);
     QJsonObject config;
     if (!parse(json, config) || !ensureApplication()) return nullptr;
+    QString resolvedDisplayId;
+#if defined(Q_OS_WIN)
+    const QString error = resolveDisplaySelection(config, resolvedDisplayId);
+    if (!error.isEmpty()) { fail(error); return nullptr; }
+#endif
     QJsonArray displays;
     for (auto *screen : QGuiApplication::screens()) {
-        displays.append(QJsonObject{{"id", awqt::screenId(screen)}, {"name", screen->name()}, {"selected", selected(config, screen)}});
+        displays.append(QJsonObject{{"id", awqt::screenId(screen)}, {"name", screen->name()}, {"selected", selected(config, screen, resolvedDisplayId)}});
     }
     const QByteArray encoded = QJsonDocument(displays).toJson(QJsonDocument::Compact);
     auto *result = static_cast<char *>(std::malloc(size_t(encoded.size()) + 1));

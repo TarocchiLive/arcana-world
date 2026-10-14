@@ -29,9 +29,7 @@
     tab = "",
     stale = false,
     commandError = "",
-    notificationKey = "",
-    chatDraft = "",
-    pendingSend = null;
+    notificationKey = "";
   let pausedChat = false,
     pausedLogs = false,
     feedSignature = "",
@@ -45,9 +43,7 @@
   let helpQuery = "",
     helpTopic = "",
     helpSignature = "";
-  const drafts = new Map(),
-    interactionDrafts = new Map(),
-    fieldNodes = new Map();
+  const fieldNodes = new Map();
   function storage(key, value) {
     try {
       if (value === undefined) return localStorage.getItem(key);
@@ -211,6 +207,10 @@
     if (sending || !state || (state.busy && action !== "cancel")) return;
     if (!state.interaction) commandFocus = document.activeElement;
     hideChatMenu();
+    if (action.startsWith("set:")) {
+      const entry = fieldNodes.get(action.slice(4));
+      if (entry?.save) entry.save.hidden = true;
+    }
     sending = true;
     clearTimeout(timer);
     generation++;
@@ -235,13 +235,12 @@
         own.signal,
       );
       if (current === generation) {
-        if (action === "send" && pendingSend) pendingSend.acknowledged = true;
-        if (action.startsWith("set:")) {
-          const draft = drafts.get(action.slice(4));
-          if (draft && draft.value === value) draft.acknowledged = true;
-        }
         if (fromInteraction && next.interaction)
           interactionRevision = next.interaction.revision || next.revision;
+        if (fromInteraction && state.interaction) {
+          const root = $(interactionPage(state.interaction) + "-flow");
+          if (root) delete root.dataset.interaction;
+        }
         accept(next);
       }
     } catch (e) {
@@ -254,7 +253,6 @@
               "请求超时，请确认操作结果后再重试。",
             )
           : e.message;
-      if (action === "send" && e.status) pendingSend = null;
       renderStatus();
     } finally {
       clearTimeout(deadline);
@@ -263,22 +261,6 @@
       updateBusy();
       schedule();
     }
-  }
-  function matchesSavedValue(field, submitted) {
-    const saved = String(field.value ?? "");
-    if (field.kind === "color")
-      return saved.toLowerCase() === submitted.toLowerCase();
-    if (field.kind === "number" || field.kind === "range") {
-      return (
-        submitted.trim() !== "" &&
-        Number.isFinite(Number(submitted)) &&
-        Number(saved) === Number(submitted)
-      );
-    }
-    return (
-      saved === submitted ||
-      (field.kind === "text" && saved === submitted.trim())
-    );
   }
   function accept(next) {
     const nextLanguage = String(next.language || language).startsWith("zh")
@@ -292,52 +274,26 @@
       pageKey = "";
       localize();
     }
-    if (state && state.accountUID !== next.accountUID) {
-      drafts.delete("title");
-      drafts.delete("announcement");
-      chatDraft = "";
-      pendingSend = null;
-    }
     if (state && (state.accountUID !== next.accountUID || state.room?.id !== next.room?.id))
       feedSignature = "";
-    if (!next.interaction) interactionDrafts.clear();
     if ((state && (state.accountUID !== next.accountUID || state.room?.id !== next.room?.id)) ||
         next.interaction?.target !== "room-cover")
       clearCoverDraft();
-    if (stale) commandError = "";
+    if (stale) {
+      commandError = "";
+      pageKey = "";
+      const root = $("flow-input")?.closest("[data-interaction]");
+      if (root) delete root.dataset.interaction;
+    }
     state = next;
     stale = false;
-    if (pendingSend && next.chatDraft === pendingSend.value)
-      pendingSend.acknowledged = true;
-    if (pendingSend && !next.busy) {
-      if (
-        pendingSend.acknowledged &&
-        next.chatDraft === "" &&
-        !next.warning &&
-        chatDraft === pendingSend.value
-      )
-        chatDraft = "";
-      pendingSend = null;
-    }
-    for (const f of next.fields || []) {
-      const d = drafts.get(f.id);
-      if (
-        d?.acknowledged &&
-        !next.busy &&
-        !next.warning &&
-        (matchesSavedValue(f, d.value) ||
-          f.kind === "password" ||
-          f.id === "proxy")
-      ) {
-        drafts.delete(f.id);
-      }
-    }
     render();
   }
   function navigate(next) {
     if (!routes.includes(next)) next = "studio";
     if (next === page && pageKey) return;
     hideChatMenu();
+    clearCoverDraft();
     page = next;
     history.replaceState(
       null,
@@ -428,18 +384,16 @@
       if (entry.clear) entry.clear.disabled = entry.input.disabled;
       if (entry.save) {
         entry.save.disabled = entry.input.disabled;
-        entry.save.hidden = !drafts.has(id);
       }
     }
     const send = $("chat-send");
     if (send)
       send.disabled = !!(
         busy ||
-        pendingSend ||
         state?.interaction ||
         !state?.chatConnected ||
-        !chatDraft.trim() ||
-        Array.from(chatDraft).length > 40
+        !$("chat-input")?.value.trim() ||
+        Array.from($("chat-input")?.value || "").length > 40
       );
   }
   function render() {
@@ -460,7 +414,7 @@
       return;
     }
     delete $("main").dataset.loading;
-    const key = page + ":" + language;
+    const key = page + ":" + language + ":" + state.accountUID + ":" + state.room?.id;
     if (pageKey !== key) {
       pageKey = key;
       fieldNodes.clear();
@@ -543,7 +497,6 @@
     const value = () =>
       f.kind === "switch" ? String(input.checked) : input.value;
     const changed = () => {
-      drafts.set(f.id, { value: value(), submitted: false });
       if (save) {
         save.hidden = false;
         save.disabled = input.disabled;
@@ -552,8 +505,6 @@
     input.addEventListener("input", changed);
     if (direct)
       input.addEventListener("change", () => {
-        changed();
-        drafts.get(f.id).submitted = true;
         command("set:" + f.id, value());
       });
     else {
@@ -561,7 +512,6 @@
       save.hidden = true;
       save.dataset.command = "set:" + f.id;
       save.onclick = () => {
-        drafts.set(f.id, { value: value(), submitted: true });
         command("set:" + f.id, value());
       };
       input.addEventListener("keydown", (e) => {
@@ -589,7 +539,6 @@
       clear.dataset.command = "set:" + f.id;
       clear.onclick = () => {
         input.value = "";
-        drafts.set(f.id, { value: "", submitted: true });
         command("set:" + f.id, "");
       };
       line.append(clear);
@@ -627,7 +576,7 @@
       if (!entry) continue;
       const { input, label } = entry;
       label.textContent = f.label;
-      const value = drafts.get(f.id)?.value ?? f.value ?? "";
+      const value = entry.save && !entry.save.hidden ? input.value : f.value ?? "";
       if (f.kind === "select") {
         const signature = JSON.stringify(f.options || []);
         if (input.dataset.options !== signature) {
@@ -780,16 +729,12 @@
       "",
       t("Send to your live room", "发送到直播间"),
     );
-    label.htmlFor = "chat-draft";
+    label.htmlFor = "chat-input";
     const input = node("textarea");
-    input.id = "chat-draft";
+    input.id = "chat-input";
     input.rows = 2;
-    input.value = chatDraft;
     input.setAttribute("aria-describedby", "chat-note");
-    input.oninput = () => {
-      chatDraft = input.value;
-      updateComposer();
-    };
+    input.oninput = updateComposer;
     input.onkeydown = (e) => {
       if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
@@ -809,8 +754,10 @@
     composer.onsubmit = (e) => {
       e.preventDefault();
       if (send.disabled) return;
-      pendingSend = { value: chatDraft, acknowledged: false };
-      command("send", chatDraft);
+      const value = input.value;
+      input.value = "";
+      command("send", value);
+      updateComposer();
     };
     chat.append(chatHead, feed, composer);
     root.append(title, room, tools, chat);
@@ -953,19 +900,9 @@
     updateComposer();
   }
   function updateComposer() {
-    if (!$("chat-draft")) return;
-    if ($("chat-draft").value !== chatDraft) $("chat-draft").value = chatDraft;
-    setText(
-      "chat-note",
-      t("Draft kept until sending succeeds.", "发送成功前保留草稿。") +
-        "  " +
-        Array.from(chatDraft).length +
-        " / 40",
-    );
-    setText(
-      "chat-send",
-      pendingSend ? t("Sending…", "发送中…") : t("Send", "发送"),
-    );
+    const input = $("chat-input");
+    if (!input) return;
+    setText("chat-note", Array.from(input.value).length + " / 40");
     updateBusy();
   }
   const messageKinds = {
@@ -1957,7 +1894,7 @@
   function renderInteraction() {
     const i = state.interaction;
     const owner = i ? interactionPage(i) : "";
-    const key = i ? i.id + ":" + i.kind : "";
+    const key = i ? state.accountUID + ":" + state.room?.id + ":" + i.id + ":" + i.kind : "";
     const changed = key !== interactionKey;
     if (changed) interactionKey = key;
     interactionRevision = i ? i.revision || state.revision : 0;
@@ -2081,8 +2018,7 @@
         const input = node("input");
         input.id = "flow-input";
         input.type = i.secret ? "password" : "text";
-        input.value = interactionDrafts.get(key) ?? i.value ?? "";
-        input.oninput = () => interactionDrafts.set(key, input.value);
+        input.value = i.value ?? "";
         input.autocomplete = "off";
         const submit = button(
           i.kind === "selection"
@@ -2214,13 +2150,7 @@
     const b = button(label, null, cls);
     b.dataset.command = action;
     b.dataset.interaction = "true";
-    b.onclick = () => {
-      const i = state?.interaction;
-      // 返回时也提交未确认的表单文本，由服务端保存所属步骤的草稿。
-      const draft = action === "back" && i?.kind === "form" &&
-        interactionPage(i) === "chat" ? $("flow-input")?.value : undefined;
-      command(action, draft ?? value, true);
-    };
+    b.onclick = () => command(action, value, true);
     return b;
   }
   for (const dialog of [$("confirm"), $("chat-dialog")]) {

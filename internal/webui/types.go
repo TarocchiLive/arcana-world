@@ -32,7 +32,6 @@ type Snapshot struct {
 	Help            []HelpArticle `json:"help"`
 	Messages        []Message     `json:"messages"`
 	Logs            []string      `json:"logs"`
-	ChatDraft       string        `json:"chatDraft"`
 	Interaction     *Interaction  `json:"interaction,omitempty"`
 }
 

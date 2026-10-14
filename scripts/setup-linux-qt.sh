@@ -52,7 +52,6 @@ fi
 if [[ -n "${GITHUB_ENV:-}" ]]; then
   echo "CMAKE_PREFIX_PATH=$prefix" >> "$GITHUB_ENV"
   echo "QTPATHS=$prefix/bin/qtpaths" >> "$GITHUB_ENV"
-  echo "LD_LIBRARY_PATH=$prefix/lib:$prefix/lib64:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
   echo "QT_LICENSE_DIR=$prefix/share/licenses" >> "$GITHUB_ENV"
   echo "$prefix/bin" >> "$GITHUB_PATH"
 fi

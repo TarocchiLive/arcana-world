@@ -37,6 +37,10 @@ build_qt() {
     -DCMAKE_INSTALL_PREFIX="$install_dir" -DCMAKE_INSTALL_LIBDIR=.
   cmake --build "$build_dir" --config Release --parallel "${BUILD_JOBS:-2}"
   cmake --install "$build_dir" --config Release
+  if [[ "$GOOS" == linux ]]; then
+    # 链接和部署都需要私有依赖目录；最终包仍由部署脚本改为相对路径。
+    export LD_LIBRARY_PATH="$(<"$build_dir/runtime-path")${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  fi
   qt_ldflags="$ldflags"
   case "$GOOS" in
     darwin) qt_ldflags+=' -extldflags=-Wl,-rpath,@loader_path' ;;

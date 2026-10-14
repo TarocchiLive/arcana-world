@@ -160,7 +160,7 @@ macOS amd64/arm64、Linux amd64/arm64 和 Windows amd64 完整发行包包含两
 
 - macOS：安装 Xcode Command Line Tools，执行 `brew install qt cmake`。稳定原生显示器 ID 要求 Qt >= 6.11。`CMAKE_PREFIX_PATH` 指向 `brew --prefix qt`，`QTPATHS` 指向该目录的 `bin/qtpaths`。
 - Linux：安装 Qt >= 6.5（Core/Gui/Widgets/WaylandClient）、LayerShellQt >= 6.3、Wayland 开发库和 `patchelf`。发行脚本在 Ubuntu 24.04 上构建并缓存 Qt 6.8.3、LayerShellQt 6.3.6，保持原有 glibc 基线。`scripts/setup-linux-qt.sh` 使用 sudo 安装构建依赖；非 CI 环境还需将安装前缀设为 `CMAKE_PREFIX_PATH`，将其 `bin` 加入 PATH，并将 `QTPATHS` 指向 `bin/qtpaths`。
-- Windows amd64：使用 MSYS2 UCRT64 的 Qt6、GCC、CMake、Ninja，以及原生 Windows Go 和 Python。Qt 与 cgo 必须使用同一套 UCRT64 编译器，不可混用 MSVC Qt。设置 `CMAKE_GENERATOR=Ninja`、`CC=gcc`、`CXX=g++`，`QTPATHS` 指向 UCRT64 的 `qtpaths6.exe`。
+- Windows amd64：使用 MSYS2 UCRT64 的 Qt >= 6.7、GCC、CMake、Ninja，以及原生 Windows Go 和 Python。Qt 与 cgo 必须使用同一套 UCRT64 编译器，不可混用 MSVC Qt。设置 `CMAKE_GENERATOR=Ninja`、`CC=gcc`、`CXX=g++`，`QTPATHS` 指向 UCRT64 的 `qtpaths6.exe`。
 
 `make overlay-qt` 构建并部署精美浮层 helper。部署脚本将 Qt 插件及间接动态库依赖复制到 `libexec`，改写 macOS/Linux 加载路径，并对修改后的 macOS 二进制重新临时签名。Windows 使用 `windeployqt`，随后补齐 MinGW 依赖。Linux 包含 LayerShellQt 和 Wayland 客户端依赖，但使用系统的 glibc、内核、显示服务和显卡驱动。移动或打包时必须保留整个目录。
 

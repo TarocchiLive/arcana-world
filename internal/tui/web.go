@@ -212,10 +212,6 @@ func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {
 				return invalid()
 			}
 			if c.Action == "back" && m.webChatBackAvailable() {
-				// 浏览器草稿尚未提交，先同步再复用终端的返回逻辑。
-				if m.mode == "form" {
-					m.input.SetValue(c.Value)
-				}
 				return m.modalKey(webKey(tea.KeyEsc)), nil
 			}
 			if m.mode == "members" && c.Action == "members-refresh" {
@@ -314,7 +310,6 @@ func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {
 func (m *Model) webSnapshot(page string) webui.Snapshot {
 	s := webui.Snapshot{Revision: m.web.revision, Language: i18n.Language(), Page: page, Busy: m.busy || m.obsBusy, Status: m.webText(m.status), Warning: m.statusWarning, OBS: m.obsState.Connected, OBSConnecting: m.obsBusy, StreamAvailable: m.stream != nil, Overlay: m.overlayEnabled, Fields: m.webFields(page), Accounts: []webui.Account{}, Help: []webui.HelpArticle{}, Messages: []webui.Message{}, Logs: []string{}}
 	if page == "chat" {
-		s.ChatDraft = m.chatInput.Value()
 		s.Audience = m.webText(m.audienceText())
 	}
 	if m.account != nil {

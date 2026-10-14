@@ -8,7 +8,8 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # 每窗口 layer-shell 集成需要 Qt 6.5。
     find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets)
 else()
-    find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets)
+    # QWindowsScreen 从 Qt 6.7 起提供原生显示器句柄。
+    find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Widgets)
 endif()
 add_library(awqt SHARED overlay.cpp bridge.h platform.h)
 target_compile_features(awqt PRIVATE cxx_std_17)
@@ -31,5 +32,8 @@ else()
     target_link_libraries(awqt PRIVATE LayerShellQt::Interface PkgConfig::WAYLAND_CLIENT)
     target_sources(awqt PRIVATE platform_linux.cpp)
     set_target_properties(awqt PROPERTIES INSTALL_RPATH "$ORIGIN")
+    # 供 Go 链接和部署读取实际依赖目录，不写入安装后的运行时搜索路径。
+    file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/runtime-path"
+        CONTENT "$<TARGET_FILE_DIR:Qt6::Core>:$<TARGET_FILE_DIR:LayerShellQt::Interface>")
 endif()
 install(TARGETS awqt LIBRARY DESTINATION . RUNTIME DESTINATION . ARCHIVE DESTINATION .)

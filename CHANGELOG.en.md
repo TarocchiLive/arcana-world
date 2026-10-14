@@ -15,7 +15,7 @@ Versions are listed newest first.
 - Adjust the crop in the cover upload confirmation screen by zooming and panning; press `0` to restore the centered crop. The screen shows the zoom and crop center, with a preview before upload. Adjustments use the original image and keep the output at 720×540; canceled processing is discarded.
 - Check for the latest stable release manually and show the comparison and release page. The check uses proxy settings without reading login credentials, downloading, or installing. Report cancellation, timeouts, and access limits without recommending a downgrade from a newer prerelease.
 - Add an optional local Web control panel sharing account, live, OBS, chat, and helper lifecycles with the terminal mode. See `--help` for startup options.
-- Add Chinese/English UI, light/dark/system themes, and pausable chat and log updates. Refreshes preserve form drafts; failed chat sends retain the draft.
+- Add Chinese/English UI, light/dark/system themes, and pausable chat and log updates.
 - Open the Web panel without an access token at the default fixed address `http://127.0.0.1:5273`. Change the bind address only through the configuration file. Retain cross-site and stale-interaction checks, and reveal stream keys only on explicit request.
 - Save a default interface or select TUI / WebUI for one run, without detecting the OS version or terminal type. Windows packages include an `arcana-world-webui.exe` launcher. WebUI opens the default browser on startup and keeps the address available if opening fails.
 - Add a looping sample preview to the Overlay tab, scrolling in the next message every 1.5 seconds. Include regular and guard-tier chat, Super Chats, gifts, gift combos, Captain subscriptions, arrivals, and likes to preview appearance, event colors, and motion without signing in. Samples do not enter history or TTS; turning preview off, leaving the tab, or disabling the overlay restores actual content.
@@ -39,13 +39,14 @@ Versions are listed newest first.
 - Fix legacy HTTP cover URLs blocked by browser security policy, and hide broken images when cover loading fails.
 - Reuse TUI event text in Web chat, including fan medals, UIDs, gift amounts, Super Chats, and Guard purchases. Preserve removed-message and mystery-user handling, order messages chronologically, and retain the scroll position while reading history.
 - Add message context menus, touch-friendly Actions buttons, and keyboard menus for copying messages, viewing profiles and homepages, muting, blocking, and appointing moderators. Audience and Fleet lists support refresh; moderator, blacklist, and mute lists support user search, adding, and removal. Management reuses the terminal workflows, including custom-hour or permanent mutes, confirmation, and account and target identity checks.
-- Use Cancel and a named action in confirmation dialogs, without repeating the detailed prompt in the title. Before submission, Cancel or Esc returns to the previous step and preserves selections and duration drafts. Cover previews and subsequent QR-login confirmations also return to the preceding step.
+- Use Cancel and a named action in confirmation dialogs, without repeating the detailed prompt in the title. Before submission, Cancel or Esc returns to the previous step. Cover previews and subsequent QR-login confirmations also return to the preceding step.
 - Open chat management submenus in dialogs instead of a sidebar, including audience lists, profiles, and management forms. Close or Esc restores the action entry point; cancelling confirmation returns to the original form.
-- Fix horizontal overflow in long management lists, controls re-enabled during refresh, and dialogs left open during navigation. Preserve unsubmitted management drafts on Back and submit the latest interaction revision. Keep messages visible when navigating with chat paused, and clear old messages when the account or room changes.
+- Fix horizontal overflow in long management lists, controls re-enabled during refresh, and dialogs left open during navigation. Submit the latest interaction revision. Keep messages visible when navigating with chat paused, and clear old messages when the account or room changes.
 - Bundle both overlay helpers and Elegant overlay runtime libraries privately in `libexec`; users still launch only `arcana-world`. Replace the complete package when upgrading because old overlay helpers are incompatible. Windows 386/arm64 packages currently retain the native overlay.
 - Remove the Elegant overlay menu-bar/system-tray icon and context menu. Control the overlay through the main application's settings; launch options remain available for standalone use.
 - Move the overlay style selector to the second item on the Overlay page, alongside the enable toggle, and explain the appearance and control differences between Native overlay and Elegant overlay.
 - Give new and older messages the same default font size in Elegant overlay, disable the latest-message gradient, and raise history text opacity from 55% to 95%. Migrate the old default text style while preserving custom styles and event colors.
+- Remove Web form and chat draft caches. Input stays only on the current page and is not restored after navigation. Saving and canceling show the server's actual state instead of stale input. Submitting a chat message clears the input; check the reported send result.
 
 ### Fixed
 
@@ -60,6 +61,9 @@ Versions are listed newest first.
 - Include native overlay and TTS build dependencies in the default `nix develop` environment. `make desktop-native` retains the native build path; the full desktop build additionally requires the Elegant overlay platform dependencies.
 - Retry failed TTS synthesis requests or empty audio up to twice, waiting 500ms and 1500ms before skipping the item if it still fails. Retries share the existing 30-second deadline and end immediately on stop or exit; playback is not retried.
 - Use a private macOS application bundle and explicit activation policies for Elegant overlay. Hide its Dock entry by default, avoid stealing focus during startup and visibility changes, and use the product name in the Dock.
+- Use the actual MSYS2 installation directory for Windows builds so installation and linking use the same toolchain. Elegant overlay requires Qt 6.7 or later on Windows.
+- Use the actual Qt and LayerShellQt library directories during Linux Elegant overlay linking and deployment, without relying on CI-provided library search paths.
+- Resolve Windows Elegant overlay monitor indexes to stable device IDs once per selection. Hotplug changes no longer reassign the selected screen, and message updates no longer enumerate monitors again.
 
 ## [v0.3.2]: 2026-10-12
 
