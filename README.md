@@ -94,7 +94,7 @@ make desktop
 - [x] 版本更新检查。
 - [x] Scoop、APT 软件仓库支持。
 - [ ] Homebrew、nixpkgs 软件仓库支持。
-- [?] GUI / WebUI 支持（待定）。
+- [x] WebUI 支持。
 
 ## 开发
 

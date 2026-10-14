@@ -93,7 +93,7 @@ Press `0` or open Help in the app for instructions and common questions. Run `ar
 - [x] Check for new versions.
 - [x] Support Scoop and APT repositories.
 - [ ] Support Homebrew and nixpkgs repositories.
-- [?] GUI / WebUI support (under consideration).
+- [x] WebUI support.
 
 ## Development
 
