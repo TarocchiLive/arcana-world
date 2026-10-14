@@ -198,25 +198,25 @@ MessageLayout layoutMessage(QString text, const QFont &font, const QTextCharForm
 // 配置只在快照变化时解析，绘制和动画帧复用已解析的颜色与排版参数。
 struct Appearance {
     Qt::Alignment alignment = Qt::AlignLeft;
-    qreal historyScale = .9, latestScale = 1.05, lineSpacing = 3, messageSpacing = 8;
-    qreal historyAlpha = .55, cornerRadius = 16, borderAlpha = .18, shadowStrength = .3;
+    qreal historyScale = 1, latestScale = 1, lineSpacing = 3, messageSpacing = 8;
+    qreal historyAlpha = .95, cornerRadius = 16, borderAlpha = .18, shadowStrength = .3;
     qreal animationDistance = 10;
     int maxMessages = 6, maxLines = 4, animationDurationMS = 320;
-    bool gradient = true, animationEnabled = true;
+    bool gradient = false, animationEnabled = true;
     QColor accentStart = QColor("#FF4FA3"), accentEnd = QColor("#FF8FCB");
 
     Appearance() = default;
     explicit Appearance(const QJsonObject &value) {
         const QString align = value.value("alignment").toString("left");
         alignment = align == "right" ? Qt::AlignRight : align == "center" ? Qt::AlignHCenter : Qt::AlignLeft;
-        historyScale = value.value("history_scale").toDouble(.9);
-        latestScale = value.value("latest_scale").toDouble(1.05);
+        historyScale = value.value("history_scale").toDouble(1);
+        latestScale = value.value("latest_scale").toDouble(1);
         lineSpacing = value.value("line_spacing").toDouble(3);
         messageSpacing = value.value("message_spacing").toDouble(8);
-        historyAlpha = value.value("history_alpha").toDouble(.55);
+        historyAlpha = value.value("history_alpha").toDouble(.95);
         maxMessages = value.value("max_messages").toInt(6);
         maxLines = value.value("max_lines").toInt(4);
-        gradient = value.value("gradient").toBool(true);
+        gradient = value.value("gradient").toBool(false);
         accentStart = color(value, "accent_start", "#FF4FA3");
         accentEnd = color(value, "accent_end", "#FF8FCB");
         cornerRadius = value.value("corner_radius").toDouble(16);

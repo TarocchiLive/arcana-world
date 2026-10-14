@@ -26,6 +26,7 @@ Versions are listed newest first.
 - Bundle both overlay helpers and Elegant overlay runtime libraries privately in `libexec`; users still launch only `arcana-world`. Replace the complete package when upgrading because old overlay helpers are incompatible. Windows 386/arm64 packages currently retain the native overlay.
 - Remove the Elegant overlay menu-bar/system-tray icon and context menu. Control the overlay through the main application's settings; launch options remain available for standalone use.
 - Move the overlay style selector to the second item on the Overlay page, alongside the enable toggle, and explain the appearance and control differences between Native overlay and Elegant overlay.
+- Give new and older messages the same default font size in Elegant overlay, disable the latest-message gradient, and raise history text opacity from 55% to 95%. Migrate the old default text style while preserving custom styles and event colors.
 
 ### Fixed
 

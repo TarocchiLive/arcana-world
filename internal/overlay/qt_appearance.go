@@ -32,9 +32,9 @@ type QtAppearance struct {
 
 func DefaultQtAppearance() QtAppearance {
 	return QtAppearance{
-		Alignment: "left", HistoryScale: .9, LatestScale: 1.05,
-		LineSpacing: 3, MessageSpacing: 8, HistoryAlpha: .55, MaxMessages: 6, MaxLines: 4,
-		Gradient: true, AccentStart: "#FF4FA3", AccentEnd: "#FF8FCB",
+		Alignment: "left", HistoryScale: 1, LatestScale: 1,
+		LineSpacing: 3, MessageSpacing: 8, HistoryAlpha: .95, MaxMessages: 6, MaxLines: 4,
+		Gradient: false, AccentStart: "#FF4FA3", AccentEnd: "#FF8FCB",
 		CornerRadius: 16, BorderAlpha: .18, ShadowStrength: .3,
 		AnimationEnabled: true, AnimationDurationMS: 320, AnimationDistance: 10,
 	}

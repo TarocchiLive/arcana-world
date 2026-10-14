@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -117,6 +118,31 @@ func TestSettingsBackendDefaultsAndIsolation(t *testing.T) {
 		}
 		if decoded.Qt != appearance {
 			t.Fatal("config round trip lost its persisted appearance")
+		}
+	}
+	for _, custom := range []bool{false, true} {
+		previous := DefaultSettings()
+		previous.Qt.HistoryScale, previous.Qt.LatestScale = .9, 1.05
+		previous.Qt.HistoryAlpha, previous.Qt.Gradient = .55, true
+		previous.Qt.ShowInTaskbar = true
+		previous.Qt.AnimationDurationMS = 640
+		if custom {
+			previous.Qt.HistoryAlpha = .8
+		}
+		encoded, err := json.Marshal(previous)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(encoded, &saved); err != nil {
+			t.Fatal(err)
+		}
+		expected := previous
+		if !custom {
+			expected.Qt.HistoryScale, expected.Qt.LatestScale = 1, 1
+			expected.Qt.HistoryAlpha, expected.Qt.Gradient = .95, false
+		}
+		if !reflect.DeepEqual(saved, expected) {
+			t.Fatalf("appearance migration changed unrelated or custom settings: got %+v, want %+v", saved, expected)
 		}
 	}
 	if err := json.Unmarshal([]byte(`{"backend":"unknown"}`), &saved); err == nil {

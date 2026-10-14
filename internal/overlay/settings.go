@@ -45,6 +45,12 @@ func (s *Settings) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		return err
 	}
+	// 仅迁移完整的旧默认文字样式，保留用户调整过的字号、透明度和渐变。
+	if q := &decoded.Qt; q.HistoryScale == .9 && q.LatestScale == 1.05 && q.HistoryAlpha == .55 && q.Gradient {
+		defaults := DefaultQtAppearance()
+		q.HistoryScale, q.LatestScale = defaults.HistoryScale, defaults.LatestScale
+		q.HistoryAlpha, q.Gradient = defaults.HistoryAlpha, defaults.Gradient
+	}
 	normalized, err := Settings(decoded).Normalize()
 	if err != nil {
 		return err
