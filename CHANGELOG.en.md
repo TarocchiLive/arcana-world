@@ -23,6 +23,7 @@ Versions are listed newest first.
 - Preview overlay position offsets, size, padding, fonts, and opacity while editing, using the existing color preview save and cancel flow. Enter saves, Esc restores, and invalid input keeps the last valid preview.
 - Adjust numeric overlay fields with ↑/↓ and preview changes immediately. Show each field's step size, leave invalid or out-of-range values unchanged, and keep Enter to save and Esc to cancel.
 - Group overlay settings into Layout, Text, and Colors and opacity, keeping content mode and restore on the first screen. Esc goes back one level; saving and canceling return to the same field, with each group retaining its selection while settings remain open.
+- Bundle both overlay helpers and Elegant overlay runtime libraries privately in `libexec`; users still launch only `arcana-world`. Replace the complete package when upgrading because old overlay helpers are incompatible. Windows 386/arm64 packages currently retain the native overlay.
 - Remove the Elegant overlay menu-bar/system-tray icon and context menu. Control the overlay through the main application's settings; launch options remain available for standalone use.
 - Move the overlay style selector to the second item on the Overlay page, alongside the enable toggle, and explain the appearance and control differences between Native overlay and Elegant overlay.
 
@@ -31,8 +32,9 @@ Versions are listed newest first.
 - Preserve ZWJ/ZWNJ in overlay text and speech input so text cleanup does not break joined emoji or script shaping. Continue removing terminal escapes and bidirectional control characters.
 - Truncate overlay and speech text at grapheme boundaries without increasing existing length limits, keeping joined emoji, flags, skin tones, and accents intact. Removed control characters no longer cause an unnecessary ellipsis.
 - Fix lost zoom and pan input while Kitty/Ghostty cover previews wait for image acknowledgments.
-- Include native overlay and TTS build dependencies in the default `nix develop` environment so `make desktop` works directly; component-specific development shells remain unchanged.
+- Include native overlay and TTS build dependencies in the default `nix develop` environment. `make desktop-native` retains the native build path; the full desktop build additionally requires the Elegant overlay platform dependencies.
 - Retry failed TTS synthesis requests or empty audio up to twice, waiting 500ms and 1500ms before skipping the item if it still fails. Retries share the existing 30-second deadline and end immediately on stop or exit; playback is not retried.
+- Use a private macOS application bundle and explicit activation policies for Elegant overlay. Hide its Dock entry by default, avoid stealing focus during startup and visibility changes, and use the product name in the Dock.
 
 ## [v0.3.2]: 2026-10-12
 

@@ -33,7 +33,7 @@ Arcana World 的跨平台桌面文字浮层会在固定屏幕区域显示文字�
 默认显示在屏幕左侧、垂直居中，横纵偏移均为 0，大小为 420 × 180，字号为 16。位置和字号使用逻辑单位，随系统显示缩放（DPI）调整。
 
 ```sh
-./bin/libexec/arcana-world-overlay -text '欢迎来到直播间' -anchor bottom-left -x 24 -y 24 -width 480 -height 200 -padding 20 -font-size 28 -background-alpha 0.25
+./bin/libexec/arcana-world-overlay-native -text '欢迎来到直播间' -anchor bottom-left -x 24 -y 24 -width 480 -height 200 -padding 20 -font-size 28 -background-alpha 0.25
 ```
 
 | 参数 | 用途 |
@@ -65,13 +65,13 @@ Arcana World 的跨平台桌面文字浮层会在固定屏幕区域显示文字�
 显示每秒更新的时钟：
 
 ```sh
-./bin/libexec/arcana-world-overlay -text '当前时间' -clock
+./bin/libexec/arcana-world-overlay-native -text '当前时间' -clock
 ```
 
 通过管道接收其他程序输出的文字：
 
 ```sh
-printf '%s\n' '新的提示内容' | ./bin/libexec/arcana-world-overlay -stdin
+printf '%s\n' '新的提示内容' | ./bin/libexec/arcana-world-overlay-native -stdin
 ```
 
 `-stdin` 每收到一行就替换全部文字，输入结束后保留最后一行，不会自动关闭。单行最多约 1 MiB。它不能与 `-clock` 同时使用。
@@ -92,25 +92,25 @@ printf '%s\n' '新的提示内容' | ./bin/libexec/arcana-world-overlay -stdin
 
 ### 随 Arcana World 启动
 
-完整解压便携包后，运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`），在「弹幕浮层」页开启「原生浮层」，无需手工启动 helper。保留根目录主程序、`LICENSE` 和 `libexec/arcana-world-overlay`（Windows 带 `.exe`）的布局，搬迁时整体移动目录。本地使用 `make desktop` 构建后，也可通过命令行启用：
+完整解压便携包后，运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`），在「弹幕浮层」页选择「原生浮层」或「精美浮层」并启用，无需手工启动 helper。保留根目录主程序、`LICENSE` 和完整 `libexec` 目录，搬迁时整体移动。本地使用 `make desktop` 构建后，也可通过命令行启用：
 
 ```sh
 ./bin/arcana-world -overlay
 ```
 
-默认显示实时事件，并在主程序退出时关闭；主弹幕列表尚未加载或没有可显示事件时内容为空。在主程序的「弹幕浮层」页可开关「原生浮层」，通过「浮层内容与外观」调整内容模式、位置、尺寸、留白、字体和透明度，通过「选择浮层显示器」选择显示屏幕。设置会保存，下次启动继续使用；浮层启动失败不影响其他功能，浮层页和日志页会显示原因。失败后关闭再启用可重试。
+默认显示实时事件，并在主程序退出时关闭；主弹幕列表尚未加载或没有可显示事件时内容为空。在「弹幕浮层」页启用所选后端，通过「浮层内容与外观」调整内容模式、位置、尺寸、留白、字体和透明度，通过「选择浮层显示器」选择显示屏幕。设置会保存，下次启动继续使用；浮层启动失败不影响其他功能，浮层页和日志页会显示原因。失败后关闭再启用可重试。
 
 「浮层内容与外观」首页保留内容模式和恢复默认外观，其他选项分为「布局」「文字」「颜色与透明度」。Esc 逐级返回；保存或取消编辑后回到原字段。本次打开设置期间，各分组分别记住选中位置。
 
-无弹幕时，可在「弹幕浮层」页开启「示例预览」检查换行、字体、颜色和尺寸，无需登录。请先启用原生浮层并等待就绪。示例展示普通弹幕、大航海和醒目留言的颜色，每行均标明“示例”，随界面语言显示；不写入历史、不触发 TTS，也不保存预览开关。关闭预览、离开浮层页或关闭浮层后恢复实际内容；预览期间收到的新事件会在恢复后正常显示。
+无弹幕时，可在「弹幕浮层」页开启「示例预览」检查换行、字体、颜色和尺寸，无需登录。请先启用所选浮层并等待就绪。示例展示普通弹幕、大航海和醒目留言的颜色，每行均标明“示例”，随界面语言显示；不写入历史、不触发 TTS，也不保存预览开关。关闭预览、离开浮层页或关闭浮层后恢复实际内容；预览期间收到的新事件会在恢复后正常显示。
 
-原生浮层运行时，外观输入框中的有效值会即时预览，包括位置偏移、尺寸、留白、字体、颜色和透明度。Enter 保存，Esc 恢复已保存值；无效输入保留最近一次有效预览。预览本身不写入配置，可配合示例预览调整外观。
+浮层运行时，外观输入框中的有效值会即时预览，包括位置偏移、尺寸、留白、字体、颜色和透明度。Enter 保存，Esc 恢复已保存值；无效输入保留最近一次有效预览。预览本身不写入配置，可配合示例预览调整外观。
 
 数值输入框支持 ↑/↓ 增减：位置、尺寸、留白和字号的步长为 1，字重为 100，透明度为 0.01（保留两位小数）。当前值无效或调整后越界时保持不变。左右键仍移动光标，也可直接输入数值；步进后仍需 Enter 保存，Esc 撤销。
 
 内容模式依次为「实时弹幕」「房间状态」「状态与弹幕」。弹幕模式与 TUI 主弹幕列表共用数据和刷新结果，不单独补读历史；从主列表中显示最新六条勾选的事件，实际显示范围取决于换行后的行数和可用高度。启动时沿用主列表近 24 小时内最多 10 条的加载范围，后续消息、撤回和列表淘汰同步更新。模板固定使用中文，浮层事件选择与 TTS 独立；翻阅历史或切换页面不会改变浮层的数据来源，关闭弹幕监听后清空浮层事件。
 
-`-overlay` 和 `-overlay=false` 只覆盖本次启动的开关，不自动改写保存的设置；在 TUI 中操作开关会保存。使用 `-overlay-executable /path/to/arcana-world-overlay` 指定其他位置的浮层程序。主程序管理模式下，上面的独立浮层外观参数不生效。
+`-overlay` 和 `-overlay=false` 只覆盖本次启动的开关，不自动改写保存的设置；在 TUI 中操作开关会保存。使用 `-overlay-executable /path/to/arcana-world-overlay-native` 指定其他位置的浮层程序，必须与所选后端一致。主程序管理模式下，上面的独立浮层外观参数不生效。
 
 已有保存值不会因默认值更新而改变。「恢复默认设置」会重置应用偏好、浮层、TTS 音色和事件选择，但保留 OBS 配置、密码和 B 站登录信息。「恢复默认外观」需确认后执行，仅重置浮层外观，不改变内容模式和开关；完成后显示恢复成功提示。
 
@@ -128,24 +128,50 @@ macOS / Linux：
 
 ```sh
 make overlay
-./bin/libexec/arcana-world-overlay -text '欢迎来到直播间'
+./bin/libexec/arcana-world-overlay-native -text '欢迎来到直播间'
 ```
 
-使用 `make desktop` 同时构建 `bin/arcana-world` 与 `bin/libexec/arcana-world-overlay`（Windows 带 `.exe`），`make build` 仍只构建 TUI，无需图形开发库。Nix 默认包包含浮层，可运行 `nix run -- -overlay`；`nix run .#arcana-world` 仅运行 TUI。
+`make desktop` 构建 TUI、两种浮层 helper、语音 helper 及图形运行库；`make desktop-native` 明确只包含原生浮层。`make build` 仍只构建不依赖 CGO 的 TUI。Nix 默认构建完整桌面包，`nix run .#arcana-world-desktop-native -- -overlay` 可选择原生包；macOS 完整包要求 nixpkgs 提供 Qt >= 6.11，版本不足会明确报错。
 
 Windows（PowerShell）：
 
 ```powershell
-go build -o bin/libexec/arcana-world-overlay.exe ./cmd/arcana-world-overlay
-.\bin\libexec\arcana-world-overlay.exe -text '欢迎来到直播间'
+go build -o bin/libexec/arcana-world-overlay-native.exe ./cmd/arcana-world-overlay
+.\bin\libexec\arcana-world-overlay-native.exe -text '欢迎来到直播间'
 ```
 
-在启动它的终端按 `Ctrl+C` 关闭。加上 `-duration 30s` 可在 30 秒后自动关闭。上面的独立调用命令使用本地构建路径；便携包中使用 `./libexec/arcana-world-overlay`，Windows 对应 `.\libexec\arcana-world-overlay.exe`。
+在启动它的终端按 `Ctrl+C` 关闭。加上 `-duration 30s` 可在 30 秒后自动关闭。便携包中的独立调用路径以 `./libexec/` 开头，本地构建路径以 `./bin/libexec/` 开头。
 
 ## 更多选项
 
 ```sh
-./bin/libexec/arcana-world-overlay -help
+./bin/libexec/arcana-world-overlay-native -help
 ```
 
 帮助中的 `-socket` 由主程序管理浮层时使用，普通运行无需设置。
+
+## 精美浮层构建与运行库
+
+精美浮层内部使用 Qt Widgets，对应 `libexec/arcana-world-overlay-qt`；原生浮层对应 `libexec/arcana-world-overlay-native`，Windows 均加 `.exe`。两种 helper 共用 v4 协议，拒绝与主程序选择不符的后端。用户只需启动 `arcana-world`。
+
+macOS amd64/arm64、Linux amd64/arm64 和 Windows amd64 完整发行包包含两种后端。Windows 386、arm64 保留原生包：当前发行工具链没有对应的 Qt6 MinGW 构建。原生包中选择精美浮层会明确报告组件缺失，不会自动切换成原生浮层。
+
+在目标系统和架构上安装 CMake、Python 3、C++17 编译器以及匹配的 Qt 开发库：
+
+- macOS：安装 Xcode Command Line Tools，执行 `brew install qt cmake`。稳定原生显示器 ID 要求 Qt >= 6.11。`CMAKE_PREFIX_PATH` 指向 `brew --prefix qt`，`QTPATHS` 指向该目录的 `bin/qtpaths`。
+- Linux：安装 Qt >= 6.5（Core/Gui/Widgets/WaylandClient）、LayerShellQt >= 6.3、Wayland 开发库和 `patchelf`。发行脚本在 Ubuntu 24.04 上构建并缓存 Qt 6.8.3、LayerShellQt 6.3.6，保持原有 glibc 基线。`scripts/setup-linux-qt.sh` 使用 sudo 安装构建依赖；非 CI 环境还需将安装前缀设为 `CMAKE_PREFIX_PATH`，将其 `bin` 加入 PATH，并将 `QTPATHS` 指向 `bin/qtpaths`。
+- Windows amd64：使用 MSYS2 UCRT64 的 Qt6、GCC、CMake、Ninja，以及原生 Windows Go 和 Python。Qt 与 cgo 必须使用同一套 UCRT64 编译器，不可混用 MSVC Qt。设置 `CMAKE_GENERATOR=Ninja`、`CC=gcc`、`CXX=g++`，`QTPATHS` 指向 UCRT64 的 `qtpaths6.exe`。
+
+`make overlay-qt` 构建并部署精美浮层 helper。部署脚本将 Qt 插件及间接动态库依赖复制到 `libexec`，改写 macOS/Linux 加载路径，并对修改后的 macOS 二进制重新临时签名。Windows 使用 `windeployqt`，随后补齐 MinGW 依赖。Linux 包含 LayerShellQt 和 Wayland 客户端依赖，但使用系统的 glibc、内核、显示服务和显卡驱动。移动或打包时必须保留整个目录。
+
+macOS helper 位于私有 `Arcana World Elegant Overlay.app/Contents/MacOS` 中，外层 helper 名称是相对符号链接。主程序在启动及枚举显示器前解析真实路径，使系统读取应用包中的产品名和初始后台策略；运行中仍可切换 Dock 显示。独立调试时应直接运行 `./bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`（路径需加引号），避免通过符号链接启动丢失应用身份。
+
+Wayland 下精美浮层使用真正的 LayerShellQt surface，要求合成器提供 layer-shell。GNOME/Mutter 不受支持，不会回退为普通窗口。原生浮层在 Linux 上只支持 Wayland；精美浮层还可通过 xcb 插件运行于 X11。
+
+独立演示：`./bin/libexec/arcana-world-overlay-qt -demo -duration 30s`。`-demo`、`-clock`、`-stdin` 互斥。`-unlocked` 允许拖动，`-reduced-motion` 关闭动效；两项仅用于独立精美浮层，不能与受管理的 `-socket` 模式组合。精美浮层不创建菜单栏／托盘图标或右键菜单。
+
+精美外观参数不带后端品牌前缀：`-align`、`-history-scale`、`-latest-scale`、`-line-spacing`、`-message-spacing`、`-history-alpha`、`-max-messages`、`-max-lines`、`-gradient`、`-accent-start`、`-accent-end`、`-radius`、`-border-alpha`、`-shadow`、`-animation`、`-animation-ms`、`-animation-distance`。精美 helper 的 `-help` 列出取值范围，主程序管理模式使用保存设置。
+
+「弹幕浮层」页的第二项紧跟启用开关，用于选择原生浮层或精美浮层，并说明两者的外观与设置差异。精美浮层的外观设置在 macOS 上提供「在 Dock 中显示」，在 Windows 上提供「在任务栏中显示」。该偏好保存为 `overlay.qt.show_in_taskbar`（默认 `false`），通过 `config.qt.show_in_taskbar` 传给 helper，保存后即时生效。原生浮层不使用此偏好。Linux 的 X11 和 Wayland 均不启用此功能，但保留已保存的值；即使保存为 `true`，Wayland 仍使用 layer-shell。
+
+独立运行精美 helper 时可用 `--show-in-taskbar` 启用此设置。原生 helper 拒绝该参数，包括 `--show-in-taskbar=false`；受管理的 `-socket` 模式不接受独立运行参数。Dock／任务栏显示可帮助 OBS 查找应用或窗口，但能否捕获仍取决于权限和捕获方式，不会因此创建托盘图标。

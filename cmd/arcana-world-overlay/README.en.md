@@ -33,7 +33,7 @@ Visibility over lock screens, secure system surfaces, or exclusive fullscreen ga
 By default, the overlay is vertically centered on the left edge with zero horizontal and vertical offsets, a size of 420 × 180, and font size 16. Position and font size use logical units that follow system display scaling (DPI).
 
 ```sh
-./bin/libexec/arcana-world-overlay -text 'Welcome to the stream' -anchor bottom-left -x 24 -y 24 -width 480 -height 200 -padding 20 -font-size 28 -background-alpha 0.25
+./bin/libexec/arcana-world-overlay-native -text 'Welcome to the stream' -anchor bottom-left -x 24 -y 24 -width 480 -height 200 -padding 20 -font-size 28 -background-alpha 0.25
 ```
 
 | Option | Purpose |
@@ -65,13 +65,13 @@ Position, size, and padding use logical units that follow display scaling. All t
 Show a clock that updates every second:
 
 ```sh
-./bin/libexec/arcana-world-overlay -text 'Current time' -clock
+./bin/libexec/arcana-world-overlay-native -text 'Current time' -clock
 ```
 
 Receive text piped from another program:
 
 ```sh
-printf '%s\n' 'New notice' | ./bin/libexec/arcana-world-overlay -stdin
+printf '%s\n' 'New notice' | ./bin/libexec/arcana-world-overlay-native -stdin
 ```
 
 With `-stdin`, each input line replaces all displayed text. When input ends, the last line remains visible and the overlay stays open. Each line can contain approximately 1 MiB. This option cannot be combined with `-clock`.
@@ -92,25 +92,25 @@ For standalone use, `-list-displays` prints a JSON list of display names and sta
 
 ### Launch with Arcana World
 
-Extract the entire portable bundle, run `arcana-world` at its root (`arcana-world.exe` on Windows), and enable Native overlay on the Overlay tab. You do not need to start the helper manually. Keep the main executable, `LICENSE`, and `libexec/arcana-world-overlay` (`.exe` on Windows) in their packaged locations, and move the whole folder together. After building locally with `make desktop`, you can also enable it from the command line:
+Extract the entire portable bundle and run `arcana-world` at its root (`arcana-world.exe` on Windows). On the Overlay tab, select Native overlay or Elegant overlay and enable it. Keep the main executable, `LICENSE`, and the entire `libexec` directory together. You do not need to start helpers manually. After building locally with `make desktop`, you can also enable the selected overlay from the command line:
 
 ```sh
 ./bin/arcana-world -overlay
 ```
 
-By default, the overlay displays live events and closes when the main program exits. Its content is empty until the main chat list loads or when no displayable events are available. On the Overlay tab, toggle Native overlay or open Overlay content and appearance to change the content mode, position, size, padding, font, and opacity. Use Select overlay displays to choose the monitors. Settings persist across launches. Startup failures do not block other features; Overlay and Logs show the reason. Turn the overlay off and on again to retry.
+By default, the overlay displays live events and closes when the main program exits. Its content is empty until the main chat list loads or when no displayable events are available. On the Overlay tab, enable the selected backend or open Overlay content and appearance to change the content mode, position, size, padding, font, and opacity. Use Select overlay displays to choose the monitors. Settings persist across launches. Startup failures do not block other features; Overlay and Logs show the reason. Turn the overlay off and on again to retry.
 
 Overlay content and appearance keeps content mode and Restore default appearance on its first screen. Other options are grouped under Layout, Text, and Colors and opacity. Esc goes back one level; saving or canceling an edit returns to the same field. Each group remembers its selection until you close settings.
 
-Without live messages, enable Sample preview on the Overlay tab to check wrapping, fonts, colors, and size without signing in. First enable the native overlay and wait until it is ready. Samples show normal chat, Fleet, and Super Chat colors in the interface language, with every line marked as a sample. They are not added to history or read by TTS, and the preview switch is not saved. Turning preview off, leaving the Overlay tab, or disabling the overlay ends the preview. Actual content then includes any events received while previewing.
+Without live messages, enable Sample preview on the Overlay tab to check wrapping, fonts, colors, and size without signing in. First enable the selected overlay and wait until it is ready. Samples show normal chat, Fleet, and Super Chat colors in the interface language, with every line marked as a sample. They are not added to history or read by TTS, and the preview switch is not saved. Turning preview off, leaving the Overlay tab, or disabling the overlay ends the preview. Actual content then includes any events received while previewing.
 
-While the native overlay is running, valid values in appearance input fields preview immediately, including position offsets, size, padding, fonts, colors, and opacity. Press Enter to save or Esc to restore saved values. Invalid input keeps the last valid preview. Previewing does not write configuration; combine it with Sample preview to adjust the appearance.
+While the overlay is running, valid values in appearance input fields preview immediately, including position offsets, size, padding, fonts, colors, and opacity. Press Enter to save or Esc to restore saved values. Invalid input keeps the last valid preview. Previewing does not write configuration; combine it with Sample preview to adjust the appearance.
 
 Use ↑/↓ in numeric fields to adjust position, size, padding, or font size by 1, font weight by 100, and opacity by 0.01 (rounded to two decimal places). Invalid values and steps beyond the allowed range leave the input unchanged. Left/right still move the cursor, and direct typing remains available. Press Enter to save or Esc to cancel stepped changes.
 
 Content modes are listed as Live chat, Room status, and Status and chat. Chat modes share the TUI main chat list's data and refresh results without loading additional history. They display the latest six selected events from that list; the visible portion depends on wrapping and available height. At startup, both use the main list's limit of up to 10 messages from the past 24 hours. New messages, withdrawals, and removal of older entries update together. Templates use Chinese, and overlay event selections are independent of TTS. Browsing history or switching pages does not change the overlay's data source. Disabling chat listening clears overlay events.
 
-`-overlay` and `-overlay=false` override the switch for this launch without changing saved settings. Using the switch in the TUI saves it. Use `-overlay-executable /path/to/arcana-world-overlay` for an executable in another location. The standalone appearance options above do not apply when the main program manages the overlay.
+`-overlay` and `-overlay=false` override the switch for this launch without changing saved settings. Using the switch in the TUI saves it. Use `-overlay-executable /path/to/arcana-world-overlay-native` for a helper in another location; it must match the selected backend. The standalone appearance options above do not apply when the main program manages the overlay.
 
 Saved values are not changed when defaults change. Restore default settings resets application preferences, overlay settings, TTS voice, and event selections while keeping OBS configuration, its password, and Bilibili login information. Restore default appearance asks for confirmation, resets only overlay appearance while keeping its content mode and enabled state, and shows a completion message.
 
@@ -128,24 +128,50 @@ macOS / Linux:
 
 ```sh
 make overlay
-./bin/libexec/arcana-world-overlay -text 'Welcome to the stream'
+./bin/libexec/arcana-world-overlay-native -text 'Welcome to the stream'
 ```
 
-Use `make desktop` to build `bin/arcana-world` and `bin/libexec/arcana-world-overlay` (`.exe` on Windows). `make build` still builds only the TUI and needs no graphics development libraries. The default Nix package includes the overlay: run `nix run -- -overlay`. Use `nix run .#arcana-world` for the TUI alone.
+`make desktop` builds the TUI, both overlay helpers, speech helper, and bundled graphics runtime. `make desktop-native` explicitly omits Elegant overlay. `make build` builds only the CGO-free TUI. Nix defaults to the full desktop package; `nix run .#arcana-world-desktop-native -- -overlay` selects the native-only package. The full macOS Nix package requires nixpkgs with Qt >= 6.11 and reports an error with older Qt.
 
 Windows (PowerShell):
 
 ```powershell
-go build -o bin/libexec/arcana-world-overlay.exe ./cmd/arcana-world-overlay
-.\bin\libexec\arcana-world-overlay.exe -text 'Welcome to the stream'
+go build -o bin/libexec/arcana-world-overlay-native.exe ./cmd/arcana-world-overlay
+.\bin\libexec\arcana-world-overlay-native.exe -text 'Welcome to the stream'
 ```
 
-Press `Ctrl+C` in the launching terminal to close the overlay, or add `-duration 30s` to close it automatically after 30 seconds. The standalone commands above use local build paths; in a portable bundle, use `./libexec/arcana-world-overlay`, or `.\libexec\arcana-world-overlay.exe` on Windows.
+Press `Ctrl+C` in the launching terminal to close the overlay, or add `-duration 30s` to close it automatically after 30 seconds. In a portable bundle, standalone helper paths start with `./libexec/` rather than `./bin/libexec/`.
 
 ## More options
 
 ```sh
-./bin/libexec/arcana-world-overlay -help
+./bin/libexec/arcana-world-overlay-native -help
 ```
 
 The `-socket` option shown in help is used when the main program manages the overlay. You do not need to set it for normal standalone use.
+
+## Elegant overlay build and runtime
+
+Elegant overlay uses Qt Widgets internally. Its helper is `libexec/arcana-world-overlay-qt` (`.exe` on Windows); the native helper is `libexec/arcana-world-overlay-native`. Both use protocol v4 and reject a host selecting the other backend. The only program users need to launch is `arcana-world`.
+
+Full release bundles include both backends on macOS amd64/arm64, Linux amd64/arm64, and Windows amd64. Windows 386 and arm64 retain native-only bundles because the release toolchain has no matching Qt6 MinGW build. Selecting Elegant overlay in a native-only bundle reports the missing component; it never falls back to native.
+
+Build on the target OS and architecture with CMake, Python 3, a C++17 compiler, and matching Qt development libraries:
+
+- macOS: Xcode Command Line Tools and `brew install qt cmake`; Qt >= 6.11 is required for stable native display IDs. Set `CMAKE_PREFIX_PATH` to `brew --prefix qt` and `QTPATHS` to its `bin/qtpaths`.
+- Linux: Qt >= 6.5 (Core/Gui/Widgets/WaylandClient), LayerShellQt >= 6.3, Wayland development libraries, and `patchelf`. The release setup script builds Qt 6.8.3 and LayerShellQt 6.3.6 on Ubuntu 24.04 and caches the installation. The release glibc baseline remains Ubuntu 24.04. `scripts/setup-linux-qt.sh` installs build prerequisites with sudo; outside CI, export its installation prefix as `CMAKE_PREFIX_PATH`, put its `bin` on PATH, and set `QTPATHS` to `bin/qtpaths`.
+- Windows amd64: use MSYS2 UCRT64 Qt6, GCC, CMake and Ninja with native Windows Go and Python. Use the same UCRT64 compiler for Qt and cgo; do not mix MSVC Qt with MinGW. Set `CMAKE_GENERATOR=Ninja`, `CC=gcc`, `CXX=g++`, and `QTPATHS` to the UCRT64 `qtpaths6.exe`.
+
+`make overlay-qt` builds and deploys the Elegant helper. Deployment copies Qt plugins and the transitive shared-library dependencies into `libexec`, rewrites macOS/Linux loader paths, and ad-hoc signs modified macOS binaries. Windows deployment uses `windeployqt` plus MinGW dependency discovery. Linux bundles LayerShellQt and Wayland client dependencies but uses the system's glibc, kernel, display server, and graphics drivers. Preserve the entire directory when moving or archiving the program.
+
+On macOS the helper resides in a private `Arcana World Elegant Overlay.app/Contents/MacOS` bundle; the outer helper name is a relative symbolic link. The main program resolves the real path before launch and display enumeration so macOS reads the product name and initial background policy. Dock visibility can still change at runtime. For standalone debugging, execute `"./bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt"` directly; launching through the symbolic link loses the application identity.
+
+On Wayland, Elegant overlay uses real LayerShellQt surfaces and requires a compositor exposing layer-shell. GNOME/Mutter is unsupported; there is no ordinary-window fallback. Native overlay remains Wayland-only on Linux; Elegant overlay also supports X11 through the xcb plugin.
+
+For a standalone preview, run `./bin/libexec/arcana-world-overlay-qt -demo -duration 30s`. `-demo`, `-clock`, and `-stdin` are mutually exclusive. `-unlocked` permits dragging; `-reduced-motion` disables motion. Both options are standalone Elegant-overlay options, not managed `-socket` options. Elegant overlay creates no menu-bar/system-tray icon or context menu.
+
+Elegant appearance flags are backend-neutral: `-align`, `-history-scale`, `-latest-scale`, `-line-spacing`, `-message-spacing`, `-history-alpha`, `-max-messages`, `-max-lines`, `-gradient`, `-accent-start`, `-accent-end`, `-radius`, `-border-alpha`, `-shadow`, `-animation`, `-animation-ms`, and `-animation-distance`. Run the Elegant helper with `-help` for ranges. Managed mode uses saved settings instead.
+
+The overlay page's second item, directly after the enable toggle, selects Native overlay or Elegant overlay and explains their appearance and control differences. Elegant overlay's appearance settings include Show in Dock on macOS and Show in taskbar on Windows. The preference is saved as `overlay.qt.show_in_taskbar` (default `false`), sent to the helper as `config.qt.show_in_taskbar`, and applied live. Native overlay ignores this preference. On Linux, both X11 and Wayland leave it inactive and retain the saved value; Wayland continues to use layer-shell even when the saved value is `true`.
+
+For standalone use, `--show-in-taskbar` enables this setting on the Elegant helper. The native helper rejects the flag, including `--show-in-taskbar=false`; managed `-socket` mode accepts no standalone flags. Dock/taskbar visibility may help OBS discover the application or window, but capture still depends on permissions and the selected capture mode. It does not create a tray icon.
