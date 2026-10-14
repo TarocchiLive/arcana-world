@@ -57,12 +57,13 @@ jobs:
           else
             CGO_ENABLED=0 go test ./...
           fi
-      - name: Install Wayland drawing and audio dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libpango1.0-dev libcairo2-dev libasound2-dev pkg-config
+      - uses: ./.github/actions/setup-desktop
       - name: Build desktop bundle
         shell: bash
-        run: bash scripts/build.sh desktop
+        run: |
+          target=desktop
+          if [[ "$RUNNER_OS" == Windows && "$GOARCH" != amd64 ]]; then target=desktop-native; fi
+          bash scripts/build.sh "$target"
       - name: Check native helper packages without device access
         shell: bash
         run: |
@@ -79,7 +80,10 @@ jobs:
         shell: bash
         run: |
           "./bin/arcana-world${{ matrix.suffix }}" -help
-          "./bin/libexec/arcana-world-overlay${{ matrix.suffix }}" -help
+          "./bin/libexec/arcana-world-overlay-native${{ matrix.suffix }}" -help
+          if [[ "$RUNNER_OS" != Windows || "$GOARCH" == amd64 ]]; then
+            "./bin/libexec/arcana-world-overlay-qt${{ matrix.suffix }}" -help
+          fi
           "./bin/libexec/arcana-world-tts${{ matrix.suffix }}" -help
           if [[ "$RUNNER_OS" == Windows ]]; then
             ./bin/arcana-world-webui.exe -help
@@ -87,7 +91,9 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ runner.os }}-${{ matrix.goarch }}
-          path: bin/
+          path: |
+            bin/arcana-world*
+            bin/libexec/
 
   vulnerabilities:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

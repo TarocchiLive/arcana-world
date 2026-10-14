@@ -28,7 +28,7 @@ func testHost(socket string) error {
 			_ = os.WriteFile(path, []byte("entered"), 0600)
 		}
 	}
-	return Serve(context.Background(), socket, func(ctx context.Context, _ Config, updates <-chan Config, ready func()) error {
+	return Serve(context.Background(), socket, BackendNative, func(ctx context.Context, _ Config, updates <-chan Config, ready func()) error {
 		marker()
 		if os.Getenv("ARCANA_OVERLAY_TEST_MODE") == "stall-ready" {
 			<-ctx.Done()
@@ -140,4 +140,40 @@ func TestManagerCancellationBeforeNativeReady(t *testing.T) {
 		t.Fatal("startup cancellation did not reap child")
 	}
 	assertRuntimeClean(t, options.RuntimeDir)
+}
+
+func TestManagerRejectsWrongBackendBeforeRendering(t *testing.T) {
+	options := helperOptions(t, "stop")
+	options.Config.Backend = BackendQt
+	marker := filepath.Join(t.TempDir(), "host-entered")
+	t.Setenv("ARCANA_OVERLAY_TEST_MARKER", marker)
+	manager, err := Start(context.Background(), options)
+	if manager != nil {
+		_ = manager.Close()
+		t.Fatal("started an incompatible host")
+	}
+	if err == nil {
+		t.Fatal("wrong backend was not rejected")
+	}
+	if _, statErr := os.Stat(marker); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("wrong backend entered rendering: %v", statErr)
+	}
+	assertRuntimeClean(t, options.RuntimeDir)
+}
+
+func TestManagerBackendIsImmutable(t *testing.T) {
+	options := helperOptions(t, "stop")
+	manager, err := Start(context.Background(), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	next := manager.Snapshot()
+	next.Backend = BackendQt
+	if err := manager.SetConfig(next); err == nil {
+		t.Fatal("accepted a backend change on a running host")
+	}
+	if manager.Snapshot().Backend != BackendNative {
+		t.Fatal("rejected change modified the current backend")
+	}
 }

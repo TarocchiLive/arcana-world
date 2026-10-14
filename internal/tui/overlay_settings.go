@@ -13,13 +13,14 @@ import (
 )
 
 type overlaySettingField struct {
-	key    string
-	label  i18n.Key
-	read   func(overlay.Settings) string
-	assign func(*overlay.Settings, string) error
-	color  func(*overlay.Colors) *string
-	step   float64
-	group  int
+	key     string
+	label   i18n.Key
+	read    func(overlay.Settings) string
+	assign  func(*overlay.Settings, string) error
+	color   func(*overlay.Colors) *string
+	qtColor func(*overlay.QtAppearance) *string
+	step    float64
+	group   int
 }
 
 const (
@@ -27,6 +28,9 @@ const (
 	overlaySettingsLayout
 	overlaySettingsText
 	overlaySettingsColors
+	overlaySettingsQtText
+	overlaySettingsQtPanel
+	overlaySettingsQtMotion
 )
 
 var overlayGroups = [...]struct {
@@ -37,10 +41,13 @@ var overlayGroups = [...]struct {
 	{"layout", i18n.TUIOverlayLayoutGroup},
 	{"text", i18n.TUIOverlayTextGroup},
 	{"colors", i18n.TUIOverlayColorsGroup},
+	{"qt-text", i18n.TUIOverlayQtText},
+	{"qt-panel", i18n.TUIOverlayQtPanel},
+	{"qt-motion", i18n.TUIOverlayQtMotion},
 }
 
 // 普通字段自行解析和读写；assign 为空的交互由 chooseOverlay 处理。
-var overlayFields = [...]overlaySettingField{
+var overlayFields = []overlaySettingField{
 	{key: "content", label: i18n.TUIOverlayContent, read: func(s overlay.Settings) string { return overlayContentLabel(s.Content) }},
 	{key: "anchor", group: overlaySettingsLayout, label: i18n.TUIOverlayAnchor, read: func(s overlay.Settings) string { return overlayAnchorLabel(string(s.Position.Anchor)) }},
 	overlayNumberField("x", i18n.TUIOverlayX, func(s overlay.Settings) float64 { return s.Position.X }, func(s *overlay.Settings, n float64) { s.Position.X = n }),
@@ -164,7 +171,7 @@ func (m *Model) updateOverlayAppearancePreview() {
 		return
 	}
 	value := m.input.Value()
-	if field.color == nil {
+	if field.color == nil && field.qtColor == nil {
 		value = strings.TrimSpace(value)
 	}
 	settings := m.config.Overlay
@@ -201,14 +208,20 @@ func (m *Model) clearOverlayAppearancePreview() {
 
 func (m *Model) overlayColorSample() string {
 	field := m.editingOverlayField()
-	if field == nil || field.color == nil {
+	if field == nil || (field.color == nil && field.qtColor == nil) {
 		return ""
 	}
-	colors, _ := m.config.Overlay.Colors.Normalize()
+	cfg := m.config.Overlay.Config("")
 	if m.overlayAppearancePreview != nil {
-		colors = m.overlayAppearancePreview.Colors
+		cfg = *m.overlayAppearancePreview
 	}
-	color := *field.color(&colors)
+	var color string
+	if field.qtColor != nil {
+		color = *field.qtColor(&cfg.Qt)
+	} else {
+		colors, _ := cfg.Colors.Normalize()
+		color = *field.color(&colors)
+	}
 	text := color + "  " + i18n.T(i18n.TUIOverlayColorSample)
 	foreground := "#FFFFFF"
 	rgb, _ := overlay.ParseColor(color)
@@ -280,13 +293,29 @@ func (m *Model) showOverlaySettings() tea.Cmd {
 	if m.overlaySettings != nil {
 		group = m.overlaySettings.group
 	}
+	if group >= overlaySettingsQtText && m.config.Overlay.Backend != overlay.BackendQt {
+		group = overlaySettingsRoot
+		if m.overlaySettings != nil {
+			m.overlaySettings.group = group
+		}
+	}
 	for _, field := range overlayFields {
 		if field.group == group {
 			m.choices = append(m.choices, choice{i18n.T(field.label) + ": " + clean(field.read(m.config.Overlay)), field.key})
 		}
 	}
 	if group == overlaySettingsRoot {
+		if m.config.Overlay.Backend == overlay.BackendQt {
+			label := toggleLabel(overlayTaskbarLabel(), m.config.Overlay.Qt.ShowInTaskbar)
+			if !overlayTaskbarSupported() {
+				label += " · " + i18n.T(i18n.TUIOverlayTaskbarInactive)
+			}
+			m.choices = append(m.choices, choice{label, "show-in-taskbar"})
+		}
 		for _, section := range overlayGroups[1:] {
+			if strings.HasPrefix(section.key, "qt-") && m.config.Overlay.Backend != overlay.BackendQt {
+				continue
+			}
 			m.choices = append(m.choices, choice{i18n.T(section.title), section.key})
 		}
 		m.choices = append(m.choices, choice{i18n.T(i18n.TUIOverlayRestore), "restore"})
@@ -310,11 +339,16 @@ func (m *Model) performOverlay(action string) tea.Cmd {
 			return nil
 		}
 		m.overlay.preview = !m.overlay.preview
+		m.overlay.previewText = ""
 		m.publishOverlay()
 		return nil
 	case "overlay-toggle":
 		s.Enabled = !m.overlayEnabled
 		return m.saveOverlay(s, overlayToggleOperation())
+	case "overlay-backend":
+		m.overlaySettings = nil
+		m.choices = []choice{{overlayBackendLabel(overlay.BackendNative), string(overlay.BackendNative)}, {overlayBackendLabel(overlay.BackendQt), string(overlay.BackendQt)}}
+		return m.pick("overlay-backend", i18n.T(i18n.TUIOverlayBackend))
 	case "overlay-displays":
 		return m.pickOverlayDisplays()
 	case "overlay-settings":
@@ -323,6 +357,10 @@ func (m *Model) performOverlay(action string) tea.Cmd {
 	case "overlay-restore":
 		defaults := overlay.DefaultSettings()
 		defaults.Enabled, defaults.Content = s.Enabled, s.Content
+		defaults.Backend = s.Backend
+		if s.Backend == overlay.BackendNative {
+			defaults.Qt = s.Qt
+		}
 		return m.saveOverlay(defaults, overlayRestoreOperation())
 	}
 	return nil
@@ -330,6 +368,12 @@ func (m *Model) performOverlay(action string) tea.Cmd {
 func (m *Model) chooseOverlay(value string) tea.Cmd {
 	s := m.config.Overlay
 	switch m.editKind {
+	case "overlay-backend":
+		s.Backend = overlay.Backend(value)
+		return m.saveOverlay(s, overlayConfigOperation())
+	case "overlay-qt-align":
+		s.Qt.Alignment = value
+		return m.saveOverlay(s, overlayConfigOperation())
 	case "overlay-content":
 		s.Content = value
 		return m.saveOverlay(s, overlayConfigOperation())
@@ -349,6 +393,25 @@ func (m *Model) chooseOverlay(value string) tea.Cmd {
 			}
 		}
 		switch value {
+		case "show-in-taskbar":
+			if !overlayTaskbarSupported() {
+				m.warnStatus(i18n.T(i18n.TUIOverlayTaskbarUnavailable))
+				return m.showOverlaySettings()
+			}
+			s.Qt.ShowInTaskbar = !s.Qt.ShowInTaskbar
+			return m.saveOverlay(s, overlayConfigOperation())
+		case "qt-align":
+			m.choices = nil
+			for _, alignment := range []string{"left", "center", "right"} {
+				m.choices = append(m.choices, choice{overlayQtAlignmentLabel(alignment), alignment})
+			}
+			return m.pick("overlay-qt-align", i18n.T(i18n.TUIOverlayQtAlignment))
+		case "qt-gradient":
+			s.Qt.Gradient = !s.Qt.Gradient
+			return m.saveOverlay(s, overlayConfigOperation())
+		case "qt-animation":
+			s.Qt.AnimationEnabled = !s.Qt.AnimationEnabled
+			return m.saveOverlay(s, overlayConfigOperation())
 		case "content":
 			m.choices = nil
 			for _, v := range []string{"danmaku", "status", "combined"} {
@@ -389,7 +452,7 @@ func (m *Model) submitOverlay(kind, value string) tea.Cmd {
 		}
 		if err := field.assign(&s, value); err != nil {
 			m.warnStatus(i18n.T(i18n.TUIOverlayInvalidNumber))
-			if field.color != nil {
+			if field.color != nil || field.qtColor != nil {
 				m.warnStatus(i18n.T(i18n.TUIOverlayInvalidColor))
 			}
 			return nil

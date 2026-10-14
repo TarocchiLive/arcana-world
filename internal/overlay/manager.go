@@ -49,8 +49,12 @@ type Manager struct {
 }
 
 // 按真实安装目录定位，避免工作目录或启动器符号链接改变 helper 来源。
-func bundledExecutable(executable string) (string, error) {
-	path, err := helperpath.Installed(executable, "arcana-world-overlay")
+func bundledExecutable(executable string, backend Backend) (string, error) {
+	backend, err := backend.Normalize()
+	if err != nil {
+		return "", err
+	}
+	path, err := helperpath.Installed(executable, "arcana-world-overlay-"+string(backend))
 	if err != nil {
 		return "", fmt.Errorf("overlay: resolving application path: %w", err)
 	}
@@ -64,7 +68,20 @@ func bundledExecutable(executable string) (string, error) {
 	if !info.Mode().IsRegular() {
 		return "", fmt.Errorf("overlay: bundled executable %q is not a regular file; extract the complete portable package again", path)
 	}
-	return path, nil
+	// 使用真实 helper 路径启动，保证 macOS 能识别私有应用包的名称与激活策略。
+	resolved, err := canonicalExecutable(path)
+	if err != nil {
+		return "", fmt.Errorf("overlay: resolving bundled executable: %w", err)
+	}
+	return resolved, nil
+}
+
+func canonicalExecutable(name string) (string, error) {
+	path, err := exec.LookPath(name)
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(path)
 }
 
 // Start 仅在认证完成且原生窗口首次绘制后返回。
@@ -88,14 +105,20 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 	if options.StartupTimeout < 0 || options.ShutdownTimeout < 0 || options.UpdateInterval < 0 {
 		return nil, errors.New("overlay: timeouts and update interval must be positive")
 	}
+	options.Config = cfg
 	if options.Executable == "" {
 		executable, e := os.Executable()
 		if e != nil {
 			return nil, e
 		}
-		options.Executable, e = bundledExecutable(executable)
+		options.Executable, e = bundledExecutable(executable, cfg.Backend)
 		if e != nil {
 			return nil, e
+		}
+	} else {
+		options.Executable, err = canonicalExecutable(options.Executable)
+		if err != nil {
+			return nil, fmt.Errorf("overlay: resolving helper executable: %w", err)
 		}
 	}
 	directory, err := privateSocketDir(options.RuntimeDir)
@@ -239,7 +262,7 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 	workers.Add(1)
 	go func() {
 		defer workers.Done()
-		c, err := acceptHost(startup, listener, token)
+		c, err := acceptHost(startup, listener, token, options.Config.Backend)
 		if err != nil {
 			acceptErr <- err
 			return
@@ -276,11 +299,11 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 	}
 	frame, err := readFrame(conn)
 	if err != nil {
-		failure = fmt.Errorf("overlay: waiting for native readiness: %w", err)
+		failure = fmt.Errorf("overlay: waiting for renderer readiness: %w", err)
 		return
 	}
 	if frame.Type != "ready" {
-		failure = fmt.Errorf("overlay: native startup failed (%s): %s", frame.Type, frame.Error)
+		failure = fmt.Errorf("overlay: renderer startup failed (%s): %s", frame.Type, frame.Error)
 		return
 	}
 	if !stopStartupConn() || startup.Err() != nil {
@@ -300,7 +323,7 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 		if err == nil {
 			switch next.Type {
 			case "error":
-				err = fmt.Errorf("overlay: native error: %s", next.Error)
+				err = fmt.Errorf("overlay: renderer error: %s", next.Error)
 			case "stopped":
 				// 原生窗口主动正常退出与协议错误不同，不触发自动重启。
 			default:
@@ -320,7 +343,7 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 }
 
 // 未认证连接不能占用唯一宿主名额。每次认证最多等待一秒，且受总启动预算约束。
-func acceptHost(ctx context.Context, listener *net.UnixListener, token string) (net.Conn, error) {
+func acceptHost(ctx context.Context, listener *net.UnixListener, token string, backend Backend) (net.Conn, error) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -350,6 +373,10 @@ func acceptHost(ctx context.Context, listener *net.UnixListener, token string) (
 		if hello.Type != "hello" {
 			_ = conn.Close()
 			return nil, errors.New("overlay: expected authenticated hello")
+		}
+		if hello.Backend != backend || hello.Capabilities != hostCapabilities {
+			_ = conn.Close()
+			return nil, errors.New("overlay: incompatible host backend or capabilities")
 		}
 		return conn, nil
 	}

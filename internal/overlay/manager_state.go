@@ -14,6 +14,9 @@ func (m *Manager) setLocked(cfg Config) error {
 	if err != nil {
 		return err
 	}
+	if normalized.Backend != m.cfg.Backend {
+		return errors.New("overlay: backend changes require restarting the manager")
+	}
 	if normalized == m.cfg {
 		return nil
 	}

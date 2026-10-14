@@ -1,0 +1,45 @@
+name: Desktop toolchains
+description: Install matching native and Elegant overlay build dependencies
+runs:
+  using: composite
+  steps:
+    - name: Cache Linux graphics toolchain
+      if: runner.os == 'Linux'
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/arcana-qt-6.8.3-layer-6.3.6
+        key: qt-ubuntu24-${{ runner.arch }}-6.8.3-layer6.3.6-v1
+    - name: Build Linux graphics toolchain
+      if: runner.os == 'Linux'
+      shell: bash
+      run: bash scripts/setup-linux-qt.sh
+    - name: Install macOS graphics toolchain
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew install qt cmake ninja gnu-tar
+        echo "CMAKE_PREFIX_PATH=$(brew --prefix qt)" >> "$GITHUB_ENV"
+        echo "QTPATHS=$(brew --prefix qt)/bin/qtpaths" >> "$GITHUB_ENV"
+        echo "QT_LICENSE_DIR=$(brew --prefix qt)/share/qt/licenses" >> "$GITHUB_ENV"
+    - name: Install Windows graphics toolchain
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        update: true
+        install: >-
+          mingw-w64-ucrt-x86_64-gcc
+          mingw-w64-ucrt-x86_64-cmake
+          mingw-w64-ucrt-x86_64-ninja
+          mingw-w64-ucrt-x86_64-qt6-base
+    - name: Configure Windows graphics toolchain
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      shell: bash
+      run: |
+        echo 'C:/msys64/ucrt64/bin' >> "$GITHUB_PATH"
+        echo 'CMAKE_PREFIX_PATH=C:/msys64/ucrt64' >> "$GITHUB_ENV"
+        echo 'QTPATHS=C:/msys64/ucrt64/bin/qtpaths6.exe' >> "$GITHUB_ENV"
+        echo 'QT_LICENSE_DIR=C:/msys64/ucrt64/share/licenses' >> "$GITHUB_ENV"
+        echo 'CMAKE_GENERATOR=Ninja' >> "$GITHUB_ENV"
+        echo 'CC=gcc' >> "$GITHUB_ENV"
+        echo 'CXX=g++' >> "$GITHUB_ENV"

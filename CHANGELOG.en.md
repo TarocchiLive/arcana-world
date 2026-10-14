@@ -14,11 +14,14 @@ Versions are listed newest first.
 - Zoom cover previews with `+` / `-`, pan with `h/j/k/l`, and reset with `0` in both native and character previews. These controls do not change the cover being uploaded.
 - Adjust the crop in the cover upload confirmation screen by zooming and panning; press `0` to restore the centered crop. The screen shows the zoom and crop center, with a preview before upload. Adjustments use the original image and keep the output at 720×540; canceled processing is discarded.
 - Check for the latest stable release manually and show the comparison and release page. The check uses proxy settings without reading login credentials, downloading, or installing. Report cancellation, timeouts, and access limits without recommending a downgrade from a newer prerelease.
-- Add sample preview to the Overlay tab for checking appearance and event colors without signing in. Samples do not enter history or TTS; turning preview off, leaving the tab, or disabling the overlay restores actual content.
 - Add an optional local Web control panel sharing account, live, OBS, chat, and helper lifecycles with the terminal mode. See `--help` for startup options.
 - Add Chinese/English UI, light/dark/system themes, and pausable chat and log updates. Refreshes preserve form drafts; failed chat sends retain the draft.
 - Open the Web panel without an access token at the default fixed address `http://127.0.0.1:5273`. Change the bind address only through the configuration file. Retain cross-site and stale-interaction checks, and reveal stream keys only on explicit request.
 - Save a default interface or select TUI / WebUI for one run, without detecting the OS version or terminal type. Windows packages include an `arcana-world-webui.exe` launcher. WebUI opens the default browser on startup and keeps the address available if opening fails.
+- Add a looping sample preview to the Overlay tab, scrolling in the next message every 1.5 seconds. Include regular and guard-tier chat, Super Chats, gifts, gift combos, Captain subscriptions, arrivals, and likes to preview appearance, event colors, and motion without signing in. Samples do not enter history or TTS; turning preview off, leaving the tab, or disabling the overlay restores actual content.
+- Choose Native overlay or Elegant overlay. Switching while running reaps the previous overlay first; settings follow the selected style and retain each style's preferences. Elegant overlay adds text, panel, and motion controls.
+- Use layer-shell for Elegant overlay placement, output selection, and stacking on supported Wayland compositors. Report unsupported compositors instead of falling back to an ordinary window.
+- Add a saved, live Dock/taskbar visibility toggle for Elegant overlay on macOS and Windows. Linux retains the preference without enabling it, and Wayland continues to use layer-shell.
 
 ### Changed
 
@@ -39,17 +42,24 @@ Versions are listed newest first.
 - Use Cancel and a named action in confirmation dialogs, without repeating the detailed prompt in the title. Before submission, Cancel or Esc returns to the previous step and preserves selections and duration drafts. Cover previews and subsequent QR-login confirmations also return to the preceding step.
 - Open chat management submenus in dialogs instead of a sidebar, including audience lists, profiles, and management forms. Close or Esc restores the action entry point; cancelling confirmation returns to the original form.
 - Fix horizontal overflow in long management lists, controls re-enabled during refresh, and dialogs left open during navigation. Preserve unsubmitted management drafts on Back and submit the latest interaction revision. Keep messages visible when navigating with chat paused, and clear old messages when the account or room changes.
+- Bundle both overlay helpers and Elegant overlay runtime libraries privately in `libexec`; users still launch only `arcana-world`. Replace the complete package when upgrading because old overlay helpers are incompatible. Windows 386/arm64 packages currently retain the native overlay.
+- Remove the Elegant overlay menu-bar/system-tray icon and context menu. Control the overlay through the main application's settings; launch options remain available for standalone use.
+- Move the overlay style selector to the second item on the Overlay page, alongside the enable toggle, and explain the appearance and control differences between Native overlay and Elegant overlay.
+- Give new and older messages the same default font size in Elegant overlay, disable the latest-message gradient, and raise history text opacity from 55% to 95%. Migrate the old default text style while preserving custom styles and event colors.
 
 ### Fixed
 
+- Fix Elegant overlay options being treated as numbers in the Web panel. Edit settings using their actual types and show only options for the selected overlay style.
 - Update the shared Nix vendor hash to match the current Go dependencies.
 - Preserve dialog identity, scroll position, and focus when refreshing Web audience and fleet lists; account, room, and action target changes still invalidate stale requests.
 - Correct overlay template guidance in both languages: templates follow the interface language and can be customized in the corresponding YAML file.
+- Fix the library path format when building Elegant overlay with MSYS2 on Windows so the linker can find the overlay library.
 - Preserve ZWJ/ZWNJ in overlay text and speech input so text cleanup does not break joined emoji or script shaping. Continue removing terminal escapes and bidirectional control characters.
 - Truncate overlay and speech text at grapheme boundaries without increasing existing length limits, keeping joined emoji, flags, skin tones, and accents intact. Removed control characters no longer cause an unnecessary ellipsis.
 - Fix lost zoom and pan input while Kitty/Ghostty cover previews wait for image acknowledgments.
-- Include native overlay and TTS build dependencies in the default `nix develop` environment so `make desktop` works directly; component-specific development shells remain unchanged.
+- Include native overlay and TTS build dependencies in the default `nix develop` environment. `make desktop-native` retains the native build path; the full desktop build additionally requires the Elegant overlay platform dependencies.
 - Retry failed TTS synthesis requests or empty audio up to twice, waiting 500ms and 1500ms before skipping the item if it still fails. Retries share the existing 30-second deadline and end immediately on stop or exit; playback is not retried.
+- Use a private macOS application bundle and explicit activation policies for Elegant overlay. Hide its Dock entry by default, avoid stealing focus during startup and visibility changes, and use the product name in the Dock.
 
 ## [v0.3.2]: 2026-10-12
 

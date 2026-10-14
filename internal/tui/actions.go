@@ -470,7 +470,7 @@ func (m *Model) submitForm() tea.Cmd {
 		return m.quitCommand()
 	}
 	if strings.HasPrefix(kind, "overlay-") {
-		if field := m.editingOverlayField(); field != nil && field.color != nil {
+		if field := m.editingOverlayField(); field != nil && (field.color != nil || field.qtColor != nil) {
 			value = m.input.Value()
 		}
 		return m.submitOverlay(kind, value)

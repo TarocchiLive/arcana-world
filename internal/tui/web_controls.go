@@ -70,15 +70,22 @@ func (m *Model) webFields(page string) []webui.Field {
 		}
 		add("tts-enabled", "tts", i18n.WebFieldTTSEnabled, "switch", boolean(enabled), m.ttsOverride != nil)
 		s := m.config.Overlay
+		backend := add("overlay-backend", "overlay", i18n.TUIOverlayBackend, "select", string(s.Backend), false)
+		for _, value := range []overlay.Backend{overlay.BackendNative, overlay.BackendQt} {
+			backend.Options = append(backend.Options, webui.Option{ID: string(value), Label: overlayBackendLabel(value)})
+		}
 		for _, field := range overlayFields {
+			if field.group >= overlaySettingsQtText && s.Backend != overlay.BackendQt {
+				continue
+			}
 			kind, group, value := "number", "overlay-layout", field.read(s)
-			if strings.HasPrefix(field.key, "font-") || field.key == "italic" || field.key == "outline" {
+			if field.group == overlaySettingsText || field.group == overlaySettingsQtText {
 				group = "overlay-type"
 			}
-			if field.color != nil || strings.HasSuffix(field.key, "-alpha") {
+			if field.color != nil || field.qtColor != nil || strings.HasSuffix(field.key, "-alpha") {
 				group = "overlay-color"
 			}
-			if field.color != nil {
+			if field.color != nil || field.qtColor != nil {
 				kind = "color"
 			}
 			if field.key == "font-family" {
@@ -93,8 +100,20 @@ func (m *Model) webFields(page string) []webui.Field {
 				kind, value = "switch", boolean(s.Font.Italic)
 			case "outline":
 				kind, value = "switch", boolean(s.Outline)
+			case "qt-align":
+				kind, value = "select", s.Qt.Alignment
+			case "qt-gradient":
+				kind, value = "switch", boolean(s.Qt.Gradient)
+			case "qt-animation":
+				kind, value = "switch", boolean(s.Qt.AnimationEnabled)
 			}
 			f := add("overlay-"+field.key, group, field.label, kind, value, false)
+			f.Step = field.step
+			if field.key == "qt-align" {
+				for _, alignment := range []string{"left", "center", "right"} {
+					f.Options = append(f.Options, webui.Option{ID: alignment, Label: overlayQtAlignmentLabel(alignment)})
+				}
+			}
 			if field.key == "font-weight" {
 				f.Step = 1
 				f.Min = 100
@@ -173,6 +192,14 @@ func (m *Model) webSetField(page, id, value string) (tea.Cmd, error) {
 		}
 		s := m.config.Overlay
 		switch id {
+		case "overlay-backend":
+			s.Backend = overlay.Backend(value)
+		case "overlay-qt-align":
+			s.Qt.Alignment = value
+		case "overlay-qt-gradient":
+			s.Qt.Gradient = value == "true"
+		case "overlay-qt-animation":
+			s.Qt.AnimationEnabled = value == "true"
 		case "overlay-content":
 			s.Content = value
 		case "overlay-anchor":

@@ -68,16 +68,13 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Install Wayland drawing dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libpango1.0-dev libcairo2-dev libasound2-dev pkg-config
-      - name: Install reproducible archive tools
-        if: runner.os == 'macOS'
-        run: brew install gnu-tar
+      - uses: ./.github/actions/setup-desktop
       - name: Build and package
         shell: bash
         run: |
-          OUT_DIR=package VERSION="$RELEASE_TAG" bash scripts/build.sh desktop
+          target=desktop
+          if [[ "$GOOS" == windows && "$GOARCH" != amd64 ]]; then target=desktop-native; fi
+          OUT_DIR=package VERSION="$RELEASE_TAG" bash scripts/build.sh "$target"
           mkdir -p dist
           suffix=
           tar_tool=tar

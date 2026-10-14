@@ -12,6 +12,7 @@ import (
 
 	"arcana-world/internal/bili"
 	"arcana-world/internal/helperpath"
+	"arcana-world/internal/overlay"
 	"arcana-world/internal/store"
 )
 
@@ -42,6 +43,7 @@ func runDoctor(ctx context.Context, out io.Writer, dir string, options store.Opt
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	r := &doctorReport{out: out}
+	overlayBackend := overlay.BackendNative
 	r.line("OK", "scope", "read-only diagnostics; helpers, audio devices, OBS and Bilibili are not started or contacted")
 	resolved, err := store.ResolveDir(dir)
 	if err != nil {
@@ -54,6 +56,7 @@ func runDoctor(ctx context.Context, out io.Writer, dir string, options store.Opt
 			r.line("ERROR", "config", "cannot read configuration: invalid contents, file type or access permissions")
 		} else {
 			cfg = options.Overrides.Apply(cfg)
+			overlayBackend = cfg.Overlay.Backend
 			client, proxyErr := bili.New(cfg.Proxy, "")
 			if proxyErr != nil {
 				r.line("ERROR", "proxy", "invalid proxy configuration; value omitted")
@@ -86,7 +89,7 @@ func runDoctor(ctx context.Context, out io.Writer, dir string, options store.Opt
 	// 已知缺失的前置条件才会成为阻断问题。
 	overlayRequired := overlayOverride != nil && *overlayOverride
 	ttsRequired := ttsOverride != nil && *ttsOverride
-	r.helper("overlay", "arcana-world-overlay", overlayExecutable, overlayRequired)
+	r.helper("overlay", "arcana-world-overlay-"+string(overlayBackend), overlayExecutable, overlayRequired)
 	r.helper("tts", "arcana-world-tts", "", ttsRequired)
 	r.graphics(overlayRequired)
 	r.audio(ttsRequired)

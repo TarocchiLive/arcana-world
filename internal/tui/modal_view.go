@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/overlay"
+
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -121,6 +123,12 @@ func (m *Model) modalContent() string {
 		}
 		rows = append(rows, lipgloss.NewStyle().PaddingTop(1).
 			Render(m.theme.hintText(strings.TrimSpace(fmt.Sprintf(i18n.T(controls), position, len(m.choices))), width)))
+		if m.editKind == "overlay-backend" {
+			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(i18n.T(i18n.TUIOverlayBackendHelp), width)))
+		}
+		if m.editKind == "overlay-fields" && m.overlaySettings != nil && m.overlaySettings.group == overlaySettingsRoot && m.config.Overlay.Backend == overlay.BackendQt && !overlayTaskbarSupported() {
+			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(i18n.T(i18n.TUIOverlayTaskbarUnavailable), width)))
+		}
 		if ansi.StringWidth(selectionText(m.prompt)) > width || strings.Contains(m.prompt, "\n") {
 			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(m.prompt, width)))
 		}
