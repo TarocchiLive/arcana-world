@@ -1,0 +1,13 @@
+{
+  "web.cli_port_usage": "WebUI 端口（需以 WebUI 启动；默认 5273；0 自动选择）",
+  "web.started": "Web 控制面板：%s\n关闭浏览器不会退出；在此按 Ctrl+C 停止服务并按配置清理直播与 OBS。\n",
+  "web.browser_open_failed": "无法自动打开浏览器，请手动访问 %s：%v\n",
+  "web.port_invalid": "Web 端口必须在 0 到 65535 之间",
+  "web.bind_invalid": "Web 监听地址只支持 127.0.0.1 或 0.0.0.0",
+  "web.port_requires_web": "--web-port 仅适用于 WebUI；请指定 --gui 或将默认启动项设为 WebUI",
+  "web.origin_denied": "已拒绝跨站请求或无效访问地址，请通过服务所在电脑的 IP 地址直接打开面板",
+  "web.method_invalid": "此接口不支持该请求方式",
+  "web.json_required": "请求必须使用 application/json",
+  "web.request_invalid": "请求格式无效或内容过长",
+  "web.unavailable": "控制面板暂时无法响应，请检查程序是否仍在运行"
+}

@@ -1,0 +1,13 @@
+{
+  "web.cli_port_usage": "WebUI port (requires WebUI mode; default 5273; 0 chooses a free port)",
+  "web.started": "Web control panel: %s\nClosing the browser does not quit; press Ctrl+C here to stop the server and clean up live/OBS according to your settings.\n",
+  "web.browser_open_failed": "Could not open the browser automatically. Open %s manually: %v\n",
+  "web.port_invalid": "Web port must be between 0 and 65535",
+  "web.bind_invalid": "Web bind address must be 127.0.0.1 or 0.0.0.0",
+  "web.port_requires_web": "--web-port requires WebUI mode; use --gui or save WebUI as the default interface",
+  "web.origin_denied": "Cross-site request or invalid address denied. Open the panel directly using the host computer's IP address",
+  "web.method_invalid": "This endpoint does not support that request method",
+  "web.json_required": "Requests must use application/json",
+  "web.request_invalid": "The request is malformed or too large",
+  "web.unavailable": "The control panel is not responding. Check that the application is still running"
+}

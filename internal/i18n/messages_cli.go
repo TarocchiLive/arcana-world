@@ -33,4 +33,11 @@ const (
 	CLIUpdateNetworkFailed            Key = "cli.update_network_failed"
 	CLIUpdateCanceled                 Key = "cli.update_canceled"
 	CLIUpdateTimeout                  Key = "cli.update_timeout"
+	CLITUIUsage                       Key = "cli.tui_usage"
+	CLIGUIUsage                       Key = "cli.gui_usage"
+	CLIDefaultTUIUsage                Key = "cli.default_tui_usage"
+	CLIDefaultGUIUsage                Key = "cli.default_gui_usage"
+	CLIUIModeConflict                 Key = "cli.ui_mode_conflict"
+	CLIDefaultUISaved                 Key = "cli.default_ui_saved"
+	CLIWebUILauncherFailed            Key = "cli.webui_launcher_failed"
 )

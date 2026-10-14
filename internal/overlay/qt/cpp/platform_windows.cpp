@@ -42,35 +42,38 @@ QString configureWindow(QWidget *widget, bool locked, bool showInTaskbar)
     return {};
 }
 
-QString screenId(QScreen *screen)
+static QString monitorId(HMONITOR monitor)
 {
-    const auto *native = screen->nativeInterface<QNativeInterface::QWindowsScreen>();
-    if (!native) return {};
     MONITORINFOEXW info{};
     info.cbSize = sizeof(info);
-    if (!GetMonitorInfoW(native->handle(), &info)) return {};
+    if (!GetMonitorInfoW(monitor, &info)) return {};
     DISPLAY_DEVICEW device{};
     device.cb = sizeof(device);
     if (!EnumDisplayDevicesW(info.szDevice, 0, &device, EDD_GET_DEVICE_INTERFACE_NAME)) return {};
     return QString::fromWCharArray(device.DeviceID);
 }
 
-struct MonitorIndex { HMONITOR target; quint32 index = 0; quint32 result = 0; };
+QString screenId(QScreen *screen)
+{
+    const auto *native = screen->nativeInterface<QNativeInterface::QWindowsScreen>();
+    return native ? monitorId(native->handle()) : QString{};
+}
+
+struct MonitorIndex { quint32 target; quint32 index = 0; HMONITOR result = nullptr; };
 static BOOL CALLBACK findMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM data)
 {
     auto &state = *reinterpret_cast<MonitorIndex *>(data);
     ++state.index;
-    if (monitor == state.target) state.result = state.index;
+    if (state.index == state.target) state.result = monitor;
     return TRUE;
 }
 
-quint32 nativeDisplayId(QScreen *screen)
+QString screenIdForDisplay(quint32 index)
 {
-    const auto *native = screen->nativeInterface<QNativeInterface::QWindowsScreen>();
-    if (!native) return 0;
-    MonitorIndex state{native->handle()};
-    EnumDisplayMonitors(nullptr, nullptr, findMonitor, reinterpret_cast<LPARAM>(&state));
-    return state.result;
+    MonitorIndex state{index};
+    if (!EnumDisplayMonitors(nullptr, nullptr, findMonitor, reinterpret_cast<LPARAM>(&state)) || !state.result)
+        return {};
+    return monitorId(state.result);
 }
 
 QString platformLimitation() { return {}; }

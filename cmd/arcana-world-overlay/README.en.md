@@ -22,7 +22,7 @@ Arcana World's cross-platform desktop text overlay displays text in a fixed scre
 | Windows | Windows 10 1803 and later |
 | Linux | Wayland desktops such as KDE Plasma and niri |
 | GNOME | GNOME Mutter lacks layer-shell and is not currently compatible |
-| X11 desktops | No support planned at present |
+| X11 desktops | Elegant overlay supports X11 through xcb; Native overlay does not |
 
 Visibility over lock screens, secure system surfaces, or exclusive fullscreen games is not guaranteed. Normal display on macOS does not require Accessibility or Screen Recording permission.
 
@@ -100,25 +100,25 @@ Extract the entire portable bundle and run `arcana-world` at its root (`arcana-w
 
 By default, the overlay displays live events and closes when the main program exits. Its content is empty until the main chat list loads or when no displayable events are available. On the Overlay tab, enable the selected backend or open Overlay content and appearance to change the content mode, position, size, padding, font, and opacity. Use Select overlay displays to choose the monitors. Settings persist across launches. Startup failures do not block other features; Overlay and Logs show the reason. Turn the overlay off and on again to retry.
 
-Overlay content and appearance keeps content mode and Restore default appearance on its first screen. Other options are grouped under Layout, Text, and Colors and opacity. Esc goes back one level; saving or canceling an edit returns to the same field. Each group remembers its selection until you close settings.
+Overlay content and appearance shows settings for the selected style and retains each style's preferences. Native overlay keeps content mode and Restore default appearance on its first screen, with other options under Layout, Text, and Colors and opacity. Elegant overlay provides text, panel, and motion settings. Esc goes back one level; saving or canceling an edit returns to the same field. Each group remembers its selection until you close settings.
 
-Without live messages, enable Sample preview on the Overlay tab to check wrapping, fonts, colors, and size without signing in. First enable the selected overlay and wait until it is ready. Samples show normal chat, Fleet, and Super Chat colors in the interface language, with every line marked as a sample. They are not added to history or read by TTS, and the preview switch is not saved. Turning preview off, leaving the Overlay tab, or disabling the overlay ends the preview. Actual content then includes any events received while previewing.
+Without live messages, enable Sample preview on the Overlay tab to check wrapping, fonts, colors, size, and motion without signing in. First enable the selected overlay and wait until it is ready. The looping preview scrolls in a message every 1.5 seconds, showing regular and guard-tier chat, Super Chats, gifts, gift combos, Captain subscriptions, arrivals, and likes in the interface language, with every line marked as a sample. Samples are not added to history or read by TTS, and the preview switch is not saved. Turning preview off, leaving the Overlay tab, or disabling the overlay ends the preview. Actual content then includes any events received while previewing.
 
 While the overlay is running, valid values in appearance input fields preview immediately, including position offsets, size, padding, fonts, colors, and opacity. Press Enter to save or Esc to restore saved values. Invalid input keeps the last valid preview. Previewing does not write configuration; combine it with Sample preview to adjust the appearance.
 
 Use ↑/↓ in numeric fields to adjust position, size, padding, or font size by 1, font weight by 100, and opacity by 0.01 (rounded to two decimal places). Invalid values and steps beyond the allowed range leave the input unchanged. Left/right still move the cursor, and direct typing remains available. Press Enter to save or Esc to cancel stepped changes.
 
-Content modes are listed as Live chat, Room status, and Status and chat. Chat modes share the TUI main chat list's data and refresh results without loading additional history. They display the latest six selected events from that list; the visible portion depends on wrapping and available height. At startup, both use the main list's limit of up to 10 messages from the past 24 hours. New messages, withdrawals, and removal of older entries update together. Templates use Chinese, and overlay event selections are independent of TTS. Browsing history or switching pages does not change the overlay's data source. Disabling chat listening clears overlay events.
+Content modes are listed as Live chat, Room status, and Status and chat. Chat modes share the TUI main chat list's data and refresh results without loading additional history. They display the latest six selected events from that list; the visible portion depends on wrapping and available height. At startup, both use the main list's limit of up to 10 messages from the past 24 hours. New messages, withdrawals, and removal of older entries update together. The interface language selects `templates/overlay.zh-CN.yaml` or `templates/overlay.en.yaml` in the configuration directory. Edit the corresponding external YAML file to customize templates, then save and restart to apply changes. Overlay event selections are independent of TTS. Browsing history or switching pages does not change the overlay's data source. Disabling chat listening clears overlay events.
 
 `-overlay` and `-overlay=false` override the switch for this launch without changing saved settings. Using the switch in the TUI saves it. Use `-overlay-executable /path/to/arcana-world-overlay-native` for a helper in another location; it must match the selected backend. The standalone appearance options above do not apply when the main program manages the overlay.
 
-Saved values are not changed when defaults change. Restore default settings resets application preferences, overlay settings, TTS voice, and event selections while keeping OBS configuration, its password, and Bilibili login information. Restore default appearance asks for confirmation, resets only overlay appearance while keeping its content mode and enabled state, and shows a completion message.
+Custom appearance settings are preserved. Elegant overlay's old default text style migrates to equal font sizes, no latest-message gradient, and 95% history text opacity, without changing event colors. Restore default settings resets application preferences, overlay settings, TTS voice, and event selections while keeping OBS configuration, its password, and Bilibili login information. Restore default appearance asks for confirmation, resets only overlay appearance while keeping its content mode and enabled state, and shows a completion message.
 
 ## Build and launch
 
 The `arcana-world-<goos>-<goarch>.tar.gz` / `.zip` portable bundles contain the main executable and the overlay under `libexec`. Run source build commands from the **project root** with the project's required Go version installed.
 
-macOS also requires Xcode Command Line Tools. Linux requires the Wayland and Pango/Cairo development libraries and `pkg-config`. On Debian/Ubuntu:
+Native overlay also requires Xcode Command Line Tools on macOS, or Wayland and Pango/Cairo development libraries and `pkg-config` on Linux. Full desktop builds additionally require the dependencies under [Elegant overlay build and runtime](#elegant-overlay-build-and-runtime) below. Install the native overlay dependencies on Debian/Ubuntu with:
 
 ```sh
 sudo apt-get install libwayland-dev libpango1.0-dev libcairo2-dev pkg-config
@@ -160,7 +160,7 @@ Build on the target OS and architecture with CMake, Python 3, a C++17 compiler, 
 
 - macOS: Xcode Command Line Tools and `brew install qt cmake`; Qt >= 6.11 is required for stable native display IDs. Set `CMAKE_PREFIX_PATH` to `brew --prefix qt` and `QTPATHS` to its `bin/qtpaths`.
 - Linux: Qt >= 6.5 (Core/Gui/Widgets/WaylandClient), LayerShellQt >= 6.3, Wayland development libraries, and `patchelf`. The release setup script builds Qt 6.8.3 and LayerShellQt 6.3.6 on Ubuntu 24.04 and caches the installation. The release glibc baseline remains Ubuntu 24.04. `scripts/setup-linux-qt.sh` installs build prerequisites with sudo; outside CI, export its installation prefix as `CMAKE_PREFIX_PATH`, put its `bin` on PATH, and set `QTPATHS` to `bin/qtpaths`.
-- Windows amd64: use MSYS2 UCRT64 Qt6, GCC, CMake and Ninja with native Windows Go and Python. Use the same UCRT64 compiler for Qt and cgo; do not mix MSVC Qt with MinGW. Set `CMAKE_GENERATOR=Ninja`, `CC=gcc`, `CXX=g++`, and `QTPATHS` to the UCRT64 `qtpaths6.exe`.
+- Windows amd64: use MSYS2 UCRT64 Qt >= 6.7, GCC, CMake and Ninja with native Windows Go and Python. Use the same UCRT64 compiler for Qt and cgo; do not mix MSVC Qt with MinGW. Set `CMAKE_GENERATOR=Ninja`, `CC=gcc`, `CXX=g++`, and `QTPATHS` to the UCRT64 `qtpaths6.exe`.
 
 `make overlay-qt` builds and deploys the Elegant helper. Deployment copies Qt plugins and the transitive shared-library dependencies into `libexec`, rewrites macOS/Linux loader paths, and ad-hoc signs modified macOS binaries. Windows deployment uses `windeployqt` plus MinGW dependency discovery. Linux bundles LayerShellQt and Wayland client dependencies but uses the system's glibc, kernel, display server, and graphics drivers. Preserve the entire directory when moving or archiving the program.
 

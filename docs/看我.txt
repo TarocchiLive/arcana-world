@@ -1,0 +1,2 @@
+Windows 用户可能因为系统版本问题，默认程序启动乱码，可以使用 arcana-world-webui 启动网页版。
+如果确实想用 TUI，可以自行搜索如何安装 Windows Terminal，并使用 Windows Terminal 启动 arcana-world。

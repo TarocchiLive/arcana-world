@@ -94,7 +94,7 @@ func (m *Model) coverView() string {
 		if m.cover.Cropped {
 			processing = i18n.T(i18n.TUICoverCropped)
 		}
-		details := fmt.Sprintf(i18n.T(i18n.TUICoverProcessedDetails), m.cover.SourceWidth, m.cover.SourceHeight, coverimage.Width, coverimage.Height, float64(len(m.cover.PNG))/1024, processing)
+		details := fmt.Sprintf(i18n.T(i18n.TUICoverProcessedDetails), m.cover.SourceWidth, m.cover.SourceHeight, coverimage.Width, coverimage.Height, float64(len(m.cover.JPEG))/1024, processing)
 		zoom, x, y := m.cover.Framing()
 		details = strings.TrimRight(details, "\n") + "\n" + fmt.Sprintf(i18n.T(i18n.TUICoverFraming), zoom, x*100, y*100)
 		return lipgloss.JoinVertical(lipgloss.Left,

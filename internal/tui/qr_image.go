@@ -14,6 +14,9 @@ import (
 type qrImageOpened struct{ err error }
 
 func (m *Model) prepareQR(link string) tea.Cmd {
+	if m.web.enabled {
+		return nil
+	}
 	m.qrText = ""
 	if preferQRImage() {
 		return m.openQRImage()

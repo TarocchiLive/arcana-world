@@ -4,14 +4,20 @@
 
 Versions are listed newest first.
 
-## Unreleased
+## [v0.4.0-alpha.1]: 2026-10-14 (prerelease)
 
 ### Added
 
+- Choose or drop a Web cover image, zoom, pan, and reset its crop in the browser, then preview and confirm upload. Bilibili authentication and upload remain in the backend. Cover output follows Bilibili's current editor at 720×540 (4:3), with a note about its 16:9 Web crop.
+- Replace desktop navigation to account verification pages with a copy button and instructions to open the link in a phone browser. Show a manually selectable link when clipboard access fails.
 - Display native cover previews in iTerm2, fitting the terminal size while preserving the image aspect ratio. Keep character previews in tmux, screen, and redirected output.
 - Zoom cover previews with `+` / `-`, pan with `h/j/k/l`, and reset with `0` in both native and character previews. These controls do not change the cover being uploaded.
-- Adjust the crop in the cover upload confirmation screen by zooming and panning; press `0` to restore the centered crop. The screen shows the zoom and crop center, with a preview before upload. Adjustments use the original image and keep the output at 704×396; canceled processing is discarded.
+- Adjust the crop in the cover upload confirmation screen by zooming and panning; press `0` to restore the centered crop. The screen shows the zoom and crop center, with a preview before upload. Adjustments use the original image and keep the output at 720×540; canceled processing is discarded.
 - Check for the latest stable release manually and show the comparison and release page. The check uses proxy settings without reading login credentials, downloading, or installing. Report cancellation, timeouts, and access limits without recommending a downgrade from a newer prerelease.
+- Add an optional local Web control panel sharing account, live, OBS, chat, and helper lifecycles with the terminal mode. See `--help` for startup options.
+- Add Chinese/English UI, light/dark/system themes, and pausable chat and log updates.
+- Open the Web panel without an access token at the default fixed address `http://127.0.0.1:5273`. Change the bind address only through the configuration file. Retain cross-site and stale-interaction checks, and reveal stream keys only on explicit request.
+- Save a default interface or select TUI / WebUI for one run, without detecting the OS version or terminal type. Windows packages include an `arcana-world-webui.exe` launcher. WebUI opens the default browser on startup and keeps the address available if opening fails.
 - Add a looping sample preview to the Overlay tab, scrolling in the next message every 1.5 seconds. Include regular and guard-tier chat, Super Chats, gifts, gift combos, Captain subscriptions, arrivals, and likes to preview appearance, event colors, and motion without signing in. Samples do not enter history or TTS; turning preview off, leaving the tab, or disabling the overlay restores actual content.
 - Choose Native overlay or Elegant overlay. Switching while running reaps the previous overlay first; settings follow the selected style and retain each style's preferences. Elegant overlay adds text, panel, and motion controls.
 - Use layer-shell for Elegant overlay placement, output selection, and stacking on supported Wayland compositors. Report unsupported compositors instead of falling back to an ordinary window.
@@ -19,17 +25,37 @@ Versions are listed newest first.
 
 ### Changed
 
+- Fix cover uploads rejected because a correctly sized PNG was too large. The backend produces JPEG files up to 256 KiB, flattens transparency onto white, shows the actual upload image and size for confirmation, and validates the file again before sending.
+- Include startup guidance in Windows archives: use WebUI if terminal text is garbled, or run TUI in Windows Terminal.
+- Document installation through Scoop on Windows and APT on Debian/Ubuntu.
 - Prefer complete recent messages when overlay text exceeds its height, reducing cuts through usernames or messages. Keep the tail when a single long message cannot fit. Apply the same rule on macOS, Windows, and Linux.
 - Preview overlay position offsets, size, padding, fonts, and opacity while editing, using the existing color preview save and cancel flow. Enter saves, Esc restores, and invalid input keeps the last valid preview.
 - Adjust numeric overlay fields with ↑/↓ and preview changes immediately. Show each field's step size, leave invalid or out-of-range values unchanged, and keep Enter to save and Esc to cancel.
 - Group overlay settings into Layout, Text, and Colors and opacity, keeping content mode and restore on the first screen. Esc goes back one level; saving and canceling return to the same field, with each group retaining its selection while settings remain open.
+- Handle process exit signals in one place to prevent the terminal interface from hanging on interruption.
+- Share the directory lock between startup and default-interface changes to prevent concurrent configuration overwrites. Saving the default preserves account indexes, unknown fields, and large integers, and rejects invalid configuration.
+- Split the Web panel into Studio, Chat, Outputs, Accounts, Settings, and Help. Configure the room and OBS in Studio; read and send messages in Chat. Edit ordinary settings in place, complete sign-in and room selection inline, and search and read help on its own page.
+- Constrain workspace widths and use columns and dividers instead of large cards. Remove the overlay appearance sample and preserve keyboard focus for risk confirmations.
+- Use the TUI's WORLD wordmark on the Web panel connection screen and top navigation, with theme colors and narrow-screen sizing.
+- Show Web operation errors as dismissible top-right notifications with expandable details, without shifting forms or page layout.
+- Fix legacy HTTP cover URLs blocked by browser security policy, and hide broken images when cover loading fails.
+- Reuse TUI event text in Web chat, including fan medals, UIDs, gift amounts, Super Chats, and Guard purchases. Preserve removed-message and mystery-user handling, order messages chronologically, and retain the scroll position while reading history.
+- Add message context menus, touch-friendly Actions buttons, and keyboard menus for copying messages, viewing profiles and homepages, muting, blocking, and appointing moderators. Audience and Fleet lists support refresh; moderator, blacklist, and mute lists support user search, adding, and removal. Management reuses the terminal workflows, including custom-hour or permanent mutes, confirmation, and account and target identity checks.
+- Use Cancel and a named action in confirmation dialogs, without repeating the detailed prompt in the title. Before submission, Cancel or Esc returns to the previous step. Cover previews and subsequent QR-login confirmations also return to the preceding step.
+- Open chat management submenus in dialogs instead of a sidebar, including audience lists, profiles, and management forms. Close or Esc restores the action entry point; cancelling confirmation returns to the original form.
+- Fix horizontal overflow in long management lists, controls re-enabled during refresh, and dialogs left open during navigation. Submit the latest interaction revision. Keep messages visible when navigating with chat paused, and clear old messages when the account or room changes.
 - Bundle both overlay helpers and Elegant overlay runtime libraries privately in `libexec`; users still launch only `arcana-world`. Replace the complete package when upgrading because old overlay helpers are incompatible. Windows 386/arm64 packages currently retain the native overlay.
 - Remove the Elegant overlay menu-bar/system-tray icon and context menu. Control the overlay through the main application's settings; launch options remain available for standalone use.
 - Move the overlay style selector to the second item on the Overlay page, alongside the enable toggle, and explain the appearance and control differences between Native overlay and Elegant overlay.
 - Give new and older messages the same default font size in Elegant overlay, disable the latest-message gradient, and raise history text opacity from 55% to 95%. Migrate the old default text style while preserving custom styles and event colors.
+- Remove Web form and chat draft caches. Input stays only on the current page and is not restored after navigation. Saving and canceling show the server's actual state instead of stale input. Submitting a chat message clears the input; check the reported send result.
 
 ### Fixed
 
+- Fix Elegant overlay options being treated as numbers in the Web panel. Edit settings using their actual types and show only options for the selected overlay style.
+- Update the shared Nix vendor hash to match the current Go dependencies.
+- Preserve dialog identity, scroll position, and focus when refreshing Web audience and fleet lists; account, room, and action target changes still invalidate stale requests.
+- Correct overlay template guidance in both languages: templates follow the interface language and can be customized in the corresponding YAML file.
 - Fix the library path format when building Elegant overlay with MSYS2 on Windows so the linker can find the overlay library.
 - Preserve ZWJ/ZWNJ in overlay text and speech input so text cleanup does not break joined emoji or script shaping. Continue removing terminal escapes and bidirectional control characters.
 - Truncate overlay and speech text at grapheme boundaries without increasing existing length limits, keeping joined emoji, flags, skin tones, and accents intact. Removed control characters no longer cause an unnecessary ellipsis.
@@ -37,6 +63,9 @@ Versions are listed newest first.
 - Include native overlay and TTS build dependencies in the default `nix develop` environment. `make desktop-native` retains the native build path; the full desktop build additionally requires the Elegant overlay platform dependencies.
 - Retry failed TTS synthesis requests or empty audio up to twice, waiting 500ms and 1500ms before skipping the item if it still fails. Retries share the existing 30-second deadline and end immediately on stop or exit; playback is not retried.
 - Use a private macOS application bundle and explicit activation policies for Elegant overlay. Hide its Dock entry by default, avoid stealing focus during startup and visibility changes, and use the product name in the Dock.
+- Use the actual MSYS2 installation directory for Windows builds so installation and linking use the same toolchain. Elegant overlay requires Qt 6.7 or later on Windows.
+- Use the actual Qt and LayerShellQt library directories during Linux Elegant overlay linking and deployment, without relying on CI-provided library search paths.
+- Resolve Windows Elegant overlay monitor indexes to stable device IDs once per selection. Hotplug changes no longer reassign the selected screen, and message updates no longer enumerate monitors again.
 
 ## [v0.3.2]: 2026-10-12
 
@@ -411,3 +440,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.3.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0
 [v0.3.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.1
 [v0.3.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.2
+[v0.4.0-alpha.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-alpha.1

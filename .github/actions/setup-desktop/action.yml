@@ -23,6 +23,7 @@ runs:
         echo "QT_LICENSE_DIR=$(brew --prefix qt)/share/qt/licenses" >> "$GITHUB_ENV"
     - name: Install Windows graphics toolchain
       if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      id: msys2
       uses: msys2/setup-msys2@v2
       with:
         msystem: UCRT64
@@ -35,11 +36,14 @@ runs:
     - name: Configure Windows graphics toolchain
       if: runner.os == 'Windows' && env.GOARCH == 'amd64'
       shell: bash
+      env:
+        MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
       run: |
-        echo 'C:/msys64/ucrt64/bin' >> "$GITHUB_PATH"
-        echo 'CMAKE_PREFIX_PATH=C:/msys64/ucrt64' >> "$GITHUB_ENV"
-        echo 'QTPATHS=C:/msys64/ucrt64/bin/qtpaths6.exe' >> "$GITHUB_ENV"
-        echo 'QT_LICENSE_DIR=C:/msys64/ucrt64/share/licenses' >> "$GITHUB_ENV"
+        prefix="$(cygpath -m "$MSYS2_LOCATION")/ucrt64"
+        echo "$prefix/bin" >> "$GITHUB_PATH"
+        echo "CMAKE_PREFIX_PATH=$prefix" >> "$GITHUB_ENV"
+        echo "QTPATHS=$prefix/bin/qtpaths6.exe" >> "$GITHUB_ENV"
+        echo "QT_LICENSE_DIR=$prefix/share/licenses" >> "$GITHUB_ENV"
         echo 'CMAKE_GENERATOR=Ninja' >> "$GITHUB_ENV"
         echo 'CC=gcc' >> "$GITHUB_ENV"
         echo 'CXX=g++' >> "$GITHUB_ENV"

@@ -37,6 +37,10 @@ build_qt() {
     -DCMAKE_INSTALL_PREFIX="$install_dir" -DCMAKE_INSTALL_LIBDIR=.
   cmake --build "$build_dir" --config Release --parallel "${BUILD_JOBS:-2}"
   cmake --install "$build_dir" --config Release
+  if [[ "$GOOS" == linux ]]; then
+    # 链接和部署都需要私有依赖目录；最终包仍由部署脚本改为相对路径。
+    export LD_LIBRARY_PATH="$(<"$build_dir/runtime-path")${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  fi
   qt_ldflags="$ldflags"
   case "$GOOS" in
     darwin) qt_ldflags+=' -extldflags=-Wl,-rpath,@loader_path' ;;
@@ -52,13 +56,23 @@ build() {
   local component="$1" cgo tags output flags command
   case "$component" in
     build) cgo=0; tags=; output="arcana-world$suffix"; flags="$tui_ldflags"; command=arcana-world ;;
+    webui)
+      if [[ "$GOOS" != windows ]]; then
+        echo "webui: the launcher is Windows-only" >&2
+        exit 2
+      fi
+      cgo=0; tags=; output="arcana-world-webui.exe"; flags="$ldflags"; command=arcana-world-webui
+      ;;
     overlay) cgo="$overlay_cgo"; tags="$overlay_tags"; output="libexec/arcana-world-overlay-native$suffix"; flags="$ldflags"; command=arcana-world-overlay ;;
     tts) cgo="$audio_cgo"; tags=tts_audio; output="libexec/arcana-world-tts$suffix"; flags="$ldflags"; command=arcana-world-tts ;;
-    *) echo 'Usage: bash scripts/build.sh {build|overlay|overlay-qt|tts|desktop|desktop-native}' >&2; exit 2 ;;
+    *) echo 'Usage: bash scripts/build.sh {build|webui|overlay|overlay-qt|tts|desktop|desktop-native}' >&2; exit 2 ;;
   esac
   mkdir -p "$(dirname "$out_dir/$output")"
   CGO_ENABLED="$cgo" go build -tags "$tags" -trimpath -buildvcs=false \
     -ldflags="$flags" -o "$out_dir/$output" "./cmd/$command"
+  if [[ "$component" == build && "$GOOS" == windows ]]; then
+    build webui
+  fi
 }
 
 case "${1:-build}" in

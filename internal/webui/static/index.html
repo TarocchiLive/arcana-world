@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Arcana World</title>
+    <link rel="stylesheet" href="/app.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <div id="app">
+      <header class="appbar">
+        <a class="brand" href="#studio" aria-label="Arcana World">
+          <span class="brand-name" aria-hidden="true">Arcana</span>
+          <span class="wordmark" aria-hidden="true">╷   ╷  ╭───╮  ╭───╮  ╷      ┌───╮
+│ ╷ │  │   │  ├─┬─╯  │      │   │
+╰─┴─╯  ╰───╯  ╵ ╰─╴  ╰───╴  └───╯</span>
+        </a>
+        <nav id="navigation" aria-label="Workspace"></nav>
+        <div class="utilities">
+          <span id="identity"></span
+          ><label class="sr-only" for="theme">Appearance</label
+          ><select id="theme"></select>
+        </div>
+      </header>
+      <div class="connection-line">
+        <span id="connection" role="status"></span
+        ><span id="status" role="status"></span
+        ><button id="retry" type="button"></button>
+      </div>
+      <div id="pending" class="pending" hidden></div>
+      <main id="main" tabindex="-1"></main>
+    </div>
+    <dialog id="chat-dialog" class="chat-dialog" aria-labelledby="chat-dialog-title">
+      <div id="chat-flow"></div>
+    </dialog>
+    <dialog
+      id="confirm"
+      aria-labelledby="confirm-title"
+      aria-describedby="confirm-text"
+    >
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-text"></p>
+      <div id="confirm-actions" class="actions"></div>
+    </dialog>
+    <div id="notifications" class="notifications" aria-live="polite" aria-relevant="additions"></div>
+  </body>
+</html>

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"arcana-world/internal/domain"
+	"arcana-world/internal/journal"
 	"arcana-world/internal/store"
 	"github.com/gorilla/websocket"
 	"github.com/zalando/go-keyring"
@@ -109,11 +110,17 @@ func lifecycleServer(t *testing.T, state *lifecycleOBS) string {
 
 func lifecycleModel(t *testing.T, ctx context.Context) *Model {
 	t.Helper()
-	s, err := store.OpenWithBackend(t.TempDir(), lifecycleSecrets{})
+	dir := t.TempDir()
+	disk, err := journal.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := New(ctx, s)
+	t.Cleanup(func() { _ = disk.Close() })
+	s, err := store.OpenWithBackend(dir, lifecycleSecrets{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := New(ctx, s, disk)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -32,12 +32,13 @@ Native support for Windows, Linux, and macOS.
 - **Browse and send live chat in real time, with a click-through floating overlay that stays out of the way of your mouse and keyboard.**
 - **High-quality chat, gift, and Super Chat announcements powered by Edge TTS, with zero resource overhead.**
 - **Typical memory usage of 40 MB: lightweight, smooth, and stable.**
+- **Optional local Web control panel.**
 
 ## Install
 
 ### Quick start
 
-Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest) for your platform, such as `arcana-world-windows-amd64.zip`, extract the entire archive, and run `arcana-world` at its root (`arcana-world.exe` on Windows).
+Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest) for your platform, such as `arcana-world-windows-amd64.zip`, and extract the entire archive. Run `arcana-world` at its root (`arcana-world.exe` on Windows) to use your saved default interface, or the terminal interface if none is set. Windows users can also run `arcana-world-webui.exe` in the same directory to open the browser interface directly.
 
 ### Windows (Scoop)
 
@@ -76,7 +77,7 @@ After building, run `bin/arcana-world` (`bin/arcana-world.exe` on Windows). For 
 
 ## Help
 
-Press `0` or open Help in the app for instructions and common questions. Run `arcana-world --help` for command-line options.
+In the terminal interface, press `0` for help. In the Web panel, use Help in the top navigation to search topics and read articles directly. Run `arcana-world --help` for command-line options.
 
 ## TODO
 - [x] Fetch direct Bilibili stream URLs, connect to OBS, and start broadcasts automatically.
@@ -93,7 +94,9 @@ Press `0` or open Help in the app for instructions and common questions. Run `ar
 - [x] Check for new versions.
 - [x] Support Scoop and APT repositories.
 - [ ] Support Homebrew and nixpkgs repositories.
-- [x] WebUI support.
+- [ ] Add a bot protocol interface.
+- [x] Optional WebUI control panel.
+- [?] Native GUI support (under consideration).
 
 ## Development
 

@@ -1,0 +1,16 @@
+{
+  "web.field.title": "标题",
+  "web.field.announcement": "公告",
+  "web.field.obs_url": "WebSocket 地址",
+  "web.field.obs_password": "密码",
+  "web.field.obs_auto_connect": "自动连接 OBS",
+  "web.field.obs_auto_stream": "开播时自动推流",
+  "web.field.proxy": "网络代理",
+  "web.field.chat_enabled": "接收弹幕",
+  "web.field.chat_other": "显示其他事件",
+  "web.field.chat_limit": "保留消息数",
+  "web.field.exit_obs_stop": "退出时停止 OBS 推流",
+  "web.field.exit_live_stop": "退出时关闭直播间",
+  "web.field.overlay_enabled": "桌面浮层",
+  "web.field.tts_enabled": "语音播报"
+}

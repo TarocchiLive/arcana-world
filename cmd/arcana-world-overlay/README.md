@@ -22,7 +22,7 @@ Arcana World 的跨平台桌面文字浮层会在固定屏幕区域显示文字�
 | Windows | 支持 Windows 10 1803 及以上版本 |
 | Linux | 支持 KDE Plasma、niri 等 Wayland 桌面 |
 | GNOME | GNOME Mutter 缺少 layer-shell，暂不兼容 |
-| X11 桌面 | 暂无支持计划 |
+| X11 桌面 | 精美浮层通过 xcb 插件支持；原生浮层不支持 |
 
 不保证显示在锁屏、系统安全界面或游戏独占全屏之上。普通 macOS 显示不需要辅助功能或屏幕录制权限。
 
@@ -100,25 +100,25 @@ printf '%s\n' '新的提示内容' | ./bin/libexec/arcana-world-overlay-native -
 
 默认显示实时事件，并在主程序退出时关闭；主弹幕列表尚未加载或没有可显示事件时内容为空。在「弹幕浮层」页启用所选后端，通过「浮层内容与外观」调整内容模式、位置、尺寸、留白、字体和透明度，通过「选择浮层显示器」选择显示屏幕。设置会保存，下次启动继续使用；浮层启动失败不影响其他功能，浮层页和日志页会显示原因。失败后关闭再启用可重试。
 
-「浮层内容与外观」首页保留内容模式和恢复默认外观，其他选项分为「布局」「文字」「颜色与透明度」。Esc 逐级返回；保存或取消编辑后回到原字段。本次打开设置期间，各分组分别记住选中位置。
+「浮层内容与外观」按所选样式显示设置，并保留各自偏好。原生浮层首页保留内容模式和恢复默认外观，其他选项分为「布局」「文字」「颜色与透明度」；精美浮层提供文字、面板与动效设置。Esc 逐级返回；保存或取消编辑后回到原字段。本次打开设置期间，各分组分别记住选中位置。
 
-无弹幕时，可在「弹幕浮层」页开启「示例预览」检查换行、字体、颜色和尺寸，无需登录。请先启用所选浮层并等待就绪。示例展示普通弹幕、大航海和醒目留言的颜色，每行均标明“示例”，随界面语言显示；不写入历史、不触发 TTS，也不保存预览开关。关闭预览、离开浮层页或关闭浮层后恢复实际内容；预览期间收到的新事件会在恢复后正常显示。
+无弹幕时，可在「弹幕浮层」页开启「示例预览」检查换行、字体、颜色、尺寸和动效，无需登录。请先启用所选浮层并等待就绪。示例每 1.5 秒滚入下一条，循环展示普通弹幕、舰长／提督／总督弹幕、醒目留言、礼物、连击送礼、上舰、进场和点赞，每行均标明“示例”，随界面语言显示；不写入历史、不触发 TTS，也不保存预览开关。关闭预览、离开浮层页或关闭浮层后恢复实际内容；预览期间收到的新事件会在恢复后正常显示。
 
 浮层运行时，外观输入框中的有效值会即时预览，包括位置偏移、尺寸、留白、字体、颜色和透明度。Enter 保存，Esc 恢复已保存值；无效输入保留最近一次有效预览。预览本身不写入配置，可配合示例预览调整外观。
 
 数值输入框支持 ↑/↓ 增减：位置、尺寸、留白和字号的步长为 1，字重为 100，透明度为 0.01（保留两位小数）。当前值无效或调整后越界时保持不变。左右键仍移动光标，也可直接输入数值；步进后仍需 Enter 保存，Esc 撤销。
 
-内容模式依次为「实时弹幕」「房间状态」「状态与弹幕」。弹幕模式与 TUI 主弹幕列表共用数据和刷新结果，不单独补读历史；从主列表中显示最新六条勾选的事件，实际显示范围取决于换行后的行数和可用高度。启动时沿用主列表近 24 小时内最多 10 条的加载范围，后续消息、撤回和列表淘汰同步更新。模板固定使用中文，浮层事件选择与 TTS 独立；翻阅历史或切换页面不会改变浮层的数据来源，关闭弹幕监听后清空浮层事件。
+内容模式依次为「实时弹幕」「房间状态」「状态与弹幕」。弹幕模式与 TUI 主弹幕列表共用数据和刷新结果，不单独补读历史；从主列表中显示最新六条勾选的事件，实际显示范围取决于换行后的行数和可用高度。启动时沿用主列表近 24 小时内最多 10 条的加载范围，后续消息、撤回和列表淘汰同步更新。模板按界面语言选择配置目录中的 `templates/overlay.zh-CN.yaml` 或 `templates/overlay.en.yaml`，可编辑对应的外部 YAML 文件定制，保存后重启生效。浮层事件选择与 TTS 独立；翻阅历史或切换页面不会改变浮层的数据来源，关闭弹幕监听后清空浮层事件。
 
 `-overlay` 和 `-overlay=false` 只覆盖本次启动的开关，不自动改写保存的设置；在 TUI 中操作开关会保存。使用 `-overlay-executable /path/to/arcana-world-overlay-native` 指定其他位置的浮层程序，必须与所选后端一致。主程序管理模式下，上面的独立浮层外观参数不生效。
 
-已有保存值不会因默认值更新而改变。「恢复默认设置」会重置应用偏好、浮层、TTS 音色和事件选择，但保留 OBS 配置、密码和 B 站登录信息。「恢复默认外观」需确认后执行，仅重置浮层外观，不改变内容模式和开关；完成后显示恢复成功提示。
+自定义外观会保留；精美浮层的旧默认文字样式会自动迁移为统一字号、关闭最新消息渐变高亮及 95% 历史文字不透明度，事件颜色不变。「恢复默认设置」会重置应用偏好、浮层、TTS 音色和事件选择，但保留 OBS 配置、密码和 B 站登录信息。「恢复默认外观」需确认后执行，仅重置浮层外观，不改变内容模式和开关；完成后显示恢复成功提示。
 
 ## 构建与启动
 
 `arcana-world-<goos>-<goarch>.tar.gz` / `.zip` 便携包包含主程序和 `libexec` 目录下的浮层程序。源码构建命令均在**项目根目录**执行，并先安装项目要求版本的 Go。
 
-macOS 还需安装 Xcode Command Line Tools；Linux 需安装 Wayland、Pango/Cairo 开发库和 `pkg-config`。Debian/Ubuntu 可使用：
+原生浮层在 macOS 上还需安装 Xcode Command Line Tools；Linux 需安装 Wayland、Pango/Cairo 开发库和 `pkg-config`。完整桌面构建还需下方[精美浮层构建与运行库](#精美浮层构建与运行库)列出的依赖。Debian/Ubuntu 的原生浮层依赖可使用：
 
 ```sh
 sudo apt-get install libwayland-dev libpango1.0-dev libcairo2-dev pkg-config
@@ -160,7 +160,7 @@ macOS amd64/arm64、Linux amd64/arm64 和 Windows amd64 完整发行包包含两
 
 - macOS：安装 Xcode Command Line Tools，执行 `brew install qt cmake`。稳定原生显示器 ID 要求 Qt >= 6.11。`CMAKE_PREFIX_PATH` 指向 `brew --prefix qt`，`QTPATHS` 指向该目录的 `bin/qtpaths`。
 - Linux：安装 Qt >= 6.5（Core/Gui/Widgets/WaylandClient）、LayerShellQt >= 6.3、Wayland 开发库和 `patchelf`。发行脚本在 Ubuntu 24.04 上构建并缓存 Qt 6.8.3、LayerShellQt 6.3.6，保持原有 glibc 基线。`scripts/setup-linux-qt.sh` 使用 sudo 安装构建依赖；非 CI 环境还需将安装前缀设为 `CMAKE_PREFIX_PATH`，将其 `bin` 加入 PATH，并将 `QTPATHS` 指向 `bin/qtpaths`。
-- Windows amd64：使用 MSYS2 UCRT64 的 Qt6、GCC、CMake、Ninja，以及原生 Windows Go 和 Python。Qt 与 cgo 必须使用同一套 UCRT64 编译器，不可混用 MSVC Qt。设置 `CMAKE_GENERATOR=Ninja`、`CC=gcc`、`CXX=g++`，`QTPATHS` 指向 UCRT64 的 `qtpaths6.exe`。
+- Windows amd64：使用 MSYS2 UCRT64 的 Qt >= 6.7、GCC、CMake、Ninja，以及原生 Windows Go 和 Python。Qt 与 cgo 必须使用同一套 UCRT64 编译器，不可混用 MSVC Qt。设置 `CMAKE_GENERATOR=Ninja`、`CC=gcc`、`CXX=g++`，`QTPATHS` 指向 UCRT64 的 `qtpaths6.exe`。
 
 `make overlay-qt` 构建并部署精美浮层 helper。部署脚本将 Qt 插件及间接动态库依赖复制到 `libexec`，改写 macOS/Linux 加载路径，并对修改后的 macOS 二进制重新临时签名。Windows 使用 `windeployqt`，随后补齐 MinGW 依赖。Linux 包含 LayerShellQt 和 Wayland 客户端依赖，但使用系统的 glibc、内核、显示服务和显卡驱动。移动或打包时必须保留整个目录。
 

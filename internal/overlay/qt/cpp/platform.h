@@ -23,6 +23,10 @@ inline void placeWindow(QWidget *widget, QScreen *, const QRect &frame) { widget
 #endif
 QString configureWindow(QWidget *widget, bool locked, bool showInTaskbar);
 QString screenId(QScreen *screen);
+#if defined(Q_OS_WIN)
+QString screenIdForDisplay(quint32 index);
+#else
 quint32 nativeDisplayId(QScreen *screen);
+#endif
 QString platformLimitation();
 }
