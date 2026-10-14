@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/overlay"
@@ -11,18 +13,21 @@ import (
 )
 
 type overlayRuntime struct {
-	ctx       context.Context
-	cancel    context.CancelFunc
-	options   overlay.Options
-	manager   *overlay.Manager
-	state     string
-	lastError error
-	last      overlay.Config
-	published bool
-	preview   bool
-	started   chan struct{}
-	startDone chan struct{}
-	created   *overlay.Manager
+	ctx          context.Context
+	cancel       context.CancelFunc
+	options      overlay.Options
+	manager      *overlay.Manager
+	state        string
+	lastError    error
+	last         overlay.Config
+	published    bool
+	preview      bool
+	previewText  string
+	previewRoles string
+	previewNext  time.Time
+	started      chan struct{}
+	startDone    chan struct{}
+	created      *overlay.Manager
 }
 type overlaySummary struct {
 	title      string
@@ -172,8 +177,7 @@ func (m *Model) publishOverlay() {
 	cfg := owner.options.Config
 	if owner.preview {
 		// 示例只覆盖展示快照，不进入弹幕源、历史或语音播报路径。
-		cfg.Text = i18n.T(i18n.TUIOverlayPreviewText)
-		cfg.TextRoles = "ncags"
+		cfg.Text, cfg.TextRoles = owner.previewContent(time.Now())
 	} else {
 		cfg.Text = m.overlayContentText()
 		cfg.TextRoles = m.overlayChat.contentRoles
@@ -187,6 +191,24 @@ func (m *Model) publishOverlay() {
 		owner.lastError = err
 		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayUpdateFailed), err))
 	}
+}
+
+func (owner *overlayRuntime) previewContent(now time.Time) (string, string) {
+	const interval = 1500 * time.Millisecond
+	if owner.previewText == "" {
+		owner.previewText = i18n.T(i18n.TUIOverlayPreviewText)
+		owner.previewRoles = "ncagsnncnn"
+		owner.previewNext = now.Add(interval)
+	} else if !now.Before(owner.previewNext) {
+		// 复用业务轮询，每次把最旧示例移到末尾，触发与新弹幕相同的滚动动效。
+		first, rest, ok := strings.Cut(owner.previewText, "\n")
+		if ok {
+			owner.previewText = rest + "\n" + first
+			owner.previewRoles = owner.previewRoles[1:] + owner.previewRoles[:1]
+		}
+		owner.previewNext = now.Add(interval)
+	}
+	return owner.previewText, owner.previewRoles
 }
 func (m *Model) closeOverlay() error {
 	owner := m.overlay

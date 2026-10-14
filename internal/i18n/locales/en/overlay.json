@@ -44,7 +44,7 @@
   "overlay.ui.preview": "Sample preview",
   "overlay.ui.preview_active": "Showing samples; turn off preview or leave this page to restore actual content",
   "overlay.ui.preview_needs_running": "Enable the overlay and wait until it is ready",
-  "overlay.ui.preview_text": "[Sample] Viewer: Welcome! This longer chat message lets you check automatic wrapping.\n[Sample] Captain: Good evening!\n[Sample] Admiral: Keep it up!\n[Sample] Governor: Thanks for streaming!\n[Sample] Super Chat ¥30: Have a great stream!",
+  "overlay.ui.preview_text": "[Sample] Viewer: Welcome! This longer chat message lets you check automatic wrapping.\n[Sample] Captain: Good evening!\n[Sample] Admiral: Keep it up!\n[Sample] Governor: Thanks for streaming!\n[Sample] Super Chat ¥30: Have a great stream!\n[Sample] Luna sent Little Heart ×1\n[Sample] Nova sent a combo of TV Spaceship ×3\n[Sample] Breeze became a Captain for 1 month\n[Sample] Lime entered the room\n[Sample] Mika liked the stream",
   "overlay.ui.content": "Content mode",
   "overlay.ui.status": "Room status",
   "overlay.ui.danmaku": "Live danmaku",

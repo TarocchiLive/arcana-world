@@ -339,6 +339,7 @@ func (m *Model) performOverlay(action string) tea.Cmd {
 			return nil
 		}
 		m.overlay.preview = !m.overlay.preview
+		m.overlay.previewText = ""
 		m.publishOverlay()
 		return nil
 	case "overlay-toggle":

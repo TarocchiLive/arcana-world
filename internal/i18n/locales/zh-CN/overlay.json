@@ -44,7 +44,7 @@
   "overlay.ui.preview": "示例预览",
   "overlay.ui.preview_active": "正在显示示例；关闭预览或离开本页恢复实际内容",
   "overlay.ui.preview_needs_running": "请先启用浮层并等待就绪",
-  "overlay.ui.preview_text": "【示例】观众：欢迎来到直播间！这条较长的弹幕用于检查自动换行。\n【示例】舰长：晚上好！\n【示例】提督：直播加油！\n【示例】总督：感谢陪伴！\n【示例】醒目留言 ¥30：祝直播顺利！",
+  "overlay.ui.preview_text": "【示例】观众：欢迎来到直播间！这条较长的弹幕用于检查自动换行。\n【示例】舰长：晚上好！\n【示例】提督：直播加油！\n【示例】总督：感谢陪伴！\n【示例】醒目留言 ¥30：祝直播顺利！\n【示例】小月 送出 小心心 ×1\n【示例】星河 连击送出 小电视飞船 ×3\n【示例】海风 开通了舰长 ×1个月\n【示例】青柠 进入直播间\n【示例】小林 为主播点赞",
   "overlay.ui.content": "内容模式",
   "overlay.ui.status": "房间状态",
   "overlay.ui.danmaku": "实时弹幕",
