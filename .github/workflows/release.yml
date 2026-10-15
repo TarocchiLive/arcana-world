@@ -113,6 +113,11 @@ jobs:
       RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
       - name: Extract release notes from changelogs
         env:
           RELEASE_REPOSITORY: ${{ github.repository }}
@@ -124,8 +129,17 @@ jobs:
 
           tag = os.environ["RELEASE_TAG"]
           repository = os.environ["RELEASE_REPOSITORY"]
+          base = f"https://github.com/{repository}"
+          assets = sorted(Path("dist").glob("arcana-world-*"))
+          platforms = {"windows": "Windows", "linux": "Linux", "darwin": "macOS"}
+          architectures = {"amd64": "x64", "arm64": "ARM64", "386": "x86"}
+          rows = []
+          for asset in assets:
+              target = asset.name.removeprefix("arcana-world-").removesuffix(".tar.gz").removesuffix(".zip")
+              platform, architecture = target.split("-")
+              rows.append(f"| {platforms[platform]} | {architectures[architecture]} | [{asset.name}]({base}/releases/download/{tag}/{asset.name}) |")
           sections = []
-          for language, filename in (("中文", "CHANGELOG.md"), ("English", "CHANGELOG.en.md")):
+          for language, filename in (("zh", "CHANGELOG.md"), ("en", "CHANGELOG.en.md")):
               text = Path(filename).read_text(encoding="utf-8")
               heading = re.search(r"^## \[" + re.escape(tag) + r"\][^\n]*\n", text, re.MULTILINE)
               if heading is None:
@@ -139,14 +153,49 @@ jobs:
                   raise SystemExit(f"{filename}: empty release section for {tag}")
               body = re.sub(r"\]\((?![a-zA-Z][a-zA-Z0-9+.-]*:|#|/)([^)]+)\)",
                             lambda match: f"](https://github.com/{repository}/blob/{tag}/{match[1]})", body)
-              sections.append(f"## {language}\n\n{body}")
-          Path("release-notes.txt").write_text("\n\n".join(sections) + "\n", encoding="utf-8")
+              previous = re.search(r"^## \[(v[^\]]+)\]", text[heading.end():], re.MULTILINE)
+              summary, separator, changes = body.partition("\n### ")
+              if body.startswith("### ") or not separator:
+                  summary, changes = "", body
+              else:
+                  changes = "### " + changes
+                  summary = summary.strip()
+              changes = re.sub(r"^### (本次更新|What's changed|新增|改进|修复|Added|Changed|Improved|Fixed|Improvements|Fixes)\s*\n", "", changes, flags=re.MULTILINE)
+              changes = re.sub(r"\n{3,}", "\n\n", changes).strip()
+              if language == "zh":
+                  download = "## 选择下载\n\n| 平台 | 架构 | 下载 |\n| --- | --- | --- |"
+                  start = (
+                      "请完整解压；升级时一并替换主程序和 `libexec` 目录。\n"
+                      "Windows x86 / ARM64 包仅提供原生浮层；Wayland 精美浮层需要合成器支持 layer-shell。\n\n"
+                      "## 快速开始\n\n"
+                      "1. 下载并解压与你的系统和架构匹配的压缩包。\n"
+                      "2. Windows 运行 `arcana-world.exe`；macOS / Linux 在终端运行 `./arcana-world`。\n"
+                      "3. 按提示登录账号。Windows 可运行 `arcana-world-webui.exe` 打开浏览器界面；"
+                      "其他平台可在设置中选择 WebUI，默认地址为 http://127.0.0.1:5273。\n"
+                  )
+                  updates = "## 本次更新"
+                  compare = f"查看 {previous[1]} → {tag} 的完整差异" if previous else ""
+              else:
+                  download = "## Downloads\n\n| Platform | Architecture | Download |\n| --- | --- | --- |"
+                  start = (
+                      "Extract the entire archive. When upgrading, replace both the main executable and `libexec`.\n"
+                      "Windows x86 / ARM64 packages provide only the native overlay; the styled overlay on Wayland requires layer-shell.\n\n"
+                      "## Quick start\n\n"
+                      "1. Download and extract the archive for your system and architecture.\n"
+                      "2. On Windows, run `arcana-world.exe`; on macOS / Linux, run `./arcana-world` in a terminal.\n"
+                      "3. Follow the prompts to sign in. On Windows, run `arcana-world-webui.exe` for the browser interface; "
+                      "on other platforms, select WebUI in settings. The default address is http://127.0.0.1:5273.\n"
+                  )
+                  updates = "## What's changed"
+                  compare = f"Full diff: {previous[1]} → {tag}" if previous else ""
+              content = "\n\n".join(part for part in (
+                  summary, download + "\n" + "\n".join(rows), start, updates + "\n\n" + changes,
+                  f"[{compare}]({base}/compare/{previous[1]}...{tag})" if previous else "",
+              ) if part)
+              sections.append(content)
+          notes = sections[0] + "\n\n<details>\n<summary>English</summary>\n\n" + sections[1] + "\n\n</details>\n"
+          Path("release-notes.txt").write_text(notes, encoding="utf-8")
           PY
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: release-*
-          path: dist
-          merge-multiple: true
       - name: Generate checksums
         working-directory: dist
         run: sha256sum *.tar.gz *.zip > checksums.txt
@@ -162,5 +211,5 @@ jobs:
             flags=(--prerelease --latest=false)
           fi
           gh release create "$RELEASE_TAG" --verify-tag --notes-file release-notes.txt \
-            --title "$RELEASE_TAG" --draft dist/*
+            --title "Arcana World $RELEASE_TAG" --draft dist/*
           gh release edit "$RELEASE_TAG" --draft=false "${flags[@]}"
