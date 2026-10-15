@@ -42,18 +42,36 @@ runs:
           mingw-w64-ucrt-x86_64-gcc
           mingw-w64-ucrt-x86_64-cmake
           mingw-w64-ucrt-x86_64-ninja
-          mingw-w64-ucrt-x86_64-qt6-base
-    - name: Configure Windows graphics toolchain
+          curl
+          tar
+          mingw-w64-ucrt-x86_64-python
+    - name: Identify Windows graphics toolchain
       if: runner.os == 'Windows' && env.GOARCH == 'amd64'
-      shell: bash
-      env:
-        MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+      id: windows-toolchain
+      shell: msys2 {0}
       run: |
-        prefix="$(cygpath -m "$MSYS2_LOCATION")/ucrt64"
-        echo "$prefix/bin" >> "$GITHUB_PATH"
-        echo "CMAKE_PREFIX_PATH=$prefix" >> "$GITHUB_ENV"
-        echo "QTPATHS=$prefix/bin/qtpaths6.exe" >> "$GITHUB_ENV"
-        echo "QT_LICENSE_DIR=$prefix/share/licenses" >> "$GITHUB_ENV"
-        echo 'CMAKE_GENERATOR=Ninja' >> "$GITHUB_ENV"
-        echo 'CC=gcc' >> "$GITHUB_ENV"
-        echo 'CXX=g++' >> "$GITHUB_ENV"
+        # 固定绝对目录供缓存与后续 Git Bash 构建共用；软件包版本覆盖 GCC 运行库 ABI。
+        prefix="$(cygpath -am "$HOME/.cache/arcana-qt-6.8.3-windows-minimal-v1")"
+        toolchain_id="$({ gcc --version; g++ --version; ld --version; pacman -Q | sort; } | sha256sum | cut -d ' ' -f 1)"
+        echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
+        echo "toolchain-id=$toolchain_id" >> "$GITHUB_OUTPUT"
+        echo "QT_BUILD_PREFIX=$prefix" >> "$GITHUB_ENV"
+    - name: Restore Windows graphics toolchain
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      id: windows-toolchain-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.windows-toolchain.outputs.prefix }}
+        key: qt-windows-ucrt64-${{ runner.arch }}-6.8.3-minimal-v1-${{ steps.windows-toolchain.outputs.toolchain-id }}-${{ hashFiles('scripts/setup-windows-qt.sh') }}
+    - name: Build Windows graphics toolchain
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      id: windows-toolchain-build
+      shell: msys2 {0}
+      run: bash scripts/setup-windows-qt.sh
+    # 工具链成功后立即保存；不使用回退键，避免编译器更新后命中旧 ABI。
+    - name: Save Windows graphics toolchain
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64' && steps.windows-toolchain-build.outcome == 'success' && steps.windows-toolchain-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.windows-toolchain.outputs.prefix }}
+        key: ${{ steps.windows-toolchain-cache.outputs.cache-primary-key }}

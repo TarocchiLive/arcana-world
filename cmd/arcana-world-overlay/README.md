@@ -160,9 +160,9 @@ macOS amd64/arm64、Linux amd64/arm64 和 Windows amd64 完整发行包包含两
 
 - macOS：安装 Xcode Command Line Tools，执行 `brew install qt cmake`。稳定原生显示器 ID 要求 Qt >= 6.11。`CMAKE_PREFIX_PATH` 指向 `brew --prefix qt`，`QTPATHS` 指向该目录的 `bin/qtpaths`。
 - Linux：安装 Qt >= 6.5（Core/Gui/Widgets/WaylandClient）、LayerShellQt >= 6.3、Wayland 开发库和 `patchelf`。发行脚本在 Ubuntu 24.04 上构建并缓存 Qt 6.8.3、LayerShellQt 6.3.6，保持原有 glibc 基线。`scripts/setup-linux-qt.sh` 使用 sudo 安装构建依赖；非 CI 环境还需将安装前缀设为 `CMAKE_PREFIX_PATH`，将其 `bin` 加入 PATH，并将 `QTPATHS` 指向 `bin/qtpaths`。
-- Windows amd64：使用 MSYS2 UCRT64 的 Qt >= 6.7、GCC、CMake、Ninja，以及原生 Windows Go 和 Python。Qt 与 cgo 必须使用同一套 UCRT64 编译器，不可混用 MSVC Qt。设置 `CMAKE_GENERATOR=Ninja`、`CC=gcc`、`CXX=g++`，`QTPATHS` 指向 UCRT64 的 `qtpaths6.exe`。
+- Windows amd64：安装 MSYS2 UCRT64 的 GCC、CMake、Ninja、Python，以及 curl、tar 和原生 Windows amd64 Go。在 UCRT64 shell 中执行 `source scripts/setup-windows-qt.sh`，构建并缓存精简动态 Qt 6.8.3，同时设置后续构建所需环境变量；Go 需在 PATH 中。`QT_BUILD_PREFIX` 可指定 SDK 安装目录，`BUILD_JOBS` 可指定编译并发数。Qt 与 cgo 必须使用同一套 UCRT64 编译器，不可混用 MSVC Qt。
 
-`make overlay-qt` 构建并部署精美浮层 helper。部署脚本将 Qt 插件及间接动态库依赖复制到 `libexec`，改写 macOS/Linux 加载路径，并对修改后的 macOS 二进制重新临时签名。Windows 使用 `windeployqt`，随后补齐 MinGW 依赖。Linux 包含 LayerShellQt 和 Wayland 客户端依赖，但使用系统的 glibc、内核、显示服务和显卡驱动。移动或打包时必须保留整个目录。
+`make overlay-qt` 构建并部署精美浮层 helper。部署脚本将 Qt 插件及间接动态库依赖复制到 `libexec`，改写 macOS/Linux 加载路径，并对修改后的 macOS 二进制重新临时签名。Windows 只部署 `qwindows.dll` 和实际依赖的 Qt、MinGW DLL，第三方许可合并保存在 `libexec/licenses/THIRD_PARTY_NOTICES.txt`，源码地址见同目录的 `SOURCE.txt`。Linux 包含 LayerShellQt 和 Wayland 客户端依赖，但使用系统的 glibc、内核、显示服务和显卡驱动。移动或打包时必须保留整个目录。
 
 macOS helper 位于私有 `Arcana World Elegant Overlay.app/Contents/MacOS` 中，外层 helper 名称是相对符号链接。主程序在启动及枚举显示器前解析真实路径，使系统读取应用包中的产品名和初始后台策略；运行中仍可切换 Dock 显示。独立调试时应直接运行 `./bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`（路径需加引号），避免通过符号链接启动丢失应用身份。
 

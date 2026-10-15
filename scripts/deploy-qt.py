@@ -24,20 +24,26 @@ qtpaths = os.environ.get("QTPATHS", "qtpaths6")
 plugins = Path(output(qtpaths, "--query", "QT_INSTALL_PLUGINS"))
 qtlibs = Path(output(qtpaths, "--query", "QT_INSTALL_LIBS"))
 qtbin = Path(output(qtpaths, "--query", "QT_INSTALL_BINS"))
+version = output(qtpaths, "--query", "QT_VERSION")
+series = ".".join(version.split(".")[:2])
+qt_source_url = f"https://download.qt.io/archive/qt/{series}/{version}/submodules/qtbase-everywhere-src-{version}.tar.xz"
 (root / "qt.conf").write_text("[Paths]\nPrefix=.\nPlugins=plugins\nLibraries=.\n", encoding="utf-8")
 
 licenses = root / "licenses"
 licenses.mkdir(exist_ok=True)
 license_source = Path(os.environ.get("QT_LICENSE_DIR", str(qtlibs.parent / "share/licenses")))
-if license_source.is_dir():
+if sys.platform == "win32":
+    # 自编译 Qt 的许可包含内嵌第三方声明；MinGW 运行库在收集依赖后补齐。
+    if not license_source.is_dir():
+        raise SystemExit(f"Missing Qt license directory: {license_source}")
+    shutil.rmtree(licenses)
+    shutil.copytree(license_source, licenses)
+elif license_source.is_dir():
     shutil.copytree(license_source, licenses, dirs_exist_ok=True)
 else:
     # 部分二进制 SDK 不安装许可证，直接从匹配版本源码包提取。
-    version = output(qtpaths, "--query", "QT_VERSION")
-    series = ".".join(version.split(".")[:2])
-    url = f"https://download.qt.io/archive/qt/{series}/{version}/submodules/qtbase-everywhere-src-{version}.tar.xz"
     with tempfile.TemporaryFile() as archive:
-        with urllib.request.urlopen(url) as response:
+        with urllib.request.urlopen(qt_source_url) as response:
             shutil.copyfileobj(response, archive)
         archive.seek(0)
         with tarfile.open(fileobj=archive, mode="r:xz") as source:
@@ -47,19 +53,29 @@ else:
                     if data is not None:
                         (licenses / Path(member.name).name).write_bytes(data.read())
 (licenses / "SOURCE.txt").write_text(
-    "Qt source: https://download.qt.io/archive/qt/\n"
-    "LayerShellQt source: https://download.kde.org/stable/plasma/6.3.6/\n"
-    "These shared libraries remain dynamically replaceable in libexec.\n",
+    f"Qt source: {qt_source_url}\n"
+    + ("LayerShellQt source: https://download.kde.org/stable/plasma/6.3.6/\n" if sys.platform.startswith("linux") else "")
+    + ("MinGW sources: https://github.com/msys2/MINGW-packages\n"
+       "Windows Qt build: scripts/setup-windows-qt.sh in the Arcana World source.\n" if sys.platform == "win32" else "")
+    + "These shared libraries remain dynamically replaceable in libexec.\n",
     encoding="utf-8",
 )
 if sys.platform == "win32":
-    # windeployqt 负责插件和 Qt 模块，随后补齐 MinGW 与插件的间接依赖。
-    run(str(qtbin / "windeployqt.exe"), "--release", "--compiler-runtime", "--no-translations",
-        "--dir", str(root), "--plugindir", str(root / "plugins"), str(root / "awqt.dll"))
-    search = [root, qtbin] + [Path(p) for p in os.environ["PATH"].split(os.pathsep)]
+    # 浮层自行绘制，不需要图片、主题、网络、TLS 或触摸插件。
+    # 从唯一的平台插件出发收集 DLL，避免自动部署工具扩大依赖集合。
+    plugin_root = root / "plugins"
+    if plugin_root.exists():
+        shutil.rmtree(plugin_root)
+    platform_plugin = plugins / "platforms/qwindows.dll"
+    destination = plugin_root / "platforms/qwindows.dll"
+    destination.parent.mkdir(parents=True)
+    shutil.copy2(platform_plugin, destination)
+    search = [qtbin] + [Path(p) for p in os.environ["PATH"].split(os.pathsep)]
     system = Path(os.environ["SystemRoot"]) / "System32"
     system_names = {p.name.lower() for p in system.iterdir()}
-    queue = list(root.rglob("*.dll")) + list(root.glob("*.exe"))
+    queue = [root / "awqt.dll", destination] + list(root.glob("*.exe"))
+    sources = {platform_plugin}
+    deployed = {root / "awqt.dll"}
     seen = set()
     while queue:
         binary = queue.pop()
@@ -70,12 +86,58 @@ if sys.platform == "win32":
             if name.lower().startswith(("api-ms-", "ext-ms-")) or name.lower() in system_names:
                 continue
             dest = root / name
-            if not dest.exists():
-                source = next((d / name for d in search if (d / name).exists()), None)
+            if dest not in deployed:
+                source = next((d / name for d in search if (d / name).is_file()), None)
                 if source is None:
                     raise SystemExit(f"Missing runtime dependency {name}: {binary}")
                 shutil.copy2(source, dest)
+                sources.add(source)
+                deployed.add(dest)
             queue.append(dest)
+    # 重复构建时也移除旧部署残留，链接后的导入库不属于运行时。
+    for binary in root.glob("*.dll"):
+        if binary not in deployed:
+            binary.unlink()
+    (root / "libawqt.dll.a").unlink(missing_ok=True)
+
+    # 使用 MSYS2 的包归属和文件清单，避免把整个构建环境的许可证打进包。
+    # MinGW 头文件和静态启动代码也进入产物，需要保留对应许可。
+    prefix = Path(os.environ["MINGW_PREFIX"])
+    msys_root = prefix.parent
+    pacman = str(msys_root / "usr/bin/pacman.exe")
+    sources = {source for source in sources if not source.is_relative_to(qtbin.parent)}
+    sources.update((prefix / "include/_mingw.h", prefix / "lib/libmingw32.a"))
+    package_paths = ["/" + source.relative_to(msys_root).as_posix() for source in sorted(sources)]
+    packages = sorted(set(output(pacman, "-Qqo", "--", *package_paths).splitlines()))
+    for package in packages:
+        copied = False
+        for name in output(pacman, "-Qql", package).splitlines():
+            if "/share/licenses/" not in name:
+                continue
+            source = msys_root / name.lstrip("/")
+            if not source.is_file():
+                continue
+            relative = name.split("/share/licenses/", 1)[1]
+            dest = licenses / relative
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, dest)
+            copied = True
+        if not copied:
+            raise SystemExit(f"Missing license files for runtime package: {package}")
+    # 合并完整许可和版权声明；相同文本只保留一份，并列出所有来源组件。
+    notices = {}
+    source_notice = (licenses / "SOURCE.txt").read_bytes()
+    for path in sorted(licenses.rglob("*")):
+        if path.is_file() and path != licenses / "SOURCE.txt":
+            notices.setdefault(path.read_bytes(), []).append(path.relative_to(licenses).as_posix())
+    shutil.rmtree(licenses)
+    licenses.mkdir()
+    (licenses / "SOURCE.txt").write_bytes(source_notice)
+    with (licenses / "THIRD_PARTY_NOTICES.txt").open("wb") as notice_file:
+        for text, paths in notices.items():
+            notice_file.write(("===== " + ", ".join(paths) + " =====\n").encode("utf-8"))
+            notice_file.write(text)
+            notice_file.write(b"\n\n")
 else:
     # 浮层只用 QPainter 绘制内存 QPixmap，不读取图片或使用原生控件主题。
     # 只部署实际使用的插件，避免图片、主题等插件拉入 WebEngine 等无关模块。

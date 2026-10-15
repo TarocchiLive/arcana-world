@@ -87,7 +87,7 @@ jobs:
           archive="arcana-world-${GOOS}-${GOARCH}"
           if [[ "$GOOS" == windows ]]; then
             cp docs/看我.txt package/
-            (cd package && 7z a -tzip "../dist/${archive}.zip" arcana-world.exe arcana-world-webui.exe libexec LICENSE 看我.txt)
+            (cd package && 7z a -tzip -mx=9 "../dist/${archive}.zip" arcana-world.exe arcana-world-webui.exe libexec LICENSE 看我.txt)
           else
             "$tar_tool" --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
               -C package -cf - arcana-world libexec LICENSE | gzip -n > "dist/${archive}.tar.gz"
