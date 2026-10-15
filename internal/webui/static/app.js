@@ -562,7 +562,7 @@
     if (page === "outputs") {
       renderFields(
         $("output-switches"),
-        fields.filter((f) => ["overlay-enabled", "tts-enabled"].includes(f.id)),
+        fields.filter((f) => ["overlay-enabled", "overlay-preview", "tts-enabled"].includes(f.id)),
       );
       renderFields($("output-fields"), fields.filter(outputFilter));
     }
@@ -1296,6 +1296,10 @@
         fieldsRoot("output-switches", "output-switches"),
       ),
     );
+    root.append(note(t(
+      "Enable the overlay to preview samples on this computer. Turn off preview or leave this page to restore actual content.",
+      "启用浮层后可在本机显示示例；关闭预览或离开本页恢复实际内容。",
+    )));
     const editor = node("section", "editor");
     editor.append(
       tabs(
@@ -1348,7 +1352,7 @@
     root.append(editor);
   }
   function outputFilter(f) {
-    if (["overlay-enabled", "tts-enabled"].includes(f.id)) return false;
+    if (["overlay-enabled", "overlay-preview", "tts-enabled"].includes(f.id)) return false;
     if (tab === "voice-events") return f.id.startsWith("tts-event:");
     if (tab === "events") return f.id.startsWith("overlay-event:");
     if (tab === "voice")

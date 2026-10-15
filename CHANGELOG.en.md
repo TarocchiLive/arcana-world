@@ -10,6 +10,7 @@ Versions are listed newest first.
 
 - Build a reduced Qt 6.8.3 for the Windows amd64 overlay, removing ICU, unused modules, and plugins. Ship only required DLLs, retain both Native and Elegant overlays, and use stronger ZIP compression.
 - Collect Windows third-party notices for shipped components, deduplicate them, and combine them into `THIRD_PARTY_NOTICES.txt`. Preserve copyright notices, license terms, and source links without bundling unrelated build-tool licenses.
+- Add overlay sample preview to the WebUI outputs page, reusing the TUI samples and rotation. Turning preview off or leaving the page restores actual content; samples do not enter chat history or TTS.
 
 ## [v0.4.0-alpha.1]: 2026-10-14 (prerelease)
 

@@ -140,6 +140,11 @@ func (m *Model) handleWebRequest(r webRequest) tea.Cmd {
 		r.reply <- webReply{err: errors.New(i18n.T(i18n.WebRequestInvalid))}
 		return nil
 	}
+	// 浏览器离开输出页时，与终端离开浮层页一样恢复实际内容。
+	if page != "outputs" && m.overlay != nil && m.overlay.preview {
+		m.overlay.preview = false
+		m.publishOverlay()
+	}
 	m.observeWebContext()
 	var cmd tea.Cmd
 	var err error

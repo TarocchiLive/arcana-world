@@ -64,6 +64,9 @@ func (m *Model) webFields(page string) []webui.Field {
 	}
 	if page == "outputs" {
 		add("overlay-enabled", "overlay", i18n.WebFieldOverlayEnabled, "switch", boolean(m.overlayEnabled), false)
+		add("overlay-preview", "overlay", i18n.TUIOverlayPreview, "switch",
+			boolean(m.overlay != nil && m.overlay.preview),
+			!m.overlayEnabled || m.overlay == nil || m.overlay.state != "running")
 		enabled := false
 		if m.tts != nil {
 			enabled = m.tts.enabled
@@ -189,6 +192,9 @@ func (m *Model) webSetField(page, id, value string) (tea.Cmd, error) {
 	if strings.HasPrefix(id, "overlay-") {
 		if id == "overlay-enabled" {
 			return m.performOverlay("overlay-toggle"), nil
+		}
+		if id == "overlay-preview" {
+			return m.performOverlay("overlay-preview"), nil
 		}
 		s := m.config.Overlay
 		switch id {

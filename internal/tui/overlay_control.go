@@ -168,7 +168,7 @@ func (m *Model) handleOverlayStopped(msg overlayStoppedMsg) tea.Cmd {
 }
 func (m *Model) publishOverlay() {
 	owner := m.overlay
-	if owner != nil && (m.page != overlayPage || !m.overlayEnabled) {
+	if owner != nil && ((!m.web.enabled && m.page != overlayPage) || !m.overlayEnabled) {
 		owner.preview = false
 	}
 	if owner == nil || owner.manager == nil || owner.state != "running" {
