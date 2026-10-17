@@ -2,6 +2,7 @@ package webui
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -10,6 +11,11 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
+
+	"arcana-world/internal/broadcast"
+
+	"github.com/coder/websocket"
 )
 
 // 防止恶意网页触发直播控制，同时允许无需凭证的同源访问。
@@ -76,6 +82,92 @@ func TestControlRequiresSameOrigin(t *testing.T) {
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK || mutations.Load() != 1 {
 		t.Fatalf("same-origin control failed: status=%d mutations=%d", response.StatusCode, mutations.Load())
+	}
+}
+
+// 共享广播允许跨源读取，但不能放宽控制接口权限或接管 WebUI 生命周期。
+func TestSharedBroadcastSecurityBoundary(t *testing.T) {
+	var mutations atomic.Int32
+	server, err := Listen("127.0.0.1", 0, func(_ context.Context, _ string, command *Command) (Snapshot, error) {
+		if command != nil {
+			mutations.Add(1)
+		}
+		return Snapshot{}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := broadcast.New()
+	server.SetBroadcast(stream)
+	go func() { _ = server.Serve() }()
+	t.Cleanup(func() {
+		_ = stream.Close()
+		_ = server.Close(context.Background())
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	origin := "https://attacker.invalid"
+	conn, _, err := websocket.Dial(ctx, "ws://"+server.Addr()+"/ws", &websocket.DialOptions{
+		HTTPHeader: http.Header{"Origin": {origin}, "Sec-Fetch-Site": {"cross-site"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	type message struct {
+		kind websocket.MessageType
+		data []byte
+		err  error
+	}
+	received := make(chan message, 1)
+	go func() {
+		kind, data, err := conn.Read(ctx)
+		received <- message{kind, data, err}
+	}()
+	// 等待服务端开始消费控制帧，避免无历史广播与连接注册之间的竞争。
+	if err := conn.Ping(ctx); err != nil {
+		t.Fatal(err)
+	}
+	stream.Publish(42, json.RawMessage(`{"cmd":"DANMU_MSG","info":["hello"]}`))
+	result := <-received
+	if result.err != nil || result.kind != websocket.MessageText || string(result.data) != `{"room_id":42,"event":{"cmd":"DANMU_MSG","info":["hello"]}}` {
+		t.Fatalf("broadcast kind=%v data=%s err=%v", result.kind, result.data, result.err)
+	}
+	for _, path := range []string{"/api/command", "/ws/"} {
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+server.Addr()+path, strings.NewReader(`{"page":"studio","action":"start-confirm"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Origin", origin)
+		request.Header.Set("Content-Type", "application/json")
+		response, err := http.DefaultClient.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = io.Copy(io.Discard, response.Body)
+		_ = response.Body.Close()
+		if response.StatusCode != http.StatusForbidden || mutations.Load() != 0 {
+			t.Fatalf("path=%s status=%d unauthorized mutations=%d", path, response.StatusCode, mutations.Load())
+		}
+	}
+	server.SetBroadcast(nil)
+	if err := stream.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := conn.Read(ctx); err == nil || ctx.Err() != nil {
+		t.Fatalf("detached broadcast did not disconnect promptly: read=%v context=%v", err, ctx.Err())
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+server.Addr()+"/api/state?page=studio", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("WebUI stopped with broadcast: status=%d", response.StatusCode)
 	}
 }
 

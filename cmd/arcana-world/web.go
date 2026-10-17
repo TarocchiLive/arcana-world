@@ -16,7 +16,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-func runWeb(ctx context.Context, model *tui.Model, bindAddress string, port int) (err error) {
+func runWeb(ctx context.Context, model *tui.Model, bindAddress string, port int, websocketAddr string) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	model.EnableWeb()
@@ -36,6 +36,9 @@ func runWeb(ctx context.Context, model *tui.Model, bindAddress string, port int)
 		defer done()
 		err = errors.Join(err, server.Close(shutdownCtx))
 	}()
+	if err := model.ConfigureWebSocket(websocketAddr, server); err != nil {
+		return err
+	}
 	served := make(chan error, 1)
 	go func() {
 		serveErr := server.Serve()

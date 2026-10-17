@@ -70,7 +70,10 @@ if sys.platform == "win32":
     destination = plugin_root / "platforms/qwindows.dll"
     destination.parent.mkdir(parents=True)
     shutil.copy2(platform_plugin, destination)
-    search = [qtbin] + [Path(p) for p in os.environ["PATH"].split(os.pathsep)]
+    # 只使用构建 Qt 的工具链，避免 PATH 中 Git 自带的 DLL 混入产物。
+    prefix = Path(os.environ["MINGW_PREFIX"])
+    search = [qtbin, prefix / "bin"]
+    objdump = str(prefix / "bin/objdump.exe")
     system = Path(os.environ["SystemRoot"]) / "System32"
     system_names = {p.name.lower() for p in system.iterdir()}
     queue = [root / "awqt.dll", destination] + list(root.glob("*.exe"))
@@ -82,7 +85,7 @@ if sys.platform == "win32":
         if binary in seen:
             continue
         seen.add(binary)
-        for name in re.findall(r"DLL Name:\s*(\S+)", output("objdump", "-p", str(binary))):
+        for name in re.findall(r"DLL Name:\s*(\S+)", output(objdump, "-p", str(binary))):
             if name.lower().startswith(("api-ms-", "ext-ms-")) or name.lower() in system_names:
                 continue
             dest = root / name
@@ -102,7 +105,6 @@ if sys.platform == "win32":
 
     # 使用 MSYS2 的包归属和文件清单，避免把整个构建环境的许可证打进包。
     # MinGW 头文件和静态启动代码也进入产物，需要保留对应许可。
-    prefix = Path(os.environ["MINGW_PREFIX"])
     msys_root = prefix.parent
     pacman = str(msys_root / "usr/bin/pacman.exe")
     sources = {source for source in sources if not source.is_relative_to(qtbin.parent)}

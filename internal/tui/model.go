@@ -10,6 +10,7 @@ import (
 
 	"arcana-world/internal/app"
 	"arcana-world/internal/bili"
+	"arcana-world/internal/broadcast"
 	"arcana-world/internal/config"
 	"arcana-world/internal/coverimage"
 	"arcana-world/internal/domain"
@@ -19,6 +20,7 @@ import (
 	"arcana-world/internal/overlay"
 	"arcana-world/internal/presentation"
 	"arcana-world/internal/store"
+	"arcana-world/internal/webui"
 
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
@@ -149,6 +151,9 @@ type Model struct {
 	reveal                   bool
 	view                     viewport.Model
 	chat                     *danmakuUI
+	websocket                *broadcast.Server
+	websocketAddr            string
+	webServer                *webui.Server
 	audience                 audienceUI
 }
 

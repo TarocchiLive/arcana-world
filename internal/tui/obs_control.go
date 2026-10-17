@@ -54,7 +54,7 @@ func (m *Model) Close() error {
 		if stopErr != nil {
 			stopErr = errors.Join(stopErr, m.journal.Write(m.safe(stopErr.Error())))
 		}
-		m.closeErr = errors.Join(imageErr, ttsErr, stopErr, m.closeOverlay(), m.closeChat(), m.obsClient.Close(), m.journal.Write(i18n.T(i18n.TUILogApplicationExited)), m.journal.Close())
+		m.closeErr = errors.Join(imageErr, ttsErr, stopErr, m.closeWebSocket(), m.closeOverlay(), m.closeChat(), m.obsClient.Close(), m.journal.Write(i18n.T(i18n.TUILogApplicationExited)), m.journal.Close())
 		if m.clearDataOnExit {
 			if m.closeErr != nil {
 				m.closeErr = fmt.Errorf(i18n.T(i18n.TUISettingsClearDataShutdownFailed), m.closeErr)
