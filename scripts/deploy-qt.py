@@ -22,6 +22,10 @@ def run(*args):
 root = Path(sys.argv[1]).resolve()
 qtpaths = os.environ.get("QTPATHS", "qtpaths6")
 plugins = Path(output(qtpaths, "--query", "QT_INSTALL_PLUGINS"))
+# 分包安装的 Qt 插件可能位于独立前缀，优先使用 qtpaths 对应版本。
+plugin_dirs = [plugins] + [
+    Path(path) for path in os.environ.get("QT_PLUGIN_PATH", "").split(os.pathsep) if path
+]
 qtlibs = Path(output(qtpaths, "--query", "QT_INSTALL_LIBS"))
 qtbin = Path(output(qtpaths, "--query", "QT_INSTALL_BINS"))
 version = output(qtpaths, "--query", "QT_VERSION")
@@ -147,7 +151,7 @@ else:
         # Qt 6.8 使用 qwayland-generic，较新版本改名为 qwayland；均支持光栅绘制。
         wayland = next((name for name in (
             "platforms/libqwayland-generic.so", "platforms/libqwayland.so"
-        ) if (plugins / name).is_file()), None)
+        ) if any((directory / name).is_file() for directory in plugin_dirs)), None)
         if wayland is None:
             raise SystemExit(f"Missing raster Wayland platform plugin: {plugins}")
         # Qt 初始化需要默认 xdg-shell；逐窗口 layer-shell 由 LayerShellQt 接管。
@@ -157,11 +161,14 @@ else:
         raise SystemExit(f"Unsupported deployment platform: {sys.platform}")
     deployed_plugins = []
     for name in plugin_names:
-        source = plugins / name
+        source = next((directory / name for directory in plugin_dirs
+                       if (directory / name).is_file()), plugins / name)
         if not source.is_file():
             raise SystemExit(f"Missing runtime plugin: {source}")
         destination = root / "plugins" / name
         destination.parent.mkdir(parents=True, exist_ok=True)
+        # Nix store 的文件只读；重新部署时替换副本，避免继承权限阻止覆盖。
+        destination.unlink(missing_ok=True)
         shutil.copy2(source, destination)
         deployed_plugins.append(destination)
     if sys.platform == "darwin":
@@ -246,11 +253,16 @@ else:
             if "not found" in dependencies:
                 raise SystemExit(f"Unresolved runtime dependency: {binary}\n{dependencies}")
             for name, filename in re.findall(r"^\s*(\S+) => (/\S+)", dependencies, re.MULTILINE):
-                if system_libraries.match(name):
+                # Nix 的 ldd 可能把绝对路径列为依赖名；副本始终留在部署目录。
+                library = Path(name).name
+                if system_libraries.match(library):
                     continue
-                dest = root / name
+                dest = root / library
                 if not dest.exists():
                     shutil.copy2(filename, dest)
+                if name != library:
+                    binary.chmod(binary.stat().st_mode | 0o200)
+                    run("patchelf", "--replace-needed", name, library, str(binary))
                 queue.append(dest)
             binary.chmod(binary.stat().st_mode | 0o200)
             relative = os.path.relpath(root, binary.parent)

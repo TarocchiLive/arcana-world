@@ -117,6 +117,12 @@
               env.CGO_ENABLED = "1";
               tags = [ "qt" ];
               nativeBuildInputs = [ pkgs.qt6.wrapQtAppsHook ];
+              # Go 依赖下载阶段不继承 Qt 库，包装 hook 仅用于最终程序。
+              overrideModAttrs = _: previous: {
+                nativeBuildInputs = builtins.filter
+                  (input: input != pkgs.qt6.wrapQtAppsHook)
+                  previous.nativeBuildInputs;
+              };
               buildInputs = [ awqt pkgs.qt6.qtbase ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
                 pkgs.qt6.qtwayland pkgs.kdePackages.layer-shell-qt
               ];
@@ -205,6 +211,11 @@
                 pkgs.patchelf pkgs.qt6.qtwayland pkgs.kdePackages.layer-shell-qt
               ];
             QTPATHS = "${pkgs.qt6.qtbase}/bin/qtpaths";
+            QT_PLUGIN_PATH = pkgs.lib.makeSearchPath pkgs.qt6.qtbase.qtPluginPrefix (
+              [ pkgs.qt6.qtbase ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+                pkgs.qt6.qtwayland pkgs.kdePackages.layer-shell-qt
+              ]
+            );
             CGO_ENABLED = "1";
             GOFLAGS = "-mod=readonly";
           };

@@ -73,6 +73,12 @@ make desktop
 ./bin/arcana-world
 ```
 
+NixOS:
+```sh
+nix build
+./result/bin/arcana-world
+```
+
 After building, run `bin/arcana-world` (`bin/arcana-world.exe` on Windows). For terminal-only use without the overlay, build with `make build`; graphics development libraries are not required. See [Arcana World Overlay](cmd/arcana-world-overlay/README.en.md#supported-platforms) for overlay platform support.
 
 ## Help

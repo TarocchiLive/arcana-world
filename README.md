@@ -74,6 +74,12 @@ make desktop
 ./bin/arcana-world
 ```
 
+NixOS:
+```sh
+nix build
+./result/bin/arcana-world
+```
+
 构建后运行 `bin/arcana-world`（Windows 为 `bin/arcana-world.exe`）。只需要终端功能时（无浮层），可使用 `make build`，无需安装图形开发库。浮层的平台支持情况见 [Arcana World Overlay](cmd/arcana-world-overlay/README.md#支持的平台)。
 
 ## 使用帮助

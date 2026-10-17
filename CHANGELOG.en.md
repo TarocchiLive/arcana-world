@@ -14,6 +14,11 @@ Versions are listed newest first.
 - `logs/arcana-world.log` is now a debug log separate from on-screen messages: each record has a level, component, operation, parameters, elapsed time, and the original error (network, OBS, helper process exit code and stderr, and more). Cookies, passwords, stream keys, and proxy credentials are redacted. Info and above is recorded by default; use `--log-level debug` to record per-request detail when troubleshooting. The in-app list is renamed to "Activity".
 - TTS errors no longer repeat the `tts: synthesize:` prefix.
 
+### Fixed
+
+- Fix Qt deployment in the Nix development environment: support separately packaged plugins, redeployment of read-only plugin copies, and absolute dependency paths. Build scripts no longer switch Nix environments automatically; enter `nix develop` explicitly when using Make.
+- Fix Qt overlay dependency builds under `nix build`: load the Qt wrapping hook only for the final application build, not during Go module fetching.
+
 ## [v0.4.0-alpha.1]: 2026-10-14 (prerelease)
 
 ### Added
