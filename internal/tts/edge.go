@@ -111,7 +111,7 @@ func effectiveProxy(value string) (string, error) {
 		return "", nil
 	}
 	if value == "" {
-		request, _ := http.NewRequest(http.MethodGet, "https://speech.platform.bing.com", nil)
+		request, _ := http.NewRequest(http.MethodGet, "https://api.msedgeservices.com", nil)
 		proxy, err := http.ProxyFromEnvironment(request)
 		if err != nil {
 			return "", errors.New("tts: invalid environment proxy")

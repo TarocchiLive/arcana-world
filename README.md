@@ -33,12 +33,35 @@ Arcana World 是一款基于 Go 的 bilibili 直播姬 + 弹幕姬。
 - **直播间实时弹幕收发，提供穿透弹幕悬浮窗，不干扰鼠标键盘操作**
 - **支持弹幕，礼物语音播报，SC播报，基于 Edge TTS，0 占用，高质量**
 - **常态内存占用 40MB，超轻量、超流畅、超稳定**
+- **可选本机 Web 控制面板。**
 
 ## 安装
 
 ### 快速开始
 
-从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载对应平台的包，如 arcana-world-windows-amd64.zip，完整解压后运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`）即可。
+从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载对应平台的包，如 arcana-world-windows-amd64.zip，完整解压后运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`）。主程序按已保存的默认界面启动，未设置时使用终端界面。Windows 用户也可运行同目录的 `arcana-world-webui.exe`，直接打开浏览器界面。
+
+### Windows（Scoop）
+
+```powershell
+scoop bucket add tarocchilive https://github.com/TarocchiLive/scoop-bucket
+scoop install tarocchilive/arcana-world
+```
+
+### Debian / Ubuntu（APT）
+
+支持 amd64 和 arm64。
+
+```sh
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://tarocchilive.github.io/apt/tarocchilive-archive-keyring.gpg | sudo tee /etc/apt/keyrings/tarocchilive.gpg >/dev/null
+sudo chmod 0644 /etc/apt/keyrings/tarocchilive.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/tarocchilive.gpg] https://tarocchilive.github.io/apt stable main" | sudo tee /etc/apt/sources.list.d/tarocchilive.list
+sudo apt-get update
+sudo apt-get install arcana-world
+```
 
 ### 从源码构建
 
@@ -55,7 +78,7 @@ make desktop
 
 ## 使用帮助
 
-在软件中按 `0` 或打开「帮助」查看操作说明和常见问题；命令行选项见 `arcana-world --help`。
+终端界面按 `0` 查看帮助；Web 面板从顶部「帮助」搜索主题并直接阅读。命令行选项见 `arcana-world --help`。
 
 ## TODO
 - [x] 支持获取 B 站推流直链，自动连接 OBS 并开播。
@@ -66,13 +89,15 @@ make desktop
 - [x] 鼠标 tui 操作。
 - [x] tui 界面重构美化。
 - [x] 在终端发送弹幕。
-- [ ] 浮层界面重构美化。
-- [ ] 支持 iterm2 图片协议。
-- [ ] 终端缩放裁剪封面图。
-- [ ] 版本更新检查。
-- [ ] Scoop、Homebrew、nixpkgs 等软件仓库支持。
+- [x] 浮层界面重构美化。
+- [x] 封面预览支持 iTerm2 图片协议。
+- [x] 终端缩放裁剪封面图。
+- [x] 版本更新检查。
+- [x] Scoop、APT 软件仓库支持。
+- [ ] Homebrew、nixpkgs 软件仓库支持。
 - [ ] 机器人协议接口。
-- [?] GUI / WebUI 支持（待定）。
+- [x] 可选 WebUI 控制面板。
+- [?] 原生 GUI 支持（待定）。
 
 ## 开发
 
@@ -101,6 +126,7 @@ make build  # 构建
 
 - [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive)
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+- [Kotonoha](https://github.com/locez/kotonoha)
 - [Bubbles](https://github.com/charmbracelet/bubbles)
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss)
 - [edge-tts](https://github.com/rany2/edge-tts)

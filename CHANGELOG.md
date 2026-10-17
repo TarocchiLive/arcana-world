@@ -4,6 +4,54 @@
 
 版本按时间倒序记录。
 
+## 未发布
+
+### 改进
+
+- Windows amd64 改用按浮层需求构建的精简 Qt 6.8.3，移除 ICU、无用模块和插件，只分发实际依赖的 DLL；保留原生与精美浮层，ZIP 使用更高压缩级别。
+- Windows 包的第三方许可按分发组件收集、去重并合并为 `THIRD_PARTY_NOTICES.txt`，保留版权声明、许可条款和源码地址，不再附带构建工具的无关许可。
+- WebUI 输出页新增浮层示例预览，复用 TUI 的示例内容与轮播；关闭预览或离开输出页恢复实际内容，示例不进入弹幕历史或语音播报。
+
+## [v0.4.0-alpha.1]：2026-10-14（预发布）
+
+### 新增
+
+- 新增本机 Web 控制面板，支持账号、直播与 OBS 管理、弹幕收发与管理、浮层与 TTS 设置；提供中英文界面及浅色、深色和跟随系统主题。默认地址为 `http://127.0.0.1:5273`。
+- 支持选择并保存默认启动界面（TUI / WebUI）；WebUI 启动时自动打开浏览器，Windows 包另附 WebUI 启动器。
+- 新增「精美浮层」，提供文字、面板与动效设置，可与原生浮层切换；支持 Wayland layer-shell，macOS 和 Windows 可控制 Dock／任务栏显示。
+- 浮层支持无需登录的示例预览，可查看不同弹幕事件的外观与动效。
+- 支持手动检查最新稳定版并打开发布页。
+
+### 改进
+
+- 终端与 Web 支持封面裁剪预览、缩放和移动；终端封面预览新增 iTerm2 原生图片支持。上传图片统一为 720×540、最大 256 KiB 的 JPEG，避免图片过大被拒绝。
+- 浮层外观设置分组展示，数值支持方向键调整并即时预览，可保存或撤销；显示空间不足时优先保留末尾完整消息。
+- TTS 合成失败或返回空音频时最多重试两次，停止或退出时立即取消。
+- 补充 Windows Scoop 与 Debian/Ubuntu APT 安装说明，以及 Windows 包内的启动指引。
+
+### 修复
+
+- 修复终端界面收到中断信号时可能卡住的问题。
+- 修复浮层与 TTS 文本清理、截断时拆开组合表情或连字的问题。
+
+### 升级提示
+
+- 请完整替换发行包中的主程序和 `libexec` 目录，避免混用旧版浮层辅助程序。Windows 386/arm64 包目前仅提供原生浮层；Wayland 精美浮层需要合成器支持 layer-shell。
+
+## [v0.3.2]：2026-10-12
+
+### 修复
+
+- 修复 Edge TTS 旧合成端点返回 HTTP 403 导致的握手失败，迁移到微软新端点，并同步代理绕过规则使用的目标域名。
+
+## [v0.3.1]：2026-10-09
+
+### 新增
+
+- 浮层与 TTS 支持独立的 YAML 格式 Go 模板；中文和英文配置分别保存，启动时自动生成缺少的默认文件，修改后重启生效。
+- 模板配置错误会显示文件和具体原因，本次运行按文件回退到内置默认；提示保留到手动关闭，已有配置不会被覆盖。
+- 帮助中心新增《自定义浮层与 TTS 播报格式》，提供字段说明、常用示例、恢复默认方法和 Go 模板文档链接。TUI 弹幕列表格式保持不变。
+
 ## [v0.3.0]：2026-09-29
 
 ### 新增
@@ -361,3 +409,6 @@
 [v0.3.0-alpha.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.4
 [v0.3.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-rc.1
 [v0.3.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0
+[v0.3.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.1
+[v0.3.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.2
+[v0.4.0-alpha.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-alpha.1

@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"image/png"
+	"image/jpeg"
 	"io"
 	"mime/multipart"
 	"net"
@@ -32,7 +32,7 @@ type CoverUpdate struct {
 	Reason string
 }
 
-// UploadCover 发布确认界面中展示的原始已准备 PNG。
+// UploadCover 发布确认界面中展示的已压缩 JPEG。
 // 若返回的 URL 非空且伴随错误，说明上传成功，但发布尚未完成；
 // 调用方不得将这种结果展示为直播间更新成功。
 func (c *Client) UploadCover(ctx context.Context, prepared *coverimage.Prepared) (CoverUpdate, error) {
@@ -40,17 +40,17 @@ func (c *Client) UploadCover(ctx context.Context, prepared *coverimage.Prepared)
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
-	if prepared == nil || len(prepared.PNG) == 0 || len(prepared.PNG) > coverimage.MaxFileSize {
-		return result, errors.New(i18n.T(i18n.BiliCoverPngInvalid))
+	if prepared == nil || len(prepared.JPEG) == 0 || len(prepared.JPEG) > coverimage.MaxUploadSize {
+		return result, errors.New(i18n.T(i18n.BiliCoverImageInvalid))
 	}
-	config, err := png.DecodeConfig(bytes.NewReader(prepared.PNG))
+	config, err := jpeg.DecodeConfig(bytes.NewReader(prepared.JPEG))
 	if err != nil || config.Width != coverimage.Width || config.Height != coverimage.Height {
 		return result, errors.New(i18n.T(i18n.BiliCoverDimensionsInvalid))
 	}
 	// 仅校验头部会放过截断或损坏的数据。在任何需要认证的网络操作前，
-	// 先完整解码大小受限且尺寸固定的 PNG。
-	if _, err = png.Decode(bytes.NewReader(prepared.PNG)); err != nil {
-		return result, errors.New(i18n.T(i18n.BiliCoverPngCorrupted))
+	// 先完整解码大小受限且尺寸固定的 JPEG。
+	if _, err = jpeg.Decode(bytes.NewReader(prepared.JPEG)); err != nil {
+		return result, errors.New(i18n.T(i18n.BiliCoverImageCorrupted))
 	}
 	p, err := c.csrf(values())
 	if err != nil {
@@ -65,13 +65,13 @@ func (c *Client) UploadCover(ctx context.Context, prepared *coverimage.Prepared)
 		return result, err
 	}
 	header := make(textproto.MIMEHeader)
-	header.Set("Content-Disposition", `form-data; name="file"; filename="blob"`)
-	header.Set("Content-Type", "image/png")
+	header.Set("Content-Disposition", `form-data; name="file"; filename="cover.jpg"`)
+	header.Set("Content-Type", "image/jpeg")
 	part, err := writer.CreatePart(header)
 	if err != nil {
 		return result, err
 	}
-	if _, err = part.Write(prepared.PNG); err != nil {
+	if _, err = part.Write(prepared.JPEG); err != nil {
 		return result, err
 	}
 	if err = writer.Close(); err != nil {

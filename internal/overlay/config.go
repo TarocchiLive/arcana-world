@@ -1,6 +1,7 @@
 package overlay
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"math"
@@ -10,6 +11,25 @@ import (
 
 // MaxTextBytes 限制单个状态的文本大小；协议另有包含 JSON 转义开销的帧上限。
 const MaxTextBytes = 1024 * 1024
+
+// Backend 标识独立渲染进程；空值兼容旧配置并归一化为原生后端。
+type Backend string
+
+const (
+	BackendNative Backend = "native"
+	BackendQt     Backend = "qt"
+)
+
+func (backend Backend) Normalize() (Backend, error) {
+	switch backend {
+	case "", BackendNative:
+		return BackendNative, nil
+	case BackendQt:
+		return BackendQt, nil
+	default:
+		return "", errors.New("overlay: invalid backend")
+	}
+}
 
 // Anchor 表示显示器完整边界上的九宫格锚点，不受工作区或前台窗口影响。
 type Anchor string
@@ -80,7 +100,9 @@ type Font struct {
 // Config 是可比较的完整展示快照，不含共享可变内存。
 // 显式显示器选择断开时保持隐藏，重连后恢复；空选择不创建窗口。
 type Config struct {
-	Text string `json:"text"`
+	Backend Backend      `json:"backend"`
+	Qt      QtAppearance `json:"qt"`
+	Text    string       `json:"text"`
 	// TextRoles 为每个逻辑行指定一个角色：n/c/a/g/s；空值表示普通文本。
 	TextRoles       string   `json:"text_roles,omitempty"`
 	Colors          Colors   `json:"colors"`
@@ -102,7 +124,22 @@ type Config struct {
 }
 
 func DefaultConfig() Config {
-	return Config{Text: "Arcana World", Colors: DefaultColors(), Position: Position{Anchor: Left, X: 0, Y: 0}, Width: 420, Height: 180, Padding: Insets{Top: 12, Right: 16, Bottom: 12, Left: 16}, Font: Font{Size: 16, Weight: 500}, Outline: true, TextAlpha: 1, BackgroundAlpha: .35}
+	return Config{Backend: BackendNative, Qt: DefaultQtAppearance(), Text: "Arcana World", Colors: DefaultColors(), Position: Position{Anchor: Left, X: 0, Y: 0}, Width: 420, Height: 180, Padding: Insets{Top: 12, Right: 16, Bottom: 12, Left: 16}, Font: Font{Size: 16, Weight: 500}, Outline: true, TextAlpha: 1, BackgroundAlpha: .35}
+}
+
+// UnmarshalJSON 仅补充缺省后端字段，并保留协议的未知字段检查。
+func (cfg *Config) UnmarshalJSON(data []byte) error {
+	type configJSON Config
+	decoded := configJSON(*cfg)
+	decoded.Backend = BackendNative
+	decoded.Qt = DefaultQtAppearance()
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil {
+		return err
+	}
+	*cfg = Config(decoded)
+	return nil
 }
 
 // SelectedDisplays 解码稳定 ID 列表；nil 表示旧单屏模式，空切片表示关闭全部输出。
@@ -137,6 +174,15 @@ func (cfg Config) SelectedDisplays() ([]string, error) {
 // 位置和尺寸在解析显示器后还会被限制；NaN/Inf 不得进入原生数值转换。
 func (cfg Config) Normalize() (Config, error) {
 	var err error
+	if cfg.Backend, err = cfg.Backend.Normalize(); err != nil {
+		return Config{}, err
+	}
+	if cfg.Qt == (QtAppearance{}) && cfg.Backend == BackendNative {
+		cfg.Qt = DefaultQtAppearance()
+	}
+	if cfg.Qt, err = cfg.Qt.Normalize(); err != nil {
+		return Config{}, err
+	}
 	if cfg.Colors, err = cfg.Colors.Normalize(); err != nil {
 		return Config{}, err
 	}

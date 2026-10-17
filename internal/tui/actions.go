@@ -82,6 +82,7 @@ func (m *Model) menu() []menuItem {
 			{i18n.T(i18n.TUIHelpStreamTitle), "help:" + string(i18n.TUIHelpStream)},
 			{i18n.T(i18n.TUIHelpChatTitle), "help:" + string(i18n.TUIHelpChat)},
 			{i18n.T(i18n.TUIHelpOutputTitle), "help:" + string(i18n.TUIHelpOutput)},
+			{i18n.T(i18n.TUIHelpOutputTemplatesTitle), "help:" + string(i18n.TUIHelpOutputTemplates)},
 			{i18n.T(i18n.TUIHelpControlsTitle), "help:" + string(i18n.TUIHelpControls)},
 		}
 	}
@@ -482,7 +483,7 @@ func (m *Model) submitForm() tea.Cmd {
 		return m.quitCommand()
 	}
 	if strings.HasPrefix(kind, "overlay-") {
-		if m.editingOverlayColor() != nil {
+		if field := m.editingOverlayField(); field != nil && (field.color != nil || field.qtColor != nil) {
 			value = m.input.Value()
 		}
 		return m.submitOverlay(kind, value)

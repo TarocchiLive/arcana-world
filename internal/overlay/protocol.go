@@ -12,17 +12,20 @@ import (
 
 // 每帧为四字节大端长度加 UTF-8 JSON；不依赖控制台编码，
 // 文本中的换行不会被误当作消息边界。接收前先限制长度，再解析内容。
-const protocolVersion = 3
+const protocolVersion = 4
 const maxFrameBytes = 6*(MaxTextBytes+64*1024) + 16*1024
 const tokenEnvironment = "ARCANA_OVERLAY_TOKEN"
 const writeTimeout = 2 * time.Second
+const hostCapabilities = "config-v4,displays-v1"
 
 type wireFrame struct {
-	Version int     `json:"version"`
-	Type    string  `json:"type"`
-	Token   string  `json:"token,omitempty"`
-	Config  *Config `json:"config,omitempty"`
-	Error   string  `json:"error,omitempty"`
+	Version      int     `json:"version"`
+	Type         string  `json:"type"`
+	Token        string  `json:"token,omitempty"`
+	Config       *Config `json:"config,omitempty"`
+	Error        string  `json:"error,omitempty"`
+	Backend      Backend `json:"backend,omitempty"`
+	Capabilities string  `json:"capabilities,omitempty"`
 }
 
 func readFrame(r io.Reader) (wireFrame, error) {

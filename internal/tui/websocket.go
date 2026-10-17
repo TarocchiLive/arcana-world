@@ -7,15 +7,17 @@ import (
 
 	"arcana-world/internal/broadcast"
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/webui"
 	tea "charm.land/bubbletea/v2"
 )
 
 // ConfigureWebSocket 在界面启动前应用保存的开关；命令行地址仅本次生效。
-func (m *Model) ConfigureWebSocket(addr string) error {
+func (m *Model) ConfigureWebSocket(addr string, webServer *webui.Server) error {
 	if m.initialized {
 		return errors.New("websocket must be configured before model initialization")
 	}
 	m.websocketAddr = addr
+	m.webServer = webServer
 	if m.config.WebSocketEnabled || addr != "" {
 		return m.startWebSocket()
 	}
@@ -27,7 +29,7 @@ func (m *Model) startWebSocket() error {
 		return nil
 	}
 	addr := m.effectiveWebSocketAddr()
-	server, err := broadcast.Listen(addr)
+	server, err := m.newWebSocket(addr)
 	if err != nil {
 		return err
 	}
@@ -35,7 +37,27 @@ func (m *Model) startWebSocket() error {
 		return errors.Join(err, server.Close())
 	}
 	m.websocket = server
+	m.attachWebSocket()
 	return nil
+}
+
+// 地址完全一致时共用 WebUI 监听器，不扩大任一服务的监听范围。
+func (m *Model) newWebSocket(addr string) (*broadcast.Server, error) {
+	if m.webServer != nil && addr == m.webServer.Addr() {
+		return broadcast.New(), nil
+	}
+	return broadcast.Listen(addr)
+}
+
+func (m *Model) attachWebSocket() {
+	if m.webServer == nil {
+		return
+	}
+	var shared *broadcast.Server
+	if m.effectiveWebSocketAddr() == m.webServer.Addr() {
+		shared = m.websocket
+	}
+	m.webServer.SetBroadcast(shared)
 }
 
 func (m *Model) closeWebSocket() error {
@@ -45,6 +67,7 @@ func (m *Model) closeWebSocket() error {
 	m.chat.listener.SetBroadcast(nil)
 	server := m.websocket
 	m.websocket = nil
+	m.attachWebSocket()
 	return server.Close()
 }
 
@@ -100,7 +123,7 @@ func (m *Model) saveWebSocketAddr(addr string) tea.Cmd {
 	var replacement *broadcast.Server
 	if m.websocket != nil && addr != m.config.WebSocketAddr {
 		var err error
-		replacement, err = broadcast.Listen(addr)
+		replacement, err = m.newWebSocket(addr)
 		if err != nil {
 			m.warnStatus(err.Error())
 			return nil
@@ -120,6 +143,7 @@ func (m *Model) saveWebSocketAddr(addr string) tea.Cmd {
 		old := m.websocket
 		m.websocket = replacement
 		m.chat.listener.SetBroadcast(replacement.Publish)
+		m.attachWebSocket()
 		if err := old.Close(); err != nil {
 			m.warn(err.Error())
 		}

@@ -25,7 +25,7 @@ type Log struct {
 	file     *os.File
 	path     string
 	closeErr error
-	lock     *bolt.DB
+	lock     io.Closer
 	stop     chan struct{}
 }
 
@@ -35,45 +35,11 @@ func Open(dataDir string) (*Log, error) {
 	if err != nil {
 		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryResolveFailed), err)
 	}
-	if info, err := os.Lstat(base); err == nil {
-		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return nil, errors.New(i18n.T(i18n.JournalDataDirectoryRequired))
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf(i18n.T(i18n.JournalDataDirectoryInspectFailed), err)
+	lock, err := LockDirectory(base)
+	if err != nil {
+		return nil, err
 	}
 	dir := filepath.Join(base, "logs")
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryCreateFailed), err)
-	}
-	info, err := os.Lstat(dir)
-	if err != nil {
-		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryInspectFailed), err)
-	}
-	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return nil, errors.New(i18n.T(i18n.JournalDirectoryRequired))
-	}
-	if err := os.Chmod(dir, 0700); err != nil {
-		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectorySecureFailed), err)
-	}
-
-	// 独立且稳定的锁 inode 同时保护跨进程的日志原子替换和写入。
-	// Bolt 提供跨平台的咨询锁。
-	lockPath := filepath.Join(dir, "journal.lock")
-	if info, err := os.Lstat(lockPath); err == nil {
-		if !info.Mode().IsRegular() {
-			return nil, errors.New(i18n.T(i18n.JournalRegularFileRequired))
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
-	lock, err := bolt.Open(lockPath, 0600, &bolt.Options{Timeout: time.Second})
-	if err != nil {
-		if errors.Is(err, bolt.ErrTimeout) {
-			return nil, fmt.Errorf(i18n.T(i18n.DataDirectoryOccupied), base, err)
-		}
-		return nil, err
-	}
 	keepLock := false
 	defer func() {
 		if !keepLock {
@@ -132,6 +98,64 @@ func Open(dataDir string) (*Log, error) {
 	keepLock = true
 	go l.retain()
 	return l, nil
+}
+
+// LockDirectory 复用日志的独占目录锁，不打开日志或启动后台任务。
+// 调用方必须在完成配置读写后关闭锁。
+func LockDirectory(dataDir string) (io.Closer, error) {
+	base, err := filepath.Abs(dataDir)
+	if err != nil {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryResolveFailed), err)
+	}
+	if info, err := os.Lstat(base); err == nil {
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return nil, errors.New(i18n.T(i18n.JournalDataDirectoryRequired))
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDataDirectoryInspectFailed), err)
+	}
+	if err := os.MkdirAll(base, 0700); err != nil {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryCreateFailed), err)
+	}
+	info, err := os.Lstat(base)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New(i18n.T(i18n.JournalDataDirectoryRequired))
+	}
+	if err := os.Chmod(base, 0700); err != nil {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectorySecureFailed), err)
+	}
+	dir := filepath.Join(base, "logs")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryCreateFailed), err)
+	}
+	info, err = os.Lstat(dir)
+	if err != nil {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryInspectFailed), err)
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New(i18n.T(i18n.JournalDirectoryRequired))
+	}
+	if err := os.Chmod(dir, 0700); err != nil {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectorySecureFailed), err)
+	}
+	// 独立且稳定的锁 inode 同时保护跨进程的日志原子替换和写入。
+	// Bolt 提供跨平台的咨询锁。
+	lockPath := filepath.Join(dir, "journal.lock")
+	if info, err := os.Lstat(lockPath); err == nil {
+		if !info.Mode().IsRegular() {
+			return nil, errors.New(i18n.T(i18n.JournalRegularFileRequired))
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	lock, err := bolt.Open(lockPath, 0600, &bolt.Options{Timeout: time.Second})
+	if err != nil {
+		if errors.Is(err, bolt.ErrTimeout) {
+			return nil, fmt.Errorf(i18n.T(i18n.DataDirectoryOccupied), base, err)
+		}
+		return nil, err
+	}
+	return lock, nil
 }
 
 // Path 返回日志文件的绝对路径。

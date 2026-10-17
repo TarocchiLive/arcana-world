@@ -32,12 +32,35 @@ Native support for Windows, Linux, and macOS.
 - **Browse and send live chat in real time, with a click-through floating overlay that stays out of the way of your mouse and keyboard.**
 - **High-quality chat, gift, and Super Chat announcements powered by Edge TTS, with zero resource overhead.**
 - **Typical memory usage of 40 MB: lightweight, smooth, and stable.**
+- **Optional local Web control panel.**
 
 ## Install
 
 ### Quick start
 
-Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest) for your platform, such as `arcana-world-windows-amd64.zip`, extract the entire archive, and run `arcana-world` at its root (`arcana-world.exe` on Windows).
+Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest) for your platform, such as `arcana-world-windows-amd64.zip`, and extract the entire archive. Run `arcana-world` at its root (`arcana-world.exe` on Windows) to use your saved default interface, or the terminal interface if none is set. Windows users can also run `arcana-world-webui.exe` in the same directory to open the browser interface directly.
+
+### Windows (Scoop)
+
+```powershell
+scoop bucket add tarocchilive https://github.com/TarocchiLive/scoop-bucket
+scoop install tarocchilive/arcana-world
+```
+
+### Debian / Ubuntu (APT)
+
+Supports amd64 and arm64.
+
+```sh
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://tarocchilive.github.io/apt/tarocchilive-archive-keyring.gpg | sudo tee /etc/apt/keyrings/tarocchilive.gpg >/dev/null
+sudo chmod 0644 /etc/apt/keyrings/tarocchilive.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/tarocchilive.gpg] https://tarocchilive.github.io/apt stable main" | sudo tee /etc/apt/sources.list.d/tarocchilive.list
+sudo apt-get update
+sudo apt-get install arcana-world
+```
 
 ### Build from source
 
@@ -54,7 +77,7 @@ After building, run `bin/arcana-world` (`bin/arcana-world.exe` on Windows). For 
 
 ## Help
 
-Press `0` or open Help in the app for instructions and common questions. Run `arcana-world --help` for command-line options.
+In the terminal interface, press `0` for help. In the Web panel, use Help in the top navigation to search topics and read articles directly. Run `arcana-world --help` for command-line options.
 
 ## TODO
 - [x] Fetch direct Bilibili stream URLs, connect to OBS, and start broadcasts automatically.
@@ -65,13 +88,15 @@ Press `0` or open Help in the app for instructions and common questions. Run `ar
 - [x] Add mouse support to the TUI.
 - [x] Refactor and improve the TUI layout and appearance.
 - [x] Send live chat messages from the terminal.
-- [ ] Refactor and improve the overlay layout and appearance.
-- [ ] Support the iTerm2 image protocol.
-- [ ] Support resizing and cropping cover images in the terminal.
-- [ ] Check for new versions.
-- [ ] Support package repositories such as Scoop, Homebrew, and nixpkgs.
+- [x] Refactor and improve the overlay layout and appearance.
+- [x] Support the iTerm2 image protocol for cover previews.
+- [x] Support resizing and cropping cover images in the terminal.
+- [x] Check for new versions.
+- [x] Support Scoop and APT repositories.
+- [ ] Support Homebrew and nixpkgs repositories.
 - [ ] Add a bot protocol interface.
-- [?] GUI / WebUI support (under consideration).
+- [x] Optional WebUI control panel.
+- [?] Native GUI support (under consideration).
 
 ## Development
 
@@ -95,6 +120,7 @@ Licensed under [GPL-3.0-only](LICENSE).
 
 - [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive)
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+- [Kotonoha](https://github.com/locez/kotonoha)
 - [Bubbles](https://github.com/charmbracelet/bubbles)
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss)
 - [edge-tts](https://github.com/rany2/edge-tts)

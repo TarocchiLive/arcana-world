@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/overlay"
@@ -11,17 +13,21 @@ import (
 )
 
 type overlayRuntime struct {
-	ctx       context.Context
-	cancel    context.CancelFunc
-	options   overlay.Options
-	manager   *overlay.Manager
-	state     string
-	lastError error
-	last      overlay.Config
-	published bool
-	started   chan struct{}
-	startDone chan struct{}
-	created   *overlay.Manager
+	ctx          context.Context
+	cancel       context.CancelFunc
+	options      overlay.Options
+	manager      *overlay.Manager
+	state        string
+	lastError    error
+	last         overlay.Config
+	published    bool
+	preview      bool
+	previewText  string
+	previewRoles string
+	previewNext  time.Time
+	started      chan struct{}
+	startDone    chan struct{}
+	created      *overlay.Manager
 }
 type overlaySummary struct {
 	title      string
@@ -77,7 +83,7 @@ func (m *Model) startOverlay() tea.Cmd {
 	options := owner.options
 	options.Config.Text = m.overlayContentText()
 	options.Config.TextRoles = m.overlayChat.contentRoles
-	options.Config = m.previewOverlayColors(options.Config)
+	options.Config = m.previewOverlayAppearance(options.Config)
 	return func() tea.Msg {
 		close(owner.started)
 		defer close(owner.startDone)
@@ -91,6 +97,7 @@ func (m *Model) stopOverlay() tea.Cmd {
 	if owner == nil || owner.state == "off" {
 		return nil
 	}
+	owner.preview = false
 	if owner.state == "failed" {
 		owner.state = "off"
 		return nil
@@ -139,6 +146,7 @@ func (m *Model) handleOverlayStopped(msg overlayStoppedMsg) tea.Cmd {
 	owner := msg.owner
 	owner.cancel()
 	requested := owner.state == "stopping"
+	owner.preview = false
 	owner.manager = nil
 	owner.state = "off"
 	if !requested {
@@ -148,24 +156,33 @@ func (m *Model) handleOverlayStopped(msg overlayStoppedMsg) tea.Cmd {
 		}
 	}
 	if msg.err != nil {
+		owner.state = "failed"
 		owner.lastError = msg.err
 		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayStopped), msg.err))
 	}
 	// 只有停止期间明确收到启用请求，才启动下一进程。
-	if requested && m.overlayEnabled {
+	if requested && m.overlayEnabled && msg.err == nil {
 		return m.startOverlay()
 	}
 	return nil
 }
 func (m *Model) publishOverlay() {
 	owner := m.overlay
+	if owner != nil && ((!m.web.enabled && m.page != overlayPage) || !m.overlayEnabled) {
+		owner.preview = false
+	}
 	if owner == nil || owner.manager == nil || owner.state != "running" {
 		return
 	}
 	cfg := owner.options.Config
-	cfg.Text = m.overlayContentText()
-	cfg.TextRoles = m.overlayChat.contentRoles
-	cfg = m.previewOverlayColors(cfg)
+	if owner.preview {
+		// 示例只覆盖展示快照，不进入弹幕源、历史或语音播报路径。
+		cfg.Text, cfg.TextRoles = owner.previewContent(time.Now())
+	} else {
+		cfg.Text = m.overlayContentText()
+		cfg.TextRoles = m.overlayChat.contentRoles
+	}
+	cfg = m.previewOverlayAppearance(cfg)
 	if owner.published && owner.last == cfg {
 		return
 	}
@@ -174,6 +191,24 @@ func (m *Model) publishOverlay() {
 		owner.lastError = err
 		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayUpdateFailed), err))
 	}
+}
+
+func (owner *overlayRuntime) previewContent(now time.Time) (string, string) {
+	const interval = 1500 * time.Millisecond
+	if owner.previewText == "" {
+		owner.previewText = i18n.T(i18n.TUIOverlayPreviewText)
+		owner.previewRoles = "ncagsnncnn"
+		owner.previewNext = now.Add(interval)
+	} else if !now.Before(owner.previewNext) {
+		// 复用业务轮询，每次把最旧示例移到末尾，触发与新弹幕相同的滚动动效。
+		first, rest, ok := strings.Cut(owner.previewText, "\n")
+		if ok {
+			owner.previewText = rest + "\n" + first
+			owner.previewRoles = owner.previewRoles[1:] + owner.previewRoles[:1]
+		}
+		owner.previewNext = now.Add(interval)
+	}
+	return owner.previewText, owner.previewRoles
 }
 func (m *Model) closeOverlay() error {
 	owner := m.overlay

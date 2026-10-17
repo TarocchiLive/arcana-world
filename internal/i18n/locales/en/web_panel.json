@@ -1,0 +1,12 @@
+{
+  "web.panel.InteractionChanged": "The interaction changed. Review the current state and try again.",
+  "web.panel.OperationBusy": "An operation is still in progress.",
+  "web.panel.ActionUnavailable": "This action is not available in the current context.",
+  "web.panel.StreamProtocol": "Stream protocol",
+  "web.panel.StreamCredentials": "Stream credentials",
+  "web.panel.CoverUploadHint": "Choose or drop an image and crop it to 720 × 540 (4:3). Preview before confirming upload. Bilibili Web may display a 16:9 crop; keep important content near the center.",
+  "web.panel.ScanVerify": "Scan to verify",
+  "web.panel.SaveLogin": "Save signed-in account",
+  "web.panel.SwitchAccount": "Switch account",
+  "web.panel.StopListening": "Stop listening to chat"
+}

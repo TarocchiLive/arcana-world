@@ -36,6 +36,9 @@ func (m *Model) resultError(label i18n.Key, err error) (tea.Cmd, bool) {
 	return nil, true
 }
 func (m *Model) finishResult() tea.Cmd {
+	if m.web.enabled {
+		return nil
+	}
 	m.view.SetContent(m.content())
 	return nil
 }

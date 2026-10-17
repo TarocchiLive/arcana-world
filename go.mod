@@ -22,8 +22,10 @@ require (
 	github.com/zalando/go-keyring v0.2.8
 	go.etcd.io/bbolt v1.5.0
 	golang.org/x/image v0.46.0
+	golang.org/x/mod v0.42.0
 	golang.org/x/sys v0.48.0
 	google.golang.org/protobuf v1.36.12
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -47,3 +49,7 @@ require (
 
 // 固定 https://github.com/charmbracelet/lipgloss/pull/732 的补丁，避免 32 位平台截断样式标记。
 replace charm.land/lipgloss/v2 => github.com/repost-sh/lipgloss/v2 v2.0.7-0.20260818135826-488b5b63a693
+
+// 固定 e8c68c41cd80 的本地端点补丁；上游仍使用已拒绝合成请求的旧接口。
+// 协议变更：https://github.com/rany2/edge-tts/pull/491
+replace github.com/wujunwei928/edge-tts-go => ./third_party/edge-tts-go

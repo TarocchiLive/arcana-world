@@ -26,6 +26,7 @@ func TestResetSettingsPreservesConnectionsAccountsAndHistory(t *testing.T) {
 	}
 	c := s.Config()
 	c.ActiveUID = a.UID
+	c.DefaultUI = "webui"
 	c.OBSURL = "ws://localhost:1234"
 	c.OBSAutoConnect = true
 	c.OBSAutoStream = true
@@ -99,8 +100,9 @@ func TestClearDataRemovesOwnedFilesAndRejectsStaleWrites(t *testing.T) {
 	if err := other.Save(a); err != nil {
 		t.Fatal(err)
 	}
-	owned := []string{"config.json", ".config-abandoned", "danmaku/history.db", "logs/arcana-world.log", "logs/journal.lock", "logs/.journal-abandoned"}
-	unrelated := []string{"personal.txt", "logs/personal.log", "danmaku/personal.db", ".config-directory/keep"}
+	owned := []string{"config.json", ".config-abandoned", "danmaku/history.db", "logs/arcana-world.log", "logs/journal.lock", "logs/.journal-abandoned",
+		"templates/overlay.zh-CN.yaml", "templates/overlay.en.yaml", "templates/tts.zh-CN.yaml", "templates/tts.en.yaml"}
+	unrelated := []string{"personal.txt", "logs/personal.log", "danmaku/personal.db", ".config-directory/keep", "templates/personal.yaml"}
 	for _, name := range append(append([]string{}, owned[1:]...), unrelated...) {
 		path := filepath.Join(s.Dir(), name)
 		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {

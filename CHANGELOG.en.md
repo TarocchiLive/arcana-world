@@ -4,6 +4,54 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+### Changed
+
+- Build a reduced Qt 6.8.3 for the Windows amd64 overlay, removing ICU, unused modules, and plugins. Ship only required DLLs, retain both Native and Elegant overlays, and use stronger ZIP compression.
+- Collect Windows third-party notices for shipped components, deduplicate them, and combine them into `THIRD_PARTY_NOTICES.txt`. Preserve copyright notices, license terms, and source links without bundling unrelated build-tool licenses.
+- Add overlay sample preview to the WebUI outputs page, reusing the TUI samples and rotation. Turning preview off or leaving the page restores actual content; samples do not enter chat history or TTS.
+
+## [v0.4.0-alpha.1]: 2026-10-14 (prerelease)
+
+### Added
+
+- Add a local Web control panel for accounts, live streaming, OBS, chat and moderation, overlay settings, and TTS settings. It includes Chinese/English UI and light, dark, and system themes, and defaults to `http://127.0.0.1:5273`.
+- Choose and save the default interface (TUI / WebUI). WebUI opens the browser on startup; Windows packages also include a WebUI launcher.
+- Add Elegant overlay with text, panel, and motion settings alongside Native overlay. It supports Wayland layer-shell and Dock/taskbar visibility controls on macOS and Windows.
+- Preview overlay appearance and motion for different chat events with sample messages, without signing in.
+- Check for the latest stable release manually and open its release page.
+
+### Changed
+
+- Preview, zoom, and pan cover crops in the terminal and Web panel; terminal cover previews now support native iTerm2 images. Upload covers as 720×540 JPEG files up to 256 KiB to avoid oversized-image rejections.
+- Group overlay appearance settings and support arrow-key adjustments with live preview, save, and cancel. Prefer complete recent messages when display space is limited.
+- Retry failed TTS synthesis or empty audio up to twice, canceling immediately on stop or exit.
+- Document Scoop installation on Windows and APT installation on Debian/Ubuntu, and include startup guidance in Windows packages.
+
+### Fixed
+
+- Fix the terminal interface sometimes hanging when interrupted.
+- Fix overlay and TTS text cleanup and truncation splitting joined emoji or script shaping.
+
+### Upgrade notes
+
+- Replace the main executable and the entire `libexec` directory together to avoid mixing old overlay helpers. Windows 386/arm64 packages currently provide only Native overlay; Elegant overlay on Wayland requires compositor support for layer-shell.
+
+## [v0.3.2]: 2026-10-12
+
+### Fixed
+
+- Fix Edge TTS handshake failures caused by HTTP 403 from the legacy synthesis endpoint; migrate to Microsoft's new endpoint and use its hostname for proxy bypass rules.
+
+## [v0.3.1]: 2026-10-09
+
+### Added
+
+- Customize overlay and TTS text independently with Go templates in YAML files. Chinese and English configurations are separate; missing defaults are generated at startup, and edits take effect after restarting.
+- Template errors identify the file and cause, then fall back to built-in defaults for that file during the current session. Warnings remain until dismissed, and existing configuration files are never overwritten.
+- Add the in-app “Customize overlay and TTS formats” article with fields, examples, recovery instructions, and the Go template documentation link. TUI chat formatting remains unchanged.
+
 ## [v0.3.0]: 2026-09-29
 
 ### Added
@@ -361,3 +409,6 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.3.0-alpha.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-alpha.4
 [v0.3.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0-rc.1
 [v0.3.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.0
+[v0.3.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.1
+[v0.3.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.2
+[v0.4.0-alpha.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-alpha.1

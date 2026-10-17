@@ -20,13 +20,21 @@ type client struct {
 
 // Server 不保存历史；慢客户端断开后需自行重新连接。
 type Server struct {
-	mu      sync.Mutex
-	clients map[*client]struct{}
-	http    *http.Server
-	ctx     context.Context
-	cancel  context.CancelFunc
-	done    chan struct{}
-	err     error
+	mu        sync.Mutex
+	clients   map[*client]struct{}
+	http      *http.Server
+	ctx       context.Context
+	cancel    context.CancelFunc
+	done      chan struct{}
+	err       error
+	closeOnce sync.Once
+	closeErr  error
+}
+
+// New 创建不占用监听地址的广播服务，可挂载到现有 HTTP 服务。
+func New() *Server {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Server{clients: make(map[*client]struct{}), ctx: ctx, cancel: cancel}
 }
 
 // Listen 同步绑定地址，绑定失败时不启动后台服务。
@@ -35,16 +43,27 @@ func Listen(addr string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	s := &Server{clients: make(map[*client]struct{}), ctx: ctx, cancel: cancel, done: make(chan struct{})}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/ws", s.accept)
-	s.http = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	s := New()
+	s.done = make(chan struct{})
+	s.http = &http.Server{Handler: s, ReadHeaderTimeout: 5 * time.Second}
 	go func() {
 		defer close(s.done)
 		s.err = s.http.Serve(listener)
 	}()
 	return s, nil
+}
+
+// ServeHTTP 仅提供精确匹配的 /ws 只读广播端点。
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/ws" {
+		http.NotFound(w, r)
+		return
+	}
+	if s.ctx.Err() != nil {
+		http.Error(w, "broadcast closed", http.StatusServiceUnavailable)
+		return
+	}
+	s.accept(w, r)
 }
 
 func (s *Server) accept(w http.ResponseWriter, r *http.Request) {
@@ -122,18 +141,24 @@ func (s *Server) Publish(room int64, raw json.RawMessage) {
 	}
 }
 
-// Close 同时停止 HTTP 监听和已升级的连接。
+// Close 停止独立监听及已升级的连接；挂载模式不关闭外部 HTTP 服务。
 func (s *Server) Close() error {
-	s.cancel()
-	err := s.http.Close()
-	s.mu.Lock()
-	for c := range s.clients {
-		_ = c.conn.CloseNow()
-	}
-	s.mu.Unlock()
-	<-s.done
-	if s.err != http.ErrServerClosed {
-		return s.err
-	}
-	return err
+	s.closeOnce.Do(func() {
+		s.cancel()
+		if s.http != nil {
+			s.closeErr = s.http.Close()
+		}
+		s.mu.Lock()
+		for c := range s.clients {
+			_ = c.conn.CloseNow()
+		}
+		s.mu.Unlock()
+		if s.done != nil {
+			<-s.done
+			if s.err != http.ErrServerClosed {
+				s.closeErr = s.err
+			}
+		}
+	})
+	return s.closeErr
 }
