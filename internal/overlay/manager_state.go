@@ -12,9 +12,11 @@ func (m *Manager) setLocked(cfg Config) error {
 	}
 	normalized, err := cfg.Normalize()
 	if err != nil {
+		logger.Warn("overlay config update rejected", "reason", "invalid config", "err", err)
 		return err
 	}
 	if normalized.Backend != m.cfg.Backend {
+		logger.Warn("overlay config update rejected", "reason", "backend change", "from", m.cfg.Backend, "to", normalized.Backend)
 		return errors.New("overlay: backend changes require restarting the manager")
 	}
 	if normalized == m.cfg {

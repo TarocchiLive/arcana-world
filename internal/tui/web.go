@@ -191,6 +191,7 @@ func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {
 		m.reveal = false
 		if m.busy {
 			if m.cancel != nil {
+				logger.Info("operation cancel requested", "id", m.operation)
 				m.canceled = true
 				m.cancel()
 			}

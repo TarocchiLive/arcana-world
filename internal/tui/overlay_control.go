@@ -37,6 +37,7 @@ type overlayStartedMsg struct {
 	owner   *overlayRuntime
 	manager *overlay.Manager
 	err     error
+	elapsed time.Duration
 }
 type overlayStoppedMsg struct {
 	owner *overlayRuntime
@@ -84,12 +85,14 @@ func (m *Model) startOverlay() tea.Cmd {
 	options.Config.Text = m.overlayContentText()
 	options.Config.TextRoles = m.overlayChat.contentRoles
 	options.Config = m.previewOverlayAppearance(options.Config)
+	logger.Debug("overlay start requested", "op", "overlay start")
 	return func() tea.Msg {
 		close(owner.started)
 		defer close(owner.startDone)
+		began := time.Now()
 		manager, err := overlay.Start(owner.ctx, options)
 		owner.created = manager
-		return overlayStartedMsg{owner: owner, manager: manager, err: err}
+		return overlayStartedMsg{owner: owner, manager: manager, err: err, elapsed: time.Since(began)}
 	}
 }
 func (m *Model) stopOverlay() tea.Cmd {
@@ -131,10 +134,12 @@ func (m *Model) handleOverlayStarted(msg overlayStartedMsg) tea.Cmd {
 	if msg.err != nil {
 		owner.cancel()
 		owner.state, owner.lastError = "failed", msg.err
+		logger.Error("overlay start failed", "op", "overlay start", "elapsed", msg.elapsed, "err", msg.err)
 		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayStartupFailed), msg.err))
 		return nil
 	}
 	owner.manager, owner.state = msg.manager, "running"
+	logger.Info("overlay started", "op", "overlay start", "elapsed", msg.elapsed)
 	m.log(i18n.T(i18n.TUILogOverlayStarted))
 	m.publishOverlay()
 	return func() tea.Msg { <-msg.manager.Done(); return overlayStoppedMsg{owner: owner, err: msg.manager.Err()} }
@@ -151,9 +156,14 @@ func (m *Model) handleOverlayStopped(msg overlayStoppedMsg) tea.Cmd {
 	owner.state = "off"
 	if !requested {
 		owner.state = "failed"
+		logger.Error("overlay exited unexpectedly", "op", "overlay run", "err", msg.err)
 		if msg.err == nil {
 			msg.err = errors.New(i18n.T(i18n.TUIOverlayUnexpectedExit))
 		}
+	} else if msg.err != nil {
+		logger.Error("overlay stop failed", "op", "overlay stop", "err", msg.err)
+	} else {
+		logger.Info("overlay stopped")
 	}
 	if msg.err != nil {
 		owner.state = "failed"
@@ -189,6 +199,7 @@ func (m *Model) publishOverlay() {
 	owner.last, owner.published = cfg, true
 	if err := owner.manager.SetConfig(cfg); err != nil {
 		owner.lastError = err
+		logger.Warn("overlay config update failed", "err", err)
 		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayUpdateFailed), err))
 	}
 }

@@ -3,7 +3,6 @@ package tts
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 )
@@ -35,23 +34,25 @@ func NewPlayer(options PlayerOptions) (*ProcessPlayer, error) {
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("player ready", "executable", executable, "volume", options.Volume, "timeout", options.Timeout)
 	return &ProcessPlayer{executable: executable, timeout: options.Timeout, volume: options.Volume}, nil
 }
 
 func (p *ProcessPlayer) Play(ctx context.Context, audio []byte) error {
 	if ctx == nil {
-		return errors.New("tts: nil playback context")
+		return errors.New("nil playback context")
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if len(audio) == 0 || len(audio) > MaxAudioBytes {
-		return errors.New("tts: audio must contain between 1 byte and 8 MiB")
+		return errors.New("audio must contain between 1 byte and 8 MiB")
 	}
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
+	// 错误由 Manager 统一添加 "tts: play:" 前缀；设备初始化等失败已由 runHelper 记录 stderr 细节。
 	if _, err := runHelper(ctx, p.executable, []string{"--volume", strconv.Itoa(p.volume), "play"}, audio, 0, nil); err != nil {
-		return fmt.Errorf("tts: playback helper: %w", err)
+		return err
 	}
 	return nil
 }

@@ -21,9 +21,19 @@ import (
 )
 
 func init() { runtime.LockOSThread() }
+
+// startupContext 在参数解析后填入运行模式与显示器选择，供致命错误诊断使用。
+var startupContext string
+
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "arcana-world-overlay:", err)
+		// 父进程把本进程 stderr 收入日志；输出单行英文诊断，包含后端、显示器与原因。
+		line := "arcana-world-overlay: fatal: backend=" + string(backendID)
+		if startupContext != "" {
+			line += " " + startupContext
+		}
+		line += " err=" + strings.Join(strings.Fields(err.Error()), " ")
+		fmt.Fprintln(os.Stderr, line)
 		os.Exit(1)
 	}
 }
@@ -72,6 +82,18 @@ func run() error {
 	}
 	if flags.NArg() != 0 {
 		return errors.New("positional arguments are not supported")
+	}
+	mode := "standalone"
+	switch {
+	case *socket != "":
+		mode = "managed"
+	case *listDisplays:
+		mode = "list-displays"
+	}
+	if mode == "managed" {
+		startupContext = "mode=managed" // 显示器选择由父进程经套接字下发。
+	} else {
+		startupContext = fmt.Sprintf("mode=%s display=%d output=%q displays=%q", mode, *display, cfg.Output, cfg.Displays)
 	}
 	var explicitDisplays, legacyDisplay, explicitTaskbar bool
 	flags.Visit(func(f *flag.Flag) {

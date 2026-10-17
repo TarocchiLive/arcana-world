@@ -18,7 +18,8 @@ func (c *Client) AudienceRequest(roomID int64) func(context.Context) (int64, err
 		snapshot.HTTP = &httpClient
 	}
 	return func(ctx context.Context) (int64, error) {
-		return snapshot.RoomAudience(ctx, roomID)
+		// 在线人数按短间隔轮询：成功请求不记录日志，仅保留失败。
+		return snapshot.RoomAudience(quiet(ctx), roomID)
 	}
 }
 

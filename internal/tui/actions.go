@@ -94,12 +94,17 @@ func (m *Model) activate() tea.Cmd {
 	m.cursors[m.page] = min(m.cursors[m.page], len(items)-1)
 	return m.perform(items[m.cursors[m.page]].action)
 }
+
+// rejectAction 记录因前置条件不满足而被界面拒绝的操作；reason 为英文，仅供调试。
+func rejectAction(reason string) { logger.Debug("action rejected", "reason", reason) }
 func (m *Model) requireRoom() bool {
 	if m.account == nil {
+		rejectAction("account not loaded")
 		m.warn(i18n.T(i18n.TUIStatusAccountRequired))
 		return false
 	}
 	if m.room == nil {
+		rejectAction("room not loaded")
 		m.warn(i18n.T(i18n.TUIStatusRoomRequired))
 		return false
 	}
@@ -194,6 +199,7 @@ func (m *Model) perform(action string) tea.Cmd {
 		return work(m, qrOperation(), func(ctx context.Context) (domain.QR, error) { return m.client.GenerateQR(ctx) })
 	case "refresh":
 		if m.account == nil {
+			rejectAction("not signed in")
 			m.warn(i18n.T(i18n.TUIStatusSignInRequired))
 			return nil
 		}
@@ -203,10 +209,12 @@ func (m *Model) perform(action string) tea.Cmd {
 			return nil
 		}
 		if m.room.AreaID == 0 {
+			rejectAction("room category not selected")
 			m.warn(i18n.T(i18n.TUIStatusCategoryRequired))
 			return nil
 		}
 		if m.obsBusy {
+			rejectAction("obs operation in progress")
 			m.warn(i18n.T(i18n.TUIStatusWaitOBSConnection))
 			return nil
 		}
@@ -216,6 +224,7 @@ func (m *Model) perform(action string) tea.Cmd {
 			return nil
 		}
 		if m.obsBusy {
+			rejectAction("obs operation in progress")
 			m.warn(i18n.T(i18n.TUIStatusWaitOBSConnection))
 			return nil
 		}
@@ -226,6 +235,7 @@ func (m *Model) perform(action string) tea.Cmd {
 		return m.stopLive()
 	case "reveal":
 		if m.stream == nil {
+			rejectAction("stream info unavailable")
 			m.warn(i18n.T(i18n.TUIStatusStreamUnavailable))
 		} else {
 			m.reveal = !m.reveal
@@ -281,18 +291,21 @@ func (m *Model) perform(action string) tea.Cmd {
 		return m.pick("delete", i18n.T(i18n.TUIFormRemoveAccount))
 	case "obs-url":
 		if m.obsBusy {
+			rejectAction("obs operation in progress, settings locked")
 			m.warn(i18n.T(i18n.TUIStatusWaitOBSSettings))
 			return nil
 		}
 		return m.form("obs-url", i18n.T(i18n.TUISettingsOBSURL), m.config.OBSURL, false)
 	case "obs-password":
 		if m.obsBusy {
+			rejectAction("obs operation in progress, settings locked")
 			m.warn(i18n.T(i18n.TUIStatusWaitOBSSettings))
 			return nil
 		}
 		return m.form("obs-password", i18n.T(i18n.TUIFormOBSPassword), "", true)
 	case "proxy":
 		if m.store.Overrides().Proxy != nil {
+			rejectAction("proxy overridden by command line for this session")
 			m.warn(i18n.T(i18n.TUISessionOverride))
 			return nil
 		}
@@ -312,10 +325,12 @@ func (m *Model) perform(action string) tea.Cmd {
 	case "obs-auto-connect", "obs-auto-stream":
 		overrides := m.store.Overrides()
 		if action == "obs-auto-connect" && overrides.OBSAutoConnect != nil || action == "obs-auto-stream" && overrides.OBSAutoStream != nil {
+			rejectAction("obs option overridden by command line for this session")
 			m.warn(i18n.T(i18n.TUISessionOverride))
 			return nil
 		}
 		if m.obsBusy {
+			rejectAction("obs operation in progress")
 			m.warn(i18n.T(i18n.TUIStatusWaitOBS))
 			return nil
 		}
@@ -511,6 +526,7 @@ func (m *Model) submitForm() tea.Cmd {
 		}
 	case "proxy":
 		if m.store.Overrides().Proxy != nil {
+			rejectAction("proxy overridden by command line for this session")
 			m.warn(i18n.T(i18n.TUISessionOverride))
 			return nil
 		}

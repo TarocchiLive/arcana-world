@@ -105,6 +105,8 @@ func migrateHistory(tx *bolt.Tx) error {
 	}); err != nil {
 		return err
 	}
+	// 事务提交前记录；若随后提交失败，Open 会记录失败原因。
+	logger.Info("danmaku history schema migrating", "from", version, "to", historySchemaVersion)
 	return meta.Put(historyVersionKey, key(historySchemaVersion))
 }
 

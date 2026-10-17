@@ -48,6 +48,8 @@ const (
 	logEntryLimit    = 200
 )
 
+var logger = journal.Logger("tui")
+
 func pageNames() [pageCount]string {
 	return [pageCount]string{
 		livePage:     i18n.T(i18n.TUIPageLive),
@@ -134,6 +136,7 @@ type Model struct {
 	qrGeneration             int
 	qr                       *domain.QR
 	qrText                   string
+	qrPollCode               int // 上一次登录轮询状态码，仅用于记录状态变化
 	qrImageOpening           bool
 	faceURL                  string
 	pendingAccount           *domain.Account
@@ -157,10 +160,7 @@ func New(ctx context.Context, s *store.Store, disk *journal.Log) (*Model, error)
 	cfg := s.Config()
 	c, err := bili.New(cfg.Proxy, s.DeviceID())
 	if err != nil {
-		return nil, errors.Join(err, disk.Write(i18n.T(i18n.TUILogStartupFailed)+err.Error()), disk.Close())
-	}
-	if err := disk.Write(i18n.T(i18n.TUILogApplicationStarted)); err != nil {
-		c.HTTP.CloseIdleConnections()
+		logger.Error("bilibili client init failed", "err", err)
 		return nil, errors.Join(err, disk.Close())
 	}
 	in := textinput.New()
@@ -213,19 +213,16 @@ func (m *Model) logCredentialStorage() {
 	}
 }
 
+// log 与 warn 仅面向界面（状态行与操作记录面板）；调试日志由 logger 单独记录。
 func (m *Model) log(s string) { m.logStatus(s, false) }
 
 func (m *Model) logStatus(s string, warning bool) {
 	s = m.safe(s)
-	err := m.journal.Write(s)
-	if err != nil {
-		s += i18n.T(i18n.TUILogWriteFailedPrefix) + m.safe(err.Error()) + i18n.T(i18n.TUILogWriteFailedSuffix)
-	}
 	m.logs = append(m.logs, time.Now().Format("15:04:05")+"  "+s)
 	if len(m.logs) > logEntryLimit {
 		m.logs = append([]string(nil), m.logs[len(m.logs)-logEntryLimit:]...)
 	}
-	m.status, m.statusWarning = s, warning || err != nil
+	m.status, m.statusWarning = s, warning
 	m.resetNotification()
 }
 
@@ -437,6 +434,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	case qrImageOpened:
 		m.qrImageOpening = false
 		if msg.err != nil {
+			logger.Warn("qr image open failed", "err", msg.err)
 			m.warn(i18n.T(i18n.TUIQROpenFailed) + msg.err.Error())
 		}
 		return m, nil
@@ -453,6 +451,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	case coverPreviewFinished:
 		m.previewing = false
 		if msg.err != nil {
+			logger.Warn("cover preview failed", "err", msg.err)
 			m.warn(i18n.T(i18n.TUILogCoverPreviewFailed) + msg.err.Error())
 		} else {
 			m.setStatus(i18n.T(i18n.TUIStatusPreviewClosed))
@@ -503,6 +502,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 				return m, nil
 			}
 			if key == "esc" && m.cancel != nil {
+				logger.Info("operation cancel requested", "id", m.operation)
 				m.canceled = true
 				m.cancel()
 				if m.mode == "members" {

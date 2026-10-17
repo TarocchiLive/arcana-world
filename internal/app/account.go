@@ -35,25 +35,31 @@ func (m *Session) detach(ctx context.Context, source *bili.Client, out *AccountO
 	}
 	old, err := m.store.Load(cfg.ActiveUID)
 	if err != nil {
+		logger.Error("previous account load failed", "uid", cfg.ActiveUID, "err", err)
 		return err
 	}
 	c, err := m.client(source, &old, m.store.Config().Proxy)
 	if err != nil {
+		logger.Error("previous account client init failed", "uid", old.UID, "err", err)
 		return err
 	}
 	defer c.HTTP.CloseIdleConnections()
 	room, err := c.Room(ctx)
 	if err != nil {
+		logger.Error("previous account room query failed", "uid", old.UID, "err", err)
 		return err
 	}
 	out.OldRoom = &room
 	if _, err = m.stopControlledOBS(ctx, cfg, room.Live); err != nil {
+		logger.Error("previous account obs stop failed", "uid", old.UID, "room", room.ID, "err", err)
 		return err
 	}
 	if room.Live {
 		if err = c.Stop(ctx, room.ID); err != nil {
+			logger.Error("previous account live stop failed", "uid", old.UID, "room", room.ID, "err", err)
 			return err
 		}
+		logger.Info("previous account live stopped", "uid", old.UID, "room", room.ID)
 		room.Live = false
 	}
 	return nil
@@ -75,11 +81,13 @@ func (m *Session) Switch(ctx context.Context, source *bili.Client, uid string, l
 	} else {
 		a, err = m.store.Load(uid)
 		if err != nil {
+			logger.Error("account load failed", "uid", uid, "err", err)
 			return out, err
 		}
 	}
 	c, err := m.client(source, &a, m.store.Config().Proxy)
 	if err != nil {
+		logger.Error("account client init failed", "uid", a.UID, "err", err)
 		return out, err
 	}
 	committed := false
@@ -90,15 +98,18 @@ func (m *Session) Switch(ctx context.Context, source *bili.Client, uid string, l
 	}()
 	info, err := c.Validate(ctx)
 	if err != nil {
+		logger.Error("account validate failed", "uid", a.UID, "err", err)
 		return out, err
 	}
 	if (a.UID != "" && info.UID != a.UID) || (a.Cookies["DedeUserID"] != "" && info.UID != a.Cookies["DedeUserID"]) {
+		logger.Error("account uid mismatch", "expected_uid", a.UID, "cookie_uid", a.Cookies["DedeUserID"], "validated_uid", info.UID)
 		return out, errors.New(i18n.T(i18n.TUIErrorAccountMismatch))
 	}
 	a.UID, a.Name = info.UID, info.Name
 	cfg := m.store.Config()
 	if cfg.ActiveUID != "" && cfg.ActiveUID != a.UID {
 		if err = m.detach(ctx, source, &out); err != nil {
+			logger.Error("previous account detach failed", "uid", a.UID, "previous_uid", cfg.ActiveUID, "err", err)
 			return out, err
 		}
 	}
@@ -109,16 +120,19 @@ func (m *Session) Switch(ctx context.Context, source *bili.Client, uid string, l
 		return out, context.Canceled
 	}
 	if err = m.store.Save(a); err != nil {
+		logger.Error("account save failed", "uid", a.UID, "err", err)
 		return out, err
 	}
 	cfg = m.store.Config()
 	cfg.ActiveUID = a.UID
 	if err = m.store.SaveConfig(cfg); err != nil {
+		logger.Error("active account save failed", "uid", a.UID, "err", err)
 		return out, err
 	}
 	committed = true
 	m.Track(c)
 	out.Account, out.Client = a, c
+	logger.Info("account committed", "uid", a.UID, "from_login", login != nil)
 	return out, nil
 }
 
@@ -131,6 +145,7 @@ func (m *Session) Delete(ctx context.Context, source *bili.Client, uid string) (
 	active := m.store.Config().ActiveUID == uid
 	if active {
 		if err := m.detach(ctx, source, &out); err != nil {
+			logger.Error("account delete detach failed", "uid", uid, "err", err)
 			return out, err
 		}
 	}
@@ -149,6 +164,7 @@ func (m *Session) Delete(ctx context.Context, source *bili.Client, uid string) (
 		}
 	}
 	if err := m.store.Delete(uid); err != nil {
+		logger.Error("account delete failed", "uid", uid, "err", err)
 		if c != nil {
 			c.HTTP.CloseIdleConnections()
 		}
@@ -158,5 +174,6 @@ func (m *Session) Delete(ctx context.Context, source *bili.Client, uid string) (
 		m.Track(c)
 		out.Client = c
 	}
+	logger.Info("account removed", "uid", uid, "was_active", active)
 	return out, nil
 }

@@ -38,9 +38,12 @@ func (m *Model) handleStartResult(value app.StartOutcome, err error, label i18n.
 	s := outcome.Stream
 	m.stream = &s
 	m.reveal = false
+	roomID, areaID := int64(0), int64(0)
 	if m.room != nil {
+		roomID, areaID = m.room.ID, m.room.AreaID
 		m.room.Live = true
 	}
+	logger.Info("live start applied", "room", roomID, "area", areaID, "protocol", s.Protocol, "obs_configured", outcome.OBSConfigured, "obs_started", outcome.OBSStarted)
 	m.log(i18n.T(i18n.TUILogLiveStarted))
 	if outcome.OBSStarted {
 		m.log(i18n.T(i18n.TUILogLiveOBSStarted))
@@ -48,9 +51,11 @@ func (m *Model) handleStartResult(value app.StartOutcome, err error, label i18n.
 		m.log(i18n.T(i18n.TUILogLiveOBSConfigured))
 	}
 	if outcome.OBSErr != nil {
+		logger.Warn("obs step failed after live start", "room", roomID, "area", areaID, "obs_configured", outcome.OBSConfigured, "obs_started", outcome.OBSStarted, "err", outcome.OBSErr)
 		m.warn(i18n.T(i18n.TUILogLiveOBSFailed) + outcome.OBSErr.Error())
 	}
 	if s.Warning != "" {
+		logger.Warn("live start returned warning", "room", roomID, "area", areaID, "warning", s.Warning)
 		m.warn(s.Warning)
 	}
 	return m.finishResult()
@@ -64,11 +69,14 @@ func (m *Model) handleStopResult(value app.StopOutcome, err error, label i18n.Ke
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
+	roomID := int64(0)
 	if m.room != nil {
+		roomID = m.room.ID
 		m.room.Live = false
 	}
 	m.stream = nil
 	m.reveal = false
+	logger.Info("live stop applied", "room", roomID, "obs_stopped", value.OBSStopped)
 	m.log(i18n.T(i18n.TUILogLiveStopped))
 	if value.OBSStopped {
 		m.log(i18n.T(i18n.TUILogLiveOBSStopped))
@@ -90,6 +98,7 @@ func (m *Model) handleAreasResult(value areaCatalog, err error, label i18n.Key) 
 	m.view.GotoTop()
 	m.progressStatus(i18n.T(i18n.TUIStatusCategorySelectHint))
 	if catalog.historyErr != nil {
+		logger.Warn("recent categories load failed", "room", m.room.ID, "err", catalog.historyErr)
 		m.warn(i18n.T(i18n.TUILogRecentCategoriesFailed) + catalog.historyErr.Error())
 	}
 	return m.selection.Init()

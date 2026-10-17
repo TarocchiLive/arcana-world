@@ -3,14 +3,18 @@ package tts
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -45,20 +49,25 @@ func RunEdge(in io.Reader, out io.Writer) error {
 		return errors.New("tts: invalid synthesis configuration")
 	}
 	var audio []byte
+	attempts := len(edgeRetryDelays)
 	// 重试留在专用进程内；宿主的总超时或取消会直接终止进程，包括等待阶段。
-	for attempt, delay := range [...]time.Duration{0, 500 * time.Millisecond, 1500 * time.Millisecond} {
+	for attempt, delay := range edgeRetryDelays {
 		if delay > 0 {
 			time.Sleep(delay)
 		}
+		started := time.Now()
 		audio, err = communicator.Stream()
 		if err == nil && len(audio) > 0 {
 			break
 		}
-		if attempt == 2 {
+		// 逐次重试的细节写入 stderr，由宿主在失败时记入日志；
+		// 只含端点主机、代理协议与错误类别，绝不包含文本或凭据。
+		fmt.Fprintf(os.Stderr, "tts: synthesis attempt %d/%d failed (%s, elapsed=%s)\n", attempt+1, attempts, edgeDetail(err, request.Proxy), time.Since(started).Round(time.Millisecond))
+		if attempt == attempts-1 {
 			if err != nil {
-				return safeEdgeError(err)
+				return safeEdgeError(err, request.Proxy, attempts)
 			}
-			return errors.New("tts: synthesis returned empty audio")
+			return fmt.Errorf("tts: synthesis returned empty audio (%s, attempts=%d)", edgeDetail(nil, request.Proxy), attempts)
 		}
 	}
 	if len(audio) > MaxAudioBytes {
@@ -97,13 +106,65 @@ func readEdgeRequest(in io.Reader) (edgeRequest, error) {
 	}
 	return request, nil
 }
-func safeEdgeError(err error) error {
+
+var edgeRetryDelays = [...]time.Duration{0, 500 * time.Millisecond, 1500 * time.Millisecond}
+
+// edgeHost 返回合成端点主机；不含 WSS_URL 查询串里的令牌。
+func edgeHost() string {
+	u, err := url.Parse(edge.WSS_URL)
+	if err != nil {
+		return "unknown"
+	}
+	return u.Host
+}
+
+// edgeFailureKind 把底层错误归类为不含文本、凭据的简短原因。
+func edgeFailureKind(err error) string {
+	var timeout net.Error
+	var dns *net.DNSError
+	var op *net.OpError
+	var closeErr *websocket.CloseError
+	var verify *tls.CertificateVerificationError
+	var errno syscall.Errno
+	switch {
+	case err == nil:
+		return "empty audio"
+	case errors.Is(err, websocket.ErrBadHandshake):
+		// edge-tts 丢弃了握手响应，拿不到 HTTP 状态码。
+		return "bad handshake (HTTP status unavailable)"
+	case errors.Is(err, context.DeadlineExceeded) || errors.As(err, &timeout) && timeout.Timeout():
+		return "timeout"
+	case errors.As(err, &dns):
+		return "dns lookup failed"
+	case errors.As(err, &verify):
+		return "tls certificate verification failed"
+	case errors.As(err, &closeErr):
+		return fmt.Sprintf("websocket closed (code %d)", closeErr.Code)
+	case errors.As(err, &op):
+		if errors.As(err, &errno) {
+			return op.Op + ": " + errno.Error()
+		}
+		return op.Op + " failed"
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return "unexpected eof"
+	}
+	return "protocol error"
+}
+
+// edgeDetail 生成可写入 stderr 与日志的诊断细节。
+func edgeDetail(err error, proxy string) string {
+	return fmt.Sprintf("host=%s, proxy=%s, cause=%s", edgeHost(), proxyLabel(proxy), edgeFailureKind(err))
+}
+
+// safeEdgeError 返回带类别前缀的错误：类别是固定文本（宿主按前缀匹配），
+// 括号内的细节只会进入日志，不会进入返回给用户的错误。
+func safeEdgeError(err error, proxy string, attempts int) error {
+	category := "tts: synthesis network or protocol failure"
 	var timeout net.Error
 	if errors.Is(err, context.DeadlineExceeded) || errors.As(err, &timeout) && timeout.Timeout() {
-		return errors.New("tts: synthesis network timeout")
+		category = "tts: synthesis network timeout"
+	} else if errors.Is(err, websocket.ErrBadHandshake) {
+		category = "tts: synthesis handshake rejected"
 	}
-	if errors.Is(err, websocket.ErrBadHandshake) {
-		return errors.New("tts: synthesis handshake rejected")
-	}
-	return errors.New("tts: synthesis network or protocol failure")
+	return fmt.Errorf("%s (%s, attempts=%d)", category, edgeDetail(err, proxy), attempts)
 }

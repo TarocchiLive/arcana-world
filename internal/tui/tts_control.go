@@ -64,15 +64,19 @@ func (r *ttsRuntime) retire() {
 	}()
 }
 
+// ttsError 对界面按相同文本去重；失败原因已由产生处（tts 组件与 startTTSManager）记录，
+// 此处仅以 DEBUG 记录界面实际展示的错误。
 func (m *Model) ttsError(err error) {
 	if err == nil {
 		return
 	}
 	detail := m.safe(err.Error())
-	if m.tts.lastError != detail {
-		m.tts.lastError = detail
-		m.warn(fmt.Sprintf(i18n.T(i18n.TTSLogFailed), detail))
+	if m.tts.lastError == detail {
+		return
 	}
+	m.tts.lastError = detail
+	logger.Debug("tts error shown", "err", err)
+	m.warn(fmt.Sprintf(i18n.T(i18n.TTSLogFailed), detail))
 }
 
 // ConfigureTTS 在模型初始化前设置仅限本次会话的覆盖值。
@@ -146,12 +150,14 @@ func (m *Model) startTTSManager() {
 	edge, err := tts.NewEdge(tts.EdgeOptions{Voice: r.voice, Proxy: r.proxy})
 	if err != nil {
 		r.failed = true
+		logger.Error("tts synthesis backend unavailable", "err", err)
 		m.ttsError(fmt.Errorf(i18n.T(i18n.TTSSynthesisBackendUnavailable), err))
 		return
 	}
 	player, err := tts.NewPlayer(tts.PlayerOptions{Volume: m.config.TTS.Volume})
 	if err != nil {
 		r.failed = true
+		logger.Error("tts playback backend unavailable", "err", err)
 		m.ttsError(fmt.Errorf(i18n.T(i18n.TTSPlaybackBackendUnavailable), err))
 		return
 	}
@@ -160,15 +166,18 @@ func (m *Model) startTTSManager() {
 	if err != nil {
 		cancel()
 		r.failed = true
+		logger.Error("tts manager start failed", "err", err)
 		m.ttsError(err)
 		return
 	}
 	r.manager, r.cancel = manager, cancel
 	r.lastError = ""
+	logger.Info("tts manager started")
 }
 
 func (m *Model) performTTS(action string) tea.Cmd {
 	if m.ttsOverride != nil && (action == "tts-toggle" || action == "tts-preview" && !*m.ttsOverride) {
+		rejectAction("tts overridden by command line for this session")
 		m.warn(i18n.T(i18n.TUISessionOverride))
 		return nil
 	}
@@ -254,6 +263,7 @@ func (m *Model) handleTTSEvents(msg ttsEventsMsg) tea.Cmd {
 	}
 	r.loading = false
 	if msg.err != nil {
+		logger.Error("tts history read failed", "room", r.room, "err", msg.err)
 		m.ttsError(fmt.Errorf(i18n.T(i18n.TTSReadEventsFailed), msg.err))
 		return nil
 	}

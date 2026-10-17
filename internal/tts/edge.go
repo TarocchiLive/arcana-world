@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"arcana-world/internal/journal"
 )
 
 var ErrUnsupportedProxy = errors.New("tts: unsupported proxy scheme")
@@ -62,11 +63,12 @@ func NewEdge(options EdgeOptions) (*Edge, error) {
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("edge synthesizer ready", "executable", executable, "voice", options.Voice, "proxy", proxyLabel(proxy), "timeout", options.Timeout)
 	return &Edge{executable: executable, voice: options.Voice, proxy: proxy, timeout: options.Timeout}, nil
 }
 func (e *Edge) Synthesize(ctx context.Context, text string) ([]byte, error) {
 	if ctx == nil {
-		return nil, errors.New("tts: nil context")
+		return nil, errors.New("nil context")
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -81,19 +83,32 @@ func (e *Edge) Synthesize(ctx context.Context, text string) ([]byte, error) {
 	encoder := json.NewEncoder(&input)
 	encoder.SetEscapeHTML(false)
 	if err := encoder.Encode(edgeRequest{Text: text, Voice: e.voice, Proxy: e.proxy}); err != nil {
-		return nil, errors.New("tts: encoding synthesis input")
+		return nil, errors.New("encoding synthesis input")
 	}
 	if input.Len() > maxEdgeRequestBytes {
-		return nil, errors.New("tts: synthesis input exceeds limit")
+		return nil, errors.New("synthesis input exceeds limit")
 	}
+	// 错误由 Manager 统一添加 "tts: synthesize:" 前缀，此处原样返回。
 	audio, err := runHelper(ctx, e.executable, []string{"synthesize"}, input.Bytes(), MaxAudioBytes, withoutProxyEnv(os.Environ()))
 	if err != nil {
-		return nil, fmt.Errorf("tts: synthesize: %w", err)
+		return nil, err
 	}
 	if len(audio) == 0 {
-		return nil, errors.New("tts: synthesis returned empty audio")
+		return nil, errors.New("synthesis returned empty audio")
 	}
 	return audio, nil
+}
+
+// proxyLabel 返回可安全写入日志的代理描述：只含协议与主机，不含用户信息。
+func proxyLabel(proxy string) string {
+	if proxy == "" {
+		return "direct"
+	}
+	u, err := url.Parse(proxy)
+	if err != nil {
+		return "invalid"
+	}
+	return u.Scheme + "://" + u.Host
 }
 func validVoice(voice string) bool {
 	if len(voice) > maxVoiceBytes || !strings.HasSuffix(voice, "Neural") {
@@ -114,6 +129,8 @@ func effectiveProxy(value string) (string, error) {
 		request, _ := http.NewRequest(http.MethodGet, "https://api.msedgeservices.com", nil)
 		proxy, err := http.ProxyFromEnvironment(request)
 		if err != nil {
+			// 错误文本可能包含环境变量里的代理 URL（含凭据），因此不记录 err。
+			logger.Warn("environment proxy invalid")
 			return "", errors.New("tts: invalid environment proxy")
 		}
 		if proxy == nil {
@@ -133,6 +150,13 @@ func normalizeProxy(value string) (string, error) {
 	proxy, err := url.Parse(value)
 	if err != nil {
 		return "", errors.New("tts: invalid proxy")
+	}
+	// 代理凭据在内存中出现的第一处：登记后日志会自动隐藏。
+	if proxy.User != nil {
+		journal.AddSecrets(proxy.User.String())
+		if password, ok := proxy.User.Password(); ok {
+			journal.AddSecrets(password)
+		}
 	}
 	switch proxy.Scheme {
 	case "socks5h":

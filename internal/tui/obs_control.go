@@ -17,9 +17,10 @@ const obsOperationTimeout = 30 * time.Second
 
 type obsEventMsg struct{ closed bool }
 type obsResultMsg struct {
-	id    int
-	label i18n.Key
-	err   error
+	id      int
+	label   i18n.Key
+	err     error
+	started time.Time // 任务开始执行的时间，用于计算耗时
 }
 
 func toggleLabel(label string, enabled bool) string {
@@ -52,9 +53,12 @@ func (m *Model) Close() error {
 		ttsErr := m.closeTTS()
 		stopErr := m.session.Close(m.client, m.room != nil && m.room.Live)
 		if stopErr != nil {
-			stopErr = errors.Join(stopErr, m.journal.Write(m.safe(stopErr.Error())))
+			logger.Error("close live session failed", "err", stopErr)
 		}
-		m.closeErr = errors.Join(imageErr, ttsErr, stopErr, m.closeOverlay(), m.closeChat(), m.obsClient.Close(), m.journal.Write(i18n.T(i18n.TUILogApplicationExited)), m.journal.Close())
+		closeErr := errors.Join(imageErr, ttsErr, stopErr, m.closeOverlay(), m.closeChat(), m.obsClient.Close())
+		// 退出记录必须在日志关闭之前写入，并带上前面各步骤的错误。
+		logger.Info("application exited", "err", closeErr, "clear_data", m.clearDataOnExit)
+		m.closeErr = errors.Join(closeErr, m.journal.Close())
 		if m.clearDataOnExit {
 			if m.closeErr != nil {
 				m.closeErr = fmt.Errorf(i18n.T(i18n.TUISettingsClearDataShutdownFailed), m.closeErr)
@@ -82,6 +86,13 @@ func (m *Model) handleOBSEvent(msg obsEventMsg) tea.Cmd {
 	previous := m.obsState
 	// 排队事件可能属于已断开的旧连接，不能发布其过期状态。
 	m.obsState = m.obsClient.Snapshot()
+	if previous.Connected && !m.obsState.Connected {
+		if m.obsState.Err != nil {
+			logger.Warn("obs connection lost", "closed", msg.closed, "err", m.obsState.Err)
+		} else {
+			logger.Info("obs disconnected", "closed", msg.closed)
+		}
+	}
 	if previous.Connected && !m.obsState.Connected && m.obsState.Err != nil {
 		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOBSConnectionLost), m.obsState.Err.Error()))
 	}
@@ -100,13 +111,15 @@ func (m *Model) runOBS(label i18n.Key, fn func(context.Context) error) tea.Cmd {
 	ctx, cancel := context.WithTimeout(m.ctx, obsOperationTimeout)
 	m.obsCancel = cancel
 	m.progressStatus(fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), i18n.T(label)))
+	logger.Debug("operation started", "op", string(label), "id", id)
 	return func() tea.Msg {
 		defer cancel()
+		started := time.Now()
 		if err := m.session.Lock(ctx); err != nil {
-			return obsResultMsg{id: id, label: label, err: err}
+			return obsResultMsg{id: id, label: label, err: err, started: started}
 		}
 		defer m.session.Unlock()
-		return obsResultMsg{id: id, label: label, err: fn(ctx)}
+		return obsResultMsg{id: id, label: label, err: fn(ctx), started: started}
 	}
 }
 func (m *Model) handleOBSResult(msg obsResultMsg) tea.Cmd {
@@ -116,6 +129,19 @@ func (m *Model) handleOBSResult(msg obsResultMsg) tea.Cmd {
 	m.obsBusy = false
 	m.obsCancel = nil
 	m.obsState = m.obsClient.Snapshot()
+	elapsed := time.Duration(0)
+	if !msg.started.IsZero() {
+		elapsed = time.Since(msg.started)
+	}
+	op := string(msg.label)
+	switch {
+	case msg.err == nil:
+		logger.Info("operation succeeded", "op", op, "id", msg.id, "elapsed", elapsed, "obs_connected", m.obsState.Connected)
+	case errors.Is(msg.err, context.Canceled):
+		logger.Warn("operation canceled", "op", op, "id", msg.id, "elapsed", elapsed, "err", msg.err)
+	default:
+		logger.Error("operation failed", "op", op, "id", msg.id, "elapsed", elapsed, "err", msg.err)
+	}
 	if msg.err != nil {
 		if errors.Is(msg.err, context.Canceled) {
 			m.log(i18n.T(i18n.TUILogOBSCanceled))

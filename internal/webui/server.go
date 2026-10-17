@@ -13,13 +13,17 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/journal"
 )
 
 //go:embed static/*
 var assets embed.FS
+
+var logger = journal.Logger("webui")
 
 // Server 默认仅绑定 IPv4 回环地址；全接口监听必须通过配置显式启用。
 type Server struct {
@@ -28,6 +32,7 @@ type Server struct {
 	bindAddress string
 	host        string
 	request     Request
+	clients     atomic.Int64 // 当前打开的 TCP 连接数。
 }
 
 func Listen(bindAddress string, port int, request Request) (*Server, error) {
@@ -35,13 +40,16 @@ func Listen(bindAddress string, port int, request Request) (*Server, error) {
 		bindAddress = "127.0.0.1"
 	}
 	if bindAddress != "127.0.0.1" && bindAddress != "0.0.0.0" {
+		logger.Error("web ui listen rejected", "reason", "invalid bind address", "bind", bindAddress, "port", port)
 		return nil, errors.New(i18n.T(i18n.WebBindInvalid))
 	}
 	if port < 0 || port > 65535 {
+		logger.Error("web ui listen rejected", "reason", "invalid port", "bind", bindAddress, "port", port)
 		return nil, errors.New(i18n.T(i18n.WebPortInvalid))
 	}
 	listener, err := net.Listen("tcp4", net.JoinHostPort(bindAddress, strconv.Itoa(port)))
 	if err != nil {
+		logger.Error("web ui listen failed", "bind", bindAddress, "port", port, "err", err)
 		return nil, err
 	}
 	// 启动链接始终使用本机可访问地址，不把通配监听地址当作浏览器目的地址。
@@ -54,7 +62,9 @@ func Listen(bindAddress string, port int, request Request) (*Server, error) {
 		WriteTimeout:      20 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    8 << 10,
+		ConnState:         s.trackConn,
 	}
+	logger.Info("web ui listening", "addr", listener.Addr().String(), "bind", bindAddress, "url", s.URL())
 	return s, nil
 }
 
@@ -67,15 +77,37 @@ func (s *Server) Serve() error {
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
+	logger.Error("web ui serve failed", "addr", s.listener.Addr().String(), "err", err)
 	return err
 }
 
 func (s *Server) Close(ctx context.Context) error {
+	start := time.Now()
 	err := s.http.Shutdown(ctx)
 	if err != nil {
-		return errors.Join(err, s.http.Close())
+		closeErr := s.http.Close()
+		logger.Warn("web ui shutdown forced", "elapsed", time.Since(start), "clients", s.clients.Load(), "err", err, "close_err", closeErr)
+		return errors.Join(err, closeErr)
 	}
+	logger.Info("web ui shutdown", "addr", s.listener.Addr().String(), "elapsed", time.Since(start))
 	return nil
+}
+
+// trackConn 记录客户端连接的建立与断开；只在连接层记录，不记录每个请求。
+func (s *Server) trackConn(c net.Conn, state http.ConnState) {
+	switch state {
+	case http.StateNew:
+		logger.Debug("web client connected", "remote", c.RemoteAddr().String(), "clients", s.clients.Add(1))
+	case http.StateClosed, http.StateHijacked:
+		logger.Debug("web client disconnected", "remote", c.RemoteAddr().String(), "clients", s.clients.Add(-1))
+	}
+}
+
+// reject 记录被拒绝的请求及原因，再向客户端返回本地化错误。
+func reject(w http.ResponseWriter, r *http.Request, code int, key i18n.Key, reason string) {
+	logger.Warn("web request rejected", "reason", reason, "method", r.Method, "path", r.URL.Path, "status", code,
+		"remote", r.RemoteAddr, "host", r.Host, "origin", r.Header.Get("Origin"), "sec_fetch_site", r.Header.Get("Sec-Fetch-Site"))
+	fail(w, code, key)
 }
 
 func fail(w http.ResponseWriter, code int, key i18n.Key) {
@@ -115,7 +147,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 	// 严格匹配连接地址，拒绝 DNS 重绑定及其他站点对服务的访问。
 	if !s.validHost(r) {
-		fail(w, http.StatusForbidden, i18n.WebOriginDenied)
+		reject(w, r, http.StatusForbidden, i18n.WebOriginDenied, "host mismatch")
 		return
 	}
 	origin := r.Header.Get("Origin")
@@ -125,11 +157,11 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		sameOrigin = origin == "http://"+host || origin == "http://"+host+":80"
 	}
 	if origin != "" && !sameOrigin {
-		fail(w, http.StatusForbidden, i18n.WebOriginDenied)
+		reject(w, r, http.StatusForbidden, i18n.WebOriginDenied, "origin mismatch")
 		return
 	}
 	if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
-		fail(w, http.StatusForbidden, i18n.WebOriginDenied)
+		reject(w, r, http.StatusForbidden, i18n.WebOriginDenied, "cross-site fetch")
 		return
 	}
 	if strings.HasPrefix(r.URL.Path, "/api/") {
@@ -138,7 +170,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
-		fail(w, http.StatusMethodNotAllowed, i18n.WebMethodInvalid)
+		reject(w, r, http.StatusMethodNotAllowed, i18n.WebMethodInvalid, "method not allowed")
 		return
 	}
 	// 不提供目录列表、源码映射或任意嵌入文件路径。
@@ -165,17 +197,17 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/state":
 		if r.Method != http.MethodGet {
 			w.Header().Set("Allow", "GET")
-			fail(w, http.StatusMethodNotAllowed, i18n.WebMethodInvalid)
+			reject(w, r, http.StatusMethodNotAllowed, i18n.WebMethodInvalid, "method not allowed")
 			return
 		}
 	case "/api/command", "/api/cover":
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", "POST")
-			fail(w, http.StatusMethodNotAllowed, i18n.WebMethodInvalid)
+			reject(w, r, http.StatusMethodNotAllowed, i18n.WebMethodInvalid, "method not allowed")
 			return
 		}
 		if strings.Split(r.Header.Get("Content-Type"), ";")[0] != "application/json" {
-			fail(w, http.StatusUnsupportedMediaType, i18n.WebJSONRequired)
+			reject(w, r, http.StatusUnsupportedMediaType, i18n.WebJSONRequired, "content type not json")
 			return
 		}
 		bodyLimit := int64(64 << 10)
@@ -187,17 +219,19 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		decoder.DisallowUnknownFields()
 		command = &Command{}
 		if err := decoder.Decode(command); err != nil {
+			logger.Warn("web request body invalid", "method", r.Method, "path", r.URL.Path, "status", http.StatusBadRequest, "remote", r.RemoteAddr, "err", err)
 			fail(w, http.StatusBadRequest, i18n.WebRequestInvalid)
 			return
 		}
 		if err := decoder.Decode(new(any)); err != io.EOF {
+			logger.Warn("web request body invalid", "method", r.Method, "path", r.URL.Path, "status", http.StatusBadRequest, "remote", r.RemoteAddr, "err", errors.New("trailing data after json value"))
 			fail(w, http.StatusBadRequest, i18n.WebRequestInvalid)
 			return
 		}
 		// 图片接口只能准备封面，普通命令接口不能绕过图片请求的边界。
 		if (r.URL.Path == "/api/cover" && (command.Page != "studio" || command.Action != "cover-upload")) ||
 			(r.URL.Path == "/api/command" && command.Action == "cover-upload") {
-			fail(w, http.StatusBadRequest, i18n.WebRequestInvalid)
+			reject(w, r, http.StatusBadRequest, i18n.WebRequestInvalid, "action not allowed on endpoint")
 			return
 		}
 		page = command.Page
@@ -210,9 +244,11 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	state, err := s.request(ctx, page, command)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			logger.Warn("web request unavailable", "method", r.Method, "path", r.URL.Path, "page", page, "status", http.StatusServiceUnavailable, "err", err)
 			fail(w, http.StatusServiceUnavailable, i18n.WebUnavailable)
 			return
 		}
+		logger.Warn("web request failed", "method", r.Method, "path", r.URL.Path, "page", page, "status", http.StatusConflict, "err", err)
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusConflict)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprint(err)})

@@ -11,7 +11,10 @@ import (
 
 	"arcana-world/internal/bili"
 	"arcana-world/internal/domain"
+	"arcana-world/internal/journal"
 )
+
+var logger = journal.Logger("danmaku")
 
 const (
 	roomLookupTimeout    = 30 * time.Second
@@ -119,6 +122,7 @@ func (l *Listener) Configure(account *domain.Account, proxy string, enabled bool
 	l.desired = next
 	l.generation++
 	l.mu.Unlock()
+	logger.Info("danmaku listener configured", "uid", next.account.UID, "enabled", next.enabled, "proxy_set", next.proxy != "")
 	select {
 	case l.wake <- struct{}{}:
 	default:
@@ -130,6 +134,7 @@ func (l *Listener) Retry() {
 	l.mu.Lock()
 	l.generation++
 	l.mu.Unlock()
+	logger.Info("danmaku listener retry requested")
 	select {
 	case l.wake <- struct{}{}:
 	default:
@@ -150,7 +155,7 @@ func (l *Listener) Snapshot() Snapshot {
 	return state
 }
 func (l *Listener) Close() error {
-	l.closeOnce.Do(func() { l.cancel(); <-l.done })
+	l.closeOnce.Do(func() { logger.Info("danmaku listener closing"); l.cancel(); <-l.done })
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.closeErr
@@ -171,6 +176,7 @@ func (l *Listener) retainError(err error) {
 	if err == nil {
 		return
 	}
+	logger.Error("danmaku final write failed", "err", err)
 	l.mu.Lock()
 	l.closeErr = errors.Join(l.closeErr, err)
 	l.mu.Unlock()
@@ -249,11 +255,20 @@ func (l *Listener) persist(ctx context.Context, gen uint64, room int64, write fu
 	if phase == PhaseStorageError {
 		phase = PhaseConnecting
 	}
+	failed := false
 	for {
 		changed, err := write()
 		if err == nil {
+			if failed {
+				logger.Info("danmaku history write recovered", "room", room)
+			}
 			l.publish(gen, phase, room, nil, changed)
 			return nil
+		}
+		// 只在首次失败时记录，避免每次重试都写一条。
+		if !failed {
+			logger.Error("danmaku history write failed", "room", room, "retry_delay", l.retryDelay, "err", err)
+			failed = true
 		}
 		l.publish(gen, PhaseStorageError, room, err, false)
 		if !sleep(ctx, l.retryDelay) {
@@ -272,6 +287,7 @@ func (l *Listener) save(ctx context.Context, gen uint64, room int64, write func(
 	}
 	err := l.persist(ctx, gen, room, write)
 	if err != nil {
+		logger.Warn("danmaku write deferred after failure", "room", room, "pending", len(l.pending)+1, "err", err)
 		l.pending = append(l.pending, pendingWrite{room: room, write: write})
 	}
 	// 已取消的线格式读取器必须完成已读取帧的解码。
@@ -283,6 +299,7 @@ func (l *Listener) save(ctx context.Context, gen uint64, room int64, write func(
 func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 	c, err := l.factory(next.proxy, next.account)
 	if err != nil {
+		logger.Error("danmaku client create failed", "uid", next.account.UID, "err", err)
 		l.publish(gen, PhaseError, 0, err, true)
 		return
 	}
@@ -304,6 +321,9 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 			if err == nil && room <= 0 {
 				err = errors.New("invalid live room")
 			}
+			if err != nil && ctx.Err() == nil {
+				logger.Warn("danmaku room lookup failed", "uid", next.account.UID, "attempt", attempt, "err", err)
+			}
 		} else {
 			err = nil
 		}
@@ -317,8 +337,10 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 			l.publish(gen, PhaseConnecting, room, nil, false)
 			started := time.Now()
 			authenticated := false
+			logger.Info("danmaku session starting", "uid", next.account.UID, "room", room, "attempt", attempt)
 			err = c.ListenDanmaku(ctx, room, attempt, func() {
 				authenticated = true
+				logger.Info("danmaku connected", "uid", next.account.UID, "room", room, "attempt", attempt, "elapsed", time.Since(started))
 				l.publish(gen, PhaseConnected, room, nil, false)
 			}, func(raw json.RawMessage) error {
 				return l.save(ctx, gen, room, func() (bool, error) { return l.history.Append(room, raw) })
@@ -331,6 +353,12 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 			gap := "connection_lost"
 			if ctx.Err() != nil {
 				gap = "session_end"
+			}
+			// 取消属于正常停止；其余结束原因是断线，附带底层错误。
+			if ctx.Err() != nil {
+				logger.Info("danmaku session stopped", "uid", next.account.UID, "room", room, "attempt", attempt, "authenticated", authenticated, "elapsed", time.Since(started))
+			} else {
+				logger.Warn("danmaku session lost", "uid", next.account.UID, "room", room, "attempt", attempt, "authenticated", authenticated, "elapsed", time.Since(started), "err", err)
 			}
 			gapErr := l.save(ctx, gen, room, func() (bool, error) { return true, l.history.RecordGap(room, gap) })
 			if gapErr != nil {
@@ -345,6 +373,7 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 		delay += time.Duration(rand.Int64N(max(1, int64(delay/reconnectJitterParts))))
 		failures++
 		attempt++
+		logger.Info("danmaku reconnect scheduled", "uid", next.account.UID, "room", room, "attempt", attempt, "failures", failures, "backoff", delay, "err", err)
 		if !sleep(ctx, delay) {
 			return
 		}
