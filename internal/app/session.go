@@ -90,8 +90,8 @@ func (m *Session) ConnectOBS(ctx context.Context, endpoint string) error {
 func (m *Session) stopControlledOBS(ctx context.Context, cfg config.Config, live bool) (bool, error) {
 	state := m.obsClient.Snapshot()
 	if !state.Connected {
-		// 自动推流是偏好，不是正在推流的证据；已知活动状态在断线后仍需清理。
-		if !(cfg.OBSAutoStream && live) && !state.Status.Active && !state.Status.Reconnecting {
+		// 已知活动状态或未确认的开播请求在断线后仍需清理；偏好本身不是开播证据。
+		if !(cfg.OBSAutoStream && live) && !state.Status.Active && !state.Status.Reconnecting && !state.NeedsStreamStatus {
 			return false, nil
 		}
 		if err := m.ConnectOBS(ctx, cfg.OBSURL); err != nil {

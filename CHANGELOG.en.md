@@ -20,6 +20,7 @@ Versions are listed newest first.
 
 ### Fixed
 
+- Fix shutdown leaving OBS streaming when a start request takes effect but loses its response through disconnection or cancellation. Recheck unconfirmed stream state during shutdown.
 - Fix Windows Elegant overlay packaging selecting same-named runtime DLLs from Git for Windows and failing to collect third-party notices. Runtime libraries now come from the Qt and UCRT64 toolchains used for the build.
 - Fix stale Qt runtime files and cached SDK paths across rebuilds. Build and collect Qt dependencies in staging, preserving the published runtime if collection fails. Native-only builds remove only recorded Qt files, and SDK cleanup checks directory ownership first.
 - Fix reduced Qt 6.11 compilation on macOS by retaining the default Widgets configuration, whose trimmed combinations have incomplete upstream feature guards.

@@ -39,21 +39,23 @@ const (
 )
 
 type Snapshot struct {
-	Connected  bool
-	Connecting bool
-	Status     domain.OBSStatus
-	Err        error
+	Connected         bool
+	Connecting        bool
+	Status            domain.OBSStatus
+	Err               error
+	NeedsStreamStatus bool // 开播请求可能已生效，需按序查询后确认状态。
 }
 
 type Client struct {
-	mu         sync.Mutex
-	snapshot   Snapshot
-	events     chan Snapshot
-	session    *session
-	generation uint64
-	cancel     context.CancelFunc
-	closed     bool
-	operations chan struct{}
+	mu            sync.Mutex
+	snapshot      Snapshot
+	events        chan Snapshot
+	session       *session
+	generation    uint64
+	cancel        context.CancelFunc
+	closed        bool
+	operations    chan struct{}
+	startRevision uint64
 }
 
 type session struct {
@@ -66,8 +68,9 @@ type session struct {
 	next     uint64
 }
 type pending struct {
-	kind   string
-	result chan reply
+	kind          string
+	result        chan reply
+	startRevision uint64
 }
 type reply struct {
 	data json.RawMessage
@@ -155,7 +158,7 @@ func (c *Client) Connect(ctx context.Context, endpoint, password string) error {
 	c.generation++
 	generation := c.generation
 	c.cancel = cancel
-	c.snapshot = Snapshot{Connecting: true, Status: c.snapshot.Status}
+	c.snapshot = Snapshot{Connecting: true, Status: c.snapshot.Status, NeedsStreamStatus: c.snapshot.NeedsStreamStatus}
 	c.publishLocked()
 	c.mu.Unlock()
 	defer cancel()
@@ -208,13 +211,13 @@ func (c *Client) Connect(ctx context.Context, endpoint, password string) error {
 		if ws != nil {
 			ws.Close()
 		}
-		c.snapshot = Snapshot{Status: c.snapshot.Status, Err: err}
+		c.snapshot = Snapshot{Status: c.snapshot.Status, NeedsStreamStatus: c.snapshot.NeedsStreamStatus, Err: err}
 		c.publishLocked()
 		return err
 	}
 	s := &session{ws: ws, endpoint: endpoint, host: u.Host, done: make(chan struct{}), writes: make(chan struct{}, 1), pending: make(map[string]*pending)}
 	c.session = s
-	c.snapshot = Snapshot{Connected: true, Status: c.snapshot.Status}
+	c.snapshot = Snapshot{Connected: true, Status: c.snapshot.Status, NeedsStreamStatus: c.snapshot.NeedsStreamStatus}
 	c.publishLocked()
 	log.Info("obs connected", "elapsed", time.Since(start))
 	go c.readLoop(s)
@@ -305,11 +308,12 @@ func (c *Client) dropLocked(err error) {
 		c.session.ws.Close()
 		c.session = nil
 	}
-	status := c.snapshot.Status
+	previous := c.snapshot
 	c.snapshot = Snapshot{Err: err}
 	if err != nil {
 		// 传输断开不表示 OBS 已停止；明确 Disconnect 才清除已知状态。
-		c.snapshot.Status = status
+		c.snapshot.Status = previous.Status
+		c.snapshot.NeedsStreamStatus = previous.NeedsStreamStatus
 	}
 	c.publishLocked()
 }
@@ -456,6 +460,10 @@ func (c *Client) readLoop(s *session) {
 						log.Info("obs stream status changed", "active", status.Active, "reconnecting", status.Reconnecting)
 					}
 					c.snapshot.Status = status
+					// 更早发出的状态查询不能覆盖随后开播请求留下的不确定状态。
+					if p.startRevision == c.startRevision {
+						c.snapshot.NeedsStreamStatus = false
+					}
 					c.publishLocked()
 				}
 			}
@@ -505,7 +513,11 @@ func (c *Client) request(ctx context.Context, s *session, kind string, data any)
 	}
 	s.next++
 	id := strconv.FormatUint(s.next, 10)
-	p := &pending{kind: kind, result: make(chan reply, 1)}
+	if kind == "StartStream" {
+		c.startRevision++
+		c.snapshot.NeedsStreamStatus = true
+	}
+	p := &pending{kind: kind, result: make(chan reply, 1), startRevision: c.startRevision}
 	s.pending[id] = p
 	c.mu.Unlock()
 	defer func() { c.mu.Lock(); delete(s.pending, id); c.mu.Unlock() }()
