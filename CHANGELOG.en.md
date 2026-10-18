@@ -10,6 +10,9 @@ Versions are listed newest first.
 
 - Build a reduced Qt 6.8.3 for the Windows amd64 overlay, removing ICU, unused modules, and plugins. Ship only required DLLs, retain both Native and Elegant overlays, and use stronger ZIP compression.
 - Collect Windows third-party notices for shipped components, deduplicate them, and combine them into `THIRD_PARTY_NOTICES.txt`. Preserve copyright notices, license terms, and source links without bundling unrelated build-tool licenses.
+- Use reduced Qt builds for Elegant overlay on Linux and macOS, removing ICU and other unused dependencies and widgets while retaining font shaping and both overlays. macOS uses standalone shared libraries to reduce bundled development files.
+- Switch Linux and macOS portable bundles to `.tar.xz` for smaller downloads. Extract the full archive and replace the main executable and `libexec` together.
+- Share Qt cache fingerprints between local builds and CI, rebuilding when compilers or configuration change. Windows cold builds use available runner concurrency; MSYS utility updates no longer invalidate Qt caches.
 - Add overlay sample preview to the WebUI outputs page, reusing the TUI samples and rotation. Actual content returns when you turn preview off or about 3 seconds after every browser page leaves Outputs; samples do not enter chat history or TTS.
 - Redesign the WebUI with sidebar navigation (bottom navigation on narrow screens) and text-only buttons and navigation. A top bar on every page shows live, OBS, and chat status and offers go live, stop, and OBS connection; Studio adds a go-live checklist. In Chat, click a name to view the user, and a prompt appears when new messages arrive while scrolled back. Room, audience, and moderation flows open in a single dialog. Number and color settings save when you finish adjusting; Esc discards unsaved text edits; short notifications dismiss themselves.
 - `logs/arcana-world.log` is now a debug log separate from on-screen messages: each record has a level, component, operation, parameters, elapsed time, and the original error (network, OBS, helper process exit code and stderr, and more). Cookies, passwords, stream keys, and proxy credentials are redacted. Info and above is recorded by default; use `--log-level debug` to record per-request detail when troubleshooting. The in-app list is renamed to "Activity".
@@ -17,6 +20,8 @@ Versions are listed newest first.
 
 ### Fixed
 
+- Fix Windows Elegant overlay packaging selecting same-named runtime DLLs from Git for Windows and failing to collect third-party notices. Runtime libraries now come from the Qt and UCRT64 toolchains used for the build.
+- Fix stale Qt runtime files and cached SDK paths across rebuilds. Build and collect Qt dependencies in staging, preserving the published runtime if collection fails. Native-only builds remove only recorded Qt files, and SDK cleanup checks directory ownership first.
 - Fix Qt deployment in the Nix development environment: support separately packaged plugins, redeployment of read-only plugin copies, and absolute dependency paths. Build scripts no longer switch Nix environments automatically; enter `nix develop` explicitly when using Make.
 - Fix Qt overlay dependency builds under `nix build`: load the Qt wrapping hook only for the final application build, not during Go module fetching.
 

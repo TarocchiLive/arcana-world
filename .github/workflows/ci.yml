@@ -94,6 +94,7 @@ jobs:
           path: |
             bin/arcana-world*
             bin/libexec/
+          include-hidden-files: true
 
   vulnerabilities:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

@@ -116,7 +116,7 @@ printf '%s\n' '新的提示内容' | ./bin/libexec/arcana-world-overlay-native -
 
 ## 构建与启动
 
-`arcana-world-<goos>-<goarch>.tar.gz` / `.zip` 便携包包含主程序和 `libexec` 目录下的浮层程序。源码构建命令均在**项目根目录**执行，并先安装项目要求版本的 Go。
+`arcana-world-<goos>-<goarch>.tar.xz` / `.zip` 便携包包含主程序和 `libexec` 目录下的浮层程序。源码构建命令均在**项目根目录**执行，并先安装项目要求版本的 Go。
 
 原生浮层在 macOS 上还需安装 Xcode Command Line Tools；Linux 需安装 Wayland、Pango/Cairo 开发库和 `pkg-config`。完整桌面构建还需下方[精美浮层构建与运行库](#精美浮层构建与运行库)列出的依赖。Debian/Ubuntu 的原生浮层依赖可使用：
 
@@ -132,6 +132,8 @@ make overlay
 ```
 
 `make desktop` 构建 TUI、两种浮层 helper、语音 helper 及图形运行库；`make desktop-native` 明确只包含原生浮层。`make build` 仍只构建不依赖 CGO 的 TUI。Nix 默认构建完整桌面包，`nix run .#arcana-world-desktop-native -- -overlay` 可选择原生包；macOS 完整包要求 nixpkgs 提供 Qt >= 6.11，版本不足会明确报错。
+
+构建选项见 `bash scripts/build.sh --help`。重复构建会更新精美浮层运行库并清理已移除的依赖；切换为 `desktop-native` 时清理此前构建记录的 Qt 文件，保留其他文件。旧构建目录缺少文件清单时，请使用新的输出目录。
 
 Windows（PowerShell）：
 
@@ -156,17 +158,19 @@ go build -o bin/libexec/arcana-world-overlay-native.exe ./cmd/arcana-world-overl
 
 macOS amd64/arm64、Linux amd64/arm64 和 Windows amd64 完整发行包包含两种后端。Windows 386、arm64 保留原生包：当前发行工具链没有对应的 Qt6 MinGW 构建。原生包中选择精美浮层会明确报告组件缺失，不会自动切换成原生浮层。
 
-在目标系统和架构上安装 CMake、Python 3、C++17 编译器以及匹配的 Qt 开发库：
+在目标系统和架构上安装 CMake >= 3.24、Python >= 3.9、C++17 编译器以及匹配的 Qt 开发库：
 
-- macOS：安装 Xcode Command Line Tools，执行 `brew install qt cmake`。稳定原生显示器 ID 要求 Qt >= 6.11。`CMAKE_PREFIX_PATH` 指向 `brew --prefix qt`，`QTPATHS` 指向该目录的 `bin/qtpaths`。
+- macOS：安装 Xcode Command Line Tools，以及 `brew install cmake ninja` 和 Python 3；执行 `source scripts/setup-macos-qt.sh`，构建并缓存精简动态 Qt 6.11.0，同时设置后续构建所需环境变量。`QT_BUILD_PREFIX` 可指定 SDK 安装目录，`BUILD_JOBS` 可指定编译并发数。也可使用 Qt >= 6.11 的现成开发库，将 `CMAKE_PREFIX_PATH` 指向其安装前缀、`QTPATHS` 指向 `bin/qtpaths`；稳定原生显示器 ID 需要这一最低版本。
 - Linux：安装 Qt >= 6.5（Core/Gui/Widgets/WaylandClient）、LayerShellQt >= 6.3、Wayland 开发库和 `patchelf`。发行脚本在 Ubuntu 24.04 上构建并缓存 Qt 6.8.3、LayerShellQt 6.3.6，保持原有 glibc 基线。`scripts/setup-linux-qt.sh` 使用 sudo 安装构建依赖；非 CI 环境还需将安装前缀设为 `CMAKE_PREFIX_PATH`，将其 `bin` 加入 PATH，并将 `QTPATHS` 指向 `bin/qtpaths`。
 - Windows amd64：安装 MSYS2 UCRT64 的 GCC、CMake、Ninja、Python，以及 curl、tar 和原生 Windows amd64 Go。在 UCRT64 shell 中执行 `source scripts/setup-windows-qt.sh`，构建并缓存精简动态 Qt 6.8.3，同时设置后续构建所需环境变量；Go 需在 PATH 中。`QT_BUILD_PREFIX` 可指定 SDK 安装目录，`BUILD_JOBS` 可指定编译并发数。Qt 与 cgo 必须使用同一套 UCRT64 编译器，不可混用 MSVC Qt。
+
+SDK 安装目录与工作目录应为空，或由当前脚本创建。工具链或配置变化后，脚本会清理并重建这两个目录；旧脚本生成的无归属标记目录会保留，请另选空目录。各平台脚本的 `--help` 列出可配置项。
 
 `make overlay-qt` 构建并部署精美浮层 helper。部署脚本将 Qt 插件及间接动态库依赖复制到 `libexec`，改写 macOS/Linux 加载路径，并对修改后的 macOS 二进制重新临时签名。Windows 只部署 `qwindows.dll` 和实际依赖的 Qt、MinGW DLL，第三方许可合并保存在 `libexec/licenses/THIRD_PARTY_NOTICES.txt`，源码地址见同目录的 `SOURCE.txt`。Linux 包含 LayerShellQt 和 Wayland 客户端依赖，但使用系统的 glibc、内核、显示服务和显卡驱动。移动或打包时必须保留整个目录。
 
 macOS helper 位于私有 `Arcana World Elegant Overlay.app/Contents/MacOS` 中，外层 helper 名称是相对符号链接。主程序在启动及枚举显示器前解析真实路径，使系统读取应用包中的产品名和初始后台策略；运行中仍可切换 Dock 显示。独立调试时应直接运行 `./bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`（路径需加引号），避免通过符号链接启动丢失应用身份。
 
-Wayland 下精美浮层使用真正的 LayerShellQt surface，要求合成器提供 layer-shell。GNOME/Mutter 不受支持，不会回退为普通窗口。原生浮层在 Linux 上只支持 Wayland；精美浮层还可通过 xcb 插件运行于 X11。
+Linux 发行包的两种浮层均使用 Wayland。精美浮层使用真正的 LayerShellQt surface，要求合成器提供 layer-shell；GNOME/Mutter 不受支持。
 
 独立演示：`./bin/libexec/arcana-world-overlay-qt -demo -duration 30s`。`-demo`、`-clock`、`-stdin` 互斥。`-unlocked` 允许拖动，`-reduced-motion` 关闭动效；两项仅用于独立精美浮层，不能与受管理的 `-socket` 模式组合。精美浮层不创建菜单栏／托盘图标或右键菜单。
 
