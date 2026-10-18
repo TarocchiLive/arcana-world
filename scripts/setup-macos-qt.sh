@@ -55,7 +55,7 @@ if [[ ! -f "$prefix/.complete" || "$(cat "$prefix/.complete")" != "$toolchain_id
   source_dir="$work/qtbase-everywhere-src-6.11.0"
   # 普通动态库避免打包 framework 开发文件；Cocoa/CoreText 保留系统字体与彩色 emoji。
   # 保留 HarfBuzz、emoji 分段和 PNG（Cocoa 内嵌光标），不关闭文字整形。
-  # Qt 6.11 对工具提示与样式表的裁剪支持不完整，保留这两项默认组合。
+  # Qt 6.11 的部分 Widgets 裁剪组合缺少条件编译保护，保留默认控件配置。
   cmake -S "$source_dir" -B "$work/qtbase-build" -GNinja \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$prefix" \
     -DCMAKE_C_COMPILER="$(xcrun -f clang)" -DCMAKE_CXX_COMPILER="$(xcrun -f clang++)" \
@@ -67,11 +67,6 @@ if [[ ! -f "$prefix/.complete" || "$(cat "$prefix/.complete")" != "$toolchain_id
     -DFEATURE_icu=OFF -DFEATURE_glib=OFF -DFEATURE_dbus=OFF -DFEATURE_zstd=OFF \
     -DFEATURE_network=OFF -DFEATURE_sql=OFF -DFEATURE_xml=OFF \
     -DFEATURE_concurrent=OFF -DFEATURE_printsupport=OFF -DFEATURE_testlib=OFF \
-    -DFEATURE_itemviews=OFF -DFEATURE_graphicsview=OFF -DFEATURE_mainwindow=OFF \
-    -DFEATURE_dialog=OFF -DFEATURE_textedit=OFF -DFEATURE_calendarwidget=OFF \
-    -DFEATURE_filesystemmodel=OFF -DFEATURE_pdf=OFF \
-    -DFEATURE_style_stylesheet=ON -DFEATURE_tooltip=ON \
-    -DFEATURE_textmarkdownreader=OFF -DFEATURE_textmarkdownwriter=OFF -DFEATURE_textodfwriter=OFF \
     -DFEATURE_opengl=OFF -DFEATURE_egl=OFF -DFEATURE_vulkan=OFF \
     -DFEATURE_freetype=OFF -DFEATURE_harfbuzz=ON -DFEATURE_emojisegmenter=ON \
     -DFEATURE_png=ON -DFEATURE_pcre2=ON \
