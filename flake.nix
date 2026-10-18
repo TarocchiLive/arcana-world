@@ -26,7 +26,7 @@
           default = arcana-world-desktop;
           arcana-world = pkgs.buildGoModule rec {
             pname = "arcana-world";
-            version = "0.4.0-rc.1";
+            version = "0.4.0-rc.2";
 
             src = pkgs.lib.fileset.toSource {
               root = ./.;
@@ -209,6 +209,7 @@
             packages = [ pkgs.go pkgs.cmake pkgs.python3 pkgs.pkg-config pkgs.qt6.qtbase ]
               ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
                 pkgs.patchelf pkgs.qt6.qtwayland pkgs.kdePackages.layer-shell-qt
+                pkgs.xkeyboard_config pkgs.fontconfig
               ];
             QTPATHS = "${pkgs.qt6.qtbase}/bin/qtpaths";
             QT_PLUGIN_PATH = pkgs.lib.makeSearchPath pkgs.qt6.qtbase.qtPluginPrefix (
@@ -225,11 +226,13 @@
             GOFLAGS = "-mod=readonly";
           };
           arcana-world-overlay-native = pkgs.mkShell {
-            packages = [ pkgs.go ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+            packages = [ pkgs.go ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config pkgs.python3 pkgs.patchelf ];
             buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [
               pkgs.wayland
               pkgs.pango
               pkgs.cairo
+              pkgs.xkeyboard_config
+              pkgs.fontconfig
             ];
             CGO_ENABLED = "1";
             GOFLAGS = "-mod=readonly" + pkgs.lib.optionalString pkgs.stdenv.isLinux " -tags=wayland";

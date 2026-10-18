@@ -203,13 +203,8 @@ jobs:
         uses: actions/attest-build-provenance@v3
         with:
           subject-path: dist/*
-      - name: Publish GitHub Release
+      - name: Prepare draft GitHub Release
         shell: bash
         run: |
-          flags=(--latest)
-          if [[ "$RELEASE_TAG" == *-* ]]; then
-            flags=(--prerelease --latest=false)
-          fi
           gh release create "$RELEASE_TAG" --verify-tag --notes-file release-notes.txt \
             --title "Arcana World $RELEASE_TAG" --draft dist/*
-          gh release edit "$RELEASE_TAG" --draft=false "${flags[@]}"

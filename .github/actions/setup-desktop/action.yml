@@ -3,6 +3,10 @@ description: Install matching native and Elegant overlay build dependencies
 runs:
   using: composite
   steps:
+    - name: Install Linux runtime data
+      if: runner.os == 'Linux'
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y xkb-data fontconfig-config
     - name: Identify Linux graphics toolchain
       if: runner.os == 'Linux'
       id: linux-toolchain

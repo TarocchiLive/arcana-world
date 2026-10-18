@@ -16,6 +16,8 @@ tts             Build the speech helper.
 Environment: GOOS, GOARCH, VERSION, OUT_DIR (default: bin), BUILD_JOBS (default: 2).
 Relative OUT_DIR paths are resolved from the project root.
 Qt builds require CMake >= 3.24, Python 3, and the matching native Qt toolchain.
+Linux overlay builds also require patchelf, pkg-config, and xkeyboard-config data.
+LINUX_LICENSE_DIR optionally supplies redistribution licenses and SOURCE.txt for non-Debian builds.
 EOF
 }
 
@@ -100,8 +102,28 @@ build_qt() (
   python3 scripts/deploy-qt.py "$stage_dir" "$install_dir"
 )
 
+# Linux 原生后端也必须独立收集运行库，不能借用上一轮 Qt 部署的副本。
+build_native_linux() (
+  local stage_dir install_dir
+  if [[ "$GOOS" != "$(go env GOHOSTOS)" || "$GOARCH" != "$(go env GOHOSTARCH)" ]]; then
+    echo 'Linux portable overlay requires a matching Linux host and architecture.' >&2
+    exit 2
+  fi
+  mkdir -p "$out_dir"
+  install_dir="$(cd "$out_dir" && pwd -P)/libexec"
+  stage_dir="$(mktemp -d "$out_dir/.overlay-native-stage.XXXXXX")"
+  trap 'rm -rf -- "$stage_dir"' EXIT
+  CGO_ENABLED=1 go build -tags "$overlay_tags" -trimpath -buildvcs=false \
+    -ldflags="$ldflags" -o "$stage_dir/arcana-world-overlay-native" ./cmd/arcana-world-overlay
+  python3 scripts/deploy_linux.py "$stage_dir" "$install_dir"
+)
+
 build() {
   local component="$1" cgo tags='' output flags="$ldflags" command
+  if [[ "$component" == overlay && "$GOOS" == linux ]]; then
+    build_native_linux
+    return
+  fi
   case "$component" in
     build)
       cgo=0; command=arcana-world

@@ -115,6 +115,9 @@ func run() error {
 	if explicitDisplays && cfg.Displays == "" {
 		return errors.New("-displays requires a JSON array; use [] to hide all displays")
 	}
+	if err := configurePortableData(); err != nil {
+		return err
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if *listDisplays {

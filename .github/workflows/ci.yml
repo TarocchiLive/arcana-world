@@ -88,7 +88,24 @@ jobs:
           if [[ "$RUNNER_OS" == Windows ]]; then
             ./bin/arcana-world-webui.exe -help
           fi
+      - name: Package Linux verification bundle
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp LICENSE bin/
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+            -C bin -cf - arcana-world libexec LICENSE | xz -T2 -6 > "dist/arcana-world-linux-${GOARCH}.tar.xz"
+          (cd dist && sha256sum -- *.tar.xz > checksums.txt)
       - uses: actions/upload-artifact@v7
+        if: runner.os == 'Linux'
+        with:
+          name: desktop-${{ runner.os }}-${{ matrix.goarch }}
+          path: dist/*
+          compression-level: 0
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: runner.os != 'Linux'
         with:
           name: desktop-${{ runner.os }}-${{ matrix.goarch }}
           path: |

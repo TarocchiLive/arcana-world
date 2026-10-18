@@ -4,6 +4,20 @@
 
 Versions are listed newest first.
 
+## [v0.4.0-rc.2]: 2026-10-18 (prerelease)
+
+Fix Linux release overlays failing to launch in environments such as Nix, replacing the withdrawn rc.1.
+
+### What's changed
+
+- Bundle Wayland, Pango/Cairo, and other native overlay runtime libraries so the complete bundle can be relocated and launched directly.
+- Include XKB keyboard layout data to fix Elegant overlay crashes when the expected system data directory is missing.
+- Use bundled font configuration with system and user fonts for both overlays, avoiding incompatible host Fontconfig rules while preserving explicit environment overrides.
+
+### Upgrading
+
+Replace the main executable and the entire `libexec` directory, not just the overlay executables; Linux still requires a Wayland desktop with layer-shell support.
+
 ## [v0.4.0-rc.1]: 2026-10-18 (prerelease)
 
 This release candidate redesigns the WebUI, reduces Elegant overlay bundle sizes, and improves diagnostic logging and OBS shutdown cleanup.
@@ -424,3 +438,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.3.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.2
 [v0.4.0-alpha.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-alpha.1
 [v0.4.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.1
+[v0.4.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.2

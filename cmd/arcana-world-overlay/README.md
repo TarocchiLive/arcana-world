@@ -121,7 +121,7 @@ printf '%s\n' '新的提示内容' | ./bin/libexec/arcana-world-overlay-native -
 原生浮层在 macOS 上还需安装 Xcode Command Line Tools；Linux 需安装 Wayland、Pango/Cairo 开发库和 `pkg-config`。完整桌面构建还需下方[精美浮层构建与运行库](#精美浮层构建与运行库)列出的依赖。Debian/Ubuntu 的原生浮层依赖可使用：
 
 ```sh
-sudo apt-get install libwayland-dev libpango1.0-dev libcairo2-dev pkg-config
+sudo apt-get install libwayland-dev libpango1.0-dev libcairo2-dev pkg-config python3 patchelf xkb-data fontconfig-config
 ```
 
 macOS / Linux：
@@ -133,7 +133,7 @@ make overlay
 
 `make desktop` 构建 TUI、两种浮层 helper、语音 helper 及图形运行库；`make desktop-native` 明确只包含原生浮层。`make build` 仍只构建不依赖 CGO 的 TUI。Nix 默认构建完整桌面包，`nix run .#arcana-world-desktop-native -- -overlay` 可选择原生包；macOS 完整包要求 nixpkgs 提供 Qt >= 6.11，版本不足会明确报错。
 
-构建选项见 `bash scripts/build.sh --help`。重复构建会更新精美浮层运行库并清理已移除的依赖；切换为 `desktop-native` 时清理此前构建记录的 Qt 文件，保留其他文件。旧构建目录缺少文件清单时，请使用新的输出目录。
+构建选项见 `bash scripts/build.sh --help`。Linux 原生与精美浮层都会部署运行库；重复构建清理已移除的依赖，切换为 `desktop-native` 时保留原生后端仍需的共享文件。旧构建目录缺少文件清单时，请使用新的输出目录。Nix 本地构建用于再分发时，需通过 `LINUX_LICENSE_DIR` 补齐依赖许可与 `SOURCE.txt`；官方发行包会收集 Ubuntu 软件包版权声明。
 
 Windows（PowerShell）：
 
@@ -171,6 +171,8 @@ SDK 安装目录与工作目录应为空，或由当前脚本创建。工具链�
 macOS helper 位于私有 `Arcana World Elegant Overlay.app/Contents/MacOS` 中，外层 helper 名称是相对符号链接。主程序在启动及枚举显示器前解析真实路径，使系统读取应用包中的产品名和初始后台策略；运行中仍可切换 Dock 显示。独立调试时应直接运行 `./bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`（路径需加引号），避免通过符号链接启动丢失应用身份。
 
 Linux 发行包的两种浮层均使用 Wayland。精美浮层使用真正的 LayerShellQt surface，要求合成器提供 layer-shell；GNOME/Mutter 不受支持。
+
+Linux 便携包包含两种浮层所需的动态库、XKB 数据和字体配置，直接运行无需手工设置库路径。字体仍使用系统或用户安装的字体；显式设置的 `XKB_CONFIG_ROOT`、`FONTCONFIG_FILE` 和 `FONTCONFIG_PATH` 会保留。
 
 独立演示：`./bin/libexec/arcana-world-overlay-qt -demo -duration 30s`。`-demo`、`-clock`、`-stdin` 互斥。`-unlocked` 允许拖动，`-reduced-motion` 关闭动效；两项仅用于独立精美浮层，不能与受管理的 `-socket` 模式组合。精美浮层不创建菜单栏／托盘图标或右键菜单。
 

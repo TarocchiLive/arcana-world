@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """将精美浮层的动态库及插件部署到私有 libexec 目录。"""
-import json
 import os
 from pathlib import Path
 import re
@@ -12,6 +11,8 @@ import tarfile
 import tempfile
 import urllib.request
 
+from runtime_files import publish as publish_runtime, remove
+
 def output(*args):
     return subprocess.check_output(args, text=True).strip()
 
@@ -20,95 +21,19 @@ def run(*args):
     subprocess.run(args, check=True)
 
 
+
 MANIFEST = ".arcana-qt-files.json"
 
 
-def owned_paths(destination):
-    """只接受目录内的文件清单，不允许清单借助父目录链接越界。"""
-    marker = destination / MANIFEST
-    if marker.is_symlink():
-        raise SystemExit(f"Invalid Qt ownership manifest symlink: {marker}")
-    if not marker.exists():
-        return set()
-    try:
-        names = json.loads(marker.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
-        raise SystemExit(f"Invalid Qt ownership manifest {marker}: {error}") from error
-    if not isinstance(names, list) or any(not isinstance(name, str) for name in names):
-        raise SystemExit(f"Invalid Qt ownership manifest: {marker}")
-    paths = set()
-    for name in names:
-        relative = Path(name)
-        if (not name or "\\" in name or ":" in name or relative.is_absolute()
-                or any(part in ("", ".", "..") for part in name.split("/"))
-                or name == MANIFEST):
-            raise SystemExit(f"Invalid Qt ownership path: {name!r}")
-        validate_parent(destination, relative)
-        paths.add(relative)
-    return paths
-
-
-def validate_parent(destination, relative):
-    for parent in relative.parents:
-        path = destination / parent
-        if path.is_symlink() or (path.exists() and not path.is_dir()):
-            raise SystemExit(f"Invalid runtime parent directory: {path}")
-
-
-def remove_owned(destination, paths):
-    for relative in sorted(paths):
-        path = destination / relative
-        if path.is_dir() and not path.is_symlink():
-            raise SystemExit(f"Refusing to remove runtime directory as a file: {path}")
-    for relative in sorted(paths):
-        (destination / relative).unlink(missing_ok=True)
-    # 只清理文件清单的空父目录，保留用户后来加入的其他文件。
-    parents = {parent for path in paths for parent in path.parents if parent != Path(".")}
-    for parent in sorted(parents, key=lambda path: len(path.parts), reverse=True):
-        path = destination / parent
-        if path.is_dir() and not any(path.iterdir()):
-            path.rmdir()
-
-
 def publish(source, destination):
-    """收集成功后逐文件发布；不承诺多个文件替换具有原子性。"""
     if not (destination / MANIFEST).exists() and any(
             (destination / name).exists() or (destination / name).is_symlink()
             for name in ("qt.conf", "arcana-world-overlay-qt",
                          "arcana-world-overlay-qt.exe", "Arcana World Elegant Overlay.app")):
         raise SystemExit(f"Existing unmanaged Qt runtime in {destination}; "
                          "use a clean/new output directory")
-    previous = owned_paths(destination)
-    paths = {path.relative_to(source) for path in source.rglob("*")
-             if path.is_symlink() or path.is_file()}
-    if Path(MANIFEST) in paths:
-        raise SystemExit(f"Staging directory contains reserved manifest: {source / MANIFEST}")
-    for relative in paths | previous:
-        validate_parent(destination, relative)
-        target = destination / relative
-        if target.is_dir() and not target.is_symlink():
-            raise SystemExit(f"Runtime file collides with directory: {target}")
-        path = source / relative
-        if path.is_symlink() and (Path(os.readlink(path)).is_absolute()
-                                  or not path.resolve().is_relative_to(source)):
-            raise SystemExit(f"Runtime symlink escapes staging directory: {path}")
-    destination.mkdir(parents=True, exist_ok=True)
-    # 在目标文件系统准备副本，再用 replace 替换只读文件和旧符号链接。
-    with tempfile.TemporaryDirectory(prefix=".qt-publish-", dir=destination) as temporary:
-        prepared = Path(temporary)
-        for relative in sorted(paths):
-            target = prepared / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source / relative, target, follow_symlinks=False)
-        marker = prepared / MANIFEST
-        marker.write_text(json.dumps(sorted(path.as_posix() for path in paths), indent=2) + "\n",
-                          encoding="utf-8")
-        for relative in sorted(paths):
-            target = destination / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            (prepared / relative).replace(target)
-        remove_owned(destination, previous - paths)
-        marker.replace(destination / MANIFEST)
+    publish_runtime(source, destination, MANIFEST,
+                    allow_unmanaged=not sys.platform.startswith("linux"))
 
 
 def arguments():
@@ -121,8 +46,7 @@ def arguments():
         raise SystemExit(0)
     if len(sys.argv) == 3 and sys.argv[1] == "--remove":
         destination = Path(sys.argv[2]).resolve()
-        remove_owned(destination, owned_paths(destination))
-        (destination / MANIFEST).unlink(missing_ok=True)
+        remove(destination, MANIFEST)
         raise SystemExit(0)
     if len(sys.argv) != 3:
         raise SystemExit(usage)
@@ -380,40 +304,9 @@ else:
             run("codesign", "--force", "--sign", "-", str(binary))
         run("codesign", "--force", "--sign", "-", str(bundle))
     elif sys.platform.startswith("linux"):
-        queue = [root / "arcana-world-overlay-qt", root / "libawqt.so"] + deployed_plugins
-        seen = set()
-        copied = {root / "libawqt.so"}
-        # glibc 与加载器必须使用目标系统的版本，不可拆开捆绑。
-        system_libraries = re.compile(r"^(?:ld-linux.*|lib(?:c|m|pthread|dl|rt|resolv|util|anl|nss_[^.]+)\.so(?:\..*)?)$")
-        while queue:
-            binary = queue.pop()
-            if binary in seen:
-                continue
-            if not binary.is_file():
-                raise SystemExit(f"Missing runtime binary: {binary}")
-            seen.add(binary)
-            dependencies = output("ldd", str(binary))
-            if "not found" in dependencies:
-                raise SystemExit(f"Unresolved runtime dependency: {binary}\n{dependencies}")
-            for name, filename in re.findall(r"^\s*(.+?) => (/.+?) \(", dependencies, re.MULTILINE):
-                # Nix 的 ldd 可能把绝对路径列为依赖名；副本始终留在部署目录。
-                library = Path(name).name
-                if system_libraries.match(library):
-                    continue
-                dest = root / library
-                source = Path(filename)
-                if dest not in copied and source != dest:
-                    # 替换旧副本而非覆盖，兼容只读的 Nix store 文件权限。
-                    dest.unlink(missing_ok=True)
-                    shutil.copy2(source, dest)
-                copied.add(dest)
-                if name != library:
-                    binary.chmod(binary.stat().st_mode | 0o200)
-                    run("patchelf", "--replace-needed", name, library, str(binary))
-                queue.append(dest)
-            binary.chmod(binary.stat().st_mode | 0o200)
-            relative = os.path.relpath(root, binary.parent)
-            run("patchelf", "--set-rpath", "$ORIGIN" if relative == "." else "$ORIGIN/" + relative, str(binary))
+        from deploy_linux import collect
+        collect(root, [root / "arcana-world-overlay-qt", root / "libawqt.so"] + deployed_plugins,
+                licensed_prefix=qtlibs.parent if license_source.is_dir() else None)
     else:
         raise SystemExit(f"Unsupported deployment platform: {sys.platform}")
 

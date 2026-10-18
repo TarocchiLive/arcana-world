@@ -4,6 +4,20 @@
 
 版本按时间倒序记录。
 
+## [v0.4.0-rc.2]：2026-10-18（预发布）
+
+修复 Linux 发行包在 Nix 等环境中无法打开浮层的问题，替代已撤回的 rc.1。
+
+### 本次更新
+
+- 原生浮层随包提供 Wayland、Pango/Cairo 等运行库，整体移动后仍可直接启动。
+- 随包提供 XKB 键盘布局数据，修复精美浮层找不到系统数据目录时崩溃的问题。
+- 两种浮层使用随包字体配置并读取系统和用户字体，避免与主机 Fontconfig 规则版本不兼容；保留显式环境配置。
+
+### 升级提示
+
+请完整替换主程序和 `libexec`，不要只复制浮层可执行文件；Linux 仍需支持 layer-shell 的 Wayland 桌面。
+
 ## [v0.4.0-rc.1]：2026-10-18（预发布）
 
 本次候选版本重做 WebUI 操作界面，缩小精美浮层发行包，并完善日志排障与 OBS 退出停播。
@@ -424,3 +438,4 @@
 [v0.3.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.2
 [v0.4.0-alpha.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-alpha.1
 [v0.4.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.1
+[v0.4.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.2
