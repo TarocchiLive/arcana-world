@@ -335,7 +335,7 @@ func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {
 		m.chatInput.SetValue(c.Value)
 		return m.sendChat(), nil
 	}
-	if page == "chat" {
+	if page == "chat" && !slices.Contains(webSessionActions, c.Action) {
 		return m.webChatAction(c)
 	}
 	return m.webAction(page, c.Action)

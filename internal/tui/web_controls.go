@@ -275,20 +275,23 @@ func (m *Model) webSubmit(value string) (tea.Cmd, error) {
 	return cmd, nil
 }
 
+// 会话栏在所有页面提供开播、停播、刷新房间及 OBS 连接。
+var webSessionActions = []string{"start-confirm", "stop-confirm", "refresh", "obs-connect", "obs-disconnect-confirm"}
+
 func (m *Model) webAction(page, action string) (tea.Cmd, error) {
-	allowed := false
+	allowed := slices.Contains(webSessionActions, action)
 	switch page {
 	case "studio":
-		allowed = slices.Contains([]string{"start-confirm", "stop-confirm", "refresh", "areas", "cover", "delay", "obs-connect", "obs-disconnect-confirm"}, action)
+		allowed = allowed || slices.Contains([]string{"areas", "cover", "delay"}, action)
 	case "outputs":
 		if action == "overlay-restore-confirm" {
 			return m.confirm(i18n.T(i18n.TUIOverlayRestoreConfirm), "overlay-restore"), nil
 		}
-		allowed = slices.Contains([]string{"overlay-displays", "tts-preview", "tts-stop"}, action)
+		allowed = allowed || slices.Contains([]string{"overlay-displays", "tts-preview", "tts-stop"}, action)
 	case "settings":
-		allowed = slices.Contains([]string{"obs-connect", "obs-disconnect-confirm", "settings-reset-confirm", "clear-data"}, action)
+		allowed = allowed || slices.Contains([]string{"settings-reset-confirm", "clear-data"}, action)
 	case "accounts":
-		allowed = action == "login"
+		allowed = allowed || action == "login"
 		for _, a := range m.store.Accounts() {
 			if action == "account:"+a.UID {
 				return m.confirm(i18n.T(i18n.TUIConfirmSwitchAccount), "switch:"+a.UID), nil

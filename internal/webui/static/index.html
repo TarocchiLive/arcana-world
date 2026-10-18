@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <title>Arcana World</title>
     <link rel="stylesheet" href="/app.css" />
@@ -10,40 +10,51 @@
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
-    <div id="app">
-      <header class="appbar">
-        <a class="brand" href="#studio" aria-label="Arcana World">
-          <span class="brand-name" aria-hidden="true">Arcana</span>
-          <span class="wordmark" aria-hidden="true">╷   ╷  ╭───╮  ╭───╮  ╷      ┌───╮
-│ ╷ │  │   │  ├─┬─╯  │      │   │
-╰─┴─╯  ╰───╯  ╵ ╰─╴  ╰───╴  └───╯</span>
+    <div id="app" class="shell">
+      <aside class="sidebar">
+        <a class="brand" href="#studio">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-text">Arcana <b>World</b></span>
         </a>
-        <nav id="navigation" aria-label="Workspace"></nav>
-        <div class="utilities">
-          <span id="identity"></span
-          ><label class="sr-only" for="theme">Appearance</label
-          ><select id="theme"></select>
+        <nav id="navigation" class="nav" aria-label="Workspace"></nav>
+        <div class="sidebar-foot">
+          <div id="identity" class="identity"></div>
+          <div id="theme" class="theme-switch" role="group"></div>
         </div>
-      </header>
-      <div class="connection-line">
-        <span id="connection" role="status"></span
-        ><span id="status" role="status"></span
-        ><button id="retry" type="button"></button>
+      </aside>
+      <div class="workspace">
+        <header id="sessionbar" class="sessionbar">
+          <div class="session-pills">
+            <span id="live-pill" class="pill"></span>
+            <span id="obs-pill" class="pill"></span>
+            <span id="chat-pill" class="pill"></span>
+          </div>
+          <p id="status" class="session-status" role="status"></p>
+          <div class="session-actions">
+            <span id="connection" class="connection" role="status"></span>
+            <button id="retry" type="button" class="ghost"></button>
+            <button id="obs-action" type="button"></button>
+            <button id="live-action" type="button" class="primary"></button>
+          </div>
+        </header>
+        <div id="pending" class="pending" hidden></div>
+        <main id="main" tabindex="-1"></main>
       </div>
-      <div id="pending" class="pending" hidden></div>
-      <main id="main" tabindex="-1"></main>
     </div>
-    <dialog id="chat-dialog" class="chat-dialog" aria-labelledby="chat-dialog-title">
-      <div id="chat-flow"></div>
+    <dialog id="flow-dialog" class="sheet" aria-labelledby="flow-title">
+      <header class="sheet-head">
+        <h2 id="flow-title"></h2>
+        <button id="flow-close" type="button" class="ghost small"></button>
+      </header>
+      <div id="flow-body" class="sheet-body"></div>
+      <footer id="flow-foot" class="sheet-foot"></footer>
     </dialog>
-    <dialog
-      id="confirm"
-      aria-labelledby="confirm-title"
-      aria-describedby="confirm-text"
-    >
-      <h2 id="confirm-title"></h2>
-      <p id="confirm-text"></p>
-      <div id="confirm-actions" class="actions"></div>
+    <dialog id="confirm" class="sheet confirm" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+      <div class="sheet-body">
+        <h2 id="confirm-title"></h2>
+        <p id="confirm-text"></p>
+      </div>
+      <footer id="confirm-actions" class="sheet-foot"></footer>
     </dialog>
     <div id="notifications" class="notifications" aria-live="polite" aria-relevant="additions"></div>
   </body>
