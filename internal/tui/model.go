@@ -288,8 +288,11 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	m.syncOutputTemplates()
 	if m.web.enabled {
 		defer m.observeWebContext()
-		if request, ok := msg.(webRequest); ok {
-			return m, m.handleWebRequest(request)
+		switch msg := msg.(type) {
+		case webRequest:
+			return m, m.handleWebRequest(msg)
+		case webPreviewCheck:
+			return m, m.handleWebPreviewCheck()
 		}
 	}
 	// 原始终端输出已由 Bubble Tea 执行，不改变界面状态，也不再次设置指针。

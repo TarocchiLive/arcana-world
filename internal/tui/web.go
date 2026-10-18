@@ -32,7 +32,15 @@ type webState struct {
 	imageSource string
 	image       string
 	imageAvatar *termimage.Thumbnail
+	// 最近一次输出页请求时间；多个浏览器同时打开时，只要有一个停留在输出页就保留示例。
+	outputsSeen  time.Time
+	previewCheck bool
 }
+
+// 所有浏览器停止轮询输出页超过租期后，示例预览自动结束。
+const webPreviewLease = 3 * time.Second
+
+type webPreviewCheck struct{}
 type webInteraction struct {
 	account, mode, edit, prompt, confirmation string
 	selection                                 *roomSelection
@@ -140,11 +148,10 @@ func (m *Model) handleWebRequest(r webRequest) tea.Cmd {
 		r.reply <- webReply{err: errors.New(i18n.T(i18n.WebRequestInvalid))}
 		return nil
 	}
-	// 浏览器离开输出页时，与终端离开浮层页一样恢复实际内容。
-	if page != "outputs" && m.overlay != nil && m.overlay.preview {
-		m.overlay.preview = false
-		m.publishOverlay()
+	if page == "outputs" {
+		m.web.outputsSeen = time.Now()
 	}
+	m.expireWebPreview()
 	m.observeWebContext()
 	var cmd tea.Cmd
 	var err error
@@ -165,7 +172,27 @@ func (m *Model) handleWebRequest(r webRequest) tea.Cmd {
 		m.publishOverlay()
 	}
 	r.reply <- webReply{snapshot: m.webSnapshot(page), err: err}
-	return cmd
+	return tea.Batch(cmd, m.scheduleWebPreviewCheck())
+}
+
+// 浏览器离开输出页、隐藏或关闭后不再轮询，租期到达时与终端离开浮层页一样恢复实际内容。
+func (m *Model) expireWebPreview() {
+	if m.overlay != nil && m.overlay.preview && time.Since(m.web.outputsSeen) > webPreviewLease {
+		m.overlay.preview = false
+		m.publishOverlay()
+	}
+}
+func (m *Model) scheduleWebPreviewCheck() tea.Cmd {
+	if m.web.previewCheck || m.overlay == nil || !m.overlay.preview {
+		return nil
+	}
+	m.web.previewCheck = true
+	return tea.Tick(webPreviewLease, func(time.Time) tea.Msg { return webPreviewCheck{} })
+}
+func (m *Model) handleWebPreviewCheck() tea.Cmd {
+	m.web.previewCheck = false
+	m.expireWebPreview()
+	return m.scheduleWebPreviewCheck()
 }
 func webKey(code rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: code} }
 func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {

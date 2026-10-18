@@ -10,7 +10,7 @@ Versions are listed newest first.
 
 - Build a reduced Qt 6.8.3 for the Windows amd64 overlay, removing ICU, unused modules, and plugins. Ship only required DLLs, retain both Native and Elegant overlays, and use stronger ZIP compression.
 - Collect Windows third-party notices for shipped components, deduplicate them, and combine them into `THIRD_PARTY_NOTICES.txt`. Preserve copyright notices, license terms, and source links without bundling unrelated build-tool licenses.
-- Add overlay sample preview to the WebUI outputs page, reusing the TUI samples and rotation. Turning preview off or leaving the page restores actual content; samples do not enter chat history or TTS.
+- Add overlay sample preview to the WebUI outputs page, reusing the TUI samples and rotation. Actual content returns when you turn preview off or about 3 seconds after every browser page leaves Outputs; samples do not enter chat history or TTS.
 - `logs/arcana-world.log` is now a debug log separate from on-screen messages: each record has a level, component, operation, parameters, elapsed time, and the original error (network, OBS, helper process exit code and stderr, and more). Cookies, passwords, stream keys, and proxy credentials are redacted. Info and above is recorded by default; use `--log-level debug` to record per-request detail when troubleshooting. The in-app list is renamed to "Activity".
 - TTS errors no longer repeat the `tts: synthesize:` prefix.
 
