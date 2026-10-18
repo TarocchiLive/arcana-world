@@ -22,7 +22,7 @@ Versions are listed newest first.
 
 - Fix Windows Elegant overlay packaging selecting same-named runtime DLLs from Git for Windows and failing to collect third-party notices. Runtime libraries now come from the Qt and UCRT64 toolchains used for the build.
 - Fix stale Qt runtime files and cached SDK paths across rebuilds. Build and collect Qt dependencies in staging, preserving the published runtime if collection fails. Native-only builds remove only recorded Qt files, and SDK cleanup checks directory ownership first.
-- Fix macOS Qt 6.11 compilation when trimming tooltip and stylesheet support.
+- Fix reduced Qt 6.11 compilation on macOS by retaining the default tooltip and stylesheet feature combination.
 - Fix Qt deployment in the Nix development environment: support separately packaged plugins, redeployment of read-only plugin copies, and absolute dependency paths. Build scripts no longer switch Nix environments automatically; enter `nix develop` explicitly when using Make.
 - Fix Qt overlay dependency builds under `nix build`: load the Qt wrapping hook only for the final application build, not during Go module fetching.
 
