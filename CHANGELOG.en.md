@@ -4,28 +4,24 @@
 
 Versions are listed newest first.
 
-## Unreleased
+## [v0.4.0-rc.1]: 2026-10-18 (prerelease)
 
-### Changed
+This release candidate redesigns the WebUI, reduces Elegant overlay bundle sizes, and improves diagnostic logging and OBS shutdown cleanup.
 
-- Build a reduced Qt 6.8.3 for the Windows amd64 overlay, removing ICU, unused modules, and plugins. Ship only required DLLs, retain both Native and Elegant overlays, and use stronger ZIP compression.
-- Collect Windows third-party notices for shipped components, deduplicate them, and combine them into `THIRD_PARTY_NOTICES.txt`. Preserve copyright notices, license terms, and source links without bundling unrelated build-tool licenses.
-- Use reduced Qt builds for Elegant overlay on Linux and macOS, removing ICU and other unused dependencies while retaining font shaping and both overlays. Linux also trims unused widgets; macOS uses standalone shared libraries to reduce bundled development files.
-- Switch Linux and macOS portable bundles to `.tar.xz` for smaller downloads. Extract the full archive and replace the main executable and `libexec` together.
-- Share Qt cache fingerprints between local builds and CI, rebuilding when compilers or configuration change. Cold builds use available runner concurrency on every platform; Windows MSYS utility updates no longer invalidate Qt caches.
-- Add overlay sample preview to the WebUI outputs page, reusing the TUI samples and rotation. Actual content returns when you turn preview off or about 3 seconds after every browser page leaves Outputs; samples do not enter chat history or TTS.
-- Redesign the WebUI with sidebar navigation (bottom navigation on narrow screens) and text-only buttons and navigation. A top bar on every page shows live, OBS, and chat status and offers go live, stop, and OBS connection; Studio adds a go-live checklist. In Chat, click a name to view the user, and a prompt appears when new messages arrive while scrolled back. Room, audience, and moderation flows open in a single dialog. Number and color settings save when you finish adjusting; Esc discards unsaved text edits; short notifications dismiss themselves.
-- `logs/arcana-world.log` is now a debug log separate from on-screen messages: each record has a level, component, operation, parameters, elapsed time, and the original error (network, OBS, helper process exit code and stderr, and more). Cookies, passwords, stream keys, and proxy credentials are redacted. Info and above is recorded by default; use `--log-level debug` to record per-request detail when troubleshooting. The in-app list is renamed to "Activity".
-- TTS errors no longer repeat the `tts: synthesize:` prefix.
+### What's changed
 
-### Fixed
+- Redesign the WebUI with sidebar navigation, global live and OBS status, a go-live checklist, and unified management dialogs, with bottom navigation on narrow screens.
+- View users by clicking chat names, see new-message prompts while scrolling back, and automatically save number and color settings after adjustments.
+- Preview overlay samples from the WebUI Outputs page; actual content returns when preview is disabled or every page leaves Outputs, without adding samples to chat history or speech.
+- Trim Qt runtimes and third-party notice files on Windows, Linux, and macOS while retaining font shaping and both Native and Elegant overlays; use `.tar.xz` on Linux and macOS and stronger ZIP compression on Windows.
+- Separate diagnostic logs from on-screen activity records, recording network, OBS, and helper-process errors while hiding sensitive credentials; use `--log-level debug` for more detail.
+- Fix shutdown leaving OBS streaming when a start takes effect but its response is lost through disconnection or cancellation.
+- Fix Elegant overlay builds and runtime deployment under Nix; rebuilds remove stale Qt files and preserve the existing runtime if dependency collection fails.
+- Simplify speech error messages by removing repeated prefixes.
 
-- Fix shutdown leaving OBS streaming when a start request takes effect but loses its response through disconnection or cancellation. Recheck unconfirmed stream state during shutdown.
-- Fix Windows Elegant overlay packaging selecting same-named runtime DLLs from Git for Windows and failing to collect third-party notices. Runtime libraries now come from the Qt and UCRT64 toolchains used for the build.
-- Fix stale Qt runtime files and cached SDK paths across rebuilds. Build and collect Qt dependencies in staging, preserving the published runtime if collection fails. Native-only builds remove only recorded Qt files, and SDK cleanup checks directory ownership first.
-- Fix reduced Qt 6.11 compilation on macOS by retaining the default Widgets configuration, whose trimmed combinations have incomplete upstream feature guards.
-- Fix Qt deployment in the Nix development environment: support separately packaged plugins, redeployment of read-only plugin copies, and absolute dependency paths. Build scripts no longer switch Nix environments automatically; enter `nix develop` explicitly when using Make.
-- Fix Qt overlay dependency builds under `nix build`: load the Qt wrapping hook only for the final application build, not during Go module fetching.
+### Upgrading
+
+Extract the entire release archive and replace both the main executable and `libexec`; Linux and macOS archives now use the `.tar.xz` extension.
 
 ## [v0.4.0-alpha.1]: 2026-10-14 (prerelease)
 
@@ -427,3 +423,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.3.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.1
 [v0.3.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.2
 [v0.4.0-alpha.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-alpha.1
+[v0.4.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.1

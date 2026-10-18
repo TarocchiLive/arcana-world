@@ -132,7 +132,7 @@ jobs:
           base = f"https://github.com/{repository}"
           assets = sorted(Path("dist").glob("arcana-world-*"))
           platforms = {"windows": "Windows", "linux": "Linux", "darwin": "macOS"}
-          architectures = {"amd64": "x64", "arm64": "ARM64", "386": "x86"}
+          architectures = {"amd64": "x64", "arm64": "ARM64", "386": "x86 (32-bit)"}
           rows = []
           for asset in assets:
               target = asset.name.removeprefix("arcana-world-").removesuffix(".tar.xz").removesuffix(".zip")
