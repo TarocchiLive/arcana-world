@@ -55,6 +55,7 @@ if [[ ! -f "$prefix/.complete" || "$(cat "$prefix/.complete")" != "$toolchain_id
   source_dir="$work/qtbase-everywhere-src-6.11.0"
   # 普通动态库避免打包 framework 开发文件；Cocoa/CoreText 保留系统字体与彩色 emoji。
   # 保留 HarfBuzz、emoji 分段和 PNG（Cocoa 内嵌光标），不关闭文字整形。
+  # 浮层不使用工具提示；Qt 6.11 的该实现仍无条件引用样式表字段，须一并裁剪。
   cmake -S "$source_dir" -B "$work/qtbase-build" -GNinja \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$prefix" \
     -DCMAKE_C_COMPILER="$(xcrun -f clang)" -DCMAKE_CXX_COMPILER="$(xcrun -f clang++)" \
@@ -69,6 +70,7 @@ if [[ ! -f "$prefix/.complete" || "$(cat "$prefix/.complete")" != "$toolchain_id
     -DFEATURE_itemviews=OFF -DFEATURE_graphicsview=OFF -DFEATURE_mainwindow=OFF \
     -DFEATURE_dialog=OFF -DFEATURE_textedit=OFF -DFEATURE_calendarwidget=OFF \
     -DFEATURE_filesystemmodel=OFF -DFEATURE_pdf=OFF -DFEATURE_style_stylesheet=OFF \
+    -DFEATURE_tooltip=OFF \
     -DFEATURE_textmarkdownreader=OFF -DFEATURE_textmarkdownwriter=OFF -DFEATURE_textodfwriter=OFF \
     -DFEATURE_opengl=OFF -DFEATURE_egl=OFF -DFEATURE_vulkan=OFF \
     -DFEATURE_freetype=OFF -DFEATURE_harfbuzz=ON -DFEATURE_emojisegmenter=ON \
