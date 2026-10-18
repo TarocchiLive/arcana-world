@@ -366,7 +366,6 @@ input[type="search"] {
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
   padding: 2px 8px;
   color: var(--ink);
   text-decoration: none;
@@ -375,24 +374,6 @@ input[type="search"] {
 }
 .brand b {
   font-weight: 750;
-}
-.brand-mark {
-  position: relative;
-  width: 26px;
-  height: 26px;
-  flex: 0 0 auto;
-  border-radius: 8px;
-  background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 45%, var(--live)));
-  box-shadow: inset 0 0 0 1px #ffffff2a;
-}
-.brand-mark::after {
-  content: "";
-  position: absolute;
-  inset: 7px;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  border-right-color: transparent;
-  transform: rotate(-35deg);
 }
 .nav {
   display: flex;
