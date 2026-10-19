@@ -8,6 +8,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -169,7 +171,7 @@ func (c *Client) Start(ctx context.Context, roomID, areaID int64, protocol strin
 	}
 	if protocol != "rtmp" {
 		for _, p := range d.Protocols {
-			if strings.EqualFold(p.Protocol, "srt") && p.Addr != "" && p.Code != "" {
+			if strings.EqualFold(p.Protocol, "srt") && usableStreamEndpoint(p.Addr, p.Code, true) {
 				logger.Info("live started", "room", roomID, "area", areaID, "protocol", "srt", "requested_protocol", protocol)
 				return domain.Stream{Address: p.Addr, Key: p.Code, Protocol: "srt"}, nil
 			}
@@ -179,8 +181,8 @@ func (c *Client) Start(ctx context.Context, roomID, areaID int64, protocol strin
 		logger.Error("start live response has no srt stream", "room", roomID, "area", areaID)
 		return domain.Stream{}, errors.New(i18n.T(i18n.BiliSrtUrlMissing))
 	}
-	if d.RTMP.Addr == "" || d.RTMP.Code == "" {
-		logger.Error("start live response has no rtmp stream", "room", roomID, "area", areaID)
+	if !usableStreamEndpoint(d.RTMP.Addr, d.RTMP.Code, false) {
+		logger.Error("start live response has no usable rtmp stream", "room", roomID, "area", areaID)
 		return domain.Stream{}, errors.New(i18n.T(i18n.BiliStreamUrlMissing))
 	}
 	result := domain.Stream{Address: d.RTMP.Addr, Key: d.RTMP.Code, Protocol: "rtmp"}
@@ -189,6 +191,34 @@ func (c *Client) Start(ctx context.Context, roomID, areaID int64, protocol strin
 		result.Warning = i18n.T(i18n.BiliSrtFallback)
 	}
 	return result, nil
+}
+
+// 只选择 OBS 可用的地址；不改写平台返回的协议、路径或密钥。
+func usableStreamEndpoint(address, key string, srt bool) bool {
+	if strings.TrimSpace(key) == "" || strings.ContainsAny(address, " \t\r\n") {
+		return false
+	}
+	u, err := url.Parse(address)
+	if err != nil || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
+		return false
+	}
+	if srt {
+		if u.Scheme != "srt" {
+			return false
+		}
+	} else if u.Scheme != "rtmp" && u.Scheme != "rtmps" {
+		return false
+	}
+	if strings.HasSuffix(u.Host, ":") {
+		return false
+	}
+	if port := u.Port(); port != "" {
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 {
+			return false
+		}
+	}
+	return true
 }
 func (c *Client) Stop(ctx context.Context, roomID int64) error {
 	if roomID <= 0 {

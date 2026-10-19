@@ -4,6 +4,10 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+- Fix SRT-first mode failing to fall back to RTMP when the SRT address is invalid or uses an unsupported scheme such as `rtmpsrt://`; also validate the fallback address and stream key.
+
 ## [v0.4.0-rc.2]: 2026-10-18 (prerelease)
 
 Fix Linux release overlays failing to launch in environments such as Nix, replacing the withdrawn rc.1.
