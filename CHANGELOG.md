@@ -4,6 +4,28 @@
 
 版本按时间倒序记录。
 
+## [v0.4.0]：2026-10-19
+
+新增浏览器控制面板与精美浮层，完善封面编辑、播报模板和开播排障。以下汇总相较 v0.3.0 的变化，包含 v0.3.1、v0.3.2 的改进。
+
+### 本次更新
+
+- 新增本机 WebUI，集中管理账号、直播、OBS、弹幕、浮层和 TTS，提供中英文、浅色与深色主题、窄屏导航及开播准备清单。
+- 支持保存默认启动界面，WebUI 启动时自动打开浏览器；Windows 提供独立 WebUI 启动器，并支持手动检查最新稳定版。
+- 新增可与原生浮层切换的精美浮层，提供文字、面板和动效设置、无需登录的示例预览，以及 macOS Dock／Windows 任务栏显示控制。
+- 浮层与 TTS 支持独立的中英文 YAML 格式 Go 模板，配置错误时提示具体文件并回退默认格式；改进消息排版，避免截断组合表情和连字。
+- 终端与 WebUI 支持封面裁剪、缩放和移动预览，终端新增 iTerm2 原生图片支持；上传图片统一为符合平台限制的 JPEG。
+- 修复 Edge TTS 端点返回 HTTP 403 的问题；合成失败或返回空音频时最多重试两次，停止或退出时立即取消。
+- 分离详细诊断日志与界面操作记录，记录网络、OBS 和辅助进程错误并隐藏敏感凭据，支持通过 `--log-level debug` 排障。
+- 修复「SRT 优先」遇到无效或不支持的地址时未回退 RTMP、OBS 开播响应丢失后退出可能漏停播，以及终端收到中断信号可能卡住的问题。
+- 精简桌面发行包并补齐 Linux 浮层运行库、字体配置和键盘布局数据，改进 Nix 构建与部署；补充 Scoop、APT 安装说明。
+
+### 升级提示
+
+- 请完整解压并一并替换主程序和 `libexec`，避免混用不同版本的辅助程序；Linux 与 macOS 发行包改为 `.tar.xz`。
+- Windows x86／ARM64 包仅提供原生浮层；Linux 浮层需要支持 layer-shell 的 Wayland 桌面。
+- WebUI 默认地址为 `http://127.0.0.1:5273`。
+
 ## [v0.4.0-rc.3]：2026-10-19（预发布）
 
 修复「SRT 优先」无法回退 RTMP 导致 OBS 联动开播失败的问题。
@@ -449,3 +471,4 @@
 [v0.4.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.1
 [v0.4.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.2
 [v0.4.0-rc.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.3
+[v0.4.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0

@@ -4,6 +4,28 @@
 
 Versions are listed newest first.
 
+## [v0.4.0]: 2026-10-19
+
+Add a browser control panel and styled overlay, with improvements to cover editing, output templates, and streaming diagnostics. This summary covers changes since v0.3.0, including v0.3.1 and v0.3.2.
+
+### What's changed
+
+- Add a local WebUI for accounts, live rooms, OBS, chat, overlays, and TTS, with Chinese and English, light and dark themes, narrow-screen navigation, and a streaming readiness checklist.
+- Save the preferred startup interface and open the browser automatically for WebUI; provide a dedicated Windows WebUI launcher and manual checks for the latest stable release.
+- Add a styled overlay alongside the native overlay, with text, panel, and animation settings, sample previews without signing in, and macOS Dock / Windows taskbar visibility controls.
+- Support separate Chinese and English YAML Go templates for overlays and TTS, reporting invalid configuration files and falling back to defaults; improve message layout and preserve combined emoji and ligatures when truncating text.
+- Add cover cropping, zooming, and positioning previews in the terminal and WebUI, including native iTerm2 images; convert uploads to JPEG within the platform's size limits.
+- Fix HTTP 403 errors from the Edge TTS endpoint; retry failed synthesis or empty audio up to twice, cancelling immediately on stop or exit.
+- Separate detailed diagnostic logs from activity records, recording network, OBS, and helper errors while hiding credentials; support troubleshooting with `--log-level debug`.
+- Fix missing RTMP fallback for invalid or unsupported SRT addresses, missed OBS shutdown cleanup after a lost start response, and terminal hangs on interrupt signals.
+- Reduce desktop package size and bundle Linux overlay libraries, font configuration, and keyboard layout data; improve Nix builds and deployment and document Scoop and APT installation.
+
+### Upgrade notes
+
+- Extract the entire archive and replace both the main executable and `libexec` to keep helpers matched; Linux and macOS archives now use `.tar.xz`.
+- Windows x86 / ARM64 packages provide only the native overlay; Linux overlays require a Wayland desktop with layer-shell support.
+- The default WebUI address is `http://127.0.0.1:5273`.
+
 ## [v0.4.0-rc.3]: 2026-10-19 (prerelease)
 
 Fix SRT-first mode failing to fall back to RTMP and preventing OBS from starting the stream.
@@ -449,3 +471,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.4.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.1
 [v0.4.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.2
 [v0.4.0-rc.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.3
+[v0.4.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0
