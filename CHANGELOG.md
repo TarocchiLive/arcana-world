@@ -4,9 +4,14 @@
 
 版本按时间倒序记录。
 
-## 未发布
+## [v0.4.0-rc.3]：2026-10-19（预发布）
 
-- 修复「SRT 优先」遇到 `rtmpsrt://` 等不支持或无效的 SRT 地址时未回退 RTMP 的问题；同时校验回退地址和推流密钥。
+修复「SRT 优先」无法回退 RTMP 导致 OBS 联动开播失败的问题。
+
+### 本次更新
+
+- SRT 地址不支持或无效时，自动使用同次开播响应中的 RTMP 地址，并校验回退地址和推流密钥。
+- 简化 WebUI 侧栏，移除品牌图标。
 
 ## [v0.4.0-rc.2]：2026-10-18（预发布）
 
@@ -443,3 +448,4 @@
 [v0.4.0-alpha.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-alpha.1
 [v0.4.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.1
 [v0.4.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.2
+[v0.4.0-rc.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.3

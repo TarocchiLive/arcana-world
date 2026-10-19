@@ -4,9 +4,14 @@
 
 Versions are listed newest first.
 
-## Unreleased
+## [v0.4.0-rc.3]: 2026-10-19 (prerelease)
 
-- Fix SRT-first mode failing to fall back to RTMP when the SRT address is invalid or uses an unsupported scheme such as `rtmpsrt://`; also validate the fallback address and stream key.
+Fix SRT-first mode failing to fall back to RTMP and preventing OBS from starting the stream.
+
+### What's changed
+
+- Fall back to the RTMP address from the same start-live response when the SRT address is unsupported or invalid, validating the fallback address and stream key.
+- Simplify the WebUI sidebar by removing the brand icon.
 
 ## [v0.4.0-rc.2]: 2026-10-18 (prerelease)
 
@@ -443,3 +448,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.4.0-alpha.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-alpha.1
 [v0.4.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.1
 [v0.4.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.2
+[v0.4.0-rc.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.3
