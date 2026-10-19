@@ -96,6 +96,11 @@ func (m *Model) handleOBSEvent(msg obsEventMsg) tea.Cmd {
 	if previous.Connected && !m.obsState.Connected && m.obsState.Err != nil {
 		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOBSConnectionLost), m.obsState.Err.Error()))
 	}
+	if m.obsState.Connected && m.obsState.Err != nil &&
+		(previous.Err == nil || previous.Err.Error() != m.obsState.Err.Error()) {
+		logger.Warn("obs stream transport failed", "err", m.obsState.Err)
+		m.warn(m.obsState.Err.Error())
+	}
 	if msg.closed {
 		return nil
 	}

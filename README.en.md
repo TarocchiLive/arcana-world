@@ -85,6 +85,12 @@ After building, run `bin/arcana-world` (`bin/arcana-world.exe` on Windows). For 
 
 In the terminal interface, press `0` for help. In the Web panel, use Help in the top navigation to search topics and read articles directly. Run `arcana-world --help` for command-line options.
 
+### RTMPSRT streaming
+
+Select `RTMPSRT` under the streaming protocol settings, connect OBS on this computer, and start live. The app bridges RTMP over SRT while preserving the publishing credentials. It reports an error if Bilibili does not return an RTMPSRT destination. Keep the app and OBS control connection running: disconnecting or exiting interrupts RTMPSRT media delivery.
+
+This feature requires the optional [libsrt](https://github.com/Haivision/srt) runtime. On macOS, install Homebrew's `srt` package; on Linux, install your distribution's libsrt runtime. On Windows, place `srt.dll` and its dependencies, matching the app's architecture, in the `lib` directory beside the executable; they can be built using vcpkg's `srt` package. See `bash scripts/build.sh --help` for source packaging options. Regular RTMP and the terminal interface do not require this library.
+
 ## TODO
 - [x] Fetch direct Bilibili stream URLs, connect to OBS, and start broadcasts automatically.
 - [x] Receive Bilibili live chat messages and browse gifts and chat history in the TUI.
@@ -131,3 +137,4 @@ Licensed under [GPL-3.0-only](LICENSE).
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss)
 - [edge-tts](https://github.com/rany2/edge-tts)
 - [edge-tts-go](https://github.com/wujunwei928/edge-tts-go)
+- [Haivision SRT](https://github.com/Haivision/srt)

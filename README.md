@@ -86,6 +86,12 @@ nix build
 
 终端界面按 `0` 查看帮助；Web 面板从顶部「帮助」搜索主题并直接阅读。命令行选项见 `arcana-world --help`。
 
+### RTMPSRT 推流
+
+在「设置」的推流协议中选择 `RTMPSRT`，连接本机 OBS 后开播。应用将 RTMP 桥接到 SRT，保持发布地址中的原始凭据；B 站未返回该协议地址时会报错。推流期间需保持应用及 OBS 控制连接运行，断开或退出会中断 RTMPSRT 视频传输。
+
+此功能需要可选的 [libsrt](https://github.com/Haivision/srt) 运行库。macOS 可通过 Homebrew 安装 `srt`；Linux 可安装发行版的 libsrt 运行库。Windows 将与主程序架构一致的 `srt.dll` 及其依赖放入主程序旁的 `lib` 目录，可从 vcpkg 的 `srt` 包构建取得。源码打包选项见 `bash scripts/build.sh --help`。普通 RTMP 和终端界面不要求安装此库。
+
 ## TODO
 - [x] 支持获取 B 站推流直链，自动连接 OBS 并开播。
 - [x] 支持 B 站直播间弹幕抓取，并在 TUI 中浏览礼物和聊天记录。
@@ -137,3 +143,4 @@ make build  # 构建
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss)
 - [edge-tts](https://github.com/rany2/edge-tts)
 - [edge-tts-go](https://github.com/wujunwei928/edge-tts-go)
+- [Haivision SRT](https://github.com/Haivision/srt)

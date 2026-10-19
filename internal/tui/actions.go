@@ -311,7 +311,7 @@ func (m *Model) perform(action string) tea.Cmd {
 		}
 		return m.form("proxy", i18n.T(i18n.TUIFormProxy), m.config.Proxy, false)
 	case "protocol":
-		m.choices = []choice{{"RTMP", "rtmp"}, {i18n.T(i18n.TUIProtocolSRTFallback), "srt-fallback"}, {i18n.T(i18n.TUIProtocolSRTOnly), "srt"}}
+		m.choices = []choice{{"RTMP", "rtmp"}, {"RTMPSRT", "rtmpsrt"}, {i18n.T(i18n.TUIProtocolSRTFallback), "srt-fallback"}, {i18n.T(i18n.TUIProtocolSRTOnly), "srt"}}
 		return m.pick("protocol", i18n.T(i18n.TUIFormProtocol))
 	case "obs-connect":
 		return m.connectOBS()

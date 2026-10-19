@@ -12,7 +12,7 @@ type Config struct {
 	ActiveUID string               `json:"active_uid"`
 	Accounts  []domain.AccountInfo `json:"accounts"`
 	Proxy     string               `json:"proxy"`    // 留空时使用环境变量；"direct" 禁用代理
-	Protocol  string               `json:"protocol"` // 支持 rtmp、srt 和 srt-fallback
+	Protocol  string               `json:"protocol"` // 支持 rtmp、srt、srt-fallback 和 rtmpsrt
 	TUITheme  string               `json:"tui_theme,omitempty"`
 	// 空值与 tui 均使用 TUI；webui 使用浏览器界面。
 	DefaultUI string `json:"default_ui,omitempty"`

@@ -4,6 +4,7 @@ package obs
 import (
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/journal"
+	"arcana-world/internal/rtmpsrt"
 
 	"context"
 	"crypto/sha256"
@@ -47,15 +48,17 @@ type Snapshot struct {
 }
 
 type Client struct {
-	mu            sync.Mutex
-	snapshot      Snapshot
-	events        chan Snapshot
-	session       *session
-	generation    uint64
-	cancel        context.CancelFunc
-	closed        bool
-	operations    chan struct{}
-	startRevision uint64
+	mu             sync.Mutex
+	snapshot       Snapshot
+	events         chan Snapshot
+	session        *session
+	generation     uint64
+	cancel         context.CancelFunc
+	closed         bool
+	operations     chan struct{}
+	startRevision  uint64
+	bridge         *rtmpsrt.Bridge
+	closingBridges []<-chan struct{}
 }
 
 type session struct {
@@ -298,6 +301,7 @@ func writeMessage(ws *websocket.Conn, op int, data any) error {
 
 // dropLocked 仅使当前会话失效，并解除所有等待者的阻塞。
 func (c *Client) dropLocked(err error) {
+	c.closeBridgeLocked()
 	if c.session != nil {
 		if err != nil {
 			logger.Warn("obs connection dropped", "endpoint", c.session.host, "err", err)
@@ -328,23 +332,29 @@ func (c *Client) invalidateLocked() {
 }
 func (c *Client) Disconnect() error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return nil
+	if !c.closed {
+		c.invalidateLocked()
 	}
-	c.invalidateLocked()
+	c.mu.Unlock()
+	c.operations <- struct{}{}
+	<-c.operations
+	c.waitBridges()
 	return nil
 }
 func (c *Client) Close() error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return nil
+	if !c.closed {
+		c.closed = true
+		logger.Info("obs client closed")
+		c.invalidateLocked()
+		close(c.events)
 	}
-	c.closed = true
-	logger.Info("obs client closed")
-	c.invalidateLocked()
-	close(c.events)
+	c.mu.Unlock()
+	// 等待已取消的 Configure 退出，涵盖尚未登记到 bridge 字段的新监听器。
+	c.operations <- struct{}{}
+	<-c.operations
+	// 回调可能需要 mu；必须解锁后等待全部 SRT/TCP 工作协程退出。
+	c.waitBridges()
 	return nil
 }
 func (c *Client) fail(s *session, err error) {
@@ -406,8 +416,14 @@ func (c *Client) readLoop(s *session) {
 			if c.session == s {
 				c.snapshot.Status.Active = *event.Data.Active
 				c.snapshot.Status.Reconnecting = event.Data.State == "OBS_WEBSOCKET_OUTPUT_RECONNECTING"
+				if event.Data.State == "OBS_WEBSOCKET_OUTPUT_STARTED" {
+					c.snapshot.Err = nil
+				}
 				if !*event.Data.Active {
 					c.snapshot.Status.Timecode = ""
+					if event.Data.State == "OBS_WEBSOCKET_OUTPUT_STOPPED" && c.bridge != nil {
+						c.bridge.Stop()
+					}
 				}
 				log.Info("obs stream state changed", "state", event.Data.State, "active", *event.Data.Active, "reconnecting", c.snapshot.Status.Reconnecting)
 				c.publishLocked()
@@ -585,7 +601,7 @@ func (c *Client) operation(ctx context.Context, fn func(context.Context, *sessio
 }
 func (c *Client) Configure(ctx context.Context, stream domain.Stream) error {
 	u, err := url.Parse(stream.Address)
-	if err != nil || u.Host == "" || (u.Scheme != "rtmp" && u.Scheme != "rtmps" && u.Scheme != "srt") {
+	if err != nil || u.Host == "" || (u.Scheme != "rtmp" && u.Scheme != "rtmps" && u.Scheme != "srt" && u.Scheme != "rtmpsrt") {
 		// 地址可能含敏感路径，仅记录结构特征。
 		scheme := ""
 		if u != nil {
@@ -608,6 +624,20 @@ func (c *Client) Configure(ctx context.Context, stream domain.Stream) error {
 			logger.Warn("obs configure refused while streaming", "active", status.Active, "reconnecting", status.Reconnecting)
 			return errors.New(i18n.T(i18n.OBSSettingsRequireStoppedStream))
 		}
+		if u.Scheme == "rtmpsrt" {
+			target, err := rtmpsrt.Parse(stream.Address + stream.Key)
+			if err != nil {
+				return errors.New(i18n.T(i18n.OBSStreamServerInvalid))
+			}
+			if err := c.CheckRTMPSRT(); err != nil {
+				return err
+			}
+			return c.installBridge(ctx, s, target)
+		}
+		c.mu.Lock()
+		c.closeBridgeLocked()
+		c.mu.Unlock()
+		c.waitBridges()
 		// 仅记录服务器主机，绝不记录推流密钥。
 		logger.Info("obs configure", "server", u.Host, "scheme", u.Scheme)
 		// 保留 B 站服务器地址与密钥分离的形式；OBS 自定义服务也支持 SRT。
@@ -627,6 +657,13 @@ func (c *Client) Start(ctx context.Context) error {
 func (c *Client) Stop(ctx context.Context) error {
 	return c.operation(ctx, func(ctx context.Context, s *session) error {
 		_, err := c.request(ctx, s, "StopStream", nil)
+		if err == nil {
+			c.mu.Lock()
+			if c.bridge != nil {
+				c.bridge.Stop()
+			}
+			c.mu.Unlock()
+		}
 		return err
 	})
 }

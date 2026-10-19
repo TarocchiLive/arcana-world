@@ -107,7 +107,7 @@ func (c *Client) Start(ctx context.Context, roomID, areaID int64, protocol strin
 	if roomID <= 0 || areaID <= 0 {
 		return domain.Stream{}, errors.New(i18n.T(i18n.BiliRoomCategoryInvalid))
 	}
-	if protocol != "rtmp" && protocol != "srt" && protocol != "srt-fallback" {
+	if protocol != "rtmp" && protocol != "srt" && protocol != "srt-fallback" && protocol != "rtmpsrt" {
 		return domain.Stream{}, errors.New(i18n.T(i18n.BiliStreamProtocolInvalid))
 	}
 	if err := c.ensureDevice(ctx); err != nil {
@@ -117,6 +117,9 @@ func (c *Client) Start(ctx context.Context, roomID, areaID int64, protocol strin
 	p, err := c.csrf(values("room_id", decimal(roomID), "area_v2", decimal(areaID), "type", "2"))
 	if err != nil {
 		return domain.Stream{}, err
+	}
+	if protocol == "rtmpsrt" {
+		p.Set("recommend_protocol", "rtmpsrt")
 	}
 	p = signed(p)
 	e, _, err := c.request(ctx, http.MethodPost, c.LiveBase, "/room/v1/Room/startLive", nil, strings.NewReader(encode(p)), "application/x-www-form-urlencoded", false, false)
@@ -155,11 +158,8 @@ func (c *Client) Start(ctx context.Context, roomID, areaID int64, protocol strin
 			Addr string `json:"addr"`
 			Code string `json:"code"`
 		} `json:"rtmp"`
-		Protocols []struct {
-			Protocol string `json:"protocol"`
-			Addr     string `json:"addr"`
-			Code     string `json:"code"`
-		} `json:"protocols"`
+		Protocols       []streamProtocol `json:"protocols"`
+		ProtocolsBackup []streamProtocol `json:"protocols_backup"`
 	}
 	if err = decode("/room/v1/Room/startLive", e.Data, &d); err != nil {
 		return domain.Stream{}, err
@@ -168,6 +168,28 @@ func (c *Client) Start(ctx context.Context, roomID, areaID int64, protocol strin
 	journal.AddSecrets(d.RTMP.Code)
 	for _, p := range d.Protocols {
 		journal.AddSecrets(p.Code)
+	}
+	if protocol == "rtmpsrt" {
+		for _, records := range [][]streamProtocol{d.Protocols, d.ProtocolsBackup} {
+			for _, p := range records {
+				journal.AddSecrets(p.Code, p.NewLink)
+				if !strings.EqualFold(p.Protocol, "rtmpsrt") && !(strings.EqualFold(p.Protocol, "srt") && strings.HasPrefix(p.Addr, "rtmpsrt://")) {
+					continue
+				}
+				address, key := c.resolveStreamLink(ctx, p)
+				if ctx.Err() != nil {
+					return domain.Stream{}, ctx.Err()
+				}
+				if usableRTMPSRTEndpoint(address, key) {
+					logger.Info("live started", "room", roomID, "area", areaID, "protocol", "rtmpsrt")
+					return domain.Stream{Address: address, Key: key, Protocol: "rtmpsrt"}, nil
+				}
+			}
+		}
+		if ctx.Err() != nil {
+			return domain.Stream{}, ctx.Err()
+		}
+		return domain.Stream{}, errors.New(i18n.T(i18n.BiliRTMPSRTUrlMissing))
 	}
 	if protocol != "rtmp" {
 		for _, p := range d.Protocols {

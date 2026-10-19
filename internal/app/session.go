@@ -149,6 +149,11 @@ func (m *Session) Start(ctx context.Context, client *bili.Client, room domain.Ro
 			return StartOutcome{}, errors.New(i18n.T(i18n.TUIErrorOBSDestinationActive))
 		}
 	}
+	if cfg.Protocol == "rtmpsrt" {
+		if err := m.obsClient.CheckRTMPSRT(); err != nil {
+			return StartOutcome{}, err
+		}
+	}
 	stream, err := client.Start(ctx, room.ID, room.AreaID, cfg.Protocol)
 	if err != nil {
 		logger.Error("live start request failed", "room", room.ID, "area", room.AreaID, "protocol", cfg.Protocol, "err", err)

@@ -42,7 +42,7 @@ func (m *Model) webFields(page string) []webui.Field {
 		add("obs-auto-connect", "connection", i18n.WebFieldOBSAutoConnect, "switch", boolean(m.config.OBSAutoConnect), o.OBSAutoConnect != nil || m.obsBusy)
 		add("obs-auto-stream", "connection", i18n.WebFieldOBSAutoStream, "switch", boolean(m.config.OBSAutoStream), o.OBSAutoStream != nil || m.obsBusy)
 		f := add("protocol", "connection", i18n.WebStreamProtocol, "select", m.config.Protocol, false)
-		f.Options = []webui.Option{{ID: "rtmp", Label: "RTMP"}, {ID: "srt-fallback", Label: i18n.T(i18n.TUIProtocolSRTFallback)}, {ID: "srt", Label: i18n.T(i18n.TUIProtocolSRTOnly)}}
+		f.Options = []webui.Option{{ID: "rtmp", Label: "RTMP"}, {ID: "rtmpsrt", Label: "RTMPSRT"}, {ID: "srt-fallback", Label: i18n.T(i18n.TUIProtocolSRTFallback)}, {ID: "srt", Label: i18n.T(i18n.TUIProtocolSRTOnly)}}
 	}
 	if page == "settings" {
 		proxy := m.config.Proxy

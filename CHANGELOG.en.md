@@ -4,6 +4,11 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+- Add RTMPSRT streaming through local OBS and the optional libsrt runtime, with backup protocol records and dynamic node resolution that preserves publishing credentials.
+- Check the RTMPSRT runtime and local OBS connection before opening the room, and report transport errors. Stop the publishing session while keeping the local endpoint available for restarting from OBS; release it on disconnect or exit. Add optional runtime packaging and bilingual usage guidance.
+
 ## [v0.4.0]: 2026-10-19
 
 Add a browser control panel and styled overlay, with improvements to cover editing, output templates, and streaming diagnostics. This summary covers changes since v0.3.0, including v0.3.1 and v0.3.2.

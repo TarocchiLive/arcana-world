@@ -179,6 +179,9 @@
             install -Dm755 ${arcana-world}/bin/arcana-world "$out/bin/arcana-world"
             install -Dm755 ${arcana-world-overlay-native}/libexec/arcana-world-overlay-native "$out/bin/libexec/arcana-world-overlay-native"
             install -Dm755 ${arcana-world-tts}/bin/arcana-world-tts "$out/bin/libexec/arcana-world-tts"
+            mkdir -p "$out/bin/lib"
+            ln -s ${pkgs.lib.getLib pkgs.srt}/lib/libsrt.${if pkgs.stdenv.isDarwin then "dylib" else "so"} \
+              "$out/bin/lib/libsrt.${if pkgs.stdenv.isDarwin then "dylib" else "so"}"
             install -Dm644 ${arcana-world}/share/licenses/arcana-world/LICENSE \
               "$out/share/licenses/arcana-world/LICENSE"
           '';

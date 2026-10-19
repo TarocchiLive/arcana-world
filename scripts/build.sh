@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/build.sh [build|webui|overlay|overlay-qt|tts|desktop|desktop-native]
+Usage: bash scripts/build.sh [build|webui|overlay|overlay-qt|tts|rtmpsrt|desktop|desktop-native]
 
 build           Build the standalone TUI (and the WebUI launcher on Windows).
 desktop         Build the TUI, speech helper, and both overlay backends.
@@ -12,12 +12,15 @@ webui           Build the Windows-only WebUI launcher.
 overlay         Build the native overlay helper.
 overlay-qt      Build and deploy the Qt overlay (native host only).
 tts             Build the speech helper.
+rtmpsrt         Deploy optional libsrt and its dependencies beside an existing TUI.
 
 Environment: GOOS, GOARCH, VERSION, OUT_DIR (default: bin), BUILD_JOBS (default: 2).
 Relative OUT_DIR paths are resolved from the project root.
 Qt builds require CMake >= 3.24, Python 3, and the matching native Qt toolchain.
 Linux overlay builds also require patchelf, pkg-config, and xkeyboard-config data.
 LINUX_LICENSE_DIR optionally supplies redistribution licenses and SOURCE.txt for non-Debian builds.
+RTMPSRT packaging requires SRT_LIBRARY and SRT_LICENSE_DIR (including SOURCE.txt).
+The normal TUI build does not require or bundle libsrt.
 EOF
 }
 
@@ -28,7 +31,7 @@ if (( $# > 1 )); then
 fi
 case "$target" in
   -h|--help) usage; exit 0 ;;
-  build|webui|overlay|overlay-qt|tts|desktop|desktop-native) ;;
+  build|webui|overlay|overlay-qt|tts|rtmpsrt|desktop|desktop-native) ;;
   *) usage >&2; exit 2 ;;
 esac
 if [[ -n "${BUILD_JOBS:-}" && ! "$BUILD_JOBS" =~ ^[1-9][0-9]*$ ]]; then
@@ -168,6 +171,13 @@ if [[ "$target" == desktop-native && ! -f "$out_dir/libexec/.arcana-qt-files.jso
 fi
 
 case "$target" in
+  rtmpsrt)
+    if [[ "$GOOS" != "$(go env GOHOSTOS)" || "$GOARCH" != "$(go env GOHOSTARCH)" ]]; then
+      echo 'RTMPSRT runtime deployment requires the matching native host.' >&2
+      exit 2
+    fi
+    python3 scripts/deploy-srt.py "$out_dir"
+    ;;
   overlay-qt) build_qt ;;
   desktop|desktop-native)
     build build
