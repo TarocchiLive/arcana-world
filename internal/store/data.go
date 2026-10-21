@@ -8,6 +8,7 @@ import (
 
 	"arcana-world/internal/config"
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/tts"
 
 	"github.com/zalando/go-keyring"
 )
@@ -71,6 +72,17 @@ func (s *Store) ClearData() error {
 	if err := s.backend.Delete("obs-password"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		s.credentialFailed("clear_delete_obs_password", "", err)
 		failures = append(failures, secretError(i18n.T(i18n.StoreDeleteObsPassword), err))
+	}
+	for _, provider := range tts.Providers() {
+		for _, field := range provider.Fields {
+			if !field.Secret {
+				continue
+			}
+			if err := s.backend.Delete(ttsSecretKey(provider.ID, field.ID)); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+				s.credentialFailed("clear_delete_tts_secret", "", err)
+				failures = append(failures, secretError(i18n.T(i18n.TTSSecretDelete), err))
+			}
+		}
 	}
 	if err := errors.Join(failures...); err != nil {
 		logger.Error("clear data aborted", "stage", "credentials", "failures", len(failures), "backend", storageName(s.backend.Storage()))

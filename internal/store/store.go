@@ -372,7 +372,7 @@ func clone(c config.Config) config.Config {
 	if c.Overlay.Displays != nil {
 		c.Overlay.Displays = append([]string{}, c.Overlay.Displays...)
 	}
-	c.TTS.DisabledEvents = append([]string(nil), c.TTS.DisabledEvents...)
+	c.TTS = c.TTS.Clone()
 	return c
 }
 func (s *Store) Config() config.Config {

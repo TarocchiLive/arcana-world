@@ -16,6 +16,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/jfreymuth/oggvorbis v1.0.5
+	github.com/k2-fsa/sherpa-onnx-go v1.13.8
 	github.com/mewkiz/flac v1.0.13
 	github.com/rivo/uniseg v0.4.7
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
@@ -42,6 +43,9 @@ require (
 	github.com/icza/bitio v1.1.0 // indirect
 	github.com/jfreymuth/pulse v0.1.3 // indirect
 	github.com/jfreymuth/vorbis v1.0.2 // indirect
+	github.com/k2-fsa/sherpa-onnx-go-linux v1.13.8 // indirect
+	github.com/k2-fsa/sherpa-onnx-go-macos v1.13.8 // indirect
+	github.com/k2-fsa/sherpa-onnx-go-windows v1.13.8 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-runewidth v0.0.30 // indirect
 	github.com/mewkiz/pkg v0.0.0-20250417130911-3f050ff8c56d // indirect

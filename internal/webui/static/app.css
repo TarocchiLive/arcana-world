@@ -186,6 +186,10 @@ a {
   color: var(--muted);
   font-size: 13px;
 }
+#tts-model-status {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .spacer {
   flex: 1;
 }
@@ -1866,13 +1870,13 @@ button.choice[aria-pressed="true"] {
 .notifications {
   position: fixed;
   right: 18px;
-  bottom: 18px;
+  top: calc(72px + env(safe-area-inset-top));
   z-index: 300;
   display: flex;
   flex-direction: column;
   gap: 10px;
   width: min(380px, calc(100vw - 24px));
-  max-height: calc(100dvh - 36px);
+  max-height: calc(100dvh - 90px - env(safe-area-inset-top));
   overflow: auto;
   pointer-events: none;
 }
@@ -2098,7 +2102,6 @@ button.choice[aria-pressed="true"] {
   }
   .notifications {
     right: 12px;
-    bottom: calc(72px + env(safe-area-inset-bottom));
   }
 }
 @media (max-width: 560px) {

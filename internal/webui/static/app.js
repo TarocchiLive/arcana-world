@@ -29,7 +29,8 @@
     tab = "",
     stale = false,
     commandError = "",
-    notificationKey = "";
+    notificationKey = "",
+    notificationRevision = 0;
   let pausedChat = false,
     pausedLogs = false,
     feedSignature = "",
@@ -380,7 +381,7 @@
     const summary = message.split(/[:：\n]/, 1)[0];
     const detailed = message.length > 160;
     if (tone === "error")
-      content.append(node("strong", "", t("Operation failed", "操作失败")));
+      content.append(node("strong", "", t("Notice", "提示")));
     content.append(
       node(
         "p",
@@ -544,8 +545,15 @@
     if (host.parentElement !== parent) parent.append(host);
     const error =
       commandError || (!state?.busy && state?.warning ? state.status : "");
-    if (error && error !== notificationKey) notify(error);
+    const notice = state?.notification;
+    const newNotice = notice && notice.revision !== notificationRevision;
+    if (error && error !== notificationKey && (!newNotice || error !== notice.text))
+      notify(error);
     notificationKey = error;
+    if (newNotice) {
+      notificationRevision = notice.revision;
+      notify(notice.text, notice.warning ? "error" : "info");
+    }
   }
   function updateBusy() {
     const busy = !!state?.busy;
@@ -601,7 +609,8 @@
     }
     delete $("main").dataset.loading;
     const key =
-      page + ":" + language + ":" + state.accountUID + ":" + state.room?.id;
+      page + ":" + language + ":" + state.accountUID + ":" + state.room?.id +
+      (page === "outputs" ? ":" + state.ttsSettingsTitle : "");
     if (pageKey !== key) {
       pageKey = key;
       fieldNodes.clear();
@@ -615,6 +624,19 @@
     if (page === "accounts") updateAccounts();
     if (page === "help") updateHelp();
     if (page === "settings" && tab === "activity") updateLogs();
+    if (page === "outputs" && $("tts-model-status"))
+      $("tts-model-status").textContent = state.ttsModelText || "";
+    if (page === "outputs" && $("tts-model-actions")) {
+      const actions = $("tts-model-actions");
+      const options = state.ttsModelActions || [];
+      const signature = JSON.stringify(options);
+      if (actions.dataset.state !== signature) {
+        actions.replaceChildren(
+          ...options.map((action) => button(action.label, action.id, "ghost")),
+        );
+        actions.dataset.state = signature;
+      }
+    }
     updateFields();
     renderInteraction();
     renderStatus();
@@ -1672,6 +1694,7 @@
       ["events", t("Overlay events", "弹幕姬事件")],
       { group: t("Voice", "语音") },
       ["voice", t("Voice", "声音")],
+      ["voice-settings", state.ttsSettingsTitle],
       ["voice-events", t("Voice events", "语音事件")],
     ];
     const split = node("div", "split");
@@ -1692,7 +1715,15 @@
         button(t("Preview voice", "试听语音"), "tts-preview"),
         button(t("Stop preview", "停止试听"), "tts-stop", "ghost"),
       );
-    if (actions.children.length) panel.append(actions);
+    if (tab === "voice-settings") {
+      actions.id = "tts-model-actions";
+      if (state.ttsModelText) {
+        const status = node("pre", "note", state.ttsModelText);
+        status.id = "tts-model-status";
+        panel.append(status);
+      }
+    }
+    if (actions.children.length || tab === "voice-settings") panel.append(actions);
     if (tab.startsWith("voice"))
       panel.append(
         note(
@@ -1709,7 +1740,8 @@
     if (outputSwitches.includes(f.id)) return false;
     if (tab === "voice-events") return f.id.startsWith("tts-event:");
     if (tab === "events") return f.id.startsWith("overlay-event:");
-    if (tab === "voice") return f.id.startsWith("tts-") && !f.id.startsWith("tts-event:");
+    if (tab === "voice-settings") return f.group === "tts-provider-settings";
+    if (tab === "voice") return f.group === "tts";
     if (!f.id.startsWith("overlay-") || f.id.startsWith("overlay-event:")) return false;
     if (tab === "type") return f.group === "overlay-type";
     if (tab === "color") return f.group === "overlay-color";

@@ -9,14 +9,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 
+	"arcana-world/internal/i18n"
 	"arcana-world/internal/journal"
 )
-
-var ErrUnsupportedProxy = errors.New("tts: unsupported proxy scheme")
 
 const (
 	defaultVoice            = "zh-CN-XiaoxiaoNeural"
@@ -24,6 +24,7 @@ const (
 	maxEdgeRequestBytes     = 8 << 10
 	maxVoiceBytes           = 96
 	maxProxyBytes           = 2048
+	edgeWorkerReady         = "edge-tts-v1"
 )
 
 type EdgeOptions struct {
@@ -35,6 +36,7 @@ type EdgeOptions struct {
 type Edge struct {
 	executable, voice, proxy string
 	timeout                  time.Duration
+	client                   *residentClient
 }
 type edgeRequest struct {
 	Text  string `json:"text"`
@@ -64,8 +66,11 @@ func NewEdge(options EdgeOptions) (*Edge, error) {
 		return nil, err
 	}
 	logger.Info("edge synthesizer ready", "executable", executable, "voice", options.Voice, "proxy", proxyLabel(proxy), "timeout", options.Timeout)
-	return &Edge{executable: executable, voice: options.Voice, proxy: proxy, timeout: options.Timeout}, nil
+	return &Edge{executable: executable, voice: options.Voice, proxy: proxy, timeout: options.Timeout, client: newResidentClient()}, nil
 }
+
+func (e *Edge) Close() error { return e.client.Close() }
+
 func (e *Edge) Synthesize(ctx context.Context, text string) ([]byte, error) {
 	if ctx == nil {
 		return nil, errors.New("nil context")
@@ -89,7 +94,11 @@ func (e *Edge) Synthesize(ctx context.Context, text string) ([]byte, error) {
 		return nil, errors.New("synthesis input exceeds limit")
 	}
 	// 错误由 Manager 统一添加 "tts: synthesize:" 前缀，此处原样返回。
-	audio, err := runHelper(ctx, e.executable, []string{"synthesize"}, input.Bytes(), MaxAudioBytes, withoutProxyEnv(os.Environ()))
+	audio, err := e.client.request(ctx, func(context.Context) (*exec.Cmd, error) {
+		cmd := exec.Command(e.executable, "edge-worker")
+		cmd.Env = withoutProxyEnv(os.Environ())
+		return cmd, nil
+	}, edgeWorkerReady, input.Bytes(), MaxAudioBytes, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +140,7 @@ func effectiveProxy(value string) (string, error) {
 		if err != nil {
 			// 错误文本可能包含环境变量里的代理 URL（含凭据），因此不记录 err。
 			logger.Warn("environment proxy invalid")
-			return "", errors.New("tts: invalid environment proxy")
+			return "", errors.New(i18n.T(i18n.TTSProxyInvalid))
 		}
 		if proxy == nil {
 			return "", nil
@@ -145,11 +154,11 @@ func normalizeProxy(value string) (string, error) {
 		return "", nil
 	}
 	if len(value) > maxProxyBytes {
-		return "", errors.New("tts: invalid proxy")
+		return "", errors.New(i18n.T(i18n.TTSProxyInvalid))
 	}
 	proxy, err := url.Parse(value)
 	if err != nil {
-		return "", errors.New("tts: invalid proxy")
+		return "", errors.New(i18n.T(i18n.TTSProxyInvalid))
 	}
 	// 代理凭据在内存中出现的第一处：登记后日志会自动隐藏。
 	if proxy.User != nil {
@@ -163,31 +172,31 @@ func normalizeProxy(value string) (string, error) {
 		proxy.Scheme = "socks5"
 	case "http", "socks5":
 	default:
-		return "", ErrUnsupportedProxy
+		return "", errors.New(i18n.T(i18n.TTSProxyUnsupported))
 	}
 	if proxy.Opaque != "" || proxy.Hostname() == "" || proxy.Fragment != "" || proxy.RawQuery != "" || proxy.ForceQuery || proxy.Path != "" && proxy.Path != "/" {
-		return "", errors.New("tts: invalid proxy")
+		return "", errors.New(i18n.T(i18n.TTSProxyInvalid))
 	}
 	host := proxy.Hostname()
 	if net.ParseIP(host) == nil {
 		for _, label := range strings.Split(host, ".") {
 			if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
-				return "", errors.New("tts: invalid proxy hostname")
+				return "", errors.New(i18n.T(i18n.TTSProxyInvalid))
 			}
 			for _, c := range label {
 				if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
-					return "", errors.New("tts: invalid proxy hostname")
+					return "", errors.New(i18n.T(i18n.TTSProxyInvalid))
 				}
 			}
 		}
 	}
 	if strings.HasSuffix(proxy.Host, ":") || proxy.Scheme == "socks5" && proxy.Port() == "" {
-		return "", errors.New("tts: invalid proxy port")
+		return "", errors.New(i18n.T(i18n.TTSProxyInvalid))
 	}
 	if port := proxy.Port(); port != "" {
 		n, err := strconv.Atoi(port)
 		if err != nil || n < 1 || n > 65535 {
-			return "", errors.New("tts: invalid proxy port")
+			return "", errors.New(i18n.T(i18n.TTSProxyInvalid))
 		}
 	}
 	return proxy.String(), nil

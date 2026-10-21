@@ -16,6 +16,7 @@ func webHelpArticles() []webui.HelpArticle {
 		{"room", i18n.WebHelpRoomTitle, i18n.WebHelpRoomSummary, i18n.WebHelpRoomBody},
 		{"chat", i18n.WebHelpChatTitle, i18n.WebHelpChatSummary, i18n.WebHelpChatBody},
 		{"outputs", i18n.WebHelpOutputsTitle, i18n.WebHelpOutputsSummary, i18n.WebHelpOutputsBody},
+		{"tts", i18n.TUIHelpTTSTitle, i18n.TUIHelpTTSSummary, i18n.TUIHelpTTS},
 		{"privacy", i18n.WebHelpPrivacyTitle, i18n.WebHelpPrivacySummary, i18n.WebHelpPrivacyBody},
 		{"troubleshooting", i18n.WebHelpTroubleshootingTitle, i18n.WebHelpTroubleshootingSummary, i18n.WebHelpTroubleshootingBody},
 	}

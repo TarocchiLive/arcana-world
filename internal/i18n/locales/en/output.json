@@ -19,7 +19,7 @@
   "output.volume.invalid": "Volume must be an integer from 0 to 100",
   "output.overlay.description": "\nOpen Select events to choose what to display; saved separately from TTS. The interface language selects the template file. Customize it in the external YAML file, then save and restart to apply changes. Use Sample preview to adjust appearance without live messages.\n",
   "output.events.controls": "\n%d / %d · ↑ ↓ select · Enter / Space toggle and save · Esc back\n",
-  "output.voice.unsupported": "Unsupported Chinese speech voice",
+  "output.voice.unsupported": "This voice is not supported. Choose another one",
   "output.event.chat": "Danmaku",
   "output.event.gift": "Gifts",
   "output.event.sc": "Super Chat",

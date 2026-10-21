@@ -80,6 +80,7 @@ func (m *Model) menu() []menuItem {
 			{i18n.T(i18n.TUIHelpStreamTitle), "help:" + string(i18n.TUIHelpStream)},
 			{i18n.T(i18n.TUIHelpChatTitle), "help:" + string(i18n.TUIHelpChat)},
 			{i18n.T(i18n.TUIHelpOutputTitle), "help:" + string(i18n.TUIHelpOutput)},
+			{i18n.T(i18n.TUIHelpTTSTitle), "help:" + string(i18n.TUIHelpTTS)},
 			{i18n.T(i18n.TUIHelpOutputTemplatesTitle), "help:" + string(i18n.TUIHelpOutputTemplates)},
 			{i18n.T(i18n.TUIHelpControlsTitle), "help:" + string(i18n.TUIHelpControls)},
 		}
@@ -130,8 +131,14 @@ func (m *Model) perform(action string) tea.Cmd {
 	if action == "output-events" {
 		return m.pickOutputEvents()
 	}
-	if action == "tts-voice" {
-		return m.pickTTSVoice()
+	if action == "tts-provider" {
+		return m.pickTTSProvider()
+	}
+	if action == "tts-settings" {
+		return m.pickTTSSettings()
+	}
+	if strings.HasPrefix(action, "tts-field:") {
+		return m.editTTSField(strings.TrimPrefix(action, "tts-field:"))
 	}
 	if action == "tts-volume" {
 		return m.form("tts-volume", i18n.T(i18n.OutputVolume), strconv.Itoa(m.config.TTS.Volume), false)
@@ -419,6 +426,13 @@ func (m *Model) choose() tea.Cmd {
 	if m.editKind == "appearance" {
 		return m.toggleAppearance(ch.value)
 	}
+	if m.editKind == "tts-settings" {
+		m.mode = ""
+		return m.perform(ch.value)
+	}
+	if strings.HasPrefix(m.editKind, "tts-field:") {
+		return m.saveTTSField(strings.TrimPrefix(m.editKind, "tts-field:"), ch.value)
+	}
 	m.mode = ""
 	if strings.HasPrefix(m.editKind, "overlay-") {
 		return m.chooseOverlay(ch.value)
@@ -428,10 +442,8 @@ func (m *Model) choose() tea.Cmd {
 		cfg := m.config
 		cfg.TUITheme = ch.value
 		return m.saveConfig(cfg, false)
-	case "tts-voice":
-		cfg := m.config
-		cfg.TTS.Voice = ch.value
-		return m.saveConfig(cfg, false)
+	case "tts-provider":
+		return m.selectTTSProvider(ch.value)
 	case "delete":
 		prompt := fmt.Sprintf(i18n.T(i18n.TUIConfirmRemoveAccount), ch.label)
 		if m.config.ActiveUID == ch.value {
@@ -489,6 +501,9 @@ func (m *Model) submitForm() tea.Cmd {
 			value = m.input.Value()
 		}
 		return m.submitOverlay(kind, value)
+	}
+	if strings.HasPrefix(kind, "tts-field:") {
+		return m.saveTTSField(strings.TrimPrefix(kind, "tts-field:"), value)
 	}
 	// 密码保留原始字节，不去除首尾空白。
 	if kind == "obs-password" {

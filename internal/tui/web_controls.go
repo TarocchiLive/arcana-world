@@ -136,9 +136,24 @@ func (m *Model) webFields(page string) []webui.Field {
 				}
 			}
 		}
-		f := add("tts-voice", "tts", i18n.OutputVoice, "select", m.config.TTS.Voice, false)
-		for _, v := range tts.Voices() {
-			f.Options = append(f.Options, webui.Option{ID: v.ID, Label: i18n.T(v.Name)})
+		f := add("tts-provider", "tts", i18n.TTSProvider, "select", m.config.TTS.Provider, false)
+		for _, provider := range tts.Providers() {
+			f.Options = append(f.Options, webui.Option{ID: provider.ID, Label: i18n.T(provider.Name)})
+		}
+		values := m.config.TTS.Values()
+		for _, field := range m.ttsProvider().Fields {
+			kind := "text"
+			if len(field.Options) > 0 {
+				kind = "select"
+			}
+			value := values[field.ID]
+			if field.Secret {
+				kind, value = "password", ""
+			}
+			f = add("tts-field:"+field.ID, "tts-provider-settings", field.Label, kind, value, false)
+			for _, option := range field.Options {
+				f.Options = append(f.Options, webui.Option{ID: option.ID, Label: i18n.T(option.Label)})
+			}
 		}
 		f = add("tts-volume", "tts", i18n.OutputVolume, "range", strconv.Itoa(m.config.TTS.Volume), false)
 		f.Max, f.Step = 100, 1
@@ -229,6 +244,9 @@ func (m *Model) webSetField(page, id, value string) (tea.Cmd, error) {
 		}
 		return m.saveOverlay(s, overlayConfigOperation()), nil
 	}
+	if strings.HasPrefix(id, "tts-field:") {
+		return m.setTTSField(strings.TrimPrefix(id, "tts-field:"), value)
+	}
 	switch id {
 	case "title":
 		value = strings.TrimSpace(value)
@@ -242,13 +260,11 @@ func (m *Model) webSetField(page, id, value string) (tea.Cmd, error) {
 		return m.performTTS("tts-toggle"), nil
 	case "obs-auto-connect", "obs-auto-stream", "chat-other", "exit-obs-stop", "exit-live-stop":
 		return m.perform(id), nil
-	case "protocol", "tts-voice":
+	case "tts-provider":
+		return m.selectTTSProvider(value), nil
+	case "protocol":
 		cfg := m.config
-		if id == "protocol" {
-			cfg.Protocol = value
-		} else {
-			cfg.TTS.Voice = value
-		}
+		cfg.Protocol = value
 		return m.saveConfig(cfg, false), nil
 	default:
 		// 临时借用表单解析器，不向浏览器暴露普通编辑弹层。
@@ -288,6 +304,9 @@ func (m *Model) webAction(page, action string) (tea.Cmd, error) {
 			return m.confirm(i18n.T(i18n.TUIOverlayRestoreConfirm), "overlay-restore"), nil
 		}
 		allowed = allowed || slices.Contains([]string{"overlay-displays", "tts-preview", "tts-stop"}, action)
+		if m.ttsProvider().Model {
+			allowed = allowed || slices.Contains([]string{"tts-model-install", "tts-model-verify", "tts-model-cancel"}, action)
+		}
 	case "settings":
 		allowed = allowed || slices.Contains([]string{"settings-reset-confirm", "clear-data"}, action)
 	case "accounts":

@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"arcana-world/internal/tts/meloproto"
 	"github.com/gorilla/websocket"
 	edge "github.com/wujunwei928/edge-tts-go/edge_tts"
 )
@@ -78,6 +79,35 @@ func RunEdge(in io.Reader, out io.Writer) error {
 	}
 	return nil
 }
+
+// RunEdgeWorker 在专用常驻进程中串行处理有界 Edge 请求；任一错误终止会话。
+func RunEdgeWorker(in io.Reader, out io.Writer) error {
+	if err := meloproto.Write(out, []byte(edgeWorkerReady)); err != nil {
+		return err
+	}
+	for {
+		data, err := meloproto.Read(in, maxEdgeRequestBytes)
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := RunEdge(bytes.NewReader(data), edgeFrameWriter{out}); err != nil {
+			return err
+		}
+	}
+}
+
+type edgeFrameWriter struct{ io.Writer }
+
+func (w edgeFrameWriter) Write(data []byte) (int, error) {
+	if err := meloproto.Write(w.Writer, data); err != nil {
+		return 0, err
+	}
+	return len(data), nil
+}
+
 func readEdgeRequest(in io.Reader) (edgeRequest, error) {
 	var request edgeRequest
 	data, err := io.ReadAll(io.LimitReader(in, maxEdgeRequestBytes+1))

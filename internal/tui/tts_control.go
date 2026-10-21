@@ -10,6 +10,7 @@ import (
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/presentation"
 	"arcana-world/internal/tts"
+	"arcana-world/internal/tts/models"
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -30,13 +31,19 @@ type ttsRuntime struct {
 	account                   string
 	room                      int64
 	generation                uint64
-	voice, proxy              string
+	identity, proxy           string
 	volume                    int
 	disabled                  []string
 	request, latest, revision uint64
 	loaded, loading           bool
 	lastError                 string
 	failed                    bool
+	modelJob                  *ttsModelJob
+	modelStatus               models.Status
+	modelPromptShown          map[string]bool
+	modelConfirmProvider      string
+	secrets                   *ttsSecretsJob
+	secretSaving              bool
 }
 
 type ttsEventsMsg struct {
@@ -95,7 +102,8 @@ func (m *Model) ConfigureTTS(enabled bool) error {
 func (m *Model) syncTTS() {
 	r := m.tts
 	if r == nil {
-		return
+		r = &ttsRuntime{}
+		m.tts = r
 	}
 	var listener *danmaku.Listener
 	var history *danmaku.History
@@ -115,10 +123,24 @@ func (m *Model) syncTTS() {
 			}
 		}
 	}
-	if r.listener != listener || r.history != history || r.account != account || r.room != room || r.generation != generation || r.voice != m.config.TTS.Voice || r.volume != m.config.TTS.Volume || r.proxy != m.config.Proxy || r.listeningDisabled != m.config.DanmakuDisabled || !slices.Equal(r.disabled, m.config.TTS.DisabledEvents) {
+	identity := m.config.TTS.Identity()
+	if r.listener != listener || r.history != history || r.account != account || r.room != room || r.generation != generation || r.identity != identity || r.volume != m.config.TTS.Volume || r.proxy != m.config.Proxy || r.listeningDisabled != m.config.DanmakuDisabled || !slices.Equal(r.disabled, m.config.TTS.DisabledEvents) {
 		r.retire()
+		if r.account != account {
+			r.preview = false
+		}
+		if r.identity != identity {
+			r.secrets = nil
+			r.preview = false
+			if provider, ok := tts.ProviderByID(m.config.TTS.Provider); ok && provider.Model {
+				r.modelStatus = models.Inspect(m.appDir, provider.ID)
+			}
+		}
+		if r.modelJob != nil && r.modelJob.provider != m.config.TTS.Provider {
+			r.modelJob.cancel()
+		}
 		r.listener, r.history, r.account, r.room, r.generation = listener, history, account, room, generation
-		r.voice, r.proxy = m.config.TTS.Voice, m.config.Proxy
+		r.identity, r.proxy = identity, m.config.Proxy
 		r.volume = m.config.TTS.Volume
 		r.listeningDisabled = m.config.DanmakuDisabled
 		r.disabled = slices.Clone(m.config.TTS.DisabledEvents)
@@ -144,27 +166,33 @@ func (m *Model) startTTSManager() {
 		return
 	}
 	r := m.tts
-	if r.manager != nil || r.failed || len(r.retired) != 0 || (!r.preview && (!r.enabled || m.config.DanmakuDisabled)) {
+	if r.manager != nil || r.failed || r.secretSaving || len(r.retired) != 0 || r.modelJob != nil || (!r.preview && (!r.enabled || m.config.DanmakuDisabled)) {
 		return
 	}
-	edge, err := tts.NewEdge(tts.EdgeOptions{Voice: r.voice, Proxy: r.proxy})
+	synthesizer, ready, err := m.newTTSSynthesizer()
+	if !ready {
+		return
+	}
 	if err != nil {
 		r.failed = true
 		logger.Error("tts synthesis backend unavailable", "err", err)
-		m.ttsError(fmt.Errorf(i18n.T(i18n.TTSSynthesisBackendUnavailable), err))
+		m.ttsError(err)
 		return
 	}
 	player, err := tts.NewPlayer(tts.PlayerOptions{Volume: m.config.TTS.Volume})
 	if err != nil {
+		_ = synthesizer.Close()
 		r.failed = true
 		logger.Error("tts playback backend unavailable", "err", err)
-		m.ttsError(fmt.Errorf(i18n.T(i18n.TTSPlaybackBackendUnavailable), err))
+		m.ttsError(err)
 		return
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
-	manager, err := tts.New(ctx, tts.Options{Synthesizer: edge, Player: player})
+	manager, err := tts.New(ctx, tts.Options{Synthesizer: synthesizer, Player: player})
 	if err != nil {
 		cancel()
+		_ = synthesizer.Close()
+		_ = player.Close()
 		r.failed = true
 		logger.Error("tts manager start failed", "err", err)
 		m.ttsError(err)
@@ -184,17 +212,28 @@ func (m *Model) performTTS(action string) tea.Cmd {
 	if m.tts == nil {
 		m.tts = &ttsRuntime{}
 	}
+	m.syncTTS()
 	r := m.tts
 	switch action {
+	case "tts-model-install", "tts-model-install-confirmed", "tts-model-verify", "tts-model-cancel":
+		return m.performTTSModel(action)
 	case "tts-toggle":
 		r.enabled = !r.enabled
 		r.preview = false
-		r.retire()
+		if !r.enabled {
+			r.retire()
+		}
 	case "tts-stop":
 		r.preview = false
 		r.retire()
 	case "tts-preview":
-		r.retire()
+		// 空闲时复用已加载的模型；忙碌时先取消旧播报，避免试听排在队尾。
+		if r.manager != nil {
+			state := r.manager.Snapshot()
+			if state.Phase != tts.PhaseIdle || state.Pending != 0 {
+				r.retire()
+			}
+		}
 		r.preview = true
 	default:
 		return nil
@@ -210,16 +249,17 @@ func (m *Model) updateTTS() tea.Cmd {
 	if r == nil {
 		return nil
 	}
+	m.pollTTSModel()
 	m.startTTSManager()
 	if r.manager != nil {
 		m.ttsError(r.manager.Snapshot().LastError)
 		if r.preview {
 			r.preview = false
-			m.ttsError(r.manager.Enqueue("你好，这是语音播报试听。欢迎来到直播间。"))
-		}
-		state := r.manager.Snapshot()
-		if !r.enabled && state.Phase == tts.PhaseIdle && state.Pending == 0 {
-			r.retire()
+			text := "你好，这是语音播报试听。欢迎来到直播间。"
+			if m.config.TTS.Provider == "piper" {
+				text = "Hello, this is a speech preview. Welcome to the live stream."
+			}
+			m.ttsError(r.manager.Enqueue(text))
 		}
 	}
 	if !r.enabled || r.room <= 0 || r.history == nil || r.listener == nil || r.loading || r.manager == nil {
@@ -325,6 +365,11 @@ func (m *Model) closeTTS() error {
 	r := m.tts
 	if r == nil {
 		return nil
+	}
+	if r.modelJob != nil {
+		r.modelJob.cancel()
+		<-r.modelJob.done
+		r.modelJob = nil
 	}
 	r.enabled, r.preview, r.loading = false, false, false
 	r.request++

@@ -3,11 +3,11 @@ package tts
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 	"unicode/utf8"
 
+	"arcana-world/internal/i18n"
 	"arcana-world/internal/journal"
 )
 
@@ -52,7 +52,8 @@ func New(ctx context.Context, options Options) (*Manager, error) {
 		defer stop()
 		defer close(m.done)
 		m.run()
-		// run 返回后不再有并发写入 closeErr。
+		// 合成与播放均已退出，随后释放提供方资源，最后关闭 done。
+		m.closeErr = errors.Join(m.closeErr, m.synth.Close(), m.player.Close())
 		logger.Info("manager closed", "close_err", m.closeErr)
 	}()
 	logger.Info("manager started", "queue_capacity", capacity)
@@ -181,10 +182,8 @@ func (m *Manager) run() {
 		started := time.Now()
 		audio, err := m.synth.Synthesize(ctx, text)
 		synthesized := time.Since(started)
+		// 阶段只写入日志；返回的错误面向用户，不带内部前缀。
 		stage := "synthesize"
-		if err != nil {
-			err = fmt.Errorf("tts: synthesize: %w", err)
-		}
 		m.mu.Lock()
 		play := err == nil && ctx.Err() == nil && m.state.Phase != PhaseClosed && m.state.Phase != PhaseStopping
 		if play {
@@ -196,7 +195,7 @@ func (m *Manager) run() {
 			stage = "play"
 			playStarted := time.Now()
 			if e := m.player.Play(ctx, audio); e != nil {
-				err = fmt.Errorf("tts: play: %w", e)
+				err = e
 			}
 			played = time.Since(playStarted)
 		}
@@ -205,6 +204,10 @@ func (m *Manager) run() {
 			m.closeLocked()
 		}
 		if err != nil && !cancellationOnly(err, ctx.Err()) {
+			if errors.Is(err, context.DeadlineExceeded) {
+				// 单次合成或播放超时；原始的 "context deadline exceeded" 对用户没有意义。
+				err = errors.New(i18n.T(i18n.TTSTimeout))
+			}
 			m.state.LastError = err
 			if m.stopping != nil {
 				m.stopping.err = err
@@ -212,7 +215,7 @@ func (m *Manager) run() {
 			if m.state.Phase == PhaseClosed {
 				m.closeErr = err
 			}
-			// helper 失败的 stderr 细节已由 runHelper 记录；这里记录播报层面的结果。
+			// 辅助进程错误只保留固定诊断类别，这里记录播报层面的结果。
 			logger.Error("utterance failed", "stage", stage, "chars", chars, "audio_bytes", len(audio), "synth_elapsed", synthesized, "play_elapsed", played, "err", err)
 		} else if err != nil {
 			logger.Debug("utterance cancelled", "stage", stage, "chars", chars, "synth_elapsed", synthesized, "play_elapsed", played)

@@ -342,6 +342,23 @@ func (m *Model) webCommand(page string, c webui.Command) (tea.Cmd, error) {
 }
 func (m *Model) webSnapshot(page string) webui.Snapshot {
 	s := webui.Snapshot{Revision: m.web.revision, Language: i18n.Language(), Page: page, Busy: m.busy || m.obsBusy, Status: m.webText(m.status), Warning: m.statusWarning, OBS: m.obsState.Connected, OBSConnecting: m.obsBusy, StreamAvailable: m.stream != nil, Overlay: m.overlayEnabled, Fields: m.webFields(page), Accounts: []webui.Account{}, Help: []webui.HelpArticle{}, Messages: []webui.Message{}, Logs: []string{}}
+	if m.notificationVisible() {
+		s.Notification = &webui.Notification{
+			Revision: m.notification.generation,
+			Text:     m.webText(m.notification.text),
+			Warning:  m.notification.warning,
+		}
+	}
+	if page == "outputs" {
+		provider := m.ttsProvider()
+		s.TTSSettingsTitle = i18n.T(provider.SettingsTitle)
+		if provider.Model {
+			s.TTSModelText = m.webText(m.ttsModelText())
+			for _, action := range m.ttsModelActions() {
+				s.TTSModelActions = append(s.TTSModelActions, webui.Option{ID: action.value, Label: action.label})
+			}
+		}
+	}
 	if page == "chat" {
 		s.Audience = m.webText(m.audienceText())
 	}

@@ -13,6 +13,7 @@ import (
 	"arcana-world/internal/config"
 	"arcana-world/internal/coverimage"
 	"arcana-world/internal/domain"
+	"arcana-world/internal/helperpath"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/journal"
 	"arcana-world/internal/obs"
@@ -72,6 +73,7 @@ type Model struct {
 	web                      webState
 	ctx                      context.Context
 	store                    *store.Store
+	appDir                   string
 	client                   *bili.Client
 	config                   config.Config
 	theme                    tuiTheme
@@ -157,6 +159,10 @@ type Model struct {
 
 // New 接管已锁定数据目录的日志；初始化失败或模型关闭时释放。
 func New(ctx context.Context, s *store.Store, disk *journal.Log) (*Model, error) {
+	appDir, err := helperpath.ApplicationDir()
+	if err != nil {
+		return nil, errors.Join(err, disk.Close())
+	}
 	cfg := s.Config()
 	c, err := bili.New(cfg.Proxy, s.DeviceID())
 	if err != nil {
@@ -167,6 +173,7 @@ func New(ctx context.Context, s *store.Store, disk *journal.Log) (*Model, error)
 	in.SetVirtualCursor(false)
 	in.CharLimit = 4096
 	m := &Model{ctx: ctx, store: s, config: cfg, client: c, journal: disk, obsClient: obs.NewClient(), width: 100, height: 32, input: in, status: i18n.T(i18n.TUIStatusReady), view: viewport.New(viewport.WithWidth(96), viewport.WithHeight(24))}
+	m.appDir = appDir
 	m.chatInput = textarea.New()
 	m.chatInput.SetVirtualCursor(false)
 	m.chatInput.Prompt = "› "
