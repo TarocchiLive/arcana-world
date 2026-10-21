@@ -20,13 +20,13 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          vendorHash = "sha256-k+zo8brHN6Fr77LgWN7dNt2xgOCKM5TFYWrX8pbfZDM=";
+          vendorHash = "sha256-pczP2+cgD4jM1R+HnSOEL9PqIaquqJ8yU9LT3PIhtlI=";
         in
         rec {
           default = arcana-world-desktop;
           arcana-world = pkgs.buildGoModule rec {
             pname = "arcana-world";
-            version = "0.4.1";
+            version = "0.4.2";
 
             src = pkgs.lib.fileset.toSource {
               root = ./.;
@@ -252,7 +252,7 @@
               ''}
             '';
             meta = arcana-world.meta // {
-              description = "Speech helper for audio playback, Edge, and local MeloTTS, Kokoro, and Piper voices on GPU or CPU";
+              description = "Speech helper for audio playback and local MeloTTS, Kokoro, and Piper voices on GPU or CPU";
               mainProgram = "arcana-world-tts";
             };
           };

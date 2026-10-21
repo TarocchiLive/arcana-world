@@ -4,7 +4,9 @@
 
 Versions are listed newest first.
 
-## Unreleased
+## [v0.4.2]: 2026-10-21
+
+Speech can now use Qwen and Doubao online voices or MeloTTS, Kokoro, and Piper local voices. Edge is built in, and online voices retry on their own when the network hiccups.
 
 ### What's changed
 
@@ -506,3 +508,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.4.0-rc.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.3
 [v0.4.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0
 [v0.4.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.1
+[v0.4.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.2

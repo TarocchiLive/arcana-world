@@ -4,7 +4,9 @@
 
 版本按时间倒序记录。
 
-## 未发布
+## [v0.4.2]：2026-10-21
+
+语音播报新增千问、豆包在线语音和 MeloTTS、Kokoro、Piper 本地语音；Edge 改为内置实现，在线语音遇到网络波动会自动重试。
 
 ### 本次更新
 
@@ -506,3 +508,4 @@
 [v0.4.0-rc.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.3
 [v0.4.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0
 [v0.4.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.1
+[v0.4.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.2
