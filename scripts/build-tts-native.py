@@ -202,6 +202,15 @@ def windows_crt(staging, goarch):
         f"Runtime license document: {license_url}\n", encoding="utf-8")
 
 
+def windows_generator():
+    """按当前 VS 开发者环境选择生成器；未加载环境时沿用 VS 2022。"""
+    generators = {"17": "Visual Studio 17 2022", "18": "Visual Studio 18 2026"}
+    major = os.environ.get("VisualStudioVersion", "17").split(".", 1)[0]
+    if major not in generators:
+        raise SystemExit(f"Unsupported Visual Studio {major}; set TTS_NATIVE_CMAKE_GENERATOR")
+    return generators[major]
+
+
 def main():
     if len(sys.argv) != 5:
         raise SystemExit("Usage: build-tts-native.py BUILD_DIR STAGING_DIR GOOS GOARCH")
@@ -213,7 +222,7 @@ def main():
     work.mkdir(parents=True, exist_ok=True)
     staging.mkdir(parents=True, exist_ok=True)
     source = source_tree(work)
-    generator = os.environ.get("TTS_NATIVE_CMAKE_GENERATOR", "Visual Studio 17 2022" if goos == "windows" else "Ninja")
+    generator = os.environ.get("TTS_NATIVE_CMAKE_GENERATOR") or (windows_generator() if goos == "windows" else "Ninja")
     args = ["cmake", "-S", str(source), "-B", str(work / "build"), "-G", generator,
             "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_SHARED_LIBS=ON",
             "-DSHERPA_ONNX_ENABLE_BINARY=OFF", "-DSHERPA_ONNX_BUILD_C_API_EXAMPLES=OFF",

@@ -87,6 +87,9 @@ def linux(root, binaries, source):
     queue = list(binaries)
     seen = set()
     licensed = set()
+    # 从系统复制的编译器运行库（libstdc++、libgcc_s 等）只依赖系统库，保持原样；
+    # 修改它们没有收益，patchelf 处理这类库还可能崩溃。
+    system_copies = set()
     while queue:
         binary = queue.pop()
         if binary in seen:
@@ -105,8 +108,9 @@ def linux(root, binaries, source):
                 dest.chmod(0o755)
                 if not original.resolve().is_relative_to(source.resolve()):
                     licensed.add(original)
+                    system_copies.add(dest)
                 queue.append(dest)
-    for binary in seen:
+    for binary in seen - system_copies:
         subprocess.check_call(["patchelf", "--set-rpath", "$ORIGIN", str(binary)])
     licenses(root, licensed)
 

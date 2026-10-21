@@ -24,7 +24,7 @@ The normal TUI build does not require or bundle libsrt.
 Speech helper builds run on the target system and CPU (Windows x64 can also build x86).
 They require Python 3, CMake >= 3.24, Ninja, and a C/C++ compiler.
 Windows builds use a MinGW-w64 compiler for the helper: set TTS_CC, TTS_CXX, and TTS_OBJDUMP
-(CI uses llvm-mingw). The GPU runtime on Windows also needs the Visual Studio 2022 C++ tools
+(CI uses llvm-mingw). The GPU runtime on Windows also needs Visual Studio 2022 or 2026 C++ tools
 for the target CPU; its runtime DLLs come from VCToolsRedistDir (override: TTS_MSVC_REDIST_DIR),
 which must contain x64/ or arm64/Microsoft.VC*.CRT. Redistributing them requires a licensed
 Visual Studio installation. TTS_MSVC_LICENSE_FILE supplies the Visual C++ runtime license offline;
