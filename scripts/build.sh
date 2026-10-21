@@ -141,7 +141,7 @@ build() {
       output="libexec/arcana-world-overlay-native$suffix"
       ;;
     tts)
-      cgo="$audio_cgo"; tags=tts_audio; command=arcana-world-tts
+      cgo="$audio_cgo"; tags=tts; command=arcana-world-tts
       output="libexec/arcana-world-tts$suffix"
       ;;
     *) echo "Unknown Go component: $component" >&2; exit 2 ;;

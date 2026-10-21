@@ -1,4 +1,4 @@
-//go:build tts_audio
+//go:build tts
 
 package main
 

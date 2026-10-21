@@ -74,7 +74,7 @@ jobs:
             Linux) audio_cgo=1; overlay_tags=wayland ;;
             Windows) overlay_cgo=0 ;;
           esac
-          CGO_ENABLED="$audio_cgo" go test -tags tts_audio ./internal/tts/audio ./cmd/arcana-world-tts
+          CGO_ENABLED="$audio_cgo" go test -tags tts ./internal/tts/audio ./cmd/arcana-world-tts
           CGO_ENABLED="$overlay_cgo" go test -tags "$overlay_tags" ./internal/overlay/...
       - name: Check command help
         shell: bash
@@ -129,4 +129,4 @@ jobs:
       - name: Scan standalone TUI and core
         run: CGO_ENABLED=0 govulncheck ./...
       - name: Scan native desktop and speech code
-        run: CGO_ENABLED=1 govulncheck -tags=wayland,tts_audio ./...
+        run: CGO_ENABLED=1 govulncheck -tags=wayland,tts ./...

@@ -92,7 +92,7 @@ git merge --no-ff --no-commit dev
 
 ```sh
 make check
-go test -tags tts_audio ./internal/tts/... ./cmd/arcana-world-tts
+go test -tags tts ./internal/tts/... ./cmd/arcana-world-tts
 go run ./cmd/arcana-world --version
 make desktop VERSION="$TAG"
 ```

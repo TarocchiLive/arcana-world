@@ -156,13 +156,13 @@
             inherit vendorHash;
             subPackages = [ "cmd/arcana-world-tts" ];
             env.CGO_ENABLED = if pkgs.stdenv.isLinux then "1" else "0";
-            tags = [ "tts_audio" ];
+            tags = [ "tts" ];
             nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
             buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.alsa-lib ];
             ldflags = [ "-s" "-w" ];
             checkPhase = ''
               runHook preCheck
-              go test -tags tts_audio ./internal/tts/audio ./cmd/arcana-world-tts
+              go test -tags tts ./internal/tts/audio ./cmd/arcana-world-tts
               runHook postCheck
             '';
             meta = arcana-world.meta // {

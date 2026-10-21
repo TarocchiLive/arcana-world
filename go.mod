@@ -15,6 +15,8 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/gorilla/websocket v1.5.3
 	github.com/hajimehoshi/go-mp3 v0.3.4
+	github.com/jfreymuth/oggvorbis v1.0.5
+	github.com/mewkiz/flac v1.0.13
 	github.com/rivo/uniseg v0.4.7
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/wujunwei928/edge-tts-go v0.0.3-0.20260613042911-e8c68c41cd80
@@ -37,9 +39,13 @@ require (
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/go-resty/resty/v2 v2.17.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/icza/bitio v1.1.0 // indirect
 	github.com/jfreymuth/pulse v0.1.3 // indirect
+	github.com/jfreymuth/vorbis v1.0.2 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-runewidth v0.0.30 // indirect
+	github.com/mewkiz/pkg v0.0.0-20250417130911-3f050ff8c56d // indirect
+	github.com/mewpkg/term v0.0.0-20241026122259-37a80af23985 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/xo/terminfo v1.2.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
