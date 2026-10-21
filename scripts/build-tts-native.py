@@ -177,7 +177,9 @@ def windows_crt(staging, goarch):
         raise SystemExit("Expected Windows WebGPU VC runtime imports were not found")
     target = staging / "licenses/tts/msvc"
     target.mkdir(parents=True, exist_ok=True)
-    spec = MANIFEST["licenses"]["msvc-runtime-LICENSE.docx"]
+    vs2026 = os.environ.get("VisualStudioVersion", "17").split(".", 1)[0] == "18"
+    license_name = "msvc-2026-runtime-LICENSE.docx" if vs2026 else "msvc-runtime-LICENSE.docx"
+    spec = MANIFEST["licenses"][license_name]
     license_url = spec["url"]
     supplied = os.environ.get("TTS_MSVC_LICENSE_FILE")
     if supplied:
@@ -197,8 +199,8 @@ def windows_crt(staging, goarch):
         f"Source directory: {directory}\nFiles: {', '.join(sorted(copied))}\n"
         "Redistribution requires a licensed Visual Studio installation and compliance with its terms.\n"
         "https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files\n"
-        "https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution\n"
-        "https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/\n"
+        + ("https://visualstudio.microsoft.com/license-terms/vs2026-ga-visualcpp-v14-redist-runtime/\n"
+           if vs2026 else "https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/\n") +
         f"Runtime license document: {license_url}\n", encoding="utf-8")
 
 

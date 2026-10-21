@@ -83,35 +83,37 @@ def macos(root, binaries):
 
 
 def linux(root, binaries, source):
-    from deploy_linux import SYSTEM, licenses
-    queue = list(binaries)
+    from deploy_linux import SYSTEM, licenses, output as linux_output
+    queue = [(binary, binary) for binary in binaries]
     seen = set()
     licensed = set()
-    # 从系统复制的编译器运行库（libstdc++、libgcc_s 等）只依赖系统库，保持原样；
-    # 修改它们没有收益，patchelf 处理这类库还可能崩溃。
-    system_copies = set()
     while queue:
-        binary = queue.pop()
+        original, binary = queue.pop()
         if binary in seen:
             continue
         seen.add(binary)
-        dependencies = output("ldd", str(binary))
+        dependencies = output("ldd", str(original))
         if "not found" in dependencies:
             raise SystemExit(f"Unresolved TTS runtime dependency:\n{dependencies}")
+        for name in linux_output("patchelf", "--print-needed", str(binary)).splitlines():
+            if "/" in name:
+                linux_output("patchelf", "--replace-needed", name, Path(name).name, str(binary))
         for name, filename in re.findall(r"^\s*(.+?) => (/.+?) \(", dependencies, re.MULTILINE):
-            if SYSTEM.match(name):
+            library = Path(name).name
+            if SYSTEM.match(library):
                 continue
-            dest = root / name
+            dest = root / library
             if not dest.exists():
                 original = Path(filename)
                 shutil.copy2(original, dest)
                 dest.chmod(0o755)
                 if not original.resolve().is_relative_to(source.resolve()):
                     licensed.add(original)
-                    system_copies.add(dest)
-                queue.append(dest)
-    for binary in seen - system_copies:
-        subprocess.check_call(["patchelf", "--set-rpath", "$ORIGIN", str(binary)])
+                queue.append((original, dest))
+    # RUNPATH 只解析直接依赖，每个副本都必须使用包内路径（libstdc++ 也依赖 libgcc_s）。
+    # 共用的 patchelf 调用隔离 LD_LIBRARY_PATH，避免工具改写自己已加载的库而崩溃。
+    for binary in seen:
+        linux_output("patchelf", "--set-rpath", "$ORIGIN", str(binary))
     licenses(root, licensed)
 
 

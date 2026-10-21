@@ -13,7 +13,12 @@ SYSTEM = re.compile(r"^(?:ld-linux.*|ld64\.so.*|lib(?:c|m|pthread|dl|rt|resolv|u
 
 def output(*args):
     try:
-        return subprocess.check_output(args, text=True, stderr=subprocess.STDOUT).strip()
+        # 打包目录可能在 LD_LIBRARY_PATH 中；patchelf 不能加载正在改写的编译器运行库。
+        environment = None
+        if args[0] == "patchelf":
+            environment = os.environ.copy()
+            environment.pop("LD_LIBRARY_PATH", None)
+        return subprocess.check_output(args, text=True, stderr=subprocess.STDOUT, env=environment).strip()
     except (OSError, subprocess.CalledProcessError) as error:
         raise SystemExit(f"Linux runtime deployment failed: {args!r}\n{getattr(error, 'output', str(error))}") from error
 

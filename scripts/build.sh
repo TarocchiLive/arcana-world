@@ -11,7 +11,7 @@ desktop-native  Build without Qt; remove Qt files owned by an earlier build.
 webui           Build the Windows-only WebUI launcher.
 overlay         Build the native overlay helper.
 overlay-qt      Build and deploy the Qt overlay (native host only).
-tts             Build the speech helper and its runtime libraries (playback, Edge, local models on GPU or CPU).
+tts             Build the speech helper and its runtime libraries (playback and local models on GPU or CPU).
 rtmpsrt         Deploy optional libsrt and its dependencies beside an existing TUI.
 
 Environment: GOOS, GOARCH, VERSION, OUT_DIR (default: bin), BUILD_JOBS (default: 2).
@@ -32,6 +32,7 @@ otherwise it is downloaded from Microsoft.
 GPU support: macOS 14+ on Apple Silicon, and Linux and Windows on x64 or ARM64.
 Intel macOS and 32-bit Windows builds support CPU only.
 Linux also requires patchelf and the distribution's package license data.
+Linux packages bundle non-glibc dependencies with relative runtime paths; LD_LIBRARY_PATH is not required to run them.
 TTS_LICENSE_DIR supplies the ONNX Runtime license files offline.
 TTS_SHERPA_SOURCE supplies unpacked sherpa-onnx sources, and TTS_WEBGPU_PACKAGE supplies the WebGPU NuGet package.
 TTS_NATIVE_DEPS_DIR supplies unpacked CMake dependencies for offline builds.
