@@ -2,9 +2,10 @@ package rtmpsrt
 
 import (
 	"errors"
-	"golang.org/x/sys/windows"
 	"os"
 	"path/filepath"
+
+	"golang.org/x/sys/windows"
 )
 
 func openSRT() (func(string) (uintptr, error), error) {

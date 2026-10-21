@@ -62,19 +62,40 @@ func loadSRT() (*nativeAPI, error) {
 	return a, nil
 }
 
+// libsrt SRT_SOCKOPT 枚举值，与 srt.h 保持一致。
+const (
+	optSendSync    int32 = 1
+	optRecvSync    int32 = 2
+	optLinger      int32 = 7
+	optTSBPDMode   int32 = 22
+	optLatency     int32 = 23
+	optTLPktDrop   int32 = 31
+	optConnTimeout int32 = 36
+	optMessageAPI  int32 = 48
+	optPayloadSize int32 = 49
+	optTransType   int32 = 50
+)
+
+const (
+	// payloadSize 是 LIVE 模式单个 SRT 包的载荷上限，也是接收缓冲大小。
+	payloadSize = 1456
+	// sendMessageSize 是每条发送消息的长度上限，低于载荷上限。
+	sendMessageSize = 1424
+)
+
 type srtConn struct {
 	api     *nativeAPI
 	socket  int32
 	once    sync.Once
 	pending []byte
-	buffer  [1456]byte
+	buffer  [payloadSize]byte
 }
 
 func (c *srtConn) Close() error { c.once.Do(func() { c.api.close(c.socket) }); return nil }
 func (c *srtConn) Write(p []byte) (int, error) {
 	total := 0
 	for len(p) > 0 {
-		n := min(len(p), 1424)
+		n := min(len(p), sendMessageSize)
 		sent := int(c.api.send(c.socket, unsafe.Pointer(&p[0]), int32(n), -1, 1))
 		runtime.KeepAlive(p)
 		if sent != n {
@@ -121,8 +142,12 @@ func dialSRT(ctx context.Context, a *nativeAPI, target Target) (*srtConn, error)
 			c.Close()
 		}
 	}()
-	// 与参考 processor 分支一致：LIVE、消息模式、1456 载荷、200ms 延迟；不启用时间戳交付/迟包丢弃。
-	for _, option := range [][2]int32{{50, 0}, {48, 1}, {49, 1456}, {23, 200}, {31, 0}, {22, 0}, {36, 10000}, {1, 1}, {2, 1}} {
+	// LIVE 传输、消息模式、1456 载荷、200ms 延迟；不启用时间戳交付和迟包丢弃，阻塞收发，连接超时 10 秒。
+	options := [][2]int32{
+		{optTransType, 0}, {optMessageAPI, 1}, {optPayloadSize, payloadSize}, {optLatency, 200},
+		{optTLPktDrop, 0}, {optTSBPDMode, 0}, {optConnTimeout, 10000}, {optSendSync, 1}, {optRecvSync, 1},
+	}
+	for _, option := range options {
 		value := option[1]
 		if a.option(id, option[0], unsafe.Pointer(&value), 4) != 0 {
 			return nil, fmt.Errorf("SRT option %d unavailable", option[0])
@@ -134,7 +159,7 @@ func dialSRT(ctx context.Context, a *nativeAPI, target Target) (*srtConn, error)
 	if runtime.GOOS == "windows" {
 		lingerSize = 4
 	}
-	if a.option(id, 7, unsafe.Pointer(&linger[0]), lingerSize) != 0 {
+	if a.option(id, optLinger, unsafe.Pointer(&linger[0]), lingerSize) != 0 {
 		return nil, errors.New("SRT linger configuration failed")
 	}
 	var addr [16]byte

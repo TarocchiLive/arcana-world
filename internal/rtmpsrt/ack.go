@@ -205,7 +205,7 @@ func relayReplies(dst io.Writer, src io.Reader, mapping *ackMap) error {
 				copy(s.control[s.received:], buffer[:take])
 			}
 			if ack {
-				for i := uint32(0); i < take; i++ {
+				for i := range take {
 					s.positions[s.received+i] = s.ackLength + int(i)
 				}
 				copy(s.ack[s.ackLength:], buffer[:take])

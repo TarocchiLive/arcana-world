@@ -416,7 +416,8 @@ func (c *Client) readLoop(s *session) {
 			if c.session == s {
 				c.snapshot.Status.Active = *event.Data.Active
 				c.snapshot.Status.Reconnecting = event.Data.State == "OBS_WEBSOCKET_OUTPUT_RECONNECTING"
-				if event.Data.State == "OBS_WEBSOCKET_OUTPUT_STARTED" {
+				// 每次开始推流都重新计算桥接错误，让重复失败也能提示。
+				if event.Data.State == "OBS_WEBSOCKET_OUTPUT_STARTING" || event.Data.State == "OBS_WEBSOCKET_OUTPUT_STARTED" {
 					c.snapshot.Err = nil
 				}
 				if !*event.Data.Active {

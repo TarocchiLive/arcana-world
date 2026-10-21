@@ -31,19 +31,27 @@ func (c *Client) CheckRTMPSRT() error {
 	}
 	return nil
 }
+
+// closeBridgeLocked 关闭当前桥并登记其退出信号，调用方解锁后用 waitBridges 等待。
 func (c *Client) closeBridgeLocked() {
-	if c.bridge != nil {
-		c.bridge.Close()
-		pending := c.closingBridges[:0]
-		for _, done := range c.closingBridges {
-			select {
-			case <-done:
-			default:
-				pending = append(pending, done)
-			}
+	if c.bridge == nil {
+		return
+	}
+	c.bridge.Close()
+	pending := c.closingBridges[:0]
+	for _, done := range c.closingBridges {
+		select {
+		case <-done:
+		default:
+			pending = append(pending, done)
 		}
-		c.closingBridges = append(pending, c.bridge.Done())
-		c.bridge = nil
+	}
+	c.closingBridges = append(pending, c.bridge.Done())
+	c.bridge = nil
+	// 连接期间的 Err 只来自桥接；旧桥的错误不保留，新桥失败时才能再次提示。
+	if c.snapshot.Connected && c.snapshot.Err != nil {
+		c.snapshot.Err = nil
+		c.publishLocked()
 	}
 }
 
@@ -84,6 +92,7 @@ func (c *Client) installBridge(ctx context.Context, s *session, target rtmpsrt.T
 	c.bridge = bridge
 	c.mu.Unlock()
 	c.waitBridges()
+	logger.Info("obs configure", "server", target.Host, "scheme", "rtmpsrt")
 	_, err = c.request(ctx, s, "SetStreamServiceSettings", map[string]any{
 		"streamServiceType":     "rtmp_custom",
 		"streamServiceSettings": map[string]any{"bwtest": false, "server": bridge.Server(), "key": bridge.Key(), "use_auth": false},

@@ -87,9 +87,15 @@ In the terminal interface, press `0` for help. In the Web panel, use Help in the
 
 ### RTMPSRT streaming
 
-Select `RTMPSRT` under the streaming protocol settings, connect OBS on this computer, and start live. The app bridges RTMP over SRT while preserving the publishing credentials. It reports an error if Bilibili does not return an RTMPSRT destination. Keep the app and OBS control connection running: disconnecting or exiting interrupts RTMPSRT media delivery.
+RTMPSRT needs the [libsrt](https://github.com/Haivision/srt) 1.5 runtime. Skip it if you do not use this protocol:
 
-This feature requires the optional [libsrt](https://github.com/Haivision/srt) runtime. On macOS, install Homebrew's `srt` package; on Linux, install your distribution's libsrt runtime. On Windows, place `srt.dll` and its dependencies, matching the app's architecture, in the `lib` directory beside the executable; they can be built using vcpkg's `srt` package. See `bash scripts/build.sh --help` for source packaging options. Regular RTMP and the terminal interface do not require this library.
+- macOS: `brew install srt`
+- Linux: install your distribution's libsrt 1.5 package, such as `libsrt1.5-openssl` on Debian / Ubuntu
+- Windows: put `srt.dll` and its dependent DLLs, built for the same architecture as the app, in the `lib` folder next to the executable; vcpkg's `srt` package can build them
+
+Then choose `RTMPSRT` as the streaming protocol in Settings, connect OBS on this computer, and start live. OBS streams to a local address and the app forwards it to Bilibili, so keep the app running and OBS connected while you stream; disconnecting OBS or quitting the app stops the stream. If Bilibili does not provide an RTMPSRT URL, the app reports an error; stop live and switch to another protocol.
+
+To bundle the runtime into a source build, see `bash scripts/build.sh --help`.
 
 ## TODO
 - [x] Fetch direct Bilibili stream URLs, connect to OBS, and start broadcasts automatically.

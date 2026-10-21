@@ -88,9 +88,15 @@ nix build
 
 ### RTMPSRT 推流
 
-在「设置」的推流协议中选择 `RTMPSRT`，连接本机 OBS 后开播。应用将 RTMP 桥接到 SRT，保持发布地址中的原始凭据；B 站未返回该协议地址时会报错。推流期间需保持应用及 OBS 控制连接运行，断开或退出会中断 RTMPSRT 视频传输。
+RTMPSRT 需要 [libsrt](https://github.com/Haivision/srt) 1.5 运行库，不用这个协议就不必安装：
 
-此功能需要可选的 [libsrt](https://github.com/Haivision/srt) 运行库。macOS 可通过 Homebrew 安装 `srt`；Linux 可安装发行版的 libsrt 运行库。Windows 将与主程序架构一致的 `srt.dll` 及其依赖放入主程序旁的 `lib` 目录，可从 vcpkg 的 `srt` 包构建取得。源码打包选项见 `bash scripts/build.sh --help`。普通 RTMP 和终端界面不要求安装此库。
+- macOS：`brew install srt`
+- Linux：安装发行版提供的 libsrt 1.5 包，例如 Debian / Ubuntu 的 `libsrt1.5-openssl`
+- Windows：把与主程序架构一致的 `srt.dll` 及其依赖 DLL 放进主程序旁的 `lib` 目录，可用 vcpkg 的 `srt` 包构建
+
+安装后，在「设置」的推流协议中选择 `RTMPSRT`，连接本机 OBS 再开播。OBS 推流到本机地址，由本应用转发给 B 站，所以推流期间要保持应用运行、OBS 保持连接；断开 OBS 或退出应用都会中断推流。B 站没有提供 RTMPSRT 地址时会报错，请停播后改用其他协议。
+
+从源码把运行库打包进发行目录的方法见 `bash scripts/build.sh --help`。
 
 ## TODO
 - [x] 支持获取 B 站推流直链，自动连接 OBS 并开播。
