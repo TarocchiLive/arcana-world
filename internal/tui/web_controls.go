@@ -57,6 +57,8 @@ func (m *Model) webFields(page string) []webui.Field {
 		}
 		add("chat-enabled", "behavior", i18n.WebFieldChatEnabled, "switch", boolean(!m.config.DanmakuDisabled), false)
 		add("chat-other", "behavior", i18n.WebFieldChatOther, "switch", boolean(m.config.DanmakuShowOther), false)
+		add("websocket-enabled", "behavior", i18n.TUIWebSocketEnabled, "switch", boolean(m.websocket != nil), false)
+		add("websocket-addr", "behavior", i18n.TUIWebSocketAddr, "text", m.effectiveWebSocketAddr(), m.websocketAddr != "")
 		f = add("chat-limit", "behavior", i18n.WebFieldChatLimit, "number", strconv.Itoa(m.config.DanmakuLimit), false)
 		f.Min, f.Max, f.Step = 1, 1000, 1
 		add("exit-obs-stop", "behavior", i18n.WebFieldExitOBSStop, "switch", boolean(!m.config.ExitOBSStopDisabled), false)
@@ -256,6 +258,8 @@ func (m *Model) webSetField(page, id, value string) (tea.Cmd, error) {
 		return m.setTitle(value), nil
 	case "chat-enabled":
 		return m.perform("chat-toggle"), nil
+	case "websocket-enabled":
+		return m.toggleWebSocket(), nil
 	case "tts-enabled":
 		return m.performTTS("tts-toggle"), nil
 	case "obs-auto-connect", "obs-auto-stream", "chat-other", "exit-obs-stop", "exit-live-stop":

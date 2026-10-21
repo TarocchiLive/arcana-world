@@ -55,7 +55,7 @@ func (m *Model) Close() error {
 		if stopErr != nil {
 			logger.Error("close live session failed", "err", stopErr)
 		}
-		closeErr := errors.Join(imageErr, ttsErr, stopErr, m.closeOverlay(), m.closeChat(), m.obsClient.Close())
+		closeErr := errors.Join(imageErr, ttsErr, stopErr, m.closeWebSocket(), m.closeOverlay(), m.closeChat(), m.obsClient.Close())
 		// 退出记录必须在日志关闭之前写入，并带上前面各步骤的错误。
 		logger.Info("application exited", "err", closeErr, "clear_data", m.clearDataOnExit)
 		m.closeErr = errors.Join(closeErr, m.journal.Close())

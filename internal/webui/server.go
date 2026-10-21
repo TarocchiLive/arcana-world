@@ -13,9 +13,11 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"arcana-world/internal/broadcast"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/journal"
 )
@@ -32,6 +34,11 @@ type Server struct {
 	bindAddress string
 	host        string
 	request     Request
+	mu          sync.Mutex
+	broadcast   *broadcast.Server
+	closed      bool
+	closeOnce   sync.Once
+	closeErr    error
 	clients     atomic.Int64 // 当前打开的 TCP 连接数。
 }
 
@@ -68,6 +75,25 @@ func Listen(bindAddress string, port int, request Request) (*Server, error) {
 	return s, nil
 }
 
+// Addr 返回实际绑定地址，保留通配地址及系统分配的端口。
+func (s *Server) Addr() string {
+	return s.listener.Addr().String()
+}
+
+// SetBroadcast 替换只读广播；旧广播由调用方在配置提交后关闭。
+// WebUI 关闭后不再接受挂载，传入的广播也会立即关闭。
+func (s *Server) SetBroadcast(server *broadcast.Server) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		if server != nil {
+			_ = server.Close()
+		}
+		return
+	}
+	s.broadcast = server
+}
+
 func (s *Server) URL() string {
 	return "http://" + strings.TrimSuffix(s.host, ":80") + "/"
 }
@@ -82,15 +108,31 @@ func (s *Server) Serve() error {
 }
 
 func (s *Server) Close(ctx context.Context) error {
-	start := time.Now()
-	err := s.http.Shutdown(ctx)
-	if err != nil {
-		closeErr := s.http.Close()
-		logger.Warn("web ui shutdown forced", "elapsed", time.Since(start), "clients", s.clients.Load(), "err", err, "close_err", closeErr)
-		return errors.Join(err, closeErr)
-	}
-	logger.Info("web ui shutdown", "addr", s.listener.Addr().String(), "elapsed", time.Since(start))
-	return nil
+	s.closeOnce.Do(func() {
+		start := time.Now()
+		s.mu.Lock()
+		s.closed = true
+		if s.broadcast != nil {
+			s.closeErr = s.broadcast.Close()
+			s.broadcast = nil
+		}
+		s.mu.Unlock()
+		err := s.http.Shutdown(ctx)
+		if err != nil {
+			closeErr := s.http.Close()
+			logger.Warn("web ui shutdown forced", "elapsed", time.Since(start), "clients", s.clients.Load(), "err", err, "close_err", closeErr)
+			err = errors.Join(err, closeErr)
+		} else {
+			logger.Info("web ui shutdown", "addr", s.listener.Addr().String(), "elapsed", time.Since(start))
+		}
+		// Serve 尚未启动时，HTTP 服务还未接管监听器，也必须释放端口。
+		listenerErr := s.listener.Close()
+		if errors.Is(listenerErr, net.ErrClosed) {
+			listenerErr = nil
+		}
+		s.closeErr = errors.Join(s.closeErr, err, listenerErr)
+	})
+	return s.closeErr
 }
 
 // trackConn 记录客户端连接的建立与断开；只在连接层记录，不记录每个请求。
@@ -138,6 +180,16 @@ func (s *Server) validHost(r *http.Request) bool {
 }
 
 func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
+	// 只有已挂载的精确 /ws 路径绕过 WebUI 的 Host、Origin 与来源限制。
+	if r.URL.Path == "/ws" {
+		s.mu.Lock()
+		server := s.broadcast
+		s.mu.Unlock()
+		if server != nil {
+			server.ServeHTTP(w, r)
+			return
+		}
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Referrer-Policy", "no-referrer")

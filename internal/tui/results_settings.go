@@ -29,6 +29,9 @@ func (m *Model) handleSettingsResetResult(value *bili.Client, err error, label i
 	if m.ttsOverride != nil {
 		m.tts.enabled = *m.ttsOverride
 	}
+	if err := m.closeWebSocket(); err != nil {
+		m.warn(err.Error())
+	}
 	m.syncChat()
 	m.log(i18n.T(i18n.TUISettingsResetDone))
 	return m.stopOverlay()

@@ -108,6 +108,7 @@ func runArgs(args []string) (err error) {
 	obsAutoStream := flags.Bool("obs-auto-stream", false, "")
 	enableTTS := flags.Bool("tts", false, "")
 	doctor := flags.Bool("doctor", false, "")
+	websocketAddr := flags.String("websocket-addr", "", "")
 	checkUpdate := flags.Bool("check-update", false, "")
 	enableTUI := flags.Bool("tui", false, "")
 	enableGUI := flags.Bool("gui", false, "")
@@ -133,6 +134,7 @@ func runArgs(args []string) (err error) {
 	flags.Lookup("obs-auto-stream").Usage = i18n.T(i18n.CLIOBSAutoStreamUsage)
 	flags.Lookup("tts").Usage = i18n.T(i18n.CLITTSUsage)
 	flags.Lookup("doctor").Usage = i18n.T(i18n.CLIDoctorUsage)
+	flags.Lookup("websocket-addr").Usage = i18n.T(i18n.CLIWebSocketAddrUsage)
 	flags.Lookup("check-update").Usage = i18n.T(i18n.CLIUpdateUsage)
 	flags.Lookup("tui").Usage = i18n.T(i18n.CLITUIUsage)
 	flags.Lookup("gui").Usage = i18n.T(i18n.CLIGUIUsage)
@@ -312,7 +314,10 @@ func runArgs(args []string) (err error) {
 		return err
 	}
 	if useWeb {
-		return runWeb(ctx, model, cfg.WebBindAddress, *webPort)
+		return runWeb(ctx, model, cfg.WebBindAddress, *webPort, *websocketAddr)
+	}
+	if err := model.ConfigureWebSocket(*websocketAddr, nil); err != nil {
+		return err
 	}
 	defer func() { _, _ = fmt.Fprint(os.Stdout, ansi.SetPointerShape("default")) }()
 	// 进程信号统一由上层上下文接管，避免事件循环退出后仍有信号处理器等待投递。
