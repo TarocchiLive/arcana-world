@@ -64,6 +64,7 @@ const (
 	TTSCloudBadResponse            Key = "tts.error.cloud_bad_response"
 	TTSCloudRejected               Key = "tts.error.cloud_rejected"
 	TTSCloudAudioInvalid           Key = "tts.error.cloud_audio_invalid"
+	TTSCloudTimeout                Key = "tts.error.cloud_timeout"
 	TTSHelperMissing               Key = "tts.error.helper_missing"
 	TTSHelperUnusable              Key = "tts.error.helper_unusable"
 	TTSHelperStopped               Key = "tts.error.helper_stopped"

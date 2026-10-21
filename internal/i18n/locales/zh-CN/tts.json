@@ -153,6 +153,7 @@
   "tts.error.cloud_bad_response": "%s返回了无法识别的内容，请检查服务地址和设置",
   "tts.error.cloud_rejected": "%s无法合成这段文字",
   "tts.error.cloud_audio_invalid": "%s返回的音频不可用，请重试",
+  "tts.error.cloud_timeout": "%s响应超时，请稍后再试",
   "tts.error.helper_missing": "找不到语音组件 %s，请使用完整的发行包",
   "tts.error.helper_unusable": "语音组件 %s 无法运行，请使用完整的发行包",
   "tts.error.helper_stopped": "语音组件意外退出了，请重试",

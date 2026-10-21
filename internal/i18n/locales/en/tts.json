@@ -153,6 +153,7 @@
   "tts.error.cloud_bad_response": "%s returned something that could not be understood. Check the Base URL and settings",
   "tts.error.cloud_rejected": "%s could not synthesize this text",
   "tts.error.cloud_audio_invalid": "The audio from %s cannot be used. Try again",
+  "tts.error.cloud_timeout": "%s took too long to respond. Try again later",
   "tts.error.helper_missing": "The speech component %s is missing. Use the complete release package",
   "tts.error.helper_unusable": "The speech component %s cannot run. Use the complete release package",
   "tts.error.helper_stopped": "The speech component stopped unexpectedly. Try again",

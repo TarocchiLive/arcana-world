@@ -104,11 +104,6 @@ func (q *qwen) Synthesize(ctx context.Context, text string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx, done, err := q.begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer done()
 	payload := struct {
 		Model string `json:"model"`
 		Input struct {
@@ -122,11 +117,16 @@ func (q *qwen) Synthesize(ctx context.Context, text string) ([]byte, error) {
 	if err != nil {
 		return nil, errors.New("encoding Qwen request failed")
 	}
+	return q.synthesize(ctx, func(ctx context.Context) ([]byte, error) { return q.request(ctx, body) })
+}
+
+// request 完成一次合成：提交文字，再下载返回的音频。
+func (q *qwen) request(ctx context.Context, body []byte) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, q.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.New("Qwen request could not be created")
 	}
-	// 禁止传输层重放付费请求；不设置幂等键，也不执行应用层重试。
+	// 重试由 synthesize 统一控制，传输层不自行重放请求。
 	req.GetBody = nil
 	req.Header.Set("Authorization", "Bearer "+q.key)
 	req.Header.Set("Content-Type", "application/json")
@@ -197,7 +197,7 @@ func (q *qwen) download(ctx context.Context, address string) ([]byte, error) {
 		return nil, q.fail(i18n.TTSCloudAudioInvalid)
 	}
 	if len(audio) == 0 {
-		return nil, q.fail(i18n.TTSCloudAudioInvalid)
+		return nil, retryableError{q.fail(i18n.TTSCloudAudioInvalid)}
 	}
 	// 只确认是 WAV 容器；流式头部的长度可能为 0 或 0xFFFFFFFF，采样布局由音频播放器校验。
 	if len(audio) < 44 || string(audio[:4]) != "RIFF" || string(audio[8:12]) != "WAVE" {

@@ -106,11 +106,6 @@ func (s *doubaoSynthesizer) Synthesize(ctx context.Context, text string) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	ctx, done, err := s.begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer done()
 	payload := struct {
 		User struct {
 			UID string `json:"uid"`
@@ -134,11 +129,16 @@ func (s *doubaoSynthesizer) Synthesize(ctx context.Context, text string) ([]byte
 	if err != nil {
 		return nil, errors.New("encoding Doubao request failed")
 	}
+	return s.synthesize(ctx, func(ctx context.Context) ([]byte, error) { return s.request(ctx, body) })
+}
+
+// request 完成一次流式合成并拼接全部音频块。
+func (s *doubaoSynthesizer) request(ctx context.Context, body []byte) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.New("Doubao request could not be created")
 	}
-	// 付费合成不自动重放请求。
+	// 重试由 synthesize 统一控制，传输层不自行重放请求。
 	req.GetBody = nil
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Api-Key", s.apiKey)
@@ -152,20 +152,15 @@ func (s *doubaoSynthesizer) Synthesize(ctx context.Context, text string) ([]byte
 	if response.StatusCode != http.StatusOK {
 		return nil, s.statusError(response.StatusCode)
 	}
-	audio, err := readDoubaoAudio(response.Body)
-	if err != nil {
-		if ctx.Err() != nil || s.lifetime.Err() != nil {
-			return nil, s.failure(ctx, i18n.TTSCloudInterrupted)
-		}
-		return nil, err
-	}
+	audio, err := s.readAudio(response.Body)
 	if ctx.Err() != nil || s.lifetime.Err() != nil {
 		return nil, s.failure(ctx, i18n.TTSCloudInterrupted)
 	}
-	return audio, nil
+	return audio, err
 }
 
-func readDoubaoAudio(reader io.Reader) ([]byte, error) {
+// readAudio 逐条解析流式 JSON 包并解码音频；连接中断与空音频可以重试，协议错误不能。
+func (s *doubaoSynthesizer) readAudio(reader io.Reader) ([]byte, error) {
 	limited := &io.LimitedReader{R: reader, N: doubaoMaxResponseBytes + 1}
 	decoder := json.NewDecoder(limited)
 	var audio []byte
@@ -177,29 +172,34 @@ func readDoubaoAudio(reader io.Reader) ([]byte, error) {
 		}
 		err := decoder.Decode(&packet)
 		if limited.N == 0 {
-			return nil, fmt.Errorf(i18n.T(i18n.TTSCloudBadResponse), doubaoLabel())
+			return nil, s.fail(i18n.TTSCloudBadResponse)
 		}
 		if err == io.EOF {
 			if !finished {
-				return nil, fmt.Errorf(i18n.T(i18n.TTSCloudInterrupted), doubaoLabel())
+				return nil, retryableError{s.fail(i18n.TTSCloudInterrupted)}
 			}
 			if len(audio) == 0 {
-				return nil, fmt.Errorf(i18n.T(i18n.TTSCloudAudioInvalid), doubaoLabel())
+				return nil, retryableError{s.fail(i18n.TTSCloudAudioInvalid)}
 			}
 			return audio, nil
 		}
+		var syntax *json.SyntaxError
+		var mismatch *json.UnmarshalTypeError
+		if errors.As(err, &syntax) || errors.As(err, &mismatch) {
+			return nil, s.fail(i18n.TTSCloudBadResponse)
+		}
 		if err != nil {
-			return nil, fmt.Errorf(i18n.T(i18n.TTSCloudBadResponse), doubaoLabel())
+			return nil, retryableError{s.fail(i18n.TTSCloudInterrupted)}
 		}
 		if finished || packet.Code == nil {
-			return nil, fmt.Errorf(i18n.T(i18n.TTSCloudBadResponse), doubaoLabel())
+			return nil, s.fail(i18n.TTSCloudBadResponse)
 		}
 		switch *packet.Code {
 		case 0:
 		case 20000000:
 			finished = true
 		default:
-			return nil, fmt.Errorf(i18n.T(i18n.TTSCloudRejected), doubaoLabel())
+			return nil, s.fail(i18n.TTSCloudRejected)
 		}
 		if packet.Data == "" {
 			continue
@@ -207,15 +207,15 @@ func readDoubaoAudio(reader io.Reader) ([]byte, error) {
 		// 先检查上限，再为本块扩容；解码直接追加到最终音频，避免额外音频副本。
 		remaining := MaxAudioBytes - len(audio)
 		if len(packet.Data) > base64.StdEncoding.EncodedLen(remaining) {
-			return nil, fmt.Errorf(i18n.T(i18n.TTSCloudAudioInvalid), doubaoLabel())
+			return nil, s.fail(i18n.TTSCloudAudioInvalid)
 		}
 		previous := len(audio)
 		audio, err = base64.StdEncoding.Strict().AppendDecode(audio, []byte(packet.Data))
 		if err != nil || len(audio) == previous {
-			return nil, fmt.Errorf(i18n.T(i18n.TTSCloudAudioInvalid), doubaoLabel())
+			return nil, s.fail(i18n.TTSCloudAudioInvalid)
 		}
 		if len(audio) > MaxAudioBytes {
-			return nil, fmt.Errorf(i18n.T(i18n.TTSCloudAudioInvalid), doubaoLabel())
+			return nil, s.fail(i18n.TTSCloudAudioInvalid)
 		}
 	}
 }
