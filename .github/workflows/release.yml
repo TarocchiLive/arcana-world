@@ -90,7 +90,7 @@ jobs:
             (cd package && 7z a -tzip -mx=9 "../dist/${archive}.zip" arcana-world.exe arcana-world-webui.exe libexec LICENSE 看我.txt)
           else
             "$tar_tool" --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
-              -C package -cf - arcana-world libexec LICENSE | gzip -n > "dist/${archive}.tar.gz"
+              -C package -cf - arcana-world libexec LICENSE | xz -T2 -6 > "dist/${archive}.tar.xz"
           fi
       - uses: actions/upload-artifact@v7
         with:
@@ -132,10 +132,10 @@ jobs:
           base = f"https://github.com/{repository}"
           assets = sorted(Path("dist").glob("arcana-world-*"))
           platforms = {"windows": "Windows", "linux": "Linux", "darwin": "macOS"}
-          architectures = {"amd64": "x64", "arm64": "ARM64", "386": "x86"}
+          architectures = {"amd64": "x64", "arm64": "ARM64", "386": "x86 (32-bit)"}
           rows = []
           for asset in assets:
-              target = asset.name.removeprefix("arcana-world-").removesuffix(".tar.gz").removesuffix(".zip")
+              target = asset.name.removeprefix("arcana-world-").removesuffix(".tar.xz").removesuffix(".zip")
               platform, architecture = target.split("-")
               rows.append(f"| {platforms[platform]} | {architectures[architecture]} | [{asset.name}]({base}/releases/download/{tag}/{asset.name}) |")
           sections = []
@@ -198,18 +198,13 @@ jobs:
           PY
       - name: Generate checksums
         working-directory: dist
-        run: sha256sum *.tar.gz *.zip > checksums.txt
+        run: sha256sum -- *.tar.xz *.zip > checksums.txt
       - name: Attest release artifacts
         uses: actions/attest-build-provenance@v3
         with:
           subject-path: dist/*
-      - name: Publish GitHub Release
+      - name: Prepare draft GitHub Release
         shell: bash
         run: |
-          flags=(--latest)
-          if [[ "$RELEASE_TAG" == *-* ]]; then
-            flags=(--prerelease --latest=false)
-          fi
           gh release create "$RELEASE_TAG" --verify-tag --notes-file release-notes.txt \
             --title "Arcana World $RELEASE_TAG" --draft dist/*
-          gh release edit "$RELEASE_TAG" --draft=false "${flags[@]}"

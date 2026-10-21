@@ -18,6 +18,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"strings"
+	"time"
 	"unicode"
 
 	"arcana-world/internal/coverimage"
@@ -41,15 +42,18 @@ func (c *Client) UploadCover(ctx context.Context, prepared *coverimage.Prepared)
 		return result, err
 	}
 	if prepared == nil || len(prepared.JPEG) == 0 || len(prepared.JPEG) > coverimage.MaxUploadSize {
+		logger.Error("cover image size invalid", "bytes", coverBytes(prepared), "limit", coverimage.MaxUploadSize)
 		return result, errors.New(i18n.T(i18n.BiliCoverImageInvalid))
 	}
 	config, err := jpeg.DecodeConfig(bytes.NewReader(prepared.JPEG))
 	if err != nil || config.Width != coverimage.Width || config.Height != coverimage.Height {
+		logger.Error("cover jpeg dimensions invalid", "bytes", len(prepared.JPEG), "width", config.Width, "height", config.Height, "err", err)
 		return result, errors.New(i18n.T(i18n.BiliCoverDimensionsInvalid))
 	}
 	// 仅校验头部会放过截断或损坏的数据。在任何需要认证的网络操作前，
 	// 先完整解码大小受限且尺寸固定的 JPEG。
 	if _, err = jpeg.Decode(bytes.NewReader(prepared.JPEG)); err != nil {
+		logger.Error("cover jpeg corrupted", "bytes", len(prepared.JPEG), "err", err)
 		return result, errors.New(i18n.T(i18n.BiliCoverImageCorrupted))
 	}
 	p, err := c.csrf(values())
@@ -82,6 +86,7 @@ func (c *Client) UploadCover(ctx context.Context, prepared *coverimage.Prepared)
 	}
 	e, _, err := c.request(ctx, http.MethodPost, c.APIBase, "/x/upload/web/image", values("csrf", p.Get("csrf")), &body, writer.FormDataContentType(), false, true)
 	if err != nil {
+		logger.Error("cover upload failed", "bytes", len(prepared.JPEG), "err", err)
 		return result, err
 	}
 	if err = c.coverFailure(i18n.T(i18n.BiliCoverUpload), e); err != nil {
@@ -90,12 +95,14 @@ func (c *Client) UploadCover(ctx context.Context, prepared *coverimage.Prepared)
 	var uploaded struct {
 		Location string `json:"location"`
 	}
-	if err = decode(e.Data, &uploaded); err != nil {
+	if err = decode("/x/upload/web/image", e.Data, &uploaded); err != nil {
 		return result, err
 	}
 	if uploaded.Location == "" {
+		logger.Error("cover upload response has no location")
 		return result, errors.New(i18n.T(i18n.BiliCoverUploadUrlMissing))
 	}
+	logger.Info("cover uploaded", "bytes", len(prepared.JPEG))
 	result.URL = uploaded.Location
 	p.Set("platform", "pc_link")
 	p.Set("mobi_app", "pc_link")
@@ -109,6 +116,7 @@ func (c *Client) UploadCover(ctx context.Context, prepared *coverimage.Prepared)
 		err = c.coverFailure(i18n.T(i18n.BiliCoverPublication), e)
 	}
 	if err != nil {
+		logger.Error("cover publication failed", "uploaded", true, "err", err)
 		return result, fmt.Errorf(i18n.T(i18n.BiliCoverPublicationFailed), err)
 	}
 	if len(e.Data) != 0 && string(e.Data) != "null" {
@@ -118,7 +126,7 @@ func (c *Client) UploadCover(ctx context.Context, prepared *coverimage.Prepared)
 				Reason string          `json:"audit_title_reason"`
 			} `json:"audit_info"`
 		}
-		if err = decode(e.Data, &data); err != nil {
+		if err = decode(preLiveInfo, e.Data, &data); err != nil {
 			return result, fmt.Errorf(i18n.T(i18n.BiliCoverReviewDecodeFailed), err)
 		}
 		if data.Audit != nil {
@@ -178,11 +186,13 @@ func coverURL(raw string, upgrade bool) (*url.URL, error) {
 func (c *Client) FetchCover(ctx context.Context, rawURL string) (image.Image, error) {
 	u, err := coverURL(rawURL, true)
 	if err != nil {
+		logger.Warn("cover url rejected", "err", err)
 		return nil, err
 	}
 	if c.HTTP == nil {
 		return nil, errors.New(i18n.T(i18n.BiliHttpClientMissing))
 	}
+	start := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -204,15 +214,19 @@ func (c *Client) FetchCover(ctx context.Context, rawURL string) (image.Image, er
 	response, err := client.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
+			logger.Warn("cover download interrupted", "host", u.Hostname(), "path", u.Path, "err", ctx.Err())
 			return nil, ctx.Err()
 		}
+		logger.Error("cover download failed", "host", u.Hostname(), "path", u.Path, "elapsed", time.Since(start), "err", netCause(err))
 		return nil, errors.New(i18n.T(i18n.BiliCoverDownloadFailed))
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		logger.Error("cover download failed", "host", u.Hostname(), "path", u.Path, "status", response.StatusCode)
 		return nil, fmt.Errorf(i18n.T(i18n.BiliCoverHttpStatus), response.StatusCode)
 	}
 	if response.ContentLength > coverimage.MaxFileSize {
+		logger.Error("cover download too large", "host", u.Hostname(), "path", u.Path, "content_length", response.ContentLength, "limit", coverimage.MaxFileSize)
 		return nil, errors.New(i18n.T(i18n.BiliCoverFileTooLarge))
 	}
 	raw, err := io.ReadAll(io.LimitReader(response.Body, coverimage.MaxFileSize+1))
@@ -220,12 +234,15 @@ func (c *Client) FetchCover(ctx context.Context, rawURL string) (image.Image, er
 		return nil, ctx.Err()
 	}
 	if err != nil {
+		logger.Error("cover download read failed", "host", u.Hostname(), "path", u.Path, "err", err)
 		return nil, errors.New(i18n.T(i18n.BiliCoverReadFailed))
 	}
 	img, err := coverimage.Decode(raw)
 	if err != nil {
+		logger.Error("cover image decode failed", "host", u.Hostname(), "path", u.Path, "bytes", len(raw), "err", err)
 		return nil, err
 	}
+	logger.Debug("cover fetched", "host", u.Hostname(), "path", u.Path, "bytes", len(raw), "elapsed", time.Since(start))
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -238,6 +255,7 @@ func (c *Client) coverFailure(operation string, response envelope) error {
 	if err == nil {
 		return nil
 	}
+	logCheck(operation, response, err)
 	message := response.Message
 	for _, value := range c.account.Cookies {
 		if value != "" {
@@ -261,4 +279,11 @@ func (c *Client) coverFailure(operation string, response envelope) error {
 		return err
 	}
 	return fmt.Errorf(i18n.T(i18n.BiliCoverRejectionDetail), err, safe.String())
+}
+
+func coverBytes(prepared *coverimage.Prepared) int {
+	if prepared == nil {
+		return 0
+	}
+	return len(prepared.JPEG)
 }

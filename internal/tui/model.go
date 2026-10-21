@@ -14,6 +14,7 @@ import (
 	"arcana-world/internal/config"
 	"arcana-world/internal/coverimage"
 	"arcana-world/internal/domain"
+	"arcana-world/internal/helperpath"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/journal"
 	"arcana-world/internal/obs"
@@ -50,6 +51,8 @@ const (
 	logEntryLimit    = 200
 )
 
+var logger = journal.Logger("tui")
+
 func pageNames() [pageCount]string {
 	return [pageCount]string{
 		livePage:     i18n.T(i18n.TUIPageLive),
@@ -72,6 +75,7 @@ type Model struct {
 	web                      webState
 	ctx                      context.Context
 	store                    *store.Store
+	appDir                   string
 	client                   *bili.Client
 	config                   config.Config
 	theme                    tuiTheme
@@ -136,6 +140,7 @@ type Model struct {
 	qrGeneration             int
 	qr                       *domain.QR
 	qrText                   string
+	qrPollCode               int // 上一次登录轮询状态码，仅用于记录状态变化
 	qrImageOpening           bool
 	faceURL                  string
 	pendingAccount           *domain.Account
@@ -159,19 +164,21 @@ type Model struct {
 
 // New 接管已锁定数据目录的日志；初始化失败或模型关闭时释放。
 func New(ctx context.Context, s *store.Store, disk *journal.Log) (*Model, error) {
+	appDir, err := helperpath.ApplicationDir()
+	if err != nil {
+		return nil, errors.Join(err, disk.Close())
+	}
 	cfg := s.Config()
 	c, err := bili.New(cfg.Proxy, s.DeviceID())
 	if err != nil {
-		return nil, errors.Join(err, disk.Write(i18n.T(i18n.TUILogStartupFailed)+err.Error()), disk.Close())
-	}
-	if err := disk.Write(i18n.T(i18n.TUILogApplicationStarted)); err != nil {
-		c.HTTP.CloseIdleConnections()
+		logger.Error("bilibili client init failed", "err", err)
 		return nil, errors.Join(err, disk.Close())
 	}
 	in := textinput.New()
 	in.SetVirtualCursor(false)
 	in.CharLimit = 4096
 	m := &Model{ctx: ctx, store: s, config: cfg, client: c, journal: disk, obsClient: obs.NewClient(), width: 100, height: 32, input: in, status: i18n.T(i18n.TUIStatusReady), view: viewport.New(viewport.WithWidth(96), viewport.WithHeight(24))}
+	m.appDir = appDir
 	m.chatInput = textarea.New()
 	m.chatInput.SetVirtualCursor(false)
 	m.chatInput.Prompt = "› "
@@ -218,19 +225,16 @@ func (m *Model) logCredentialStorage() {
 	}
 }
 
+// log 与 warn 仅面向界面（状态行与操作记录面板）；调试日志由 logger 单独记录。
 func (m *Model) log(s string) { m.logStatus(s, false) }
 
 func (m *Model) logStatus(s string, warning bool) {
 	s = m.safe(s)
-	err := m.journal.Write(s)
-	if err != nil {
-		s += i18n.T(i18n.TUILogWriteFailedPrefix) + m.safe(err.Error()) + i18n.T(i18n.TUILogWriteFailedSuffix)
-	}
 	m.logs = append(m.logs, time.Now().Format("15:04:05")+"  "+s)
 	if len(m.logs) > logEntryLimit {
 		m.logs = append([]string(nil), m.logs[len(m.logs)-logEntryLimit:]...)
 	}
-	m.status, m.statusWarning = s, warning || err != nil
+	m.status, m.statusWarning = s, warning
 	m.resetNotification()
 }
 
@@ -296,8 +300,11 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	m.syncOutputTemplates()
 	if m.web.enabled {
 		defer m.observeWebContext()
-		if request, ok := msg.(webRequest); ok {
-			return m, m.handleWebRequest(request)
+		switch msg := msg.(type) {
+		case webRequest:
+			return m, m.handleWebRequest(msg)
+		case webPreviewCheck:
+			return m, m.handleWebPreviewCheck()
 		}
 	}
 	// 原始终端输出已由 Bubble Tea 执行，不改变界面状态，也不再次设置指针。
@@ -442,6 +449,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	case qrImageOpened:
 		m.qrImageOpening = false
 		if msg.err != nil {
+			logger.Warn("qr image open failed", "err", msg.err)
 			m.warn(i18n.T(i18n.TUIQROpenFailed) + msg.err.Error())
 		}
 		return m, nil
@@ -458,6 +466,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	case coverPreviewFinished:
 		m.previewing = false
 		if msg.err != nil {
+			logger.Warn("cover preview failed", "err", msg.err)
 			m.warn(i18n.T(i18n.TUILogCoverPreviewFailed) + msg.err.Error())
 		} else {
 			m.setStatus(i18n.T(i18n.TUIStatusPreviewClosed))
@@ -508,6 +517,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 				return m, nil
 			}
 			if key == "esc" && m.cancel != nil {
+				logger.Info("operation cancel requested", "id", m.operation)
 				m.canceled = true
 				m.cancel()
 				if m.mode == "members" {

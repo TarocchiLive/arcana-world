@@ -116,12 +116,12 @@ Custom appearance settings are preserved. Elegant overlay's old default text sty
 
 ## Build and launch
 
-The `arcana-world-<goos>-<goarch>.tar.gz` / `.zip` portable bundles contain the main executable and the overlay under `libexec`. Run source build commands from the **project root** with the project's required Go version installed.
+The `arcana-world-<goos>-<goarch>.tar.xz` / `.zip` portable bundles contain the main executable and the overlay under `libexec`. Run source build commands from the **project root** with the project's required Go version installed.
 
 Native overlay also requires Xcode Command Line Tools on macOS, or Wayland and Pango/Cairo development libraries and `pkg-config` on Linux. Full desktop builds additionally require the dependencies under [Elegant overlay build and runtime](#elegant-overlay-build-and-runtime) below. Install the native overlay dependencies on Debian/Ubuntu with:
 
 ```sh
-sudo apt-get install libwayland-dev libpango1.0-dev libcairo2-dev pkg-config
+sudo apt-get install libwayland-dev libpango1.0-dev libcairo2-dev pkg-config python3 patchelf xkb-data fontconfig-config
 ```
 
 macOS / Linux:
@@ -132,6 +132,8 @@ make overlay
 ```
 
 `make desktop` builds the TUI, both overlay helpers, speech helper, and bundled graphics runtime. `make desktop-native` explicitly omits Elegant overlay. `make build` builds only the CGO-free TUI. Nix defaults to the full desktop package; `nix run .#arcana-world-desktop-native -- -overlay` selects the native-only package. The full macOS Nix package requires nixpkgs with Qt >= 6.11 and reports an error with older Qt.
+
+See `bash scripts/build.sh --help` for build options. Both Linux backends deploy their runtime libraries; rebuilds remove stale dependencies, and switching to `desktop-native` retains shared files still needed by the native backend. Use a new output directory for older builds without an ownership manifest. Before redistributing local Nix builds, supply complete dependency licenses and `SOURCE.txt` through `LINUX_LICENSE_DIR`; official releases collect Ubuntu package copyright notices.
 
 Windows (PowerShell):
 
@@ -156,17 +158,21 @@ Elegant overlay uses Qt Widgets internally. Its helper is `libexec/arcana-world-
 
 Full release bundles include both backends on macOS amd64/arm64, Linux amd64/arm64, and Windows amd64. Windows 386 and arm64 retain native-only bundles because the release toolchain has no matching Qt6 MinGW build. Selecting Elegant overlay in a native-only bundle reports the missing component; it never falls back to native.
 
-Build on the target OS and architecture with CMake, Python 3, a C++17 compiler, and matching Qt development libraries:
+Build on the target OS and architecture with CMake >= 3.24, Python >= 3.9, a C++17 compiler, and matching Qt development libraries:
 
-- macOS: Xcode Command Line Tools and `brew install qt cmake`; Qt >= 6.11 is required for stable native display IDs. Set `CMAKE_PREFIX_PATH` to `brew --prefix qt` and `QTPATHS` to its `bin/qtpaths`.
+- macOS: install Xcode Command Line Tools, `brew install cmake ninja`, and Python 3. Run `source scripts/setup-macos-qt.sh` to build and cache reduced shared Qt 6.11.0 and export the build environment. Set `QT_BUILD_PREFIX` to choose the SDK installation directory and `BUILD_JOBS` to control build concurrency. An existing Qt >= 6.11 SDK also works: point `CMAKE_PREFIX_PATH` to its prefix and `QTPATHS` to `bin/qtpaths`. Stable native display IDs require this minimum version.
 - Linux: Qt >= 6.5 (Core/Gui/Widgets/WaylandClient), LayerShellQt >= 6.3, Wayland development libraries, and `patchelf`. The release setup script builds Qt 6.8.3 and LayerShellQt 6.3.6 on Ubuntu 24.04 and caches the installation. The release glibc baseline remains Ubuntu 24.04. `scripts/setup-linux-qt.sh` installs build prerequisites with sudo; outside CI, export its installation prefix as `CMAKE_PREFIX_PATH`, put its `bin` on PATH, and set `QTPATHS` to `bin/qtpaths`.
 - Windows amd64: install MSYS2 UCRT64 GCC, CMake, Ninja, and Python, plus curl, tar, and native Windows amd64 Go. Run `source scripts/setup-windows-qt.sh` in a UCRT64 shell to build and cache a reduced shared Qt 6.8.3 and export the build environment; Go must be on PATH. Set `QT_BUILD_PREFIX` to choose the SDK installation directory and `BUILD_JOBS` to control build concurrency. Use the same UCRT64 compiler for Qt and cgo; do not mix MSVC Qt with MinGW.
+
+SDK installation and work directories must be empty or created by the current script. A toolchain or configuration change clears and rebuilds both directories. Older directories without an ownership marker are preserved; choose new empty directories instead. Each platform script lists its options with `--help`.
 
 `make overlay-qt` builds and deploys the Elegant helper. Deployment copies Qt plugins and the transitive shared-library dependencies into `libexec`, rewrites macOS/Linux loader paths, and ad-hoc signs modified macOS binaries. Windows ships only `qwindows.dll` and required Qt and MinGW DLLs. Third-party notices are combined in `libexec/licenses/THIRD_PARTY_NOTICES.txt`, with source links in the adjacent `SOURCE.txt`. Linux bundles LayerShellQt and Wayland client dependencies but uses the system's glibc, kernel, display server, and graphics drivers. Preserve the entire directory when moving or archiving the program.
 
 On macOS the helper resides in a private `Arcana World Elegant Overlay.app/Contents/MacOS` bundle; the outer helper name is a relative symbolic link. The main program resolves the real path before launch and display enumeration so macOS reads the product name and initial background policy. Dock visibility can still change at runtime. For standalone debugging, execute `"./bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt"` directly; launching through the symbolic link loses the application identity.
 
-On Wayland, Elegant overlay uses real LayerShellQt surfaces and requires a compositor exposing layer-shell. GNOME/Mutter is unsupported; there is no ordinary-window fallback. Native overlay remains Wayland-only on Linux; Elegant overlay also supports X11 through the xcb plugin.
+Both overlays in Linux release bundles use Wayland. Elegant overlay uses real LayerShellQt surfaces and requires a compositor exposing layer-shell; GNOME/Mutter is unsupported.
+
+Linux portable bundles include the shared libraries, XKB data, and font configuration needed by both overlays, without manual library-path setup. Fonts come from system or user installations; explicit `XKB_CONFIG_ROOT`, `FONTCONFIG_FILE`, and `FONTCONFIG_PATH` settings are preserved.
 
 For a standalone preview, run `./bin/libexec/arcana-world-overlay-qt -demo -duration 30s`. `-demo`, `-clock`, and `-stdin` are mutually exclusive. `-unlocked` permits dragging; `-reduced-motion` disables motion. Both options are standalone Elegant-overlay options, not managed `-socket` options. Elegant overlay creates no menu-bar/system-tray icon or context menu.
 

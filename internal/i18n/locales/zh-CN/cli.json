@@ -2,6 +2,8 @@
   "cli.config_dir_usage": "数据目录（默认：~/.arcana/world；每个目录只能运行一个实例）",
   "cli.credential_backend_usage": "凭据存储：auto、system、file、memory",
   "cli.credential_backend_invalid": "credential-backend 必须是 auto、system、file 或 memory",
+  "cli.log_level_usage": "写入 logs/arcana-world.log 的最低级别：debug、info、warn、error",
+  "cli.log_level_invalid": "log-level 必须是 debug、info、warn 或 error",
   "cli.proxy_usage": "仅本次运行覆盖代理：HTTP(S)/SOCKS5 URL、direct，或留空以使用环境变量",
   "cli.obs_auto_connect_usage": "仅本次运行覆盖 OBS 自动连接；使用 =false 关闭",
   "cli.obs_auto_stream_usage": "仅本次运行覆盖开播时 OBS 自动推流；使用 =false 关闭",

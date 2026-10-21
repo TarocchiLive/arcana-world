@@ -40,6 +40,8 @@ func (m *Model) modalContent() string {
 	case "help":
 		paragraphs := strings.Split(strings.TrimSpace(i18n.T(i18n.Key(m.editKind))), "\n\n")
 		rows := make([]string, 0, len(paragraphs)+1)
+		// 中文按标点断行，避免把整段中文当成一个单词移到下一行。
+		const breakpoints = "，。；、！？："
 		for i, paragraph := range paragraphs {
 			if i == 0 {
 				rows = append(rows, m.theme.sectionTitle(paragraph, width))
@@ -50,10 +52,10 @@ func (m *Model) modalContent() string {
 				}
 				if separated {
 					rows = append(rows, lipgloss.JoinVertical(lipgloss.Left,
-						m.theme.accent.Render(ansi.Wrap(heading, width, "")),
-						m.theme.textStyle.Render(ansi.Wrap(body, width, ""))))
+						m.theme.accent.Render(ansi.Wrap(heading, width, breakpoints)),
+						m.theme.textStyle.Render(ansi.Wrap(body, width, breakpoints))))
 				} else {
-					rows = append(rows, m.theme.textStyle.Render(ansi.Wrap(paragraph, width, "")))
+					rows = append(rows, m.theme.textStyle.Render(ansi.Wrap(paragraph, width, breakpoints)))
 				}
 			}
 		}

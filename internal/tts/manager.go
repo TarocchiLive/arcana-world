@@ -3,9 +3,16 @@ package tts
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
+	"time"
+	"unicode/utf8"
+
+	"arcana-world/internal/i18n"
+	"arcana-world/internal/journal"
 )
+
+// logger 是 tts 包的调试日志记录器。
+var logger = journal.Logger("tts")
 
 type stopResult struct {
 	done chan struct{}
@@ -41,7 +48,15 @@ func New(ctx context.Context, options Options) (*Manager, error) {
 	m := &Manager{ctx: ctx, synth: options.Synthesizer, player: options.Player, queue: make([]string, capacity), state: Snapshot{Phase: PhaseIdle}, wake: make(chan struct{}, 1), done: make(chan struct{})}
 	// AfterFunc 避免额外创建生命周期协程，且绝不在持锁时等待。
 	stop := context.AfterFunc(ctx, func() { m.Close() })
-	go func() { defer stop(); defer close(m.done); m.run() }()
+	go func() {
+		defer stop()
+		defer close(m.done)
+		m.run()
+		// 合成与播放均已退出，随后释放提供方资源，最后关闭 done。
+		m.closeErr = errors.Join(m.closeErr, m.synth.Close(), m.player.Close())
+		logger.Info("manager closed", "close_err", m.closeErr)
+	}()
+	logger.Info("manager started", "queue_capacity", capacity)
 	return m, nil
 }
 func (m *Manager) notify() {
@@ -68,6 +83,10 @@ func (m *Manager) Enqueue(text string) error {
 	}
 	if m.count == len(m.queue) {
 		m.state.Dropped++
+		// 队列满时可能连续丢弃大量消息；只在累计数达到 2 的幂时记录，避免刷屏。
+		if d := m.state.Dropped; d&(d-1) == 0 {
+			logger.Warn("queue full, dropping text", "reason", "queue_full", "capacity", len(m.queue), "dropped_total", d)
+		}
 		return ErrQueueFull
 	}
 	m.queue[(m.head+m.count)%len(m.queue)] = text
@@ -92,11 +111,15 @@ func (m *Manager) Stop() error {
 		<-result.done
 		return result.err
 	}
+	if m.count > 0 {
+		logger.Info("queue cleared", "reason", "stop", "discarded", m.count)
+	}
 	m.clear()
 	if m.cancel == nil {
 		m.mu.Unlock()
 		return nil
 	}
+	logger.Info("stopping current utterance")
 	m.state.Phase = PhaseStopping
 	result := &stopResult{done: make(chan struct{})}
 	m.stopping = result
@@ -114,6 +137,9 @@ func (m *Manager) Close() error {
 }
 
 func (m *Manager) closeLocked() {
+	if m.state.Phase != PhaseClosed {
+		logger.Info("manager closing", "pending_discarded", m.count, "dropped_total", m.state.Dropped)
+	}
 	m.state.Phase = PhaseClosed
 	m.clear()
 	if m.cancel != nil {
@@ -152,26 +178,36 @@ func (m *Manager) run() {
 		m.cancel = cancel
 		m.state.Phase = PhaseSynthesizing
 		m.mu.Unlock()
+		chars := utf8.RuneCountInString(text)
+		started := time.Now()
 		audio, err := m.synth.Synthesize(ctx, text)
-		if err != nil {
-			err = fmt.Errorf("tts: synthesize: %w", err)
-		}
+		synthesized := time.Since(started)
+		// 阶段只写入日志；返回的错误面向用户，不带内部前缀。
+		stage := "synthesize"
 		m.mu.Lock()
 		play := err == nil && ctx.Err() == nil && m.state.Phase != PhaseClosed && m.state.Phase != PhaseStopping
 		if play {
 			m.state.Phase = PhasePlaying
 		}
 		m.mu.Unlock()
+		var played time.Duration
 		if play {
+			stage = "play"
+			playStarted := time.Now()
 			if e := m.player.Play(ctx, audio); e != nil {
-				err = fmt.Errorf("tts: play: %w", e)
+				err = e
 			}
+			played = time.Since(playStarted)
 		}
 		m.mu.Lock()
 		if m.ctx.Err() != nil {
 			m.closeLocked()
 		}
 		if err != nil && !cancellationOnly(err, ctx.Err()) {
+			if errors.Is(err, context.DeadlineExceeded) {
+				// 单次合成或播放超时；原始的 "context deadline exceeded" 对用户没有意义。
+				err = errors.New(i18n.T(i18n.TTSTimeout))
+			}
 			m.state.LastError = err
 			if m.stopping != nil {
 				m.stopping.err = err
@@ -179,6 +215,12 @@ func (m *Manager) run() {
 			if m.state.Phase == PhaseClosed {
 				m.closeErr = err
 			}
+			// 辅助进程错误只保留固定诊断类别，这里记录播报层面的结果。
+			logger.Error("utterance failed", "stage", stage, "chars", chars, "audio_bytes", len(audio), "synth_elapsed", synthesized, "play_elapsed", played, "err", err)
+		} else if err != nil {
+			logger.Debug("utterance cancelled", "stage", stage, "chars", chars, "synth_elapsed", synthesized, "play_elapsed", played)
+		} else {
+			logger.Debug("utterance played", "chars", chars, "audio_bytes", len(audio), "synth_elapsed", synthesized, "play_elapsed", played)
 		}
 		cancel()
 		m.cancel = nil

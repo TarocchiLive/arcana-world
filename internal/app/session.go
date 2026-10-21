@@ -5,6 +5,7 @@ import (
 	"arcana-world/internal/config"
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/journal"
 	"arcana-world/internal/obs"
 	"arcana-world/internal/store"
 	"context"
@@ -31,6 +32,8 @@ type Session struct {
 	clientsMu sync.Mutex
 	clients   map[*bili.Client]struct{}
 }
+
+var logger = journal.Logger("app")
 
 func New(s *store.Store, o *obs.Client, c *bili.Client) *Session {
 	return &Session{store: s, obsClient: o, gate: make(chan struct{}, 1), clients: map[*bili.Client]struct{}{c: {}}}
@@ -87,22 +90,26 @@ func (m *Session) ConnectOBS(ctx context.Context, endpoint string) error {
 func (m *Session) stopControlledOBS(ctx context.Context, cfg config.Config, live bool) (bool, error) {
 	state := m.obsClient.Snapshot()
 	if !state.Connected {
-		// 自动推流是偏好，不是正在推流的证据；已知活动状态在断线后仍需清理。
-		if !(cfg.OBSAutoStream && live) && !state.Status.Active && !state.Status.Reconnecting {
+		// 已知活动状态或未确认的开播请求在断线后仍需清理；偏好本身不是开播证据。
+		if !(cfg.OBSAutoStream && live) && !state.Status.Active && !state.Status.Reconnecting && !state.NeedsStreamStatus {
 			return false, nil
 		}
 		if err := m.ConnectOBS(ctx, cfg.OBSURL); err != nil {
+			logger.Error("obs reconnect for stop failed", "endpoint", cfg.OBSURL, "err", err)
 			return false, fmt.Errorf("%s: %w", i18n.T(i18n.TUIErrorOBSStopConnect), err)
 		}
 	}
 	status, err := m.obsClient.Status(ctx)
 	if err != nil {
+		logger.Error("obs status query failed before stop", "err", err)
 		return false, fmt.Errorf(i18n.T(i18n.TUIErrorOBSStopStatus), err)
 	}
 	if status.Active || status.Reconnecting {
 		if err := m.obsClient.Stop(ctx); err != nil {
+			logger.Error("obs stop stream failed", "err", err)
 			return false, fmt.Errorf(i18n.T(i18n.TUIErrorOBSStopStream), err)
 		}
+		logger.Info("obs stream stopped")
 	}
 	return true, nil
 }
@@ -119,44 +126,60 @@ func (m *Session) Start(ctx context.Context, client *bili.Client, room domain.Ro
 		return StartOutcome{}, err
 	}
 	defer m.Unlock()
+	logger.Debug("live start begin", "room", room.ID, "area", room.AreaID, "protocol", cfg.Protocol, "obs_auto_connect", cfg.OBSAutoConnect, "obs_auto_stream", cfg.OBSAutoStream, "obs_connected", m.obsClient.Snapshot().Connected)
 	if cfg.OBSAutoConnect && !m.obsClient.Snapshot().Connected {
 		if err := m.ConnectOBS(ctx, cfg.OBSURL); err != nil {
+			logger.Error("obs auto connect failed before live start", "room", room.ID, "endpoint", cfg.OBSURL, "err", err)
 			return StartOutcome{}, fmt.Errorf(i18n.T(i18n.TUIErrorOBSAutoConnect), err)
 		}
 	}
 	connected := m.obsClient.Snapshot().Connected
 	if cfg.OBSAutoStream && !connected {
+		logger.Error("live start rejected, obs not connected", "room", room.ID, "endpoint", cfg.OBSURL)
 		return StartOutcome{}, errors.New(i18n.T(i18n.TUIErrorOBSConnectionRequired))
 	}
 	if connected {
 		status, err := m.obsClient.Status(ctx)
 		if err != nil {
+			logger.Error("obs status query failed before live start", "room", room.ID, "err", err)
 			return StartOutcome{}, fmt.Errorf(i18n.T(i18n.TUIErrorOBSStartStatus), err)
 		}
 		if status.Active || status.Reconnecting {
+			logger.Error("live start rejected, obs stream already active", "room", room.ID, "active", status.Active, "reconnecting", status.Reconnecting)
 			return StartOutcome{}, errors.New(i18n.T(i18n.TUIErrorOBSDestinationActive))
+		}
+	}
+	if cfg.Protocol == "rtmpsrt" {
+		if err := m.obsClient.CheckRTMPSRT(); err != nil {
+			return StartOutcome{}, err
 		}
 	}
 	stream, err := client.Start(ctx, room.ID, room.AreaID, cfg.Protocol)
 	if err != nil {
+		logger.Error("live start request failed", "room", room.ID, "area", room.AreaID, "protocol", cfg.Protocol, "err", err)
 		return StartOutcome{}, err
 	}
 	outcome := StartOutcome{Stream: stream}
 	if !connected {
+		logger.Info("live started", "room", room.ID, "area", room.AreaID, "protocol", cfg.Protocol, "obs_connected", false)
 		return outcome, nil
 	}
 	if err = m.obsClient.Configure(ctx, stream); err != nil {
+		logger.Warn("obs configure failed after live start", "room", room.ID, "err", err)
 		outcome.OBSErr = err
+		logger.Info("live started", "room", room.ID, "area", room.AreaID, "protocol", cfg.Protocol, "obs_configured", false, "obs_started", false)
 		return outcome, nil
 	}
 	outcome.OBSConfigured = true
 	if cfg.OBSAutoStream {
 		if err = m.obsClient.Start(ctx); err != nil {
+			logger.Warn("obs start stream failed after live start", "room", room.ID, "err", err)
 			outcome.OBSErr = err
 		} else {
 			outcome.OBSStarted = true
 		}
 	}
+	logger.Info("live started", "room", room.ID, "area", room.AreaID, "protocol", cfg.Protocol, "obs_configured", true, "obs_started", outcome.OBSStarted)
 	return outcome, nil
 }
 func (m *Session) Stop(ctx context.Context, client *bili.Client, room domain.Room, cfg config.Config) (StopOutcome, error) {
@@ -164,17 +187,20 @@ func (m *Session) Stop(ctx context.Context, client *bili.Client, room domain.Roo
 		return StopOutcome{}, err
 	}
 	defer m.Unlock()
+	logger.Debug("live stop begin", "room", room.ID, "obs_auto_stream", cfg.OBSAutoStream)
 	stopped, err := m.stopControlledOBS(ctx, cfg, room.Live)
 	if err != nil {
 		return StopOutcome{}, err
 	}
 	outcome := StopOutcome{OBSStopped: stopped}
 	if err := client.Stop(ctx, room.ID); err != nil {
+		logger.Error("live stop failed", "room", room.ID, "obs_stopped", outcome.OBSStopped, "err", err)
 		if outcome.OBSStopped {
 			return outcome, fmt.Errorf(i18n.T(i18n.TUIErrorLiveStopAfterOBS), err)
 		}
 		return outcome, err
 	}
+	logger.Info("live stopped", "room", room.ID, "obs_stopped", outcome.OBSStopped)
 	return outcome, nil
 }
 func (m *Session) stopExitLive(ctx context.Context, cfg config.Config, source *bili.Client) error {
@@ -183,6 +209,7 @@ func (m *Session) stopExitLive(ctx context.Context, cfg config.Config, source *b
 	}
 	account, err := m.store.Load(cfg.ActiveUID)
 	if err != nil {
+		logger.Error("exit live account load failed", "uid", cfg.ActiveUID, "err", err)
 		return fmt.Errorf(i18n.T(i18n.TUIErrorExitLiveAccount), err)
 	}
 	if ctx.Err() != nil {
@@ -191,17 +218,21 @@ func (m *Session) stopExitLive(ctx context.Context, cfg config.Config, source *b
 	// 独立客户端不读取旧房间，也不修改尚未完成的界面请求的房间缓存。
 	client, err := m.client(source, &account, cfg.Proxy)
 	if err != nil {
+		logger.Error("exit live client init failed", "uid", account.UID, "err", err)
 		return fmt.Errorf(i18n.T(i18n.TUIErrorExitLiveRoom), err)
 	}
 	defer client.HTTP.CloseIdleConnections()
 	room, err := client.Room(ctx)
 	if err != nil {
+		logger.Error("exit live room query failed", "uid", account.UID, "err", err)
 		return fmt.Errorf(i18n.T(i18n.TUIErrorExitLiveRoom), err)
 	}
 	if room.Live {
 		if err := client.Stop(ctx, room.ID); err != nil {
+			logger.Error("exit live stop failed", "room", room.ID, "err", err)
 			return fmt.Errorf(i18n.T(i18n.TUIErrorExitLiveStop), err)
 		}
+		logger.Info("live stopped on exit", "room", room.ID)
 	}
 	return nil
 }

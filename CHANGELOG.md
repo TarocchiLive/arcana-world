@@ -4,13 +4,104 @@
 
 版本按时间倒序记录。
 
-## 未发布
+## [v0.4.2]：2026-10-21
 
-### 改进
+语音播报新增千问、豆包在线语音和 MeloTTS、Kokoro、Piper 本地语音；Edge 改为内置实现，在线语音遇到网络波动会自动重试。
 
-- Windows amd64 改用按浮层需求构建的精简 Qt 6.8.3，移除 ICU、无用模块和插件，只分发实际依赖的 DLL；保留原生与精美浮层，ZIP 使用更高压缩级别。
-- Windows 包的第三方许可按分发组件收集、去重并合并为 `THIRD_PARTY_NOTICES.txt`，保留版权声明、许可条款和源码地址，不再附带构建工具的无关许可。
-- WebUI 输出页新增浮层示例预览，复用 TUI 的示例内容与轮播；关闭预览或离开输出页恢复实际内容，示例不进入弹幕历史或语音播报。
+### 本次更新
+
+- 语音播报新增千问、豆包云端语音，以及 MeloTTS、Kokoro v1.1、Piper 本地语音；每个供应商的设置分开保存，原来的 Edge 音色会自动沿用。
+- 本地语音默认用 GPU 合成，也可以改用 CPU；第一次选择还没安装的模型时，会询问是否下载。
+- 本地模型可以在应用内下载、中途取消后继续下载，也可以手动安装；校验通过后才会启用，清除应用数据时不会删除模型。
+- 千问和豆包的 API Key 保存在凭据存储中，不写入配置文件。
+- Edge、千问和豆包遇到网络中断、超时或服务繁忙时自动重试两次；停止、切换或退出时立即取消。
+- 播放支持 MP3、WAV、FLAC 和 Ogg Vorbis，不需要安装 FFmpeg。
+- 语音相关的错误提示改为中英文，并直接说明该检查什么。
+- 终端和网页帮助新增「语音播报」，并重新整理了弹幕浮层的帮助。
+
+### 升级提示
+
+- 语音程序现在自带本地语音所需的运行库，升级时请完整替换主程序和 `libexec` 目录。
+- 从源码构建完整桌面包还需要 Python 3、CMake、Ninja 和 C/C++ 编译器。
+
+## [v0.4.1]：2026-10-21
+
+新增 RTMPSRT 推流协议：OBS 推流到本机，由 Arcana World 通过 SRT 转发给 B 站。
+
+### 本次更新
+
+- 「设置」的推流协议新增 RTMPSRT，需配合本机 OBS 和 libsrt 1.5 运行库使用，安装方法见 [README](README.md#rtmpsrt-推流)。
+- 开播前检查 OBS 是否在本机、libsrt 是否可用，避免直播间开了却推不了流；B 站没有提供 RTMPSRT 地址时直接报错。
+- 在 OBS 中停止推流后，可以直接在 OBS 里重新开始；转发失败会记录到日志，重试再次失败时也会提示。
+- 帮助中说明了 RTMPSRT 下断开 OBS 或退出应用会中断推流。
+
+### 升级提示
+
+- 发行包不附带 libsrt，使用 RTMPSRT 前请按 README 安装；其他推流协议不受影响。
+
+## [v0.4.0]：2026-10-19
+
+新增浏览器控制面板与精美浮层，完善封面编辑、播报模板和开播排障。以下汇总相较 v0.3.0 的变化，包含 v0.3.1、v0.3.2 的改进。
+
+### 本次更新
+
+- 新增本机 WebUI，集中管理账号、直播、OBS、弹幕、浮层和 TTS，提供中英文、浅色与深色主题、窄屏导航及开播准备清单。
+- 支持保存默认启动界面，WebUI 启动时自动打开浏览器；Windows 提供独立 WebUI 启动器，并支持手动检查最新稳定版。
+- 新增可与原生浮层切换的精美浮层，提供文字、面板和动效设置、无需登录的示例预览，以及 macOS Dock／Windows 任务栏显示控制。
+- 浮层与 TTS 支持独立的中英文 YAML 格式 Go 模板，配置错误时提示具体文件并回退默认格式；改进消息排版，避免截断组合表情和连字。
+- 终端与 WebUI 支持封面裁剪、缩放和移动预览，终端新增 iTerm2 原生图片支持；上传图片统一为符合平台限制的 JPEG。
+- 修复 Edge TTS 端点返回 HTTP 403 的问题；合成失败或返回空音频时最多重试两次，停止或退出时立即取消。
+- 分离详细诊断日志与界面操作记录，记录网络、OBS 和辅助进程错误并隐藏敏感凭据，支持通过 `--log-level debug` 排障。
+- 修复「SRT 优先」遇到无效或不支持的地址时未回退 RTMP、OBS 开播响应丢失后退出可能漏停播，以及终端收到中断信号可能卡住的问题。
+- 精简桌面发行包并补齐 Linux 浮层运行库、字体配置和键盘布局数据，改进 Nix 构建与部署；补充 Scoop、APT 安装说明。
+
+### 升级提示
+
+- 请完整解压并一并替换主程序和 `libexec`，避免混用不同版本的辅助程序；Linux 与 macOS 发行包改为 `.tar.xz`。
+- Windows x86／ARM64 包仅提供原生浮层；Linux 浮层需要支持 layer-shell 的 Wayland 桌面。
+- WebUI 默认地址为 `http://127.0.0.1:5273`。
+
+## [v0.4.0-rc.3]：2026-10-19（预发布）
+
+修复「SRT 优先」无法回退 RTMP 导致 OBS 联动开播失败的问题。
+
+### 本次更新
+
+- SRT 地址不支持或无效时，自动使用同次开播响应中的 RTMP 地址，并校验回退地址和推流密钥。
+- 简化 WebUI 侧栏，移除品牌图标。
+
+## [v0.4.0-rc.2]：2026-10-18（预发布）
+
+修复 Linux 发行包在 Nix 等环境中无法打开浮层的问题，替代已撤回的 rc.1。
+
+### 本次更新
+
+- 原生浮层随包提供 Wayland、Pango/Cairo 等运行库，整体移动后仍可直接启动。
+- 随包提供 XKB 键盘布局数据，修复精美浮层找不到系统数据目录时崩溃的问题。
+- 两种浮层使用随包字体配置并读取系统和用户字体，避免与主机 Fontconfig 规则版本不兼容；保留显式环境配置。
+
+### 升级提示
+
+请完整替换主程序和 `libexec`，不要只复制浮层可执行文件；Linux 仍需支持 layer-shell 的 Wayland 桌面。
+
+## [v0.4.0-rc.1]：2026-10-18（预发布）
+
+本次候选版本重做 WebUI 操作界面，缩小精美浮层发行包，并完善日志排障与 OBS 退出停播。
+
+### 本次更新
+
+- WebUI 新增侧栏导航、全局直播与 OBS 状态、开播准备清单及统一管理弹窗，窄屏使用底部导航。
+- WebUI 支持点击弹幕用户名查看用户、向上翻阅时提示新消息，数值与颜色设置完成调整后自动保存。
+- WebUI 输出页支持浮层示例预览，关闭预览或所有页面离开输出页后恢复实际内容，示例不进入弹幕历史或语音播报。
+- 精简 Windows、Linux 与 macOS 的 Qt 运行库和第三方许可文件，保留字体整形及原生、精美两种浮层；Linux 与 macOS 改发 `.tar.xz`，Windows ZIP 提高压缩级别。
+- 调试日志与界面操作记录分离，记录网络、OBS 和辅助进程的错误详情并隐藏敏感凭据，可用 `--log-level debug` 获取更详细信息。
+- 修复 OBS 已执行开播、但响应前断线或请求取消时，退出可能漏停播的问题。
+- 修复 Nix 下精美浮层的构建与运行库部署，重复构建会清理旧 Qt 文件，依赖收集失败时保留原运行库。
+- 简化语音播报错误提示，移除重复前缀。
+
+### 升级提示
+
+请完整解压发行包，一并替换主程序和 `libexec` 目录；Linux 与 macOS 压缩包扩展名已改为 `.tar.xz`。
 
 ## [v0.4.0-alpha.1]：2026-10-14（预发布）
 
@@ -412,3 +503,9 @@
 [v0.3.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.1
 [v0.3.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.2
 [v0.4.0-alpha.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-alpha.1
+[v0.4.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.1
+[v0.4.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.2
+[v0.4.0-rc.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.3
+[v0.4.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0
+[v0.4.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.1
+[v0.4.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.2

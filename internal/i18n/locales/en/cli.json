@@ -2,6 +2,8 @@
   "cli.config_dir_usage": "Data directory (default: ~/.arcana/world; one running instance per directory)",
   "cli.credential_backend_usage": "Credential storage: auto, system, file, memory",
   "cli.credential_backend_invalid": "credential-backend must be auto, system, file, or memory",
+  "cli.log_level_usage": "Minimum level written to logs/arcana-world.log: debug, info, warn, error",
+  "cli.log_level_invalid": "log-level must be debug, info, warn, or error",
   "cli.proxy_usage": "Override proxy for this run: HTTP(S)/SOCKS5 URL, direct, or empty to use the environment",
   "cli.obs_auto_connect_usage": "Override OBS auto-connect for this run; use =false to disable",
   "cli.obs_auto_stream_usage": "Override automatic OBS streaming when going live; use =false to disable",

@@ -44,5 +44,5 @@
   "lumen.voice": "音色",
   "lumen.volume": "音量",
   "lumen.proxy": "代理",
-  "lumen.tts_hint": "通过「选择事件」设置播报内容。目前仅支持中文播报。"
+  "lumen.tts_hint": "通过「选择事件」设置播报内容；音色和语言由所选语音供应商决定。"
 }

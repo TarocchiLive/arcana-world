@@ -23,6 +23,7 @@ func (m *Model) handleSettingsResetResult(value *bili.Client, err error, label i
 		m.overlay.options.Config = m.config.Overlay.Config("")
 	}
 	if err := m.closeTTS(); err != nil {
+		logger.Warn("tts close failed after settings reset", "err", err)
 		m.warn(fmt.Sprintf(i18n.T(i18n.TTSLogStopFailed), err))
 	}
 	if m.ttsOverride != nil {

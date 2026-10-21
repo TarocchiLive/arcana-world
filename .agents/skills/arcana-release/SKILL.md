@@ -66,6 +66,7 @@ git merge --no-ff --no-commit dev
 |---|---|
 | `cmd/arcana-world/main.go` 的 `version` | 使用不带 `v` 的目标版本，保证 `go run ... --version` 正确 |
 | `flake.nix` 的 `arcana-world.version` | 与程序版本一致；检查浮层、TTS 和桌面包仍继承该值 |
+| `flake.nix` 的 `vendorHash` | `go.mod` 或 `go.sum` 相较上一版有变化时重新计算，使 Nix 构建与依赖一致 |
 | `scripts/build.sh`、`Makefile`、发布工作流 | 确认 `VERSION` 注入和去除标签前缀的路径一致，不再添加重复版本常量 |
 | 用户文档和提示中的当前版本 | 必要时更新；动态 latest 链接无需改动 |
 
@@ -92,7 +93,7 @@ git merge --no-ff --no-commit dev
 
 ```sh
 make check
-go test -tags tts_audio ./internal/tts/... ./cmd/arcana-world-tts
+CGO_ENABLED=1 go test -tags tts ./internal/tts/... ./cmd/arcana-world-tts
 go run ./cmd/arcana-world --version
 make desktop VERSION="$TAG"
 ```
@@ -119,7 +120,7 @@ git push --atomic origin main dev "$TAG"
 
 执行前必须确认目标标签仍不存在、分支引用符合预期。推送被拒绝时检查远端变化，不改用强推。其他分支和 worktree 不在发布范围内。
 
-标签推送会触发 `release.yml`。不要抢先手动创建 Release，以免与工作流冲突。按目标标签和完整提交 ID 找到本次运行，等待 checks、全部构建及 publish 完成；仅推送标签成功不算发布完成。
+标签推送会触发 `release.yml`，流水线只创建包含附件的草稿。不要抢先手动创建 Release，以免与工作流冲突。按目标标签和完整提交 ID 等待 checks、全部构建及草稿生成完成；下载草稿附件，核对 SHA-256，并在不注入开发环境库路径的条件下实际打开两种浮层，验证显示、更新和退出。全部通过后才公开 Release；预发布使用 `gh release edit "$TAG" --draft=false --prerelease --latest=false`，正式版使用 `--draft=false --prerelease=false --latest`。
 
 流水线和发布核验命令、失败处理见 [发布核验与恢复](references/github-release.md)。
 
@@ -128,6 +129,6 @@ git push --atomic origin main dev "$TAG"
 - 远端发布分支、已同步的开发分支与标签指向预期提交。
 - 对应 Release 已公开，版本类型正确，双语正文与 changelog 提取结果一致。
 - 当前构建矩阵的发行包齐全，另有 `checksums.txt`；所有资产上传完成且非空。
-- 下载本机可运行的发行包，核对 SHA-256，再解压执行 `--version` 和 helper 帮助检查。
+- 下载本机可运行的发行包，核对 SHA-256，执行版本和 helper 帮助检查，并实际验证两种浮层的显示、更新与退出；完成后再公开草稿。
 - 清理不再需要的临时程序、下载和解压目录；验证记录可留在 `.local/`。
 - 最后报告 Release 链接、版本、提交、实际验证结果和未验证边界。只有工作区确实干净时才称其干净，不把用户保留的无关文件纳入提交。

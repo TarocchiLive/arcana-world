@@ -50,6 +50,7 @@ func (c *Client) ResolveFace(ctx context.Context, challenge *domain.FaceChalleng
 	}
 	token, err := decodeRisk(challenge.Voucher, d.Content)
 	if err != nil {
+		logger.Error("face challenge decode failed", "err", err)
 		return "", err
 	}
 	// captcha_codec.__risk_captcha_enc__ 还会计算 AES 内容字段，
@@ -57,14 +58,17 @@ func (c *Client) ResolveFace(ctx context.Context, challenge *domain.FaceChalleng
 	// 混淆令牌，因此这里省略了无用密文的计算。
 	pollToken, err := obfuscateToken(token)
 	if err != nil {
+		logger.Error("face token obfuscation failed", "err", err)
 		return "", err
 	}
 	linkToken, err := obfuscateToken(token)
 	if err != nil {
+		logger.Error("face token obfuscation failed", "err", err)
 		return "", err
 	}
 	challenge.Voucher = pollToken
 	challenge.URL = "https://www.bilibili.com/h5/risk-control/realname?t=" + quote(quote(linkToken))
+	logger.Info("face challenge resolved")
 	return challenge.URL, nil
 }
 func decodeRisk(voucher, content string) (string, error) {

@@ -11,7 +11,7 @@ const (
 	DefaultQueueCapacity = 5
 	MaxTextRunes         = 500
 	MaxTextBytes         = 4 << 10
-	MaxAudioBytes        = 8 << 20
+	MaxAudioBytes        = 16 << 20
 )
 
 var (
@@ -23,9 +23,11 @@ var (
 
 type Synthesizer interface {
 	Synthesize(context.Context, string) ([]byte, error)
+	Close() error
 }
 type Player interface {
 	Play(context.Context, []byte) error
+	Close() error
 }
 type Options struct {
 	QueueCapacity int

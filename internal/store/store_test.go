@@ -158,4 +158,20 @@ func TestSaveConfigPreservesAccountIndexAndOwnsHistory(t *testing.T) {
 	if !bytes.Equal(actual, expected) {
 		t.Fatal("startup preference save changed unrelated raw fields")
 	}
+	// 运行时注入的云密钥也不能随普通配置写入磁盘。
+	cfg = s.Config()
+	for _, provider := range []string{"qwen", "doubao"} {
+		cfg.TTS.Provider = provider
+		cfg.TTS = cfg.TTS.WithValue("api_key", provider+"-private-key")
+	}
+	if err := s.SaveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte("private-key")) || bytes.Contains(data, []byte("api_key")) {
+		t.Fatal("cloud API key leaked into ordinary configuration")
+	}
 }

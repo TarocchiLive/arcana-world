@@ -43,3 +43,6 @@ coverage.txt
 coverage.html
 *.prof
 *.pprof
+
+# Python bytecode from build scripts
+__pycache__/

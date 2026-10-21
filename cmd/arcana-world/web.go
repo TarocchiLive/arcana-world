@@ -45,6 +45,7 @@ func runWeb(ctx context.Context, model *tui.Model, bindAddress string, port int,
 		served <- serveErr
 		cancel()
 	}()
+	logger.Info("web server started", "bind", bindAddress, "port", port, "url", server.URL())
 	fmt.Printf(i18n.T(i18n.WebStarted), server.URL())
 	browserDone := openBrowser(ctx, server.URL())
 	defer func() {
@@ -77,6 +78,7 @@ func openBrowser(ctx context.Context, url string) <-chan struct{} {
 		command = exec.CommandContext(ctx, "xdg-open", url)
 	}
 	if err := command.Start(); err != nil {
+		logger.Warn("browser open failed", "command", command.Path, "url", url, "err", err)
 		fmt.Fprintf(os.Stderr, i18n.T(i18n.WebBrowserOpenFailed), url, err)
 		close(done)
 		return done
@@ -85,6 +87,7 @@ func openBrowser(ctx context.Context, url string) <-chan struct{} {
 	go func() {
 		defer close(done)
 		if err := command.Wait(); err != nil && ctx.Err() == nil {
+			logger.Warn("browser exited with error", "command", command.Path, "url", url, "err", err)
 			fmt.Fprintf(os.Stderr, i18n.T(i18n.WebBrowserOpenFailed), url, err)
 		}
 	}()

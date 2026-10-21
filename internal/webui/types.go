@@ -11,28 +11,38 @@ type Command struct {
 }
 
 type Snapshot struct {
-	Revision        uint64        `json:"revision"`
-	Language        string        `json:"language"`
-	Page            string        `json:"page"`
-	Busy            bool          `json:"busy"`
-	Status          string        `json:"status"`
-	Warning         bool          `json:"warning"`
-	Account         string        `json:"account"`
-	AccountUID      string        `json:"accountUID"`
-	Room            *Room         `json:"room,omitempty"`
-	OBS             bool          `json:"obs"`
-	OBSConnecting   bool          `json:"obsConnecting"`
-	StreamAvailable bool          `json:"streamAvailable"`
-	ChatConnected   bool          `json:"chatConnected"`
-	Audience        string        `json:"audience"`
-	Overlay         bool          `json:"overlay"`
-	TTS             bool          `json:"tts"`
-	Fields          []Field       `json:"fields"`
-	Accounts        []Account     `json:"accounts"`
-	Help            []HelpArticle `json:"help"`
-	Messages        []Message     `json:"messages"`
-	Logs            []string      `json:"logs"`
-	Interaction     *Interaction  `json:"interaction,omitempty"`
+	Revision         uint64        `json:"revision"`
+	Language         string        `json:"language"`
+	Page             string        `json:"page"`
+	Busy             bool          `json:"busy"`
+	Status           string        `json:"status"`
+	Warning          bool          `json:"warning"`
+	Notification     *Notification `json:"notification,omitempty"`
+	Account          string        `json:"account"`
+	AccountUID       string        `json:"accountUID"`
+	Room             *Room         `json:"room,omitempty"`
+	OBS              bool          `json:"obs"`
+	OBSConnecting    bool          `json:"obsConnecting"`
+	StreamAvailable  bool          `json:"streamAvailable"`
+	ChatConnected    bool          `json:"chatConnected"`
+	Audience         string        `json:"audience"`
+	Overlay          bool          `json:"overlay"`
+	TTS              bool          `json:"tts"`
+	TTSSettingsTitle string        `json:"ttsSettingsTitle"`
+	TTSModelText     string        `json:"ttsModelText,omitempty"`
+	TTSModelActions  []Option      `json:"ttsModelActions,omitempty"`
+	Fields           []Field       `json:"fields"`
+	Accounts         []Account     `json:"accounts"`
+	Help             []HelpArticle `json:"help"`
+	Messages         []Message     `json:"messages"`
+	Logs             []string      `json:"logs"`
+	Interaction      *Interaction  `json:"interaction,omitempty"`
+}
+
+type Notification struct {
+	Revision uint64 `json:"revision"`
+	Text     string `json:"text"`
+	Warning  bool   `json:"warning"`
 }
 
 type Room struct {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"arcana-world/internal/domain"
 	"arcana-world/internal/i18n"
@@ -11,6 +12,7 @@ import (
 )
 
 func (r taskResult[T]) apply(m *Model) tea.Cmd {
+	r.logOutcome(m)
 	if m.canceled && r.operation.discardOnCancel {
 		m.log(i18n.T(i18n.TUIStatusOperationCanceled))
 		return nil
@@ -19,6 +21,30 @@ func (r taskResult[T]) apply(m *Model) tea.Cmd {
 		m.config = m.store.Config()
 	}
 	return r.operation.handle(m, r.value, r.err, r.operation.label)
+}
+
+// logOutcome 在操作边界记录结果：每个失败的操作恰好产生一条 ERROR。
+func (r taskResult[T]) logOutcome(m *Model) {
+	var elapsed time.Duration
+	if !r.started.IsZero() {
+		elapsed = time.Since(r.started)
+	}
+	op := string(r.operation.label)
+	var face *domain.FaceChallenge
+	switch {
+	case r.err == nil && m.canceled && r.operation.discardOnCancel:
+		logger.Info("operation result discarded after cancel", "op", op, "id", r.id, "elapsed", elapsed)
+	case r.err == nil && r.operation.periodic:
+		logger.Debug("operation succeeded", "op", op, "id", r.id, "elapsed", elapsed)
+	case r.err == nil:
+		logger.Info("operation succeeded", "op", op, "id", r.id, "elapsed", elapsed)
+	case errors.As(r.err, &face) && !m.canceled:
+		logger.Info("face challenge required", "op", op, "id", r.id, "elapsed", elapsed, "err", r.err)
+	case errors.Is(r.err, context.Canceled):
+		logger.Warn("operation canceled", "op", op, "id", r.id, "elapsed", elapsed, "user_canceled", m.canceled, "err", r.err)
+	default:
+		logger.Error("operation failed", "op", op, "id", r.id, "elapsed", elapsed, "err", r.err)
+	}
 }
 func (m *Model) resultError(label i18n.Key, err error) (tea.Cmd, bool) {
 	if err == nil {

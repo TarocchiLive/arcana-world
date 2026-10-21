@@ -20,13 +20,13 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          vendorHash = "sha256-brywIEyno/f0k/fSJxcPr7eB/W7ZfraO0kwt3Zgt1wQ=";
+          vendorHash = "sha256-pczP2+cgD4jM1R+HnSOEL9PqIaquqJ8yU9LT3PIhtlI=";
         in
         rec {
           default = arcana-world-desktop;
           arcana-world = pkgs.buildGoModule rec {
             pname = "arcana-world";
-            version = "0.4.0-alpha.1";
+            version = "0.4.2";
 
             src = pkgs.lib.fileset.toSource {
               root = ./.;
@@ -35,12 +35,14 @@
                 ./go.sum
                 ./cmd
                 ./internal
-                ./third_party
+                ./scripts/build-tts-native.py
+                ./scripts/tts-native
                 ./LICENSE
               ];
             };
 
             inherit vendorHash;
+            proxyVendor = true;
             subPackages = [ "cmd/arcana-world" ];
             env.CGO_ENABLED = "0";
             ldflags = [
@@ -71,6 +73,7 @@
             pname = "arcana-world-overlay-native";
             inherit (arcana-world) version src;
             inherit vendorHash;
+            proxyVendor = true;
             subPackages = [ "cmd/arcana-world-overlay" ];
             env.CGO_ENABLED = "1";
             tags = pkgs.lib.optionals pkgs.stdenv.isLinux [ "wayland" ];
@@ -113,10 +116,17 @@
               pname = "arcana-world-overlay-qt";
               inherit (arcana-world) version src;
               inherit vendorHash;
+              proxyVendor = true;
               subPackages = [ "cmd/arcana-world-overlay" ];
               env.CGO_ENABLED = "1";
               tags = [ "qt" ];
               nativeBuildInputs = [ pkgs.qt6.wrapQtAppsHook ];
+              # Go 依赖下载阶段不继承 Qt 库，包装 hook 仅用于最终程序。
+              overrideModAttrs = _: previous: {
+                nativeBuildInputs = builtins.filter
+                  (input: input != pkgs.qt6.wrapQtAppsHook)
+                  previous.nativeBuildInputs;
+              };
               buildInputs = [ awqt pkgs.qt6.qtbase ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
                 pkgs.qt6.qtwayland pkgs.kdePackages.layer-shell-qt
               ];
@@ -144,23 +154,105 @@
               dontWrapQtApps = true;
               meta = arcana-world.meta // { description = "Elegant desktop overlay helper"; };
             };
-          arcana-world-tts = pkgs.buildGoModule {
+          arcana-world-tts = let
+            sources = builtins.fromJSON (builtins.readFile ./scripts/tts-native/sources.json);
+            gpuSupported = !pkgs.stdenv.isDarwin || pkgs.stdenv.hostPlatform.isAarch64;
+            goos = if pkgs.stdenv.isDarwin then "darwin" else "linux";
+            goarch = if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "amd64";
+            ortName = if pkgs.stdenv.isDarwin then "onnxruntime-osx-arm64"
+              else if pkgs.stdenv.hostPlatform.isAarch64 then "onnxruntime-linux-aarch64"
+              else "onnxruntime-linux-x86_64";
+            fetch = spec: pkgs.fetchurl { inherit (spec) url sha256; };
+            unpack = name: spec: pkgs.runCommand "tts-source-${name}" {
+              nativeBuildInputs = [ pkgs.unzip ];
+            } ''
+              mkdir unpack
+              cd unpack
+              ${if pkgs.lib.hasSuffix ".zip" spec.url then
+                "unzip -q ${fetch spec}" else "tar -xf ${fetch spec}"}
+              roots=(*)
+              test "''${#roots[@]}" -eq 1
+              cp -R "''${roots[0]}" "$out"
+            '';
+            dependencies = pkgs.lib.filterAttrs (name: _: 
+              !(pkgs.lib.hasPrefix "onnxruntime-" name) || name == ortName
+            ) sources.dependencies;
+          in pkgs.buildGoModule {
             pname = "arcana-world-tts";
             inherit (arcana-world) version src;
             inherit vendorHash;
+            # 原生模块的 lib/ 目录不是 Go package，不能使用 go mod vendor。
+            proxyVendor = true;
             subPackages = [ "cmd/arcana-world-tts" ];
-            env.CGO_ENABLED = if pkgs.stdenv.isLinux then "1" else "0";
-            tags = [ "tts_audio" ];
-            nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
-            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.alsa-lib ];
+            env.CGO_ENABLED = "1";
+            tags = [ "tts" ];
+            nativeBuildInputs = [ pkgs.cmake pkgs.ninja pkgs.python3 ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+              pkgs.pkg-config pkgs.autoPatchelfHook
+            ];
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [
+              pkgs.alsa-lib pkgs.stdenv.cc.cc.lib
+            ];
+            # Vulkan 由插件动态加载，常规 ELF 依赖扫描无法发现。
+            runtimeDependencies = pkgs.lib.optionals pkgs.stdenv.isLinux [ (pkgs.lib.getLib pkgs.vulkan-loader) ];
+            dontUseCmakeConfigure = true;
+            preBuild = pkgs.lib.optionalString gpuSupported ''
+              mkdir -p "$TMPDIR/tts-deps" "$TMPDIR/tts-stage"
+              ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (name: spec: ''
+                cp -R ${unpack name spec} "$TMPDIR/tts-deps/${spec.cmake_name}"
+              '') dependencies)}
+              chmod -R u+w "$TMPDIR/tts-deps"
+              TTS_SHERPA_SOURCE=${unpack "sherpa" sources.sherpa} \
+              TTS_NATIVE_DEPS_DIR="$TMPDIR/tts-deps" \
+              TTS_WEBGPU_PACKAGE=${fetch sources.webgpu} \
+              BUILD_JOBS="$NIX_BUILD_CORES" \
+                python3 scripts/build-tts-native.py "$TMPDIR/tts-build" "$TMPDIR/tts-stage" ${goos} ${goarch}
+            '';
             ldflags = [ "-s" "-w" ];
             checkPhase = ''
               runHook preCheck
-              go test -tags tts_audio ./internal/tts/audio ./cmd/arcana-world-tts
+              go test -tags tts ./internal/tts/... ./cmd/arcana-world-tts
               runHook postCheck
             '';
+            postInstall = let
+              platform = if pkgs.stdenv.isDarwin then "macos" else "linux";
+              arch = if pkgs.stdenv.hostPlatform.isAarch64 then "aarch64" else "x86_64";
+              triple = arch + (if pkgs.stdenv.isDarwin then "-apple-darwin" else "-unknown-linux-gnu");
+              ortLicense = pkgs.fetchurl {
+                url = "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.28.2/LICENSE";
+                hash = "sha256-LwfHJ1Gu2ZeQuKSGnPIxHfhahgsi3tBfoigDWHpIkiw=";
+              };
+              ortNotices = pkgs.fetchurl {
+                url = "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.28.2/ThirdPartyNotices.txt";
+                hash = "sha256-Dge5XzqNYjADdwfFxKK1VNEsTLZzaWaawlVjVSj/zuI=";
+              };
+            in ''
+              module="$(go env GOMODCACHE)/github.com/k2-fsa/sherpa-onnx-go-${platform}@v1.13.8"
+              install -Dm644 "$module/LICENSE" "$out/share/licenses/tts/sherpa-onnx-LICENSE"
+              install -Dm644 ${ortLicense} "$out/share/licenses/tts/onnxruntime-LICENSE"
+              install -Dm644 ${ortNotices} "$out/share/licenses/tts/onnxruntime-ThirdPartyNotices.txt"
+              ${pkgs.lib.optionalString gpuSupported ''
+                cp -R "$TMPDIR/tts-stage/." "$out/bin/"
+                cp -R "$out/bin/licenses/tts/." "$out/share/licenses/tts/"
+                rm -rf "$out/bin/licenses"
+              ''}
+              ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+                chmod u+w "$out/bin/"*.so
+              ''}
+              ${pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
+                ${pkgs.lib.optionalString (!gpuSupported) ''
+                  cp "$module/lib/${triple}/libsherpa-onnx-c-api.dylib" "$out/bin/"
+                  cp "$module/lib/${triple}/libonnxruntime.dylib" "$out/bin/"
+                ''}
+                chmod u+w "$out/bin/"*.dylib
+                for binary in "$out/bin/arcana-world-tts" "$out/bin/"*.dylib; do
+                  install_name_tool -change @rpath/libsherpa-onnx-c-api.dylib @loader_path/libsherpa-onnx-c-api.dylib "$binary"
+                  install_name_tool -change @rpath/libonnxruntime.dylib @loader_path/libonnxruntime.dylib "$binary"
+                  codesign --force --sign - "$binary"
+                done
+              ''}
+            '';
             meta = arcana-world.meta // {
-              description = "Edge speech synthesis and native MP3 playback helper";
+              description = "Speech helper for audio playback and local MeloTTS, Kokoro, and Piper voices on GPU or CPU";
               mainProgram = "arcana-world-tts";
             };
           };
@@ -172,7 +264,12 @@
             # 与 scripts/build.sh 使用的便携发行包布局保持一致。
             install -Dm755 ${arcana-world}/bin/arcana-world "$out/bin/arcana-world"
             install -Dm755 ${arcana-world-overlay-native}/libexec/arcana-world-overlay-native "$out/bin/libexec/arcana-world-overlay-native"
-            install -Dm755 ${arcana-world-tts}/bin/arcana-world-tts "$out/bin/libexec/arcana-world-tts"
+            mkdir -p "$out/bin/libexec" "$out/share/licenses"
+            cp -R ${arcana-world-tts}/bin/. "$out/bin/libexec/"
+            cp -R ${arcana-world-tts}/share/licenses/. "$out/share/licenses/"
+            mkdir -p "$out/bin/lib"
+            ln -s ${pkgs.lib.getLib pkgs.srt}/lib/libsrt.${if pkgs.stdenv.isDarwin then "dylib" else "so"} \
+              "$out/bin/lib/libsrt.${if pkgs.stdenv.isDarwin then "dylib" else "so"}"
             install -Dm644 ${arcana-world}/share/licenses/arcana-world/LICENSE \
               "$out/share/licenses/arcana-world/LICENSE"
           '';
@@ -203,8 +300,14 @@
             packages = [ pkgs.go pkgs.cmake pkgs.python3 pkgs.pkg-config pkgs.qt6.qtbase ]
               ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
                 pkgs.patchelf pkgs.qt6.qtwayland pkgs.kdePackages.layer-shell-qt
+                pkgs.xkeyboard_config pkgs.fontconfig
               ];
             QTPATHS = "${pkgs.qt6.qtbase}/bin/qtpaths";
+            QT_PLUGIN_PATH = pkgs.lib.makeSearchPath pkgs.qt6.qtbase.qtPluginPrefix (
+              [ pkgs.qt6.qtbase ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+                pkgs.qt6.qtwayland pkgs.kdePackages.layer-shell-qt
+              ]
+            );
             CGO_ENABLED = "1";
             GOFLAGS = "-mod=readonly";
           };
@@ -214,19 +317,22 @@
             GOFLAGS = "-mod=readonly";
           };
           arcana-world-overlay-native = pkgs.mkShell {
-            packages = [ pkgs.go ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+            packages = [ pkgs.go ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config pkgs.python3 pkgs.patchelf ];
             buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [
               pkgs.wayland
               pkgs.pango
               pkgs.cairo
+              pkgs.xkeyboard_config
+              pkgs.fontconfig
             ];
             CGO_ENABLED = "1";
             GOFLAGS = "-mod=readonly" + pkgs.lib.optionalString pkgs.stdenv.isLinux " -tags=wayland";
           };
           arcana-world-tts = pkgs.mkShell {
-            packages = [ pkgs.go ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
+            packages = [ pkgs.go pkgs.cmake pkgs.ninja pkgs.python3 ]
+              ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
             buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.alsa-lib ];
-            CGO_ENABLED = if pkgs.stdenv.isLinux then "1" else "0";
+            CGO_ENABLED = "1";
             GOFLAGS = "-mod=readonly";
           };
         }

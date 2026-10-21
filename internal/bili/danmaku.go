@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"arcana-world/internal/journal"
 )
 
 const danmakuUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -143,10 +145,12 @@ func (c *Client) ListenDanmaku(ctx context.Context, roomID int64, attempt int, a
 		return err
 	}
 	if !nav.IsLogin || nav.MID <= 0 || (c.account.UID != "" && decimal(int64(nav.MID)) != c.account.UID) {
+		logger.Warn("danmaku account validation failed", "uid", c.account.UID, "remote_uid", int64(nav.MID), "logged_in", nav.IsLogin)
 		return errors.New("danmaku: account validation failed")
 	}
 	key, err := danmakuWBIKey(nav.WBI.Img, nav.WBI.Sub)
 	if err != nil {
+		logger.Error("danmaku wbi key invalid", "room", roomID, "err", err)
 		return err
 	}
 	buvid := client.account.Cookies["buvid3"]
@@ -159,6 +163,7 @@ func (c *Client) ListenDanmaku(ctx context.Context, roomID int64, attempt int, a
 		}
 		buvid = fingerprint.B3
 		if buvid == "" || (&http.Cookie{Name: "buvid3", Value: buvid}).Valid() != nil {
+			logger.Error("danmaku web fingerprint invalid", "room", roomID)
 			return errors.New("danmaku: invalid web fingerprint")
 		}
 		client.account.Cookies["buvid3"] = buvid
@@ -170,6 +175,7 @@ func (c *Client) ListenDanmaku(ctx context.Context, roomID int64, attempt int, a
 		return err
 	}
 	if room.RoomID <= 0 {
+		logger.Error("danmaku room lookup invalid", "room", roomID)
 		return errors.New("danmaku: invalid room")
 	}
 	var info struct {
@@ -190,6 +196,7 @@ func (c *Client) ListenDanmaku(ctx context.Context, roomID int64, attempt int, a
 		}
 	}
 	if len(hosts) == 0 || info.Token == "" {
+		logger.Error("danmaku connection metadata invalid", "room", int64(room.RoomID), "listed_hosts", len(info.Hosts), "usable_hosts", len(hosts), "has_token", info.Token != "")
 		return errors.New("danmaku: invalid connection metadata")
 	}
 	index := attempt % len(hosts)
@@ -203,18 +210,35 @@ func (c *Client) ListenDanmaku(ctx context.Context, roomID int64, attempt int, a
 	}
 	headers := http.Header{"User-Agent": {danmakuUserAgent}, "Origin": {liveWebOrigin}, "Referer": {liveWebOrigin + "/"}}
 	// Cookie 仅用于元数据端点，绝不发送给 comet 主机。
+	dialStart := time.Now()
 	conn, response, err := dialer.DialContext(ctx, target, headers)
-	if response != nil && response.Body != nil {
-		response.Body.Close()
+	status := 0
+	if response != nil {
+		status = response.StatusCode
+		if response.Body != nil {
+			response.Body.Close()
+		}
 	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		logger.Warn("danmaku websocket dial failed", "room", int64(room.RoomID), "host", hosts[index], "attempt", attempt, "status", status, "elapsed", time.Since(dialStart), "err", err)
 		return errors.New("danmaku: websocket connection failed")
 	}
 	auth, _ := json.Marshal(map[string]any{"uid": int64(nav.MID), "roomid": int64(room.RoomID), "protover": danmakuVersionBrotli, "platform": "web", "type": 2, "key": info.Token, "buvid": buvid})
-	return danmakuSession(ctx, conn, auth, authenticated, receive, danmakuHeartbeatInterval, danmakuIOTimeout)
+	// 弹幕服务的 token 属于机密，登记后不会出现在日志中。
+	journal.AddSecrets(info.Token)
+	logger.Debug("danmaku websocket connected", "room", int64(room.RoomID), "host", hosts[index], "attempt", attempt, "elapsed", time.Since(dialStart))
+	onAuth := func() {
+		logger.Debug("danmaku authenticated", "room", int64(room.RoomID), "host", hosts[index], "attempt", attempt)
+		if authenticated != nil {
+			authenticated()
+		}
+	}
+	err = danmakuSession(ctx, conn, auth, onAuth, receive, danmakuHeartbeatInterval, danmakuIOTimeout)
+	logger.Debug("danmaku session ended", "room", int64(room.RoomID), "host", hosts[index], "attempt", attempt, "elapsed", time.Since(dialStart), "err", err)
+	return err
 }
 
 func danmakuDialer(ctx context.Context, tr *http.Transport, target string) (*websocket.Dialer, error) {
@@ -252,6 +276,7 @@ func danmakuDialer(ctx context.Context, tr *http.Transport, target string) (*web
 	u.Scheme = "https"
 	proxy, err := tr.Proxy(&http.Request{URL: u})
 	if err != nil {
+		logger.Warn("proxy lookup failed", "err", err)
 		return nil, errors.New("danmaku: proxy configuration failed")
 	}
 	if proxy == nil {
@@ -320,12 +345,14 @@ func danmakuCONNECT(conn net.Conn, address string, user *url.Userinfo) error {
 		Method: http.MethodConnect, URL: &url.URL{Opaque: address}, Host: address, Header: headers,
 	}
 	if err := request.Write(conn); err != nil {
+		logger.Warn("proxy connect write failed", "err", err)
 		return errors.New("danmaku: proxy CONNECT write failed")
 	}
 	limited := &io.LimitedReader{R: conn, N: danmakuMaxProxyResponse}
 	reader := bufio.NewReader(limited)
 	response, err := http.ReadResponse(reader, request)
 	if err != nil || limited.N == 0 {
+		logger.Warn("proxy connect response invalid", "err", err, "truncated", limited.N == 0)
 		return errors.New("danmaku: invalid proxy CONNECT response")
 	}
 	if response.StatusCode != http.StatusOK {
@@ -386,7 +413,8 @@ func danmakuSession(ctx context.Context, conn *websocket.Conn, auth []byte, auth
 				return
 			case <-ticker.C:
 				conn.SetWriteDeadline(time.Now().Add(timeout))
-				if conn.WriteMessage(websocket.BinaryMessage, danmakuPacket(danmakuOpHeartbeat, danmakuVersionPlain, nil)) != nil {
+				if err := conn.WriteMessage(websocket.BinaryMessage, danmakuPacket(danmakuOpHeartbeat, danmakuVersionPlain, nil)); err != nil {
+					logger.Warn("danmaku heartbeat failed", "err", err)
 					heartbeatFailed.Store(true)
 					conn.Close()
 					return
@@ -400,6 +428,7 @@ func danmakuSession(ctx context.Context, conn *websocket.Conn, auth []byte, auth
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		logger.Warn("danmaku auth write failed", "err", err)
 		return errors.New("danmaku: authentication write failed")
 	}
 	conn.SetReadDeadline(time.Now().Add(timeout))
@@ -410,6 +439,8 @@ func danmakuSession(ctx context.Context, conn *websocket.Conn, auth []byte, auth
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			// 记录真实的关闭原因（关闭码、读超时等），返回给调用方的错误不含这些细节。
+			logger.Warn("danmaku read failed", "authenticated", authed, "heartbeat_failed", heartbeatFailed.Load(), "err", err)
 			if heartbeatFailed.Load() {
 				return errors.New("danmaku: heartbeat write failed")
 			}
@@ -426,6 +457,11 @@ func danmakuSession(ctx context.Context, conn *websocket.Conn, auth []byte, auth
 					Code *int `json:"code"`
 				}
 				if json.Unmarshal(body, &reply) != nil || reply.Code == nil || *reply.Code != 0 {
+					if reply.Code != nil {
+						logger.Warn("danmaku auth rejected", "code", *reply.Code)
+					} else {
+						logger.Warn("danmaku auth reply invalid")
+					}
 					return errors.New("danmaku: server authentication rejected")
 				}
 				if !authed {
@@ -448,6 +484,9 @@ func danmakuSession(ctx context.Context, conn *websocket.Conn, auth []byte, auth
 			return nil
 		})
 		if err != nil {
+			if ctx.Err() == nil {
+				logger.Warn("danmaku packet handling failed", "err", err)
+			}
 			return err
 		}
 	}

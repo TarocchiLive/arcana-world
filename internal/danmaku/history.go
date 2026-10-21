@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -23,6 +24,9 @@ type History struct {
 	db       *bolt.DB
 	closeErr error
 	stop     chan struct{}
+	// 收到但无法识别、无法解码的载荷计数，按保留周期汇总后记录。
+	unknown   atomic.Int64
+	malformed atomic.Int64
 }
 
 var roomsBucket = []byte("rooms")
@@ -45,7 +49,19 @@ func receivedKey(at time.Time, room, sequence uint64) []byte {
 	return k[:]
 }
 
+// Open 打开历史库；失败时记录底层原因，成功时记录路径和耗时。
 func Open(dir string) (*History, error) {
+	start := time.Now()
+	h, err := openDatabase(dir)
+	if err != nil {
+		logger.Error("danmaku history open failed", "dir", dir, "elapsed", time.Since(start), "err", err)
+		return nil, err
+	}
+	logger.Info("danmaku history opened", "dir", dir, "elapsed", time.Since(start))
+	return h, nil
+}
+
+func openDatabase(dir string) (*History, error) {
 	base, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -129,7 +145,17 @@ func key(n uint64) []byte { var b [8]byte; binary.BigEndian.PutUint64(b[:], n); 
 // Append 仅接受业务载荷；调用方绝不能传入认证帧、
 // HTTP 请求头或连接凭据。格式错误的业务字节也会保留。
 func (h *History) Append(roomID int64, raw json.RawMessage) (bool, error) {
-	return h.append(roomID, raw, projectMany(roomID, raw)...)
+	projections := projectMany(roomID, raw)
+	for _, p := range projections {
+		if p.event.Kind == "unknown" {
+			h.unknown.Add(1)
+			if !json.Valid(raw) {
+				h.malformed.Add(1)
+			}
+			break
+		}
+	}
+	return h.append(roomID, raw, projections...)
 }
 func (h *History) append(roomID int64, raw []byte, projections ...projection) (bool, error) {
 	if roomID <= 0 {
@@ -377,13 +403,25 @@ func (h *History) retain() {
 		select {
 		case now := <-ticker.C:
 			if err := h.prune(now); err != nil && !errors.Is(err, os.ErrClosed) {
+				logger.Error("danmaku history prune failed", "err", err)
 				h.mu.Lock()
 				h.closeErr = errors.Join(h.closeErr, err)
 				h.mu.Unlock()
 			}
+			h.logDecodeSummary()
 		case <-h.stop:
 			return
 		}
+	}
+}
+
+// logDecodeSummary 汇总一个保留周期内无法识别或无法解码的业务载荷，不逐条记录，也不记录内容。
+func (h *History) logDecodeSummary() {
+	unknown, malformed := h.unknown.Swap(0), h.malformed.Swap(0)
+	if malformed > 0 {
+		logger.Warn("danmaku malformed payloads", "malformed", malformed, "unknown", unknown, "interval", retentionInterval)
+	} else if unknown > 0 {
+		logger.Debug("danmaku unknown payloads", "unknown", unknown, "interval", retentionInterval)
 	}
 }
 
@@ -396,7 +434,8 @@ func (h *History) prune(now time.Time) error {
 		return os.ErrClosed
 	}
 	cutoff := now.Add(-retention)
-	return h.db.Update(func(tx *bolt.Tx) error {
+	pruned, stale := 0, 0
+	err := h.db.Update(func(tx *bolt.Tx) error {
 		rooms := tx.Bucket(roomsBucket)
 		return rooms.ForEach(func(roomKey, value []byte) error {
 			if value != nil {
@@ -434,6 +473,7 @@ func (h *History) prune(now time.Time) error {
 					if err := c.Delete(); err != nil {
 						return err
 					}
+					pruned++
 				} else if legacy {
 					for _, p := range projectMany(event.RoomID, rawForEvent(room, k)) {
 						for _, id := range p.deletes {
@@ -451,10 +491,19 @@ func (h *History) prune(now time.Time) error {
 						if err := c.Delete(); err != nil {
 							return err
 						}
+						stale++
 					}
 				}
 			}
 			return nil
 		})
 	})
+	if err != nil {
+		return err
+	}
+	// 仅在确实清理了数据时记录，避免周期任务每次都写一条。
+	if pruned > 0 || stale > 0 {
+		logger.Info("danmaku history pruned", "events", pruned, "stale_index_entries", stale, "cutoff", cutoff.UTC().Format(time.RFC3339))
+	}
+	return nil
 }

@@ -11,6 +11,8 @@ import tarfile
 import tempfile
 import urllib.request
 
+from runtime_files import publish as publish_runtime, remove
+
 def output(*args):
     return subprocess.check_output(args, text=True).strip()
 
@@ -19,9 +21,50 @@ def run(*args):
     subprocess.run(args, check=True)
 
 
-root = Path(sys.argv[1]).resolve()
+
+MANIFEST = ".arcana-qt-files.json"
+
+
+def publish(source, destination):
+    if not (destination / MANIFEST).exists() and any(
+            (destination / name).exists() or (destination / name).is_symlink()
+            for name in ("qt.conf", "arcana-world-overlay-qt",
+                         "arcana-world-overlay-qt.exe", "Arcana World Elegant Overlay.app")):
+        raise SystemExit(f"Existing unmanaged Qt runtime in {destination}; "
+                         "use a clean/new output directory")
+    publish_runtime(source, destination, MANIFEST,
+                    allow_unmanaged=not sys.platform.startswith("linux"))
+
+
+def arguments():
+    usage = (f"Usage: {sys.argv[0]} STAGING_DIR DESTINATION_DIR\n"
+             f"       {sys.argv[0]} --remove DESTINATION_DIR\n"
+             "Collect Qt runtime files from a fresh build, then publish them.\n"
+             "--remove deletes only files recorded in the Qt ownership manifest.")
+    if sys.argv[1:] in (["-h"], ["--help"]):
+        print(usage)
+        raise SystemExit(0)
+    if len(sys.argv) == 3 and sys.argv[1] == "--remove":
+        destination = Path(sys.argv[2]).resolve()
+        remove(destination, MANIFEST)
+        raise SystemExit(0)
+    if len(sys.argv) != 3:
+        raise SystemExit(usage)
+    source, destination = (Path(value).resolve() for value in sys.argv[1:])
+    if not source.is_dir():
+        raise SystemExit(f"Missing staging directory: {source}")
+    if source.is_relative_to(destination) or destination.is_relative_to(source):
+        raise SystemExit("Staging and destination directories must not contain each other")
+    return source, destination
+
+
+root, destination_root = arguments()
 qtpaths = os.environ.get("QTPATHS", "qtpaths6")
 plugins = Path(output(qtpaths, "--query", "QT_INSTALL_PLUGINS"))
+# 分包安装的 Qt 插件可能位于独立前缀，优先使用 qtpaths 对应版本。
+plugin_dirs = [plugins] + [
+    Path(path) for path in os.environ.get("QT_PLUGIN_PATH", "").split(os.pathsep) if path
+]
 qtlibs = Path(output(qtpaths, "--query", "QT_INSTALL_LIBS"))
 qtbin = Path(output(qtpaths, "--query", "QT_INSTALL_BINS"))
 version = output(qtpaths, "--query", "QT_VERSION")
@@ -67,13 +110,14 @@ if sys.platform == "win32":
     if plugin_root.exists():
         shutil.rmtree(plugin_root)
     platform_plugin = plugins / "platforms/qwindows.dll"
+    if not platform_plugin.is_file():
+        raise SystemExit(f"Missing runtime plugin: {platform_plugin}")
     destination = plugin_root / "platforms/qwindows.dll"
     destination.parent.mkdir(parents=True)
     shutil.copy2(platform_plugin, destination)
-    # 只使用构建 Qt 的工具链，避免 PATH 中 Git 自带的 DLL 混入产物。
+    # 运行库与编译 Qt 的 UCRT64 工具链保持一致，避免混入 Git for Windows 的同名 DLL。
     prefix = Path(os.environ["MINGW_PREFIX"])
     search = [qtbin, prefix / "bin"]
-    objdump = str(prefix / "bin/objdump.exe")
     system = Path(os.environ["SystemRoot"]) / "System32"
     system_names = {p.name.lower() for p in system.iterdir()}
     queue = [root / "awqt.dll", destination] + list(root.glob("*.exe"))
@@ -85,7 +129,7 @@ if sys.platform == "win32":
         if binary in seen:
             continue
         seen.add(binary)
-        for name in re.findall(r"DLL Name:\s*(\S+)", output(objdump, "-p", str(binary))):
+        for name in re.findall(r"DLL Name:\s*(\S+)", output(str(prefix / "bin/objdump.exe"), "-p", str(binary))):
             if name.lower().startswith(("api-ms-", "ext-ms-")) or name.lower() in system_names:
                 continue
             dest = root / name
@@ -93,14 +137,12 @@ if sys.platform == "win32":
                 source = next((d / name for d in search if (d / name).is_file()), None)
                 if source is None:
                     raise SystemExit(f"Missing runtime dependency {name}: {binary}")
+                dest.unlink(missing_ok=True)
                 shutil.copy2(source, dest)
                 sources.add(source)
                 deployed.add(dest)
             queue.append(dest)
-    # 重复构建时也移除旧部署残留，链接后的导入库不属于运行时。
-    for binary in root.glob("*.dll"):
-        if binary not in deployed:
-            binary.unlink()
+    # 输出目录由构建脚本隔离；不按扩展名删除可能属于用户的 DLL。
     (root / "libawqt.dll.a").unlink(missing_ok=True)
 
     # 使用 MSYS2 的包归属和文件清单，避免把整个构建环境的许可证打进包。
@@ -145,11 +187,13 @@ else:
     # 只部署实际使用的插件，避免图片、主题等插件拉入 WebEngine 等无关模块。
     if sys.platform == "darwin":
         plugin_names = ["platforms/libqcocoa.dylib"]
+        # 自编译 SDK 只部署 Cocoa；重复打包时不保留旧图片或主题插件。
+        shutil.rmtree(root / "plugins", ignore_errors=True)
     elif sys.platform.startswith("linux"):
         # Qt 6.8 使用 qwayland-generic，较新版本改名为 qwayland；均支持光栅绘制。
         wayland = next((name for name in (
             "platforms/libqwayland-generic.so", "platforms/libqwayland.so"
-        ) if (plugins / name).is_file()), None)
+        ) if any((directory / name).is_file() for directory in plugin_dirs)), None)
         if wayland is None:
             raise SystemExit(f"Missing raster Wayland platform plugin: {plugins}")
         # Qt 初始化需要默认 xdg-shell；逐窗口 layer-shell 由 LayerShellQt 接管。
@@ -159,11 +203,14 @@ else:
         raise SystemExit(f"Unsupported deployment platform: {sys.platform}")
     deployed_plugins = []
     for name in plugin_names:
-        source = plugins / name
+        source = next((directory / name for directory in plugin_dirs
+                       if (directory / name).is_file()), plugins / name)
         if not source.is_file():
             raise SystemExit(f"Missing runtime plugin: {source}")
         destination = root / "plugins" / name
         destination.parent.mkdir(parents=True, exist_ok=True)
+        # Nix store 的文件只读；重新部署时替换副本，避免继承权限阻止覆盖。
+        destination.unlink(missing_ok=True)
         shutil.copy2(source, destination)
         deployed_plugins.append(destination)
     if sys.platform == "darwin":
@@ -176,15 +223,20 @@ else:
         resources.mkdir(parents=True, exist_ok=True)
         executable = executable_dir / helper.name
         if helper.is_symlink():
+            if helper.resolve() != executable.resolve() or not executable.is_file():
+                raise SystemExit(f"Invalid deployed helper symlink: {helper}")
             helper.unlink()
         else:
             helper.replace(executable)
         shutil.copy2(Path(__file__).resolve().parent.parent / "internal/overlay/qt/Info.plist",
                      bundle / "Contents/Info.plist")
+        # macOS 的 Prefix 相对于应用包 Contents，而非配置文件所在的 Resources。
         (resources / "qt.conf").write_text("[Paths]\nPrefix=../..\nPlugins=plugins\nLibraries=.\n", encoding="utf-8")
         helper.symlink_to(executable.relative_to(root))
         queue = [root / "libawqt.dylib", executable] + deployed_plugins
         seen = set()
+        copied = {root / "libawqt.dylib"}
+        copied_frameworks = set()
         def resolve(name, binary):
             if name.startswith("@loader_path/"):
                 return binary.parent / name.removeprefix("@loader_path/")
@@ -211,51 +263,51 @@ else:
                 if name.startswith(("/System/", "/usr/lib/")):
                     continue
                 source = Path(os.path.normpath(resolve(name, binary)))
+                if not source.is_file():
+                    raise SystemExit(f"Missing runtime dependency {name}: {binary}\nResolved path: {source}")
                 if ".framework/" in str(source):
                     prefix, rest = str(source).split(".framework/", 1)
                     framework = Path(prefix + ".framework")
                     destination = root / framework.name
-                    if not destination.exists():
-                        shutil.copytree(framework, destination, symlinks=True)
+                    if destination not in copied_frameworks and framework != destination:
+                        if destination.exists():
+                            shutil.rmtree(destination)
+                        # 开发环境也可能提供 framework，只保留运行库与资源。
+                        shutil.copytree(
+                            framework, destination, symlinks=True,
+                            ignore=shutil.ignore_patterns(
+                                "Headers", "PrivateHeaders", "Modules", "*.prl", "*.a", "*.dSYM",
+                            ),
+                        )
+                    copied_frameworks.add(destination)
                     dest = destination / rest
                 else:
                     dest = root / source.name
-                    if not dest.exists():
-                        if not source.exists():
-                            raise SystemExit(f"Missing runtime dependency {name}: {binary}")
+                    if dest not in copied and source != dest:
+                        dest.unlink(missing_ok=True)
                         shutil.copy2(source, dest)
+                    copied.add(dest)
                 replacement = "@loader_path/" + os.path.relpath(dest, binary.parent)
                 run("install_name_tool", "-change", name, replacement, str(binary))
                 if dest.resolve() != binary.resolve():
                     queue.append(dest)
             if binary.suffix == ".dylib" or ".framework/" in str(binary):
                 run("install_name_tool", "-id", "@rpath/" + str(binary.relative_to(root)), str(binary))
+            # 依赖均已改为 loader 相对路径，不再泄漏 SDK/Homebrew 的绝对搜索路径。
+            commands = output("otool", "-l", str(binary))
+            for value in re.findall(r"cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset", commands):
+                if value.startswith("/"):
+                    run("install_name_tool", "-delete_rpath", value, str(binary))
+            run("strip", "-S", str(binary))
         # 改写加载路径后重新做临时签名，支持 Apple Silicon。
         for binary in seen:
             run("codesign", "--force", "--sign", "-", str(binary))
         run("codesign", "--force", "--sign", "-", str(bundle))
     elif sys.platform.startswith("linux"):
-        queue = [root / "arcana-world-overlay-qt", root / "libawqt.so"] + deployed_plugins
-        seen = set()
-        # glibc 与加载器必须使用目标系统的版本，不可拆开捆绑。
-        system_libraries = re.compile(r"^(?:ld-linux.*|lib(?:c|m|pthread|dl|rt|resolv|util|anl|nss_[^.]+)\.so(?:\..*)?)$")
-        while queue:
-            binary = queue.pop()
-            if binary in seen or not binary.is_file():
-                continue
-            seen.add(binary)
-            dependencies = output("ldd", str(binary))
-            if "not found" in dependencies:
-                raise SystemExit(f"Unresolved runtime dependency: {binary}\n{dependencies}")
-            for name, filename in re.findall(r"^\s*(\S+) => (/\S+)", dependencies, re.MULTILINE):
-                if system_libraries.match(name):
-                    continue
-                dest = root / name
-                if not dest.exists():
-                    shutil.copy2(filename, dest)
-                queue.append(dest)
-            binary.chmod(binary.stat().st_mode | 0o200)
-            relative = os.path.relpath(root, binary.parent)
-            run("patchelf", "--set-rpath", "$ORIGIN" if relative == "." else "$ORIGIN/" + relative, str(binary))
+        from deploy_linux import collect
+        collect(root, [root / "arcana-world-overlay-qt", root / "libawqt.so"] + deployed_plugins,
+                licensed_prefix=qtlibs.parent if license_source.is_dir() else None)
     else:
         raise SystemExit(f"Unsupported deployment platform: {sys.platform}")
+
+publish(root, destination_root)

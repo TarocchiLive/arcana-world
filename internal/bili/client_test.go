@@ -131,3 +131,64 @@ func TestRedirectCannotForwardAuthenticatedPOST(t *testing.T) {
 		t.Fatal("authenticated body was forwarded to redirect destination")
 	}
 }
+
+// 动态推流节点不得获得账号凭据，节点切换必须完整保留发布路径与签名。
+func TestRTMPSRTStartResolvesNodeWithoutAccountCredentials(t *testing.T) {
+	var redirect atomic.Bool
+	var destinationReached atomic.Bool
+	destination := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		destinationReached.Store(true)
+	}))
+	defer destination.Close()
+	node := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Cookie") != "" || r.Header.Get("Authorization") != "" {
+			t.Error("dynamic node received account credentials")
+		}
+		if r.URL.RawQuery != "token=A%2BB&x=1" {
+			t.Error("node query was rewritten")
+		}
+		if redirect.Load() {
+			http.Redirect(w, r, destination.URL, http.StatusTemporaryRedirect)
+			return
+		}
+		fmt.Fprint(w, `{"code":0,"data":{"url":"rtmpsrt://new.example:9000/changed/stream?token=A%2BB&x=1"}}`)
+	}))
+	defer node.Close()
+	control := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/room/v1/Room/startLive" {
+			http.NotFound(w, r)
+			return
+		}
+		cookie, err := r.Cookie("SESSDATA")
+		if err != nil || cookie.Value != "account-session" {
+			t.Error("control request lost account authentication")
+		}
+		fmt.Fprintf(w, `{"code":0,"data":{"protocols_backup":[{"protocol":"rtmpsrt","addr":"rtmpsrt://original.example/live/","code":"stream?original=1","new_link":%q}]}}`, node.URL+"?token=A%2BB&x=1")
+	}))
+	defer control.Close()
+	c, err := New("direct", "device")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.LiveBase = control.URL
+	jar, _ := cookiejar.New(nil)
+	u, _ := url.Parse(node.URL)
+	jar.SetCookies(u, []*http.Cookie{{Name: "jar_only", Value: "private"}})
+	c.HTTP.Jar = jar
+	c.SetAccount(domain.Account{UID: "1", Cookies: map[string]string{"SESSDATA": "account-session", "bili_jct": "csrf"}})
+	stream, err := c.Start(context.Background(), 1, 2, "rtmpsrt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stream.Protocol != "rtmpsrt" || stream.Address+stream.Key != "rtmpsrt://new.example:9000/changed/stream?token=A%2BB&x=1" {
+		t.Fatalf("node replacement lost publish credentials: %#v", stream)
+	}
+	redirect.Store(true)
+	stream, err = c.Start(context.Background(), 1, 2, "rtmpsrt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stream.Address+stream.Key != "rtmpsrt://original.example/live/stream?original=1" || destinationReached.Load() {
+		t.Fatal("failed node resolution did not preserve original endpoint or followed redirect")
+	}
+}

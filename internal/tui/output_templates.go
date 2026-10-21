@@ -19,6 +19,7 @@ func (m *Model) syncOutputTemplates() {
 	m.overlayChat = overlayChatState{}
 	m.frame = renderFrame{}
 	if err := errors.Join(problems...); err != nil {
+		logger.Warn("output templates load failed", "language", language, "err", err)
 		m.warnOutputTemplates(err)
 	}
 }

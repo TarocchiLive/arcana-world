@@ -4,13 +4,104 @@
 
 Versions are listed newest first.
 
-## Unreleased
+## [v0.4.2]: 2026-10-21
 
-### Changed
+Speech can now use Qwen and Doubao online voices or MeloTTS, Kokoro, and Piper local voices. Edge is built in, and online voices retry on their own when the network hiccups.
 
-- Build a reduced Qt 6.8.3 for the Windows amd64 overlay, removing ICU, unused modules, and plugins. Ship only required DLLs, retain both Native and Elegant overlays, and use stronger ZIP compression.
-- Collect Windows third-party notices for shipped components, deduplicate them, and combine them into `THIRD_PARTY_NOTICES.txt`. Preserve copyright notices, license terms, and source links without bundling unrelated build-tool licenses.
-- Add overlay sample preview to the WebUI outputs page, reusing the TUI samples and rotation. Turning preview off or leaving the page restores actual content; samples do not enter chat history or TTS.
+### What's changed
+
+- Speech announcements can now use Qwen and Doubao cloud voices, or MeloTTS, Kokoro v1.1, and Piper local voices. Each provider keeps its own settings, and your existing Edge voice carries over.
+- Local voices run on the GPU by default, with a CPU option. The first time you pick a model that isn't installed, the app asks whether to download it.
+- Download local models in the app, resume a canceled download, or install one manually. A model is only used after it passes verification, and clearing application data keeps it.
+- Qwen and Doubao API keys are kept in the credential store, not in the config file.
+- Edge, Qwen, and Doubao retry twice on network drops, timeouts, or a busy service; stopping, switching, or quitting cancels them right away.
+- Playback supports MP3, WAV, FLAC, and Ogg Vorbis without installing FFmpeg.
+- Speech error messages are now translated and tell you what to check.
+- Terminal and WebUI help add a "Speech announcements" topic, and the chat overlay help is reorganized.
+
+### Upgrade notes
+
+- The speech helper now bundles the runtime libraries for local voices, so replace both the main program and the `libexec` folder when upgrading.
+- Building the full desktop package from source also needs Python 3, CMake, Ninja, and a C/C++ compiler.
+
+## [v0.4.1]: 2026-10-21
+
+Add the RTMPSRT streaming protocol: OBS streams to this computer, and Arcana World forwards it to Bilibili over SRT.
+
+### What's changed
+
+- Settings now offers RTMPSRT as a streaming protocol. It works with OBS on this computer and needs the libsrt 1.5 runtime; see the [README](README.en.md#rtmpsrt-streaming) for installation.
+- Before opening the room, the app checks that OBS runs on this computer and libsrt is available, so the room does not go live without a working stream. If Bilibili provides no RTMPSRT URL, the app reports an error.
+- After you stop streaming in OBS, you can start again from OBS directly. Forwarding failures are written to Logs, and a failed retry is reported again.
+- Help now explains that disconnecting OBS or quitting the app stops an RTMPSRT stream.
+
+### Upgrade notes
+
+- Release packages do not include libsrt; install it as described in the README before using RTMPSRT. Other streaming protocols are unaffected.
+
+## [v0.4.0]: 2026-10-19
+
+Add a browser control panel and styled overlay, with improvements to cover editing, output templates, and streaming diagnostics. This summary covers changes since v0.3.0, including v0.3.1 and v0.3.2.
+
+### What's changed
+
+- Add a local WebUI for accounts, live rooms, OBS, chat, overlays, and TTS, with Chinese and English, light and dark themes, narrow-screen navigation, and a streaming readiness checklist.
+- Save the preferred startup interface and open the browser automatically for WebUI; provide a dedicated Windows WebUI launcher and manual checks for the latest stable release.
+- Add a styled overlay alongside the native overlay, with text, panel, and animation settings, sample previews without signing in, and macOS Dock / Windows taskbar visibility controls.
+- Support separate Chinese and English YAML Go templates for overlays and TTS, reporting invalid configuration files and falling back to defaults; improve message layout and preserve combined emoji and ligatures when truncating text.
+- Add cover cropping, zooming, and positioning previews in the terminal and WebUI, including native iTerm2 images; convert uploads to JPEG within the platform's size limits.
+- Fix HTTP 403 errors from the Edge TTS endpoint; retry failed synthesis or empty audio up to twice, cancelling immediately on stop or exit.
+- Separate detailed diagnostic logs from activity records, recording network, OBS, and helper errors while hiding credentials; support troubleshooting with `--log-level debug`.
+- Fix missing RTMP fallback for invalid or unsupported SRT addresses, missed OBS shutdown cleanup after a lost start response, and terminal hangs on interrupt signals.
+- Reduce desktop package size and bundle Linux overlay libraries, font configuration, and keyboard layout data; improve Nix builds and deployment and document Scoop and APT installation.
+
+### Upgrade notes
+
+- Extract the entire archive and replace both the main executable and `libexec` to keep helpers matched; Linux and macOS archives now use `.tar.xz`.
+- Windows x86 / ARM64 packages provide only the native overlay; Linux overlays require a Wayland desktop with layer-shell support.
+- The default WebUI address is `http://127.0.0.1:5273`.
+
+## [v0.4.0-rc.3]: 2026-10-19 (prerelease)
+
+Fix SRT-first mode failing to fall back to RTMP and preventing OBS from starting the stream.
+
+### What's changed
+
+- Fall back to the RTMP address from the same start-live response when the SRT address is unsupported or invalid, validating the fallback address and stream key.
+- Simplify the WebUI sidebar by removing the brand icon.
+
+## [v0.4.0-rc.2]: 2026-10-18 (prerelease)
+
+Fix Linux release overlays failing to launch in environments such as Nix, replacing the withdrawn rc.1.
+
+### What's changed
+
+- Bundle Wayland, Pango/Cairo, and other native overlay runtime libraries so the complete bundle can be relocated and launched directly.
+- Include XKB keyboard layout data to fix Elegant overlay crashes when the expected system data directory is missing.
+- Use bundled font configuration with system and user fonts for both overlays, avoiding incompatible host Fontconfig rules while preserving explicit environment overrides.
+
+### Upgrading
+
+Replace the main executable and the entire `libexec` directory, not just the overlay executables; Linux still requires a Wayland desktop with layer-shell support.
+
+## [v0.4.0-rc.1]: 2026-10-18 (prerelease)
+
+This release candidate redesigns the WebUI, reduces Elegant overlay bundle sizes, and improves diagnostic logging and OBS shutdown cleanup.
+
+### What's changed
+
+- Redesign the WebUI with sidebar navigation, global live and OBS status, a go-live checklist, and unified management dialogs, with bottom navigation on narrow screens.
+- View users by clicking chat names, see new-message prompts while scrolling back, and automatically save number and color settings after adjustments.
+- Preview overlay samples from the WebUI Outputs page; actual content returns when preview is disabled or every page leaves Outputs, without adding samples to chat history or speech.
+- Trim Qt runtimes and third-party notice files on Windows, Linux, and macOS while retaining font shaping and both Native and Elegant overlays; use `.tar.xz` on Linux and macOS and stronger ZIP compression on Windows.
+- Separate diagnostic logs from on-screen activity records, recording network, OBS, and helper-process errors while hiding sensitive credentials; use `--log-level debug` for more detail.
+- Fix shutdown leaving OBS streaming when a start takes effect but its response is lost through disconnection or cancellation.
+- Fix Elegant overlay builds and runtime deployment under Nix; rebuilds remove stale Qt files and preserve the existing runtime if dependency collection fails.
+- Simplify speech error messages by removing repeated prefixes.
+
+### Upgrading
+
+Extract the entire release archive and replace both the main executable and `libexec`; Linux and macOS archives now use the `.tar.xz` extension.
 
 ## [v0.4.0-alpha.1]: 2026-10-14 (prerelease)
 
@@ -412,3 +503,9 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.3.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.1
 [v0.3.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.3.2
 [v0.4.0-alpha.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-alpha.1
+[v0.4.0-rc.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.1
+[v0.4.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.2
+[v0.4.0-rc.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.3
+[v0.4.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0
+[v0.4.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.1
+[v0.4.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.2

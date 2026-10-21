@@ -24,6 +24,9 @@ func TestResetSettingsPreservesConnectionsAccountsAndHistory(t *testing.T) {
 	if err := s.SetOBSSecret("obs secret"); err != nil {
 		t.Fatal(err)
 	}
+	if err := s.SetTTSSecret("qwen", "api_key", "qwen-secret"); err != nil {
+		t.Fatal(err)
+	}
 	c := s.Config()
 	c.ActiveUID = a.UID
 	c.DefaultUI = "webui"
@@ -79,6 +82,9 @@ func TestResetSettingsPreservesConnectionsAccountsAndHistory(t *testing.T) {
 	if secret, err := reopened.OBSSecret(); err != nil || secret != "obs secret" {
 		t.Fatalf("OBS secret changed: %v", err)
 	}
+	if secrets, err := reopened.TTSSecrets("qwen"); err != nil || secrets["api_key"] != "qwen-secret" {
+		t.Fatalf("TTS secret changed after reset: %v", err)
+	}
 }
 func TestClearDataRemovesOwnedFilesAndRejectsStaleWrites(t *testing.T) {
 	backend := memoryBackend{}
@@ -93,6 +99,11 @@ func TestClearDataRemovesOwnedFilesAndRejectsStaleWrites(t *testing.T) {
 	if err := s.SetOBSSecret("obs secret"); err != nil {
 		t.Fatal(err)
 	}
+	for _, provider := range []string{"qwen", "doubao"} {
+		if err := s.SetTTSSecret(provider, "api_key", provider+"-secret"); err != nil {
+			t.Fatal(err)
+		}
+	}
 	other, err := OpenWithBackend(t.TempDir(), memoryBackend{})
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +113,10 @@ func TestClearDataRemovesOwnedFilesAndRejectsStaleWrites(t *testing.T) {
 	}
 	owned := []string{"config.json", ".config-abandoned", "danmaku/history.db", "logs/arcana-world.log", "logs/journal.lock", "logs/.journal-abandoned",
 		"templates/overlay.zh-CN.yaml", "templates/overlay.en.yaml", "templates/tts.zh-CN.yaml", "templates/tts.en.yaml"}
-	unrelated := []string{"personal.txt", "logs/personal.log", "danmaku/personal.db", ".config-directory/keep", "templates/personal.yaml"}
+	// 应用模型及旧数据目录中的模型均不属于用户数据清理范围。
+	unrelated := []string{"personal.txt", "logs/personal.log", "danmaku/personal.db", ".config-directory/keep", "templates/personal.yaml", "models/personal/model.onnx", "models/tts/personal/model.onnx",
+		"models/tts/melo-zh-en/model.onnx", "models/tts/melo-zh-en.zip", "models/tts/melo-zh-en.zip.part",
+		"models/tts/.melo-zh-en.previous/model.onnx", "models/tts/.install-abandoned/model.onnx"}
 	for _, name := range append(append([]string{}, owned[1:]...), unrelated...) {
 		path := filepath.Join(s.Dir(), name)
 		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
@@ -127,7 +141,7 @@ func TestClearDataRemovesOwnedFilesAndRejectsStaleWrites(t *testing.T) {
 			t.Fatalf("unrelated file %s changed: %v", name, err)
 		}
 	}
-	for _, user := range []string{"account:42", "obs-password"} {
+	for _, user := range []string{"account:42", "obs-password", "tts:qwen:api_key", "tts:doubao:api_key"} {
 		if _, err := backend.Get(user); !errors.Is(err, keyring.ErrNotFound) {
 			t.Fatalf("credential %s remains", user)
 		}
@@ -140,6 +154,7 @@ func TestClearDataRemovesOwnedFilesAndRejectsStaleWrites(t *testing.T) {
 		"account": func() error { return s.Save(a) },
 		"delete":  func() error { return s.Delete(a.UID) },
 		"OBS":     func() error { return s.SetOBSSecret("stale") },
+		"TTS":     func() error { return s.SetTTSSecret("qwen", "api_key", "stale") },
 		"reset":   func() error { _, err := s.ResetSettings(); return err },
 		"persist": func() error { return s.persist(stale) },
 	} {

@@ -60,6 +60,7 @@ func (m *Model) coverKey(msg tea.KeyPressMsg) tea.Cmd {
 			return m.previewCover(m.cover.Image, i18n.T(i18n.TUICoverUploadPreviewTitle))
 		}
 		if m.room == nil || m.room.CoverURL == "" {
+			rejectAction("room cover missing")
 			m.warnStatus(i18n.T(i18n.TUIStatusCoverMissing))
 			return nil
 		}
