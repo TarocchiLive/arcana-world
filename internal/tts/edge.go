@@ -1,124 +1,113 @@
 package tts
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"crypto/tls"
 	"errors"
 	"net"
-	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/journal"
+	"arcana-world/internal/tts/edgetts"
+	"github.com/gorilla/websocket"
 )
 
 const (
 	defaultVoice            = "zh-CN-XiaoxiaoNeural"
 	defaultSynthesisTimeout = 30 * time.Second
-	maxEdgeRequestBytes     = 8 << 10
 	maxVoiceBytes           = 96
 	maxProxyBytes           = 2048
-	edgeWorkerReady         = "edge-tts-v1"
 )
 
-type EdgeOptions struct {
-	Executable string
-	Voice      string
-	Proxy      string
-	Timeout    time.Duration
-}
-type Edge struct {
-	executable, voice, proxy string
-	timeout                  time.Duration
-	client                   *residentClient
-}
-type edgeRequest struct {
-	Text  string `json:"text"`
-	Voice string `json:"voice"`
-	Proxy string `json:"proxy"`
+// edge 通过 Edge 朗读服务在线合成；连接、代理与重试沿用其他在线语音的会话。
+type edge struct {
+	*cloudSession
+	voice  string
+	dialer *websocket.Dialer
 }
 
-func NewEdge(options EdgeOptions) (*Edge, error) {
-	if options.Timeout < 0 {
-		return nil, errors.New("tts: negative synthesis timeout")
+func newEdge(voice, proxy string) (Synthesizer, error) {
+	if voice == "" {
+		voice = defaultVoice
 	}
-	if options.Timeout == 0 {
-		options.Timeout = defaultSynthesisTimeout
+	// 音色写入 SSML 属性，只接受官方音色名的字符集。
+	if !validVoice(voice) {
+		return nil, errors.New(i18n.T(i18n.OutputVoiceUnsupported))
 	}
-	if options.Voice == "" {
-		options.Voice = defaultVoice
-	}
-	if !validVoice(options.Voice) {
-		return nil, errors.New("tts: invalid voice")
-	}
-	proxy, err := effectiveProxy(options.Proxy)
+	session, err := newCloudSession(i18n.T(i18n.TTSEdgeName), proxy)
 	if err != nil {
 		return nil, err
 	}
-	executable, err := resolveHelper("arcana-world-tts", options.Executable)
-	if err != nil {
-		return nil, err
-	}
-	logger.Info("edge synthesizer ready", "executable", executable, "voice", options.Voice, "proxy", proxyLabel(proxy), "timeout", options.Timeout)
-	return &Edge{executable: executable, voice: options.Voice, proxy: proxy, timeout: options.Timeout, client: newResidentClient()}, nil
+	dialer := &websocket.Dialer{Proxy: session.proxy, HandshakeTimeout: defaultSynthesisTimeout, EnableCompression: true}
+	logger.Info("edge synthesizer ready", "voice", voice)
+	return &edge{cloudSession: session, voice: voice, dialer: dialer}, nil
 }
 
-func (e *Edge) Close() error { return e.client.Close() }
-
-func (e *Edge) Synthesize(ctx context.Context, text string) ([]byte, error) {
-	if ctx == nil {
-		return nil, errors.New("nil context")
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
+func (e *edge) Synthesize(ctx context.Context, text string) ([]byte, error) {
 	text, err := validateText(text)
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, e.timeout)
-	defer cancel()
-	var input bytes.Buffer
-	encoder := json.NewEncoder(&input)
-	encoder.SetEscapeHTML(false)
-	if err := encoder.Encode(edgeRequest{Text: text, Voice: e.voice, Proxy: e.proxy}); err != nil {
-		return nil, errors.New("encoding synthesis input")
-	}
-	if input.Len() > maxEdgeRequestBytes {
-		return nil, errors.New("synthesis input exceeds limit")
-	}
-	// 错误由 Manager 统一添加 "tts: synthesize:" 前缀，此处原样返回。
-	audio, err := e.client.request(ctx, func(context.Context) (*exec.Cmd, error) {
-		cmd := exec.Command(e.executable, "edge-worker")
-		cmd.Env = withoutProxyEnv(os.Environ())
-		return cmd, nil
-	}, edgeWorkerReady, input.Bytes(), MaxAudioBytes, nil)
-	if err != nil {
-		return nil, err
-	}
-	if len(audio) == 0 {
-		return nil, errors.New("synthesis returned empty audio")
-	}
-	return audio, nil
+	return e.synthesize(ctx, func(ctx context.Context) ([]byte, error) {
+		audio, err := edgetts.Synthesize(ctx, e.dialer, e.voice, text, MaxAudioBytes)
+		if err == nil {
+			return audio, nil
+		}
+		// 日志只记录错误类别，不含文本、令牌或代理凭据。
+		logger.Debug("edge synthesis failed", "cause", edgeFailureKind(err))
+		var rejected *edgetts.HandshakeError
+		switch {
+		case errors.Is(err, edgetts.ErrEmptyAudio):
+			return nil, retryableError{e.fail(i18n.TTSCloudAudioInvalid)}
+		case errors.Is(err, edgetts.ErrAudioTooLarge), errors.Is(err, edgetts.ErrProtocol):
+			return nil, e.fail(i18n.TTSCloudAudioInvalid)
+		case errors.As(err, &rejected):
+			return nil, retryableError{e.fail(i18n.TTSEdgeRejected)}
+		}
+		return nil, e.failure(ctx, i18n.TTSEdgeUnreachable)
+	})
 }
 
-// proxyLabel 返回可安全写入日志的代理描述：只含协议与主机，不含用户信息。
-func proxyLabel(proxy string) string {
-	if proxy == "" {
-		return "direct"
+// edgeFailureKind 把底层错误归类为不含文本、凭据的简短原因。
+func edgeFailureKind(err error) string {
+	var timeout net.Error
+	var dns *net.DNSError
+	var op *net.OpError
+	var closeErr *websocket.CloseError
+	var verify *tls.CertificateVerificationError
+	var rejected *edgetts.HandshakeError
+	var errno syscall.Errno
+	switch {
+	case errors.As(err, &rejected):
+		return "handshake rejected (HTTP " + strconv.Itoa(rejected.Status) + ")"
+	case errors.Is(err, edgetts.ErrEmptyAudio):
+		return "empty audio"
+	case errors.Is(err, edgetts.ErrAudioTooLarge):
+		return "audio too large"
+	case errors.Is(err, edgetts.ErrProtocol):
+		return "protocol error"
+	case errors.Is(err, context.DeadlineExceeded) || errors.As(err, &timeout) && timeout.Timeout():
+		return "timeout"
+	case errors.As(err, &dns):
+		return "dns lookup failed"
+	case errors.As(err, &verify):
+		return "tls certificate verification failed"
+	case errors.As(err, &closeErr):
+		return "websocket closed (code " + strconv.Itoa(closeErr.Code) + ")"
+	case errors.As(err, &op):
+		if errors.As(err, &errno) {
+			return op.Op + ": " + errno.Error()
+		}
+		return op.Op + " failed"
 	}
-	u, err := url.Parse(proxy)
-	if err != nil {
-		return "invalid"
-	}
-	return u.Scheme + "://" + u.Host
+	return "network error"
 }
+
 func validVoice(voice string) bool {
 	if len(voice) > maxVoiceBytes || !strings.HasSuffix(voice, "Neural") {
 		return false
@@ -130,25 +119,8 @@ func validVoice(voice string) bool {
 	}
 	return true
 }
-func effectiveProxy(value string) (string, error) {
-	if value == "direct" {
-		return "", nil
-	}
-	if value == "" {
-		request, _ := http.NewRequest(http.MethodGet, "https://api.msedgeservices.com", nil)
-		proxy, err := http.ProxyFromEnvironment(request)
-		if err != nil {
-			// 错误文本可能包含环境变量里的代理 URL（含凭据），因此不记录 err。
-			logger.Warn("environment proxy invalid")
-			return "", errors.New(i18n.T(i18n.TTSProxyInvalid))
-		}
-		if proxy == nil {
-			return "", nil
-		}
-		value = proxy.String()
-	}
-	return normalizeProxy(value)
-}
+
+// normalizeProxy 校验用户填写的代理，并把凭据登记为日志敏感信息。
 func normalizeProxy(value string) (string, error) {
 	if value == "" {
 		return "", nil
@@ -200,21 +172,4 @@ func normalizeProxy(value string) (string, error) {
 		}
 	}
 	return proxy.String(), nil
-}
-func proxyEnv(key string) bool {
-	switch strings.ToUpper(key) {
-	case "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY":
-		return true
-	}
-	return false
-}
-func withoutProxyEnv(environ []string) []string {
-	clean := make([]string, 0, len(environ))
-	for _, entry := range environ {
-		key, _, _ := strings.Cut(entry, "=")
-		if !proxyEnv(key) {
-			clean = append(clean, entry)
-		}
-	}
-	return clean
 }

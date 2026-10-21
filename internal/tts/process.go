@@ -78,12 +78,6 @@ var helperDiagnosticCategories = []struct {
 	prefix string
 	key    i18n.Key
 }{
-	{"tts: synthesis network timeout", i18n.TTSHelperNetworkTimeout},
-	{"tts: synthesis handshake rejected", i18n.TTSHelperHandshake},
-	{"tts: synthesis network or protocol failure", i18n.TTSHelperNetwork},
-	{"tts: invalid synthesis input", i18n.TTSHelperInput},
-	{"tts: synthesis returned empty audio", i18n.TTSHelperAudioEmpty},
-	{"tts: synthesis audio exceeds limit", i18n.TTSHelperAudioLimit},
 	{"audio: empty input", i18n.TTSHelperAudioEmpty},
 	{"audio: input produced no PCM", i18n.TTSHelperAudioEmpty},
 	{"audio: input exceeds limit", i18n.TTSHelperAudioLimit},

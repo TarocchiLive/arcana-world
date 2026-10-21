@@ -23,20 +23,17 @@ func main() {
 	speed := flag.Float64("speed", 1, "speech speed, 0.5..2 (worker only)")
 	backend := flag.String("backend", tts.DefaultLocalBackend, "local inference backend: webgpu or cpu (worker only)")
 	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), `Usage: arcana-world-tts [options] <synthesize|play|edge-worker|play-worker|worker>
+		fmt.Fprintln(flag.CommandLine.Output(), `Usage: arcana-world-tts [options] <play|play-worker|worker>
 
-synthesize  Read one Edge JSON request from stdin and write MP3 to stdout.
 play        Play MP3, PCM/float WAV, FLAC or Ogg Vorbis from stdin.
             Format is detected from the header; Opus/AAC are not supported.
             Mono/stereo; at most 16 MiB and 120 seconds.
             MP3: MPEG-1/2 Layer III, 16–48 kHz, CBR/VBR.
-edge-worker Serve Edge JSON frames; initial stdout frame: "edge-tts-v1".
-            Each reply is raw MP3 in a uint32 little-endian length frame.
 play-worker Serve audio frames using one resident device context.
             Initial stdout frame: "audio-play-v1"; completion reply: "played".
             Same audio limits as play; sample rates/formats may change.
             Device is suspended while idle; --volume applies to all requests.
-            Both workers exit on EOF or request failure; diagnostics use stderr.
+            Exits on EOF or request failure; diagnostics use stderr.
 worker      Load a local model once and serve bounded UTF-8 text frames.
             Frames: uint32 little-endian byte length followed by payload.
             Initial stdout frame: "local-tts-v1"; replies: mono PCM16 WAV.
@@ -62,12 +59,8 @@ Options must appear before the subcommand.`)
 
 	var err error
 	switch flag.Arg(0) {
-	case "synthesize":
-		err = tts.RunEdge(os.Stdin, os.Stdout)
 	case "play":
 		err = play(*volume)
-	case "edge-worker":
-		err = tts.RunEdgeWorker(os.Stdin, os.Stdout)
 	case "play-worker":
 		err = playWorker(*volume)
 	case "worker":

@@ -61,7 +61,7 @@ var providers = []Provider{
 			return errors.New(i18n.T(i18n.OutputVoiceUnsupported))
 		},
 		Factory: func(values map[string]string, _, proxy string) (Synthesizer, error) {
-			return NewEdge(EdgeOptions{Voice: values["voice"], Proxy: proxy})
+			return newEdge(values["voice"], proxy)
 		},
 	},
 	localProvider("melo", i18n.TTSMelo, i18n.TTSMeloSettings, nil, ""),

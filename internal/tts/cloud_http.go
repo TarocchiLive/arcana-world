@@ -24,6 +24,7 @@ func (e retryableError) Unwrap() error { return e.error }
 type cloudSession struct {
 	service  string // 写入用户提示的服务名称。
 	client   *http.Client
+	proxy    func(*http.Request) (*url.URL, error)
 	lifetime context.Context
 	cancel   context.CancelFunc
 	mu       sync.Mutex
@@ -37,7 +38,7 @@ func newCloudSession(service, proxy string) (*cloudSession, error) {
 		return nil, err
 	}
 	lifetime, cancel := context.WithCancel(context.Background())
-	return &cloudSession{service: service, client: client, lifetime: lifetime, cancel: cancel}, nil
+	return &cloudSession{service: service, client: client, proxy: client.Transport.(*http.Transport).Proxy, lifetime: lifetime, cancel: cancel}, nil
 }
 
 // synthesize 登记一次合成并按 cloudRetryDelays 重试可恢复的失败；每次尝试单独计时。

@@ -35,7 +35,6 @@
                 ./go.sum
                 ./cmd
                 ./internal
-                ./third_party
                 ./scripts/build-tts-native.py
                 ./scripts/tts-native
                 ./LICENSE
