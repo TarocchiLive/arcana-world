@@ -30,7 +30,7 @@ Native support for Windows, Linux, and macOS.
 
 - **Scan to sign in, connect OBS, and go live with one click.**
 - **Browse and send live chat in real time, with a click-through floating overlay that stays out of the way of your mouse and keyboard.**
-- **High-quality chat, gift, and Super Chat announcements powered by Edge TTS, with zero resource overhead.**
+- **Chat, gift, and Super Chat announcements with Edge, Qwen, and Doubao cloud voices, or MeloTTS, Kokoro, and Piper local voices.**
 - **Typical memory usage of 40 MB: lightweight, smooth, and stable.**
 - **Optional local Web control panel.**
 
@@ -64,7 +64,7 @@ sudo apt-get install arcana-world
 
 ### Build from source
 
-Building from source requires Go 1.26.8+ and the platform's [overlay build dependencies](cmd/arcana-world-overlay/README.en.md#build-and-launch). On Linux, the bundled audio helper also requires ALSA development libraries and `pkg-config` (`libasound2-dev pkg-config` on Debian/Ubuntu):
+Building from source requires Go 1.26.8+ and the platform's [overlay build dependencies](cmd/arcana-world-overlay/README.en.md#build-and-launch). `make desktop` also builds the speech helper, which needs Python 3, CMake 3.24+, Ninja, and a C/C++ compiler; on Linux it also needs ALSA development libraries and `pkg-config` (`libasound2-dev pkg-config` on Debian/Ubuntu). See `bash scripts/build.sh --help` for each platform's compiler requirements:
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git
@@ -79,7 +79,7 @@ nix build
 ./result/bin/arcana-world
 ```
 
-After building, run `bin/arcana-world` (`bin/arcana-world.exe` on Windows). For terminal-only use without the overlay, build with `make build`; graphics development libraries are not required. See [Arcana World Overlay](cmd/arcana-world-overlay/README.en.md#supported-platforms) for overlay platform support.
+After building, run `bin/arcana-world` (`bin/arcana-world.exe` on Windows). For terminal-only use without the overlay or speech, build with `make build`; no graphics or speech dependencies are needed. See [Arcana World Overlay](cmd/arcana-world-overlay/README.en.md#supported-platforms) for overlay platform support.
 
 ## Help
 
@@ -96,6 +96,12 @@ RTMPSRT needs the [libsrt](https://github.com/Haivision/srt) 1.5 runtime. Skip i
 Then choose `RTMPSRT` as the streaming protocol in Settings, connect OBS on this computer, and start live. OBS streams to a local address and the app forwards it to Bilibili, so keep the app running and OBS connected while you stream; disconnecting OBS or quitting the app stops the stream. If Bilibili does not provide an RTMPSRT URL, the app reports an error; stop live and switch to another protocol.
 
 To bundle the runtime into a source build, see `bash scripts/build.sh --help`.
+
+### Speech
+
+Speech can use Edge, Qwen, or Doubao online voices, or MeloTTS, Kokoro, or Piper local voices. On the TTS page, choose a voice provider and open its settings (in WebUI: Outputs → Voice). Preview it to make sure you can hear it, then turn speech on.
+
+Edge is free and works as soon as you pick a voice. Qwen and Doubao need your own API key. Local voices download a model the first time and then work offline. See the [speech guide](cmd/arcana-world-tts/README.en.md) for setting up keys, installing models yourself, and troubleshooting.
 
 ## TODO
 - [x] Fetch direct Bilibili stream URLs, connect to OBS, and start broadcasts automatically.
@@ -143,3 +149,5 @@ Licensed under [GPL-3.0-only](LICENSE).
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss)
 - [edge-tts](https://github.com/rany2/edge-tts)
 - [Haivision SRT](https://github.com/Haivision/srt)
+- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), [ONNX Runtime](https://github.com/microsoft/onnxruntime), and [MeloTTS](https://github.com/myshell-ai/MeloTTS)
+- [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh), [Piper](https://github.com/rhasspy/piper), [LJ Speech](https://keithito.com/LJ-Speech-Dataset/), and [eSpeak NG](https://github.com/espeak-ng/espeak-ng)

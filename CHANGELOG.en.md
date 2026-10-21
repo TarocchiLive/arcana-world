@@ -4,6 +4,24 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+### What's changed
+
+- Speech announcements can now use Qwen and Doubao cloud voices, or MeloTTS, Kokoro v1.1, and Piper local voices. Each provider keeps its own settings, and your existing Edge voice carries over.
+- Local voices run on the GPU by default, with a CPU option. The first time you pick a model that isn't installed, the app asks whether to download it.
+- Download local models in the app, resume a canceled download, or install one manually. A model is only used after it passes verification, and clearing application data keeps it.
+- Qwen and Doubao API keys are kept in the credential store, not in the config file.
+- Edge, Qwen, and Doubao retry twice on network drops, timeouts, or a busy service; stopping, switching, or quitting cancels them right away.
+- Playback supports MP3, WAV, FLAC, and Ogg Vorbis without installing FFmpeg.
+- Speech error messages are now translated and tell you what to check.
+- Terminal and WebUI help add a "Speech announcements" topic, and the chat overlay help is reorganized.
+
+### Upgrade notes
+
+- The speech helper now bundles the runtime libraries for local voices, so replace both the main program and the `libexec` folder when upgrading.
+- Building the full desktop package from source also needs Python 3, CMake, Ninja, and a C/C++ compiler.
+
 ## [v0.4.1]: 2026-10-21
 
 Add the RTMPSRT streaming protocol: OBS streams to this computer, and Arcana World forwards it to Bilibili over SRT.
