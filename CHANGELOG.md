@@ -4,10 +4,20 @@
 
 版本按时间倒序记录。
 
-## 未发布
+## [v0.4.1]：2026-10-21
 
-- 新增 RTMPSRT 推流选项，通过本机 OBS 与可选 libsrt 运行库发送 RTMP over SRT；支持平台备选协议记录及动态节点地址，保留发布凭据。
-- 开播前检查 RTMPSRT 运行库和本机 OBS 连接，显示传输错误；停播时关闭传输会话并保留本机入口，支持在 OBS 中重新开播，断开与退出时完整回收。新增可选运行库打包与中英文使用说明。
+新增 RTMPSRT 推流协议：OBS 推流到本机，由 Arcana World 通过 SRT 转发给 B 站。
+
+### 本次更新
+
+- 「设置」的推流协议新增 RTMPSRT，需配合本机 OBS 和 libsrt 1.5 运行库使用，安装方法见 [README](README.md#rtmpsrt-推流)。
+- 开播前检查 OBS 是否在本机、libsrt 是否可用，避免直播间开了却推不了流；B 站没有提供 RTMPSRT 地址时直接报错。
+- 在 OBS 中停止推流后，可以直接在 OBS 里重新开始；转发失败会记录到日志，重试再次失败时也会提示。
+- 帮助中说明了 RTMPSRT 下断开 OBS 或退出应用会中断推流。
+
+### 升级提示
+
+- 发行包不附带 libsrt，使用 RTMPSRT 前请按 README 安装；其他推流协议不受影响。
 
 ## [v0.4.0]：2026-10-19
 
@@ -477,3 +487,4 @@
 [v0.4.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.2
 [v0.4.0-rc.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.3
 [v0.4.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0
+[v0.4.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.1

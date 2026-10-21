@@ -26,7 +26,7 @@
           default = arcana-world-desktop;
           arcana-world = pkgs.buildGoModule rec {
             pname = "arcana-world";
-            version = "0.4.0";
+            version = "0.4.1";
 
             src = pkgs.lib.fileset.toSource {
               root = ./.;

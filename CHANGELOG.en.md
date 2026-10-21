@@ -4,10 +4,20 @@
 
 Versions are listed newest first.
 
-## Unreleased
+## [v0.4.1]: 2026-10-21
 
-- Add RTMPSRT streaming through local OBS and the optional libsrt runtime, with backup protocol records and dynamic node resolution that preserves publishing credentials.
-- Check the RTMPSRT runtime and local OBS connection before opening the room, and report transport errors. Stop the publishing session while keeping the local endpoint available for restarting from OBS; release it on disconnect or exit. Add optional runtime packaging and bilingual usage guidance.
+Add the RTMPSRT streaming protocol: OBS streams to this computer, and Arcana World forwards it to Bilibili over SRT.
+
+### What's changed
+
+- Settings now offers RTMPSRT as a streaming protocol. It works with OBS on this computer and needs the libsrt 1.5 runtime; see the [README](README.en.md#rtmpsrt-streaming) for installation.
+- Before opening the room, the app checks that OBS runs on this computer and libsrt is available, so the room does not go live without a working stream. If Bilibili provides no RTMPSRT URL, the app reports an error.
+- After you stop streaming in OBS, you can start again from OBS directly. Forwarding failures are written to Logs, and a failed retry is reported again.
+- Help now explains that disconnecting OBS or quitting the app stops an RTMPSRT stream.
+
+### Upgrade notes
+
+- Release packages do not include libsrt; install it as described in the README before using RTMPSRT. Other streaming protocols are unaffected.
 
 ## [v0.4.0]: 2026-10-19
 
@@ -477,3 +487,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.4.0-rc.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.2
 [v0.4.0-rc.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0-rc.3
 [v0.4.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0
+[v0.4.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.1
