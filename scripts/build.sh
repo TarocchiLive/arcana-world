@@ -11,7 +11,7 @@ desktop-native  Build without Qt; remove Qt files owned by an earlier build.
 webui           Build the Windows-only WebUI launcher.
 overlay         Build the native overlay helper.
 overlay-qt      Build and deploy the Qt overlay (native host only).
-tts             Build the speech helper.
+tts             Build the speech helper and its runtime libraries (playback, Edge, local models on GPU or CPU).
 rtmpsrt         Deploy optional libsrt and its dependencies beside an existing TUI.
 
 Environment: GOOS, GOARCH, VERSION, OUT_DIR (default: bin), BUILD_JOBS (default: 2).
@@ -21,6 +21,21 @@ Linux overlay builds also require patchelf, pkg-config, and xkeyboard-config dat
 LINUX_LICENSE_DIR optionally supplies redistribution licenses and SOURCE.txt for non-Debian builds.
 RTMPSRT packaging requires SRT_LIBRARY and SRT_LICENSE_DIR (including SOURCE.txt).
 The normal TUI build does not require or bundle libsrt.
+Speech helper builds run on the target system and CPU (Windows x64 can also build x86).
+They require Python 3, CMake >= 3.24, Ninja, and a C/C++ compiler.
+Windows builds use a MinGW-w64 compiler for the helper: set TTS_CC, TTS_CXX, and TTS_OBJDUMP
+(CI uses llvm-mingw). The GPU runtime on Windows also needs the Visual Studio 2022 C++ tools
+for the target CPU; its runtime DLLs come from VCToolsRedistDir (override: TTS_MSVC_REDIST_DIR),
+which must contain x64/ or arm64/Microsoft.VC*.CRT. Redistributing them requires a licensed
+Visual Studio installation. TTS_MSVC_LICENSE_FILE supplies the Visual C++ runtime license offline;
+otherwise it is downloaded from Microsoft.
+GPU support: macOS 14+ on Apple Silicon, and Linux and Windows on x64 or ARM64.
+Intel macOS and 32-bit Windows builds support CPU only.
+Linux also requires patchelf and the distribution's package license data.
+TTS_LICENSE_DIR supplies the ONNX Runtime license files offline.
+TTS_SHERPA_SOURCE supplies unpacked sherpa-onnx sources, and TTS_WEBGPU_PACKAGE supplies the WebGPU NuGet package.
+TTS_NATIVE_DEPS_DIR supplies unpacked CMake dependencies for offline builds.
+TTS_NATIVE_CMAKE_ARGS passes extra options to the native CMake build.
 EOF
 }
 
@@ -42,17 +57,18 @@ fi
 # 源码定位不依赖调用目录；相对输出路径保持以项目根目录为基准。
 project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$project_dir"
+# 部署脚本互相导入，禁止在源码目录写入字节码缓存。
+export PYTHONDONTWRITEBYTECODE=1
 out_dir="${OUT_DIR:-bin}"
 version="${VERSION:-}"
 export GOOS="${GOOS:-$(go env GOOS)}"
 export GOARCH="${GOARCH:-$(go env GOARCH)}"
 suffix=
 overlay_cgo=1
-audio_cgo=0
 overlay_tags=
 case "$GOOS" in
   windows) suffix=.exe; overlay_cgo=0 ;;
-  linux) overlay_tags=wayland; audio_cgo=1 ;;
+  linux) overlay_tags=wayland ;;
 esac
 ldflags='-s -w -buildid='
 tui_ldflags="$ldflags"
@@ -121,8 +137,40 @@ build_native_linux() (
   python3 scripts/deploy_linux.py "$stage_dir" "$install_dir"
 )
 
+# WebGPU 目标重建固定版本 C ABI；CPU-only 目标继续使用官方原生运行库。
+build_tts() (
+  if [[ "$GOOS" != "$(go env GOHOSTOS)" || "$GOARCH" != "$(go env GOHOSTARCH)" ]]; then
+    if [[ "$GOOS" != windows || "$(go env GOHOSTOS)" != windows || "$GOARCH" != 386 ]]; then
+      echo 'TTS packaging requires a matching native host/toolchain (Windows x64 may target x86).' >&2
+      exit 2
+    fi
+  fi
+  export CC="${TTS_CC:-${CC:-cc}}" CXX="${TTS_CXX:-${CXX:-c++}}"
+  export OBJDUMP="${TTS_OBJDUMP:-${OBJDUMP:-objdump}}"
+  if [[ "$GOOS" == windows ]]; then
+    export CGO_LDFLAGS="${CGO_LDFLAGS:-} -static-libgcc"
+  fi
+  local stage_dir
+  mkdir -p "$out_dir"
+  stage_dir="$(mktemp -d "$out_dir/.tts-stage.XXXXXX")"
+  trap 'rm -rf -- "$stage_dir"' EXIT
+  if [[ "$GOOS/$GOARCH" != darwin/amd64 && "$GOOS/$GOARCH" != windows/386 ]]; then
+    python3 scripts/build-tts-native.py "$out_dir/.tts-native-$GOOS-$GOARCH" "$stage_dir" "$GOOS" "$GOARCH"
+    export TTS_NATIVE_DIR="$stage_dir"
+  else
+    unset TTS_NATIVE_DIR
+  fi
+  CGO_ENABLED=1 go build -tags tts -trimpath -buildvcs=false \
+    -ldflags="$ldflags" -o "$stage_dir/arcana-world-tts$suffix" ./cmd/arcana-world-tts
+  python3 scripts/deploy-tts.py "$stage_dir" "$out_dir/libexec" "$GOOS" "$GOARCH"
+)
+
 build() {
   local component="$1" cgo tags='' output flags="$ldflags" command
+  if [[ "$component" == tts ]]; then
+    build_tts
+    return
+  fi
   if [[ "$component" == overlay && "$GOOS" == linux ]]; then
     build_native_linux
     return
@@ -139,10 +187,6 @@ build() {
     overlay)
       cgo="$overlay_cgo"; tags="$overlay_tags"; command=arcana-world-overlay
       output="libexec/arcana-world-overlay-native$suffix"
-      ;;
-    tts)
-      cgo="$audio_cgo"; tags=tts; command=arcana-world-tts
-      output="libexec/arcana-world-tts$suffix"
       ;;
     *) echo "Unknown Go component: $component" >&2; exit 2 ;;
   esac

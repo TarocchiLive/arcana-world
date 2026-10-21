@@ -5,7 +5,8 @@ from pathlib import Path
 import shutil
 import tempfile
 
-MANIFESTS = (".arcana-qt-files.json", ".arcana-native-files.json", ".arcana-srt-files.json")
+MANIFESTS = (".arcana-qt-files.json", ".arcana-native-files.json", ".arcana-srt-files.json",
+             ".arcana-tts-files.json")
 
 
 def validate_parent(destination, relative):

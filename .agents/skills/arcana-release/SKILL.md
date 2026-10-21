@@ -66,6 +66,7 @@ git merge --no-ff --no-commit dev
 |---|---|
 | `cmd/arcana-world/main.go` 的 `version` | 使用不带 `v` 的目标版本，保证 `go run ... --version` 正确 |
 | `flake.nix` 的 `arcana-world.version` | 与程序版本一致；检查浮层、TTS 和桌面包仍继承该值 |
+| `flake.nix` 的 `vendorHash` | `go.mod` 或 `go.sum` 相较上一版有变化时重新计算，使 Nix 构建与依赖一致 |
 | `scripts/build.sh`、`Makefile`、发布工作流 | 确认 `VERSION` 注入和去除标签前缀的路径一致，不再添加重复版本常量 |
 | 用户文档和提示中的当前版本 | 必要时更新；动态 latest 链接无需改动 |
 
@@ -92,7 +93,7 @@ git merge --no-ff --no-commit dev
 
 ```sh
 make check
-go test -tags tts ./internal/tts/... ./cmd/arcana-world-tts
+CGO_ENABLED=1 go test -tags tts ./internal/tts/... ./cmd/arcana-world-tts
 go run ./cmd/arcana-world --version
 make desktop VERSION="$TAG"
 ```

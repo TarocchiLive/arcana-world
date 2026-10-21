@@ -19,4 +19,4 @@ check:
 
 clean:
 	rm -f "$(OUT_DIR)/arcana-world" "$(OUT_DIR)/arcana-world.exe" "$(OUT_DIR)/arcana-world-webui.exe"
-	rm -rf "$(OUT_DIR)/libexec" "$(OUT_DIR)/.overlay-qt-build"
+	rm -rf "$(OUT_DIR)/libexec" "$(OUT_DIR)/.overlay-qt-build" "$(OUT_DIR)"/.tts-native-*

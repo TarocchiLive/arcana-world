@@ -1,5 +1,5 @@
 name: Desktop toolchains
-description: Install matching native and Elegant overlay build dependencies
+description: Install the native overlay, Elegant overlay, and speech helper build dependencies
 runs:
   using: composite
   steps:
@@ -96,3 +96,31 @@ runs:
       with:
         path: ${{ steps.windows-toolchain.outputs.prefix }}
         key: ${{ steps.windows-toolchain-cache.outputs.cache-primary-key }}
+    # 语音辅助程序的 Windows 运行库来自 Visual Studio 可再分发目录，需要先加载其环境变量。
+    - name: Configure Windows speech runtime environment
+      if: runner.os == 'Windows' && env.GOARCH != '386'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: ${{ env.GOARCH == 'arm64' && 'amd64_arm64' || 'amd64' }}
+    - name: Install pinned Windows speech compiler
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        host=x86_64
+        digest=82babcd6aae4dc3606e8e0471d816989c384b4bf86a139f184a8b4a1b2c2758d
+        if [[ "$RUNNER_ARCH" == ARM64 ]]; then
+          host=aarch64
+          digest=167e9afb1288f6d8c68d0d38f5236d34d3c773768b6d885a39a344c733e46977
+        fi
+        name="llvm-mingw-20250709-ucrt-$host"
+        root="$(cygpath -u "$RUNNER_TEMP")/tts-toolchain"
+        mkdir -p "$root"
+        curl --fail --location --retry 3 "https://github.com/mstorsjo/llvm-mingw/releases/download/20250709/$name.zip" -o "$root/compiler.zip"
+        printf '%s  %s\n' "$digest" "$root/compiler.zip" | sha256sum --check --strict
+        unzip -q "$root/compiler.zip" -d "$root"
+        target=x86_64
+        case "$GOARCH" in 386) target=i686 ;; arm64) target=aarch64 ;; esac
+        prefix="$(cygpath -m "$root/$name/bin")"
+        echo "TTS_CC=$prefix/$target-w64-mingw32-clang.exe" >> "$GITHUB_ENV"
+        echo "TTS_CXX=$prefix/$target-w64-mingw32-clang++.exe" >> "$GITHUB_ENV"
+        echo "TTS_OBJDUMP=$prefix/llvm-objdump.exe" >> "$GITHUB_ENV"
