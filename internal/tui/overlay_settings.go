@@ -412,6 +412,9 @@ func (m *Model) chooseOverlay(value string) tea.Cmd {
 		case "qt-animation":
 			s.Qt.AnimationEnabled = !s.Qt.AnimationEnabled
 			return m.saveOverlay(s, overlayConfigOperation())
+		case "qt-idle-hide":
+			s.Qt.IdleHideEnabled = !s.Qt.IdleHideEnabled
+			return m.saveOverlay(s, overlayConfigOperation())
 		case "content":
 			m.choices = nil
 			for _, v := range []string{"danmaku", "status", "combined"} {

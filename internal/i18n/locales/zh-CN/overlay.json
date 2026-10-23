@@ -30,6 +30,8 @@
   "overlay.ui.qt_animation_enabled": "新消息动画",
   "overlay.ui.qt_animation_duration": "动画时长（0..2000 毫秒）",
   "overlay.ui.qt_animation_distance": "动画距离（0..128 逻辑点）",
+  "overlay.ui.qt_idle_hide": "无新消息时自动隐藏",
+  "overlay.ui.qt_idle_seconds": "自动隐藏等待（1..600 秒）",
   "overlay.cli.enable": "本次会话启用所选浮层（默认遵循已保存设置；-overlay=false 可禁用）",
   "overlay.cli.executable": "浮层辅助程序路径（默认使用主程序真实路径旁 libexec 内所选后端的捆绑程序）",
   "overlay.log.started": "浮层已就绪",

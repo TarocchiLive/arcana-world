@@ -30,6 +30,8 @@
   "overlay.ui.qt_animation_enabled": "Animate new messages",
   "overlay.ui.qt_animation_duration": "Animation duration (0..2000 ms)",
   "overlay.ui.qt_animation_distance": "Animation distance (0..128 points)",
+  "overlay.ui.qt_idle_hide": "Hide when no new messages",
+  "overlay.ui.qt_idle_seconds": "Hide after (1..600 seconds)",
   "overlay.cli.enable": "Enable the selected overlay for this session (defaults to saved setting; -overlay=false disables it)",
   "overlay.cli.executable": "Overlay helper path (defaults to the selected backend's bundled helper in libexec beside the real main executable)",
   "overlay.log.started": "Overlay is ready",

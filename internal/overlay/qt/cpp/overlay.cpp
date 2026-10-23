@@ -217,8 +217,8 @@ struct Appearance {
     qreal historyScale = 1, latestScale = 1, lineSpacing = 3, messageSpacing = 8;
     qreal historyAlpha = .95, cornerRadius = 16, borderAlpha = .18, shadowStrength = .3;
     qreal animationDistance = 10;
-    int maxMessages = 6, maxLines = 4, animationDurationMS = 320;
-    bool gradient = false, animationEnabled = true;
+    int maxMessages = 6, maxLines = 4, animationDurationMS = 320, idleHideSeconds = 6;
+    bool gradient = false, animationEnabled = true, idleHideEnabled = false;
     QColor accentStart = QColor("#FF4FA3"), accentEnd = QColor("#FF8FCB");
 
     Appearance() = default;
@@ -241,12 +241,14 @@ struct Appearance {
         animationEnabled = value.value("animation_enabled").toBool(true);
         animationDurationMS = value.value("animation_duration_ms").toInt(320);
         animationDistance = value.value("animation_distance").toDouble(10);
+        idleHideEnabled = value.value("idle_hide_enabled").toBool(false);
+        idleHideSeconds = value.value("idle_hide_seconds").toInt(6);
     }
 };
 
 class OverlayWindow final : public QWidget {
 public:
-    explicit OverlayWindow(QScreen *target) : screen_(target), animation_(this) {
+    explicit OverlayWindow(QScreen *target) : screen_(target), animation_(this), fade_(this), idle_(this) {
         setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
         setAttribute(Qt::WA_TranslucentBackground);
         setAttribute(Qt::WA_ShowWithoutActivating);
@@ -266,6 +268,12 @@ public:
             progress_ = 1;
             update();
         });
+        connect(&fade_, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
+            visibility_ = value.toReal();
+            update();
+        });
+        idle_.setSingleShot(true);
+        connect(&idle_, &QTimer::timeout, this, [this] { fadeTo(0, idleFadeOutMS); });
     }
 
     void apply(const QJsonObject &config, bool unlocked, bool reduced, bool reposition) {
@@ -287,6 +295,10 @@ public:
         const bool preserveHeights = !geometryChanged && !reposition && !layoutStyleChanged &&
             config_.value("font") == config.value("font") &&
             config_.value("padding") == config.value("padding") && cachedDpr_ == devicePixelRatioF();
+        // 内容、外观、位置或锁定状态变化都视为活动，使调整设置时面板立即可见。
+        const bool active = appearanceChanged || geometryChanged || reposition || unlocked_ != unlocked;
+        // 空闲渐隐只遵循 reduced_motion；参数 reduced 还合并了关闭消息动画，此时面板仍需渐隐。
+        reducedMotion_ = config.value("reduced_motion").toBool();
         config_ = config;
         style_ = nextStyle;
         if ((geometryChanged || reposition) && screen_) {
@@ -317,6 +329,7 @@ public:
         show();
         // Qt 在显示窗口时可能重写原生样式，显示后恢复非激活与任务栏策略。
         if (!wasVisible) applyWindowPolicy();
+        syncIdle(active);
         update();
     }
 
@@ -336,8 +349,11 @@ protected:
     }
 
     void paintEvent(QPaintEvent *) override {
+        if (visibility_ <= 0) return;
         QPainter painter(this);
         painter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+        // 空闲渐隐作用于整个面板，阴影、背景、边框和文字按同一比例淡出。
+        painter.setOpacity(visibility_);
         const qreal alpha = config_.value("background_alpha").toDouble(.35);
         const QRectF panel = QRectF(rect()).adjusted(5, 5, -5, -5);
         // 阴影只绘制窗口内部，透明边缘不依赖桌面截图或系统模糊权限。
@@ -363,7 +379,7 @@ protected:
         painter.save();
         painter.setClipRect(content_);
         for (const auto &row : rows_) {
-            painter.setOpacity(row.fromOpacity + (row.toOpacity - row.fromOpacity) * progress_);
+            painter.setOpacity(visibility_ * (row.fromOpacity + (row.toOpacity - row.fromOpacity) * progress_));
             painter.drawPixmap(QPointF(content_.left(), row.fromY + (row.toY - row.fromY) * progress_), row.pixmap);
         }
         painter.restore();
@@ -561,15 +577,53 @@ private:
         // 动画只复用光栅化字形缓存；没有词级时间数据，因此不模拟卡拉 OK 扫光。
     }
 
+    // 未启用或解锁拖动时保持可见；活动时渐显并重新计时，到时渐隐整个面板。
+    void syncIdle(bool active) {
+        if (!style_.idleHideEnabled || unlocked_) {
+            idle_.stop();
+            fadeTo(1, idleFadeInMS);
+            return;
+        }
+        if (!active && (idle_.isActive() || visibility_ < 1 || fade_.state() == QAbstractAnimation::Running)) return;
+        fadeTo(1, idleFadeInMS);
+        idle_.start(style_.idleHideSeconds * 1000);
+    }
+
+    // 时长按剩余透明度比例缩放，渐隐中途来新消息时从当前透明度快速恢复。
+    void fadeTo(qreal target, int duration) {
+        if (fade_.state() == QAbstractAnimation::Running) {
+            if (fade_.endValue().toReal() == target) return;
+            fade_.stop();
+        } else if (visibility_ == target) {
+            return;
+        }
+        const int scaled = qRound(duration * std::abs(target - visibility_));
+        if (reducedMotion_ || scaled <= 0) {
+            visibility_ = target;
+            update();
+            return;
+        }
+        fade_.setStartValue(visibility_);
+        fade_.setEndValue(target);
+        fade_.setDuration(scaled);
+        fade_.setEasingCurve(target > visibility_ ? QEasingCurve::OutCubic : QEasingCurve::InOutSine);
+        fade_.start();
+    }
+
+    static constexpr int idleFadeInMS = 300, idleFadeOutMS = 800;
+
     QPointer<QScreen> screen_;
     QJsonObject config_;
     Appearance style_;
     QVariantAnimation animation_;
+    QVariantAnimation fade_;
+    QTimer idle_;
     std::vector<VisualRow> rows_;
     std::vector<LogicalRow> logicalRows_;
     quint64 nextIdentity_ = 0;
     QRectF content_;
-    qreal progress_ = 1, cachedDpr_ = 0;
+    qreal progress_ = 1, cachedDpr_ = 0, visibility_ = 1;
+    bool reducedMotion_ = false;
     void applyWindowPolicy() {
         const QString error = awqt::configureWindow(this, !unlocked_,
             config_.value("qt").toObject().value("show_in_taskbar").toBool());

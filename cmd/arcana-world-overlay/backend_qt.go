@@ -35,6 +35,8 @@ func registerBackendFlags(flags *flag.FlagSet, cfg *overlay.Config) {
 	flags.BoolVar(&q.AnimationEnabled, "animation", q.AnimationEnabled, "Elegant overlay message animation")
 	flags.IntVar(&q.AnimationDurationMS, "animation-ms", q.AnimationDurationMS, "Elegant overlay animation duration in milliseconds (0..2000); 0 disables animation")
 	flags.Float64Var(&q.AnimationDistance, "animation-distance", q.AnimationDistance, "Elegant overlay animation distance in logical points (0..128); 0 fades only")
+	flags.BoolVar(&q.IdleHideEnabled, "idle-hide", q.IdleHideEnabled, "Elegant overlay fades out when the text stays unchanged and fades back in on new text")
+	flags.IntVar(&q.IdleHideSeconds, "idle-seconds", q.IdleHideSeconds, "Elegant overlay seconds without new text before fading out (1..600)")
 }
 
 func configureBackend(reducedMotion, unlocked bool) error {

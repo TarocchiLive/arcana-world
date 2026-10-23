@@ -28,6 +28,9 @@ type QtAppearance struct {
 	AnimationEnabled    bool    `json:"animation_enabled"`
 	AnimationDurationMS int     `json:"animation_duration_ms"`
 	AnimationDistance   float64 `json:"animation_distance"`
+	// 空闲隐藏：内容超过设定秒数未变化时渐隐面板，内容变化时立即渐显。
+	IdleHideEnabled bool `json:"idle_hide_enabled"`
+	IdleHideSeconds int  `json:"idle_hide_seconds"`
 }
 
 func DefaultQtAppearance() QtAppearance {
@@ -37,6 +40,7 @@ func DefaultQtAppearance() QtAppearance {
 		Gradient: false, AccentStart: "#FF4FA3", AccentEnd: "#FF8FCB",
 		CornerRadius: 16, BorderAlpha: .18, ShadowStrength: .3,
 		AnimationEnabled: true, AnimationDurationMS: 320, AnimationDistance: 10,
+		IdleHideEnabled: false, IdleHideSeconds: 6,
 	}
 }
 
@@ -86,6 +90,9 @@ func (appearance QtAppearance) Normalize() (QtAppearance, error) {
 	}
 	if appearance.AnimationDurationMS < 0 || appearance.AnimationDurationMS > 2000 {
 		return QtAppearance{}, fmt.Errorf("overlay: Elegant overlay animation_duration_ms must be in 0..2000")
+	}
+	if appearance.IdleHideSeconds < 1 || appearance.IdleHideSeconds > 600 {
+		return QtAppearance{}, fmt.Errorf("overlay: Elegant overlay idle_hide_seconds must be in 1..600")
 	}
 	for _, color := range [...]struct {
 		name  string

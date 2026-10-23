@@ -38,6 +38,8 @@ var overlayQtGroups = []struct {
 		{key: "qt-animation", label: i18n.TUIOverlayQtAnimationEnabled, read: func(s overlay.Settings) string { return toggleLabel("", s.Qt.AnimationEnabled) }},
 		overlayQtNumberField("qt-animation-ms", i18n.TUIOverlayQtAnimationDuration, 0, 2000, true, func(s overlay.Settings) float64 { return float64(s.Qt.AnimationDurationMS) }, func(s *overlay.Settings, n float64) { s.Qt.AnimationDurationMS = int(n) }),
 		overlayQtNumberField("qt-animation-distance", i18n.TUIOverlayQtAnimationDistance, 0, 128, false, func(s overlay.Settings) float64 { return s.Qt.AnimationDistance }, func(s *overlay.Settings, n float64) { s.Qt.AnimationDistance = n }),
+		{key: "qt-idle-hide", label: i18n.TUIOverlayQtIdleHide, read: func(s overlay.Settings) string { return toggleLabel("", s.Qt.IdleHideEnabled) }},
+		overlayQtNumberField("qt-idle-seconds", i18n.TUIOverlayQtIdleSeconds, 1, 600, true, func(s overlay.Settings) float64 { return float64(s.Qt.IdleHideSeconds) }, func(s *overlay.Settings, n float64) { s.Qt.IdleHideSeconds = int(n) }),
 	}},
 }
 

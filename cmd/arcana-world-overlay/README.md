@@ -176,7 +176,9 @@ Linux 便携包包含两种浮层所需的动态库、XKB 数据和字体配置�
 
 独立演示：`./bin/libexec/arcana-world-overlay-qt -demo -duration 30s`。`-demo`、`-clock`、`-stdin` 互斥。`-unlocked` 允许拖动，`-reduced-motion` 关闭动效；两项仅用于独立精美浮层，不能与受管理的 `-socket` 模式组合。精美浮层不创建菜单栏／托盘图标或右键菜单。
 
-精美外观参数不带后端品牌前缀：`-align`、`-history-scale`、`-latest-scale`、`-line-spacing`、`-message-spacing`、`-history-alpha`、`-max-messages`、`-max-lines`、`-gradient`、`-accent-start`、`-accent-end`、`-radius`、`-border-alpha`、`-shadow`、`-animation`、`-animation-ms`、`-animation-distance`。精美 helper 的 `-help` 列出取值范围，主程序管理模式使用保存设置。
+精美外观参数不带后端品牌前缀：`-align`、`-history-scale`、`-latest-scale`、`-line-spacing`、`-message-spacing`、`-history-alpha`、`-max-messages`、`-max-lines`、`-gradient`、`-accent-start`、`-accent-end`、`-radius`、`-border-alpha`、`-shadow`、`-animation`、`-animation-ms`、`-animation-distance`、`-idle-hide`、`-idle-seconds`。精美 helper 的 `-help` 列出取值范围，主程序管理模式使用保存设置。
+
+`-idle-hide`（保存为 `overlay.qt.idle_hide_enabled`，默认关闭）在显示内容 `-idle-seconds` 秒（`overlay.qt.idle_hide_seconds`，默认 6）没有变化后用 0.8 秒渐隐整个面板，内容变化时用 0.3 秒渐显。解锁拖动期间面板保持可见；`-reduced-motion` 时直接隐藏和显示。
 
 「弹幕浮层」页的第二项紧跟启用开关，用于选择原生浮层或精美浮层，并说明两者的外观与设置差异。精美浮层的外观设置在 macOS 上提供「在 Dock 中显示」，在 Windows 上提供「在任务栏中显示」。该偏好保存为 `overlay.qt.show_in_taskbar`（默认 `false`），通过 `config.qt.show_in_taskbar` 传给 helper，保存后即时生效。原生浮层不使用此偏好。Linux 的 X11 和 Wayland 均不启用此功能，但保留已保存的值；即使保存为 `true`，Wayland 仍使用 layer-shell。
 

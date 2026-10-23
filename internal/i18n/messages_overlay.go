@@ -41,6 +41,8 @@ const (
 	TUIOverlayQtAnimationEnabled  Key = "overlay.ui.qt_animation_enabled"
 	TUIOverlayQtAnimationDuration Key = "overlay.ui.qt_animation_duration"
 	TUIOverlayQtAnimationDistance Key = "overlay.ui.qt_animation_distance"
+	TUIOverlayQtIdleHide          Key = "overlay.ui.qt_idle_hide"
+	TUIOverlayQtIdleSeconds       Key = "overlay.ui.qt_idle_seconds"
 	TUIOverlayLayoutGroup         Key = "overlay.ui.layout_group"
 	TUIOverlayTextGroup           Key = "overlay.ui.text_group"
 	TUIOverlayColorsGroup         Key = "overlay.ui.colors_group"

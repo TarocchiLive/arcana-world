@@ -109,6 +109,8 @@ func (m *Model) webFields(page string) []webui.Field {
 				kind, value = "switch", boolean(s.Qt.Gradient)
 			case "qt-animation":
 				kind, value = "switch", boolean(s.Qt.AnimationEnabled)
+			case "qt-idle-hide":
+				kind, value = "switch", boolean(s.Qt.IdleHideEnabled)
 			}
 			f := add("overlay-"+field.key, group, field.label, kind, value, false)
 			f.Step = field.step
@@ -221,6 +223,8 @@ func (m *Model) webSetField(page, id, value string) (tea.Cmd, error) {
 			s.Qt.Gradient = value == "true"
 		case "overlay-qt-animation":
 			s.Qt.AnimationEnabled = value == "true"
+		case "overlay-qt-idle-hide":
+			s.Qt.IdleHideEnabled = value == "true"
 		case "overlay-content":
 			s.Content = value
 		case "overlay-anchor":
