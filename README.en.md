@@ -64,7 +64,7 @@ sudo apt-get install arcana-world
 
 ### Build from source
 
-Building from source requires Go 1.26.8+ and the platform's [overlay build dependencies](cmd/arcana-world-overlay/README.en.md#build-and-launch). `make desktop` also builds the speech helper, which needs Python 3, CMake 3.24+, Ninja, and a C/C++ compiler; on Linux it also needs ALSA development libraries and `pkg-config` (`libasound2-dev pkg-config` on Debian/Ubuntu). See `bash scripts/build.sh --help` for each platform's compiler requirements:
+Building from source requires Go 1.26.8+ and the platform's [overlay build dependencies](cmd/arcana-world-overlay/README.en.md#build-and-launch). `make desktop` also builds the speech helper, which needs Python 3 and a C compiler; its GPU runtime is downloaded as a verified prebuilt pack listed in `scripts/native-deps.json` when available, and building it from source also needs CMake 3.24+, Ninja, and a C++ compiler. On Linux it also needs ALSA development libraries and `pkg-config` (`libasound2-dev pkg-config` on Debian/Ubuntu). See `bash scripts/build.sh --help` for each platform's compiler requirements:
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git

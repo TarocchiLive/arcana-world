@@ -22,9 +22,12 @@ LINUX_LICENSE_DIR optionally supplies redistribution licenses and SOURCE.txt for
 RTMPSRT packaging requires SRT_LIBRARY and SRT_LICENSE_DIR (including SOURCE.txt).
 The normal TUI build does not require or bundle libsrt.
 Speech helper builds run on the target system and CPU (Windows x64 can also build x86).
-They require Python 3, CMake >= 3.24, Ninja, and a C/C++ compiler.
+GPU runtimes and the setup-*-qt.sh Qt SDKs come from verified prebuilt packs listed in
+scripts/native-deps.json when they match the local build scripts. NATIVE_DEPS=auto (default)
+builds missing or outdated packs from source, prebuilt requires the packs, and source always builds.
+Source builds of the speech runtime require Python 3, CMake >= 3.24, Ninja, and a C/C++ compiler.
 Windows builds use a MinGW-w64 compiler for the helper: set TTS_CC, TTS_CXX, and TTS_OBJDUMP
-(CI uses llvm-mingw). The GPU runtime on Windows also needs Visual Studio 2022 or 2026 C++ tools
+(CI uses llvm-mingw). Source builds of the Windows GPU runtime also need Visual Studio 2022 or 2026 C++ tools
 for the target CPU; its runtime DLLs come from VCToolsRedistDir (override: TTS_MSVC_REDIST_DIR),
 which must contain x64/ or arm64/Microsoft.VC*.CRT. Redistributing them requires a licensed
 Visual Studio installation. TTS_MSVC_LICENSE_FILE supplies the Visual C++ runtime license offline;
@@ -151,12 +154,21 @@ build_tts() (
   if [[ "$GOOS" == windows ]]; then
     export CGO_LDFLAGS="${CGO_LDFLAGS:-} -static-libgcc"
   fi
-  local stage_dir
+  local stage_dir native_dir status=0
   mkdir -p "$out_dir"
   stage_dir="$(mktemp -d "$out_dir/.tts-stage.XXXXXX")"
   trap 'rm -rf -- "$stage_dir"' EXIT
   if [[ "$GOOS/$GOARCH" != darwin/amd64 && "$GOOS/$GOARCH" != windows/386 ]]; then
-    python3 scripts/build-tts-native.py "$out_dir/.tts-native-$GOOS-$GOARCH" "$stage_dir" "$GOOS" "$GOARCH"
+    python3 scripts/native-deps.py fetch tts "$GOOS" "$GOARCH" "$stage_dir" || status=$?
+    if (( status == 3 )); then
+      # 源码构建结果保留在工作目录，依赖工作流从这里打包。
+      native_dir="$out_dir/.tts-native-$GOOS-$GOARCH"
+      rm -rf -- "$native_dir/stage"
+      python3 scripts/build-tts-native.py "$native_dir" "$native_dir/stage" "$GOOS" "$GOARCH"
+      cp -R "$native_dir/stage/." "$stage_dir/"
+    elif (( status != 0 )); then
+      exit "$status"
+    fi
     export TTS_NATIVE_DIR="$stage_dir"
   else
     unset TTS_NATIVE_DIR

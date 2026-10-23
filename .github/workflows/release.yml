@@ -62,6 +62,8 @@ jobs:
       GOOS: ${{ matrix.goos }}
       GOARCH: ${{ matrix.goarch }}
       RELEASE_TAG: ${{ github.ref_name }}
+      # 发行包只使用依赖工作流发布并校验过的 Qt SDK 与语音运行库。
+      NATIVE_DEPS: prebuilt
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6

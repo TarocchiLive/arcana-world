@@ -65,7 +65,7 @@ sudo apt-get install arcana-world
 
 ### 从源码构建
 
-从源码构建需要 Go 1.26.8+ 和对应平台的[浮层构建依赖](cmd/arcana-world-overlay/README.md#构建与启动)。`make desktop` 还会构建语音程序，需要 Python 3、CMake 3.24+、Ninja 和 C/C++ 编译器；Linux 另需 ALSA 开发库与 `pkg-config`（Debian/Ubuntu：`libasound2-dev pkg-config`）。各平台的编译器要求见 `bash scripts/build.sh --help`：
+从源码构建需要 Go 1.26.8+ 和对应平台的[浮层构建依赖](cmd/arcana-world-overlay/README.md#构建与启动)。`make desktop` 还会构建语音程序，需要 Python 3 和 C 编译器，GPU 运行库优先下载 `scripts/native-deps.json` 中经过校验的预编译包；需要从源码构建时另需 CMake 3.24+、Ninja 和 C++ 编译器。Linux 另需 ALSA 开发库与 `pkg-config`（Debian/Ubuntu：`libasound2-dev pkg-config`）。各平台的编译器要求见 `bash scripts/build.sh --help`：
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git

@@ -4,7 +4,8 @@ set -euo pipefail
 if [[ "${1:-}" == -h || "${1:-}" == --help ]]; then
   printf '%s\n' "Usage: source ${BASH_SOURCE[0]} [--cache-info]" \
     'Build the native Qt SDK, or print its cache prefix and toolchain identity.' \
-    'Environment: QT_BUILD_PREFIX, QT_BUILD_WORK, BUILD_JOBS.' \
+    'Environment: QT_BUILD_PREFIX, QT_BUILD_WORK, BUILD_JOBS, NATIVE_DEPS.' \
+    'A matching prebuilt SDK from scripts/native-deps.json is used instead of building (NATIVE_DEPS=source disables it).' \
     'Install and work directories must be empty or owned by this script.'
   return 0 2>/dev/null || exit 0
 fi
@@ -47,9 +48,22 @@ toolchain_id="$({
   printf '%s\n' "${CMAKE_TOOLCHAIN_FILE:-}"
   sha256sum < "${BASH_SOURCE[0]}"; sha256sum < "$script_dir/qt-build-paths.py"
 } | sha256sum | cut -d ' ' -f 1)"
+# 依赖清单中有与本脚本一致的预编译 SDK 时直接使用；缓存键随包内容变化。
+status=0
+pack="$("$python" "$script_dir/native-deps.py" resolve qt windows amd64)" || status=$?
+if (( status == 0 )); then
+  toolchain_id="prebuilt-$pack"
+elif (( status != 3 )); then
+  exit "$status"
+fi
 if [[ "${1:-}" == --cache-info ]]; then
   printf 'prefix=%s\ntoolchain-id=%s\n' "$prefix" "$toolchain_id"
   return 0 2>/dev/null || exit 0
+fi
+if [[ "$toolchain_id" == prebuilt-* && "$(cat "$prefix/.complete" 2>/dev/null)" != "$toolchain_id" ]]; then
+  "$python" "$script_dir/qt-build-paths.py" reset "$prefix" "$work"
+  "$python" "$script_dir/native-deps.py" fetch qt windows amd64 "$prefix"
+  printf '%s\n' "$toolchain_id" > "$prefix/.complete"
 fi
 if [[ ! -f "$prefix/.complete" || "$(cat "$prefix/.complete")" != "$toolchain_id" ]]; then
   # 失败后从已确认所有权的干净目录重建；不能保留被新配置裁剪掉的 DLL。

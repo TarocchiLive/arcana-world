@@ -164,7 +164,7 @@ macOS amd64/arm64、Linux amd64/arm64 和 Windows amd64 完整发行包包含两
 - Linux：安装 Qt >= 6.5（Core/Gui/Widgets/WaylandClient）、LayerShellQt >= 6.3、Wayland 开发库和 `patchelf`。发行脚本在 Ubuntu 24.04 上构建并缓存 Qt 6.8.3、LayerShellQt 6.3.6，保持原有 glibc 基线。`scripts/setup-linux-qt.sh` 使用 sudo 安装构建依赖；非 CI 环境还需将安装前缀设为 `CMAKE_PREFIX_PATH`，将其 `bin` 加入 PATH，并将 `QTPATHS` 指向 `bin/qtpaths`。
 - Windows amd64：安装 MSYS2 UCRT64 的 GCC、CMake、Ninja、Python，以及 curl、tar 和原生 Windows amd64 Go。在 UCRT64 shell 中执行 `source scripts/setup-windows-qt.sh`，构建并缓存精简动态 Qt 6.8.3，同时设置后续构建所需环境变量；Go 需在 PATH 中。`QT_BUILD_PREFIX` 可指定 SDK 安装目录，`BUILD_JOBS` 可指定编译并发数。Qt 与 cgo 必须使用同一套 UCRT64 编译器，不可混用 MSVC Qt。
 
-SDK 安装目录与工作目录应为空，或由当前脚本创建。工具链或配置变化后，脚本会清理并重建这两个目录；旧脚本生成的无归属标记目录会保留，请另选空目录。各平台脚本的 `--help` 列出可配置项。
+`scripts/native-deps.json` 列出由同一脚本生成的预编译 SDK 时，macOS、Linux、Windows 脚本会下载并校验该 SDK，不再本地编译 Qt；设置 `NATIVE_DEPS=source` 可改为本地构建。SDK 安装目录与工作目录应为空，或由当前脚本创建。工具链或配置变化后，脚本会清理并重建这两个目录；旧脚本生成的无归属标记目录会保留，请另选空目录。各平台脚本的 `--help` 列出可配置项。
 
 `make overlay-qt` 构建并部署精美浮层 helper。部署脚本将 Qt 插件及间接动态库依赖复制到 `libexec`，改写 macOS/Linux 加载路径，并对修改后的 macOS 二进制重新临时签名。Windows 只部署 `qwindows.dll` 和实际依赖的 Qt、MinGW DLL，第三方许可合并保存在 `libexec/licenses/THIRD_PARTY_NOTICES.txt`，源码地址见同目录的 `SOURCE.txt`。Linux 包含 LayerShellQt 和 Wayland 客户端依赖，但使用系统的 glibc、内核、显示服务和显卡驱动。移动或打包时必须保留整个目录。
 

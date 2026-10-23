@@ -102,6 +102,18 @@ make desktop VERSION="$TAG"
 
 缺少原生构建依赖时，明确记录本地验证边界，并以对应原生 CI 构建补充。编译通过不等于图形运行验证；本次修改过图形行为时，按 `AGENTS.md` 另做实际后端验证。
 
+发布工作流以 `NATIVE_DEPS=prebuilt` 构建，Qt SDK 和语音 GPU 运行库必须来自 `scripts/native-deps.json`。提交前运行 `python3 scripts/native-deps.py status`：清单缺失、缺少矩阵所需的包或出现 `outdated` 时，先发布新的依赖包：
+
+```sh
+DEPS_TAG="native-deps-$(date +%Y%m%d)"   # 同日重发时追加 .2 等后缀
+git tag -a "$DEPS_TAG" -m "build: publish $DEPS_TAG"
+git push origin "$DEPS_TAG"
+# 等待 native-deps.yml 完成后取回清单，并在当前分支提交。
+gh release download "$DEPS_TAG" --pattern native-deps.json --output scripts/native-deps.json --clobber
+```
+
+依赖标签须指向已推送、包含当前构建脚本的提交。取回清单后再次运行 `status`，全部为 `current` 才继续发版。依赖包 Release 是预发布且不是 latest，不要公开为应用版本或删除仍被清单引用的依赖 Release。
+
 确认冲突全部解决，只暂存本次发布应包含的内容。发布提交可用 `release: prepare <tag>`；不要使用默认 `Merge branch ...` 信息。提交后记录完整提交 ID，确认开发分支与原发布分支均是其祖先。
 
 ## 5. 推送与等待发布

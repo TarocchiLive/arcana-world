@@ -4,7 +4,8 @@ set -euo pipefail
 if [[ "${1:-}" == -h || "${1:-}" == --help ]]; then
   printf '%s\n' "Usage: bash ${BASH_SOURCE[0]} [--cache-info]" \
     'Build the native Qt SDK, or print its cache prefix and toolchain identity.' \
-    'Environment: QT_BUILD_PREFIX, QT_BUILD_WORK, BUILD_JOBS, CC, CXX.' \
+    'Environment: QT_BUILD_PREFIX, QT_BUILD_WORK, BUILD_JOBS, CC, CXX, NATIVE_DEPS.' \
+    'A matching prebuilt SDK from scripts/native-deps.json is used instead of building (NATIVE_DEPS=source disables it).' \
     'Install and work directories must be empty or owned by this script.'
   return 0 2>/dev/null || exit 0
 fi
@@ -41,9 +42,27 @@ toolchain_id="$({
   printf '%s\n' "${CMAKE_TOOLCHAIN_FILE:-}"
   sha256sum < "${BASH_SOURCE[0]}"; sha256sum < "$script_dir/qt-build-paths.py"
 } | sha256sum | cut -d ' ' -f 1)"
+# 依赖清单中有与本脚本一致的预编译 SDK 时直接使用；缓存键随包内容变化。
+case "$(uname -m)" in
+  x86_64) goarch=amd64 ;;
+  aarch64|arm64) goarch=arm64 ;;
+  *) goarch="$(uname -m)" ;;
+esac
+status=0
+pack="$(python3 "$script_dir/native-deps.py" resolve qt linux "$goarch")" || status=$?
+if (( status == 0 )); then
+  toolchain_id="prebuilt-$pack"
+elif (( status != 3 )); then
+  exit "$status"
+fi
 if [[ "${1:-}" == --cache-info ]]; then
   printf 'prefix=%s\ntoolchain-id=%s\n' "$prefix" "$toolchain_id"
   return 0 2>/dev/null || exit 0
+fi
+if [[ "$toolchain_id" == prebuilt-* && "$(cat "$prefix/.complete" 2>/dev/null)" != "$toolchain_id" ]]; then
+  python3 "$script_dir/qt-build-paths.py" reset "$prefix" "$work"
+  python3 "$script_dir/native-deps.py" fetch qt linux "$goarch" "$prefix"
+  printf '%s\n' "$toolchain_id" > "$prefix/.complete"
 fi
 if [[ ! -f "$prefix/.complete" || "$(cat "$prefix/.complete")" != "$toolchain_id" ]]; then
   python3 "$script_dir/qt-build-paths.py" reset "$prefix" "$work"
