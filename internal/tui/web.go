@@ -359,6 +359,9 @@ func (m *Model) webSnapshot(page string) webui.Snapshot {
 			}
 		}
 	}
+	if page == "studio" {
+		s.BlocklistRules = i18n.T(i18n.BlocklistRules)
+	}
 	if page == "chat" {
 		s.Audience = m.webText(m.audienceText())
 	}

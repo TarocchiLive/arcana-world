@@ -14,7 +14,7 @@ import (
 )
 
 // ResetSettings 重置应用、浮层和语音偏好，保留凭据、OBS 连接设置、
-// 启动界面偏好、账号选择和历史记录。
+// 启动界面偏好、账号选择、屏蔽词和历史记录。
 func (s *Store) ResetSettings() (config.Config, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

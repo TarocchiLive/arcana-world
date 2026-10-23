@@ -165,12 +165,12 @@ func (m *Model) readChatHistory() tea.Cmd {
 	m.mode = "chat-history"
 	b.inputs[b.focus].Blur()
 	m.view.GotoTop()
-	h, showOther := m.chat.history, m.config.DanmakuShowOther
+	h, showOther, blocked := m.chat.history, m.config.DanmakuShowOther, m.config.Blocklist.DisplayMatcher()
 	return func() tea.Msg {
 		if h == nil {
 			return chatHistoryMsg{browser: b, request: request, err: fmt.Errorf("%s", i18n.T(i18n.DanmakuError))}
 		}
-		entries, err := h.Range(start, end.Add(time.Second-time.Nanosecond), 0, func(e danmaku.Event) bool { return chatEventVisible(e, showOther) })
+		entries, err := h.Range(start, end.Add(time.Second-time.Nanosecond), 0, func(e danmaku.Event) bool { return chatEventVisible(e, showOther) && !blocked.Blocks(e) })
 		return chatHistoryMsg{browser: b, request: request, entries: entries, err: err}
 	}
 }

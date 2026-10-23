@@ -311,8 +311,9 @@ func (m *Model) handleTTSEvents(msg ttsEventsMsg) tea.Cmd {
 	if !r.enabled || r.manager == nil {
 		return nil
 	}
+	blocked := m.config.Blocklist.TTSMatcher()
 	for _, event := range msg.events {
-		if event.Deleted || event.RoomID != r.room || !presentation.Enabled(r.disabled, event) {
+		if event.Deleted || event.RoomID != r.room || !presentation.Enabled(r.disabled, event) || blocked.Blocks(event) {
 			continue
 		}
 		rendered, err := m.outputTemplates.RenderTTS(event)

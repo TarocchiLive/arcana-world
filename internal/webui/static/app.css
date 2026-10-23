@@ -830,6 +830,7 @@ main:focus {
   gap: 18px;
   align-items: start;
 }
+.studio-main,
 .studio-side {
   display: flex;
   flex-direction: column;
@@ -1426,6 +1427,80 @@ button.subnav-item[aria-current="true"] {
 .event-fields {
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 8px;
+}
+/* 屏蔽词：每个列表一块，标签可单独移除，长列表在块内滚动。 */
+.word-fields {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+.field-words {
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.word-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.word-head .field-label {
+  font-size: 14px;
+}
+.word-count,
+.field-hint {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.field-hint {
+  margin: 0;
+}
+.word-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.word-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 2px 2px 2px 10px;
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  font-size: 13px;
+}
+.word-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.word-remove {
+  min-width: 0;
+  min-height: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  line-height: 1;
+}
+button.word-remove:hover:not(:disabled) {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.word-empty {
+  color: var(--muted);
+  font-size: 13px;
 }
 .maintenance {
   display: grid;

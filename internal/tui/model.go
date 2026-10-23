@@ -673,6 +673,11 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 	if m.mode == "members" {
 		return m.roomMembersKey(msg)
 	}
+	if key == "esc" {
+		if cmd, handled := m.blocklistBack(); handled {
+			return cmd
+		}
+	}
 	if key == "esc" && m.overlaySettings != nil {
 		if m.mode == "pick" && m.editKind == "overlay-fields" {
 			if navigation := m.overlaySettings; navigation.group != overlaySettingsRoot {

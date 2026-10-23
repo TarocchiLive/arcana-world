@@ -39,7 +39,7 @@ func (m *Model) menu() []menuItem {
 		}
 		return append(items, menuItem{i18n.T(i18n.TUIMenuRemoveAccount), "delete-pick"})
 	case roomPage:
-		return []menuItem{{i18n.T(i18n.TUIMenuEditTitle), "title"}, {i18n.T(i18n.TUIMenuSelectCategory), "areas"}, {i18n.T(i18n.TUIMenuEditAnnouncement), "announcement"}, {i18n.T(i18n.TUIMenuManageCover), "cover"}, {i18n.T(i18n.TUIMenuManageDelay), "delay"}}
+		return []menuItem{{i18n.T(i18n.TUIMenuEditTitle), "title"}, {i18n.T(i18n.TUIMenuSelectCategory), "areas"}, {i18n.T(i18n.TUIMenuEditAnnouncement), "announcement"}, {i18n.T(i18n.TUIMenuManageCover), "cover"}, {i18n.T(i18n.TUIMenuManageDelay), "delay"}, {m.blocklistMenuLabel(), "blocklist"}}
 	case obsPage:
 		label := i18n.T(i18n.TUIOBSConnect)
 		action := "obs-connect"
@@ -202,6 +202,9 @@ func (m *Model) perform(action string) tea.Cmd {
 		return m.saveConfig(cfg, false)
 	case "chat-limit":
 		return m.form("chat-limit", i18n.T(i18n.DanmakuLimit), strconv.Itoa(m.config.DanmakuLimit), false)
+	case "blocklist":
+		m.selected = 0
+		return m.showBlocklist("")
 	case "login":
 		return work(m, qrOperation(), func(ctx context.Context) (domain.QR, error) { return m.client.GenerateQR(ctx) })
 	case "refresh":
@@ -433,6 +436,9 @@ func (m *Model) choose() tea.Cmd {
 	if strings.HasPrefix(m.editKind, "tts-field:") {
 		return m.saveTTSField(strings.TrimPrefix(m.editKind, "tts-field:"), ch.value)
 	}
+	if _, ok := blocklistPicker(m.editKind); ok {
+		return m.chooseBlocklist(ch.value)
+	}
 	m.mode = ""
 	if strings.HasPrefix(m.editKind, "overlay-") {
 		return m.chooseOverlay(ch.value)
@@ -501,6 +507,9 @@ func (m *Model) submitForm() tea.Cmd {
 			value = m.input.Value()
 		}
 		return m.submitOverlay(kind, value)
+	}
+	if id, ok := strings.CutPrefix(kind, blocklistAddKind); ok {
+		return m.submitBlockWords(id, m.input.Value())
 	}
 	if strings.HasPrefix(kind, "tts-field:") {
 		return m.saveTTSField(strings.TrimPrefix(kind, "tts-field:"), value)

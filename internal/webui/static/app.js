@@ -576,6 +576,8 @@
       if (entry.save) entry.save.disabled = locked || sending;
       if (entry.revert) entry.revert.disabled = locked;
       if (entry.clear) entry.clear.disabled = locked || sending;
+      if (entry.words)
+        entry.wrap.querySelectorAll("button").forEach((b) => (b.disabled = locked || sending));
     }
     const send = $("chat-send");
     if (send)
@@ -675,7 +677,96 @@
     if (entry.save) entry.save.hidden = !dirty;
     if (entry.revert) entry.revert.hidden = !dirty;
   }
+  // 词列表：输入框一次可添加多个词，已有词以标签展示并可单独移除；每次提交完整列表。
+  function makeWordsField(f) {
+    const wrap = node("div", "field field-words");
+    wrap.dataset.field = f.id;
+    const label = node("label", "field-label", f.label);
+    label.htmlFor = "field-" + f.id;
+    const hint = node("p", "field-hint", f.hint || "");
+    const line = node("div", "field-control");
+    const input = node("input");
+    input.type = "text";
+    input.id = "field-" + f.id;
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.placeholder = t(
+      "Type a word and press Enter; separate several with commas",
+      "输入屏蔽词后回车，多个词用逗号分隔",
+    );
+    const add = button(t("Add", "添加"), "", "primary small");
+    const list = node("ul", "word-list");
+    list.setAttribute("aria-label", f.label);
+    const count = node("small", "word-count");
+    const entry = { wrap, input, label, text: label, save: null, revert: null, clear: null, dirty: false, words: true };
+    const current = () => {
+      try {
+        const value = (state?.fields || []).find((x) => x.id === f.id)?.value;
+        return JSON.parse(value || "[]") || [];
+      } catch (_) {
+        return [];
+      }
+    };
+    const send = async (words) => {
+      if (sending || !state || state.busy || state.interaction) return false;
+      await command("set:" + f.id, JSON.stringify(words));
+      return !commandError;
+    };
+    const submit = async () => {
+      const value = input.value.trim();
+      if (!value) return;
+      // 原始输入由服务端按分隔符拆分并去重；失败时保留输入，便于修改后重试。
+      if (await send([...current(), value])) {
+        input.value = "";
+        setDirty(entry, false);
+        input.focus();
+      }
+    };
+    add.onclick = submit;
+    input.addEventListener("input", () => setDirty(entry, input.value.trim() !== ""));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.isComposing) {
+        e.preventDefault();
+        submit();
+      } else if (e.key === "Escape" && input.value) {
+        e.preventDefault();
+        e.stopPropagation();
+        input.value = "";
+        setDirty(entry, false);
+      }
+    });
+    entry.renderWords = (value) => {
+      const signature = language + "|" + (value || "[]");
+      if (list.dataset.value === signature) return;
+      list.dataset.value = signature;
+      let words = [];
+      try {
+        words = JSON.parse(value || "[]") || [];
+      } catch (_) {}
+      list.replaceChildren(
+        ...words.map((word) => {
+          const item = node("li", "word-chip");
+          const remove = button("×", "", "word-remove");
+          remove.setAttribute("aria-label", t("Remove ", "移除 ") + word);
+          remove.title = t("Remove", "移除");
+          remove.onclick = () => send(current().filter((w) => w !== word));
+          item.append(node("span", "word-text", word), remove);
+          return item;
+        }),
+      );
+      if (!words.length) list.append(node("li", "word-empty", t("No words yet", "暂无屏蔽词")));
+      count.textContent = t(words.length + " words", "共 " + words.length + " 个");
+    };
+    line.append(input, add);
+    const head = node("div", "word-head");
+    head.append(label, count);
+    wrap.append(head, hint, line, list);
+    entry.renderWords(f.value);
+    fieldNodes.set(f.id, entry);
+    return wrap;
+  }
   function makeField(f) {
+    if (f.kind === "words") return makeWordsField(f);
     const wrap = node("div", "field field-" + f.kind);
     wrap.dataset.field = f.id;
     const label = node("label", "field-label", f.label);
@@ -797,6 +888,7 @@
     const fields = state?.fields || [];
     if (page === "studio") {
       renderFields($("room-fields"), fields.filter((f) => f.group === "room"));
+      renderFields($("blocklist-fields"), fields.filter((f) => f.group === "blocklist"));
       renderFields(
         $("connection-fields"),
         fields.filter((f) => f.group === "connection"),
@@ -854,6 +946,12 @@
           list.dataset.options = signature;
         }
       }
+      if (f.kind === "words") {
+        entry.renderWords(f.value);
+        const hint = entry.wrap.querySelector(".field-hint");
+        if (hint && hint.textContent !== (f.hint || "")) hint.textContent = f.hint || "";
+        continue;
+      }
       if (entry.dirty) continue;
       const value = f.value ?? "";
       if (f.kind === "switch") input.checked = value === "true";
@@ -907,7 +1005,11 @@
     const obs = card("OBS Studio", helpButton("obs"), "obs-card");
     obs.body.append(fieldsRoot("connection-fields", "fields"));
     side.append(check.el, obs.el);
-    grid.append(room.el, side);
+    const words = card(t("Block words", "屏蔽词"), null, "blocklist-card");
+    words.body.append(note(state?.blocklistRules || ""), fieldsRoot("blocklist-fields", "fields word-fields"));
+    const main = node("div", "studio-main");
+    main.append(room.el, words.el);
+    grid.append(main, side);
     root.append(grid);
   }
   function areaSet(room) {
@@ -1820,7 +1922,7 @@
     const panel = node("section", "split-panel");
     panel.append(node("h2", "split-title", tabs.find((x) => x[0] === tab)[1]));
     if (["connection", "behavior"].includes(tab)) {
-      panel.append(fieldsRoot("settings-fields"));
+      panel.append(fieldsRoot("settings-fields", "fields"));
       if (tab === "connection")
         panel.append(
           note(

@@ -348,6 +348,10 @@ func readConfig(dir string, secure bool) (config.Config, []byte, error) {
 		logger.Error("config tts settings invalid", "path", path, "err", err)
 		return config.Config{}, nil, err
 	}
+	if c.Blocklist, err = c.Blocklist.Normalize(); err != nil {
+		logger.Error("config blocklist invalid", "path", path, "err", err)
+		return config.Config{}, nil, err
+	}
 	applyConfigDefaults(&c)
 	seen := make(map[string]bool, len(c.Accounts))
 	for _, a := range c.Accounts {
@@ -373,6 +377,7 @@ func clone(c config.Config) config.Config {
 		c.Overlay.Displays = append([]string{}, c.Overlay.Displays...)
 	}
 	c.TTS = c.TTS.Clone()
+	c.Blocklist = c.Blocklist.Clone()
 	return c
 }
 func (s *Store) Config() config.Config {

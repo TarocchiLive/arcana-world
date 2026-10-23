@@ -31,12 +31,14 @@ type Snapshot struct {
 	TTSSettingsTitle string        `json:"ttsSettingsTitle"`
 	TTSModelText     string        `json:"ttsModelText,omitempty"`
 	TTSModelActions  []Option      `json:"ttsModelActions,omitempty"`
-	Fields           []Field       `json:"fields"`
-	Accounts         []Account     `json:"accounts"`
-	Help             []HelpArticle `json:"help"`
-	Messages         []Message     `json:"messages"`
-	Logs             []string      `json:"logs"`
-	Interaction      *Interaction  `json:"interaction,omitempty"`
+	// BlocklistRules 是直播台屏蔽词卡片的匹配规则说明。
+	BlocklistRules string        `json:"blocklistRules,omitempty"`
+	Fields         []Field       `json:"fields"`
+	Accounts       []Account     `json:"accounts"`
+	Help           []HelpArticle `json:"help"`
+	Messages       []Message     `json:"messages"`
+	Logs           []string      `json:"logs"`
+	Interaction    *Interaction  `json:"interaction,omitempty"`
 }
 
 type Notification struct {
@@ -63,16 +65,18 @@ type Option struct {
 }
 
 type Field struct {
-	ID       string   `json:"id"`
-	Group    string   `json:"group"`
-	Label    string   `json:"label"`
-	Kind     string   `json:"kind"`
-	Value    string   `json:"value"`
-	Options  []Option `json:"options,omitempty"`
-	Disabled bool     `json:"disabled,omitempty"`
-	Min      float64  `json:"min,omitempty"`
-	Max      float64  `json:"max,omitempty"`
-	Step     float64  `json:"step,omitempty"`
+	ID      string   `json:"id"`
+	Group   string   `json:"group"`
+	Label   string   `json:"label"`
+	Kind    string   `json:"kind"`
+	Value   string   `json:"value"`
+	Options []Option `json:"options,omitempty"`
+	// Hint 是显示在字段下方的简短说明。
+	Hint     string  `json:"hint,omitempty"`
+	Disabled bool    `json:"disabled,omitempty"`
+	Min      float64 `json:"min,omitempty"`
+	Max      float64 `json:"max,omitempty"`
+	Step     float64 `json:"step,omitempty"`
 }
 
 type Account struct {

@@ -118,6 +118,8 @@ func (m *Model) modalContent() string {
 			controls = i18n.OutputEventsControls
 		} else if m.editKind == "overlay-displays" {
 			controls = i18n.OutputDisplaysControls
+		} else if strings.HasPrefix(m.editKind, blocklistWordsKind) {
+			controls = i18n.BlocklistControls
 		}
 		position := 0
 		if len(m.choices) > 0 {
@@ -127,6 +129,9 @@ func (m *Model) modalContent() string {
 			Render(m.theme.hintText(strings.TrimSpace(fmt.Sprintf(i18n.T(controls), position, len(m.choices))), width)))
 		if m.editKind == "overlay-backend" {
 			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(i18n.T(i18n.TUIOverlayBackendHelp), width)))
+		}
+		if _, ok := blocklistPicker(m.editKind); ok {
+			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(m.blocklistHint(), width)))
 		}
 		if m.editKind == "overlay-fields" && m.overlaySettings != nil && m.overlaySettings.group == overlaySettingsRoot && m.config.Overlay.Backend == overlay.BackendQt && !overlayTaskbarSupported() {
 			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(i18n.T(i18n.TUIOverlayTaskbarUnavailable), width)))

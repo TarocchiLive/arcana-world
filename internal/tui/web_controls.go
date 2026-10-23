@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -35,6 +36,10 @@ func (m *Model) webFields(page string) []webui.Field {
 			field.Options = append(field.Options, webui.Option{ID: recent, Label: recent})
 		}
 		add("announcement", "room", i18n.WebFieldAnnouncement, "text", announcement, m.room == nil || m.account == nil)
+		for _, list := range blocklistLists {
+			encoded, _ := json.Marshal(*m.config.Blocklist.List(list.id))
+			add("blocklist-"+list.id, "blocklist", list.label, "words", string(encoded), false).Hint = i18n.T(list.help)
+		}
 	}
 	if page == "studio" || page == "settings" {
 		add("obs-url", "connection", i18n.WebFieldOBSURL, "text", m.config.OBSURL, m.obsBusy)
@@ -250,6 +255,9 @@ func (m *Model) webSetField(page, id, value string) (tea.Cmd, error) {
 	}
 	if strings.HasPrefix(id, "tts-field:") {
 		return m.setTTSField(strings.TrimPrefix(id, "tts-field:"), value)
+	}
+	if list, ok := strings.CutPrefix(id, "blocklist-"); ok {
+		return m.setBlocklistWords(list, value)
 	}
 	switch id {
 	case "title":

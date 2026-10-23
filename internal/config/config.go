@@ -4,6 +4,7 @@ package config
 import (
 	"arcana-world/internal/domain"
 	"arcana-world/internal/overlay"
+	"arcana-world/internal/presentation"
 	"arcana-world/internal/tts"
 )
 
@@ -37,4 +38,6 @@ type Config struct {
 	Overlay               overlay.Settings `json:"overlay"`
 	OverlayDisabledEvents []string         `json:"overlay_disabled_events,omitempty"`
 	TTS                   tts.Settings     `json:"tts"`
+	// 屏蔽词属于用户整理的内容，重置设置时保留。
+	Blocklist presentation.Blocklist `json:"blocklist"`
 }

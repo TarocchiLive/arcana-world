@@ -1,0 +1,19 @@
+{
+  "blocklist.menu": "屏蔽词 · %d 个",
+  "blocklist.title": "屏蔽词",
+  "blocklist.rules": "昵称、弹幕内容、礼物名或其他事件文字包含屏蔽词时不显示或不播报，不区分大小写和全角／半角。弹幕历史仍完整保存，移除屏蔽词后重新显示。",
+  "blocklist.count": "%s · %d 个",
+  "blocklist.global": "全局屏蔽词",
+  "blocklist.global_help": "弹幕列表、网页、浮层都不显示，也不播报。",
+  "blocklist.tts": "播报屏蔽词",
+  "blocklist.tts_help": "只跳过语音播报，弹幕照常显示。",
+  "blocklist.add": "＋ 添加屏蔽词…",
+  "blocklist.add_prompt": "添加%s（多个词用逗号或顿号分隔）",
+  "blocklist.controls": "\n%d / %d · ↑ ↓ 选择 · Enter 添加或删除所选词 · Esc 返回\n",
+  "blocklist.added": "已添加 %d 个屏蔽词",
+  "blocklist.removed": "已移除屏蔽词：%s",
+  "blocklist.duplicate": "这些词已在列表中",
+  "blocklist.empty": "请输入屏蔽词",
+  "blocklist.too_long": "单个屏蔽词最多 %d 个字",
+  "blocklist.too_many": "每个列表最多 %d 个屏蔽词"
+}
