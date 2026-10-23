@@ -175,7 +175,9 @@ func TestRTMPSRTStartResolvesNodeWithoutAccountCredentials(t *testing.T) {
 	u, _ := url.Parse(node.URL)
 	jar.SetCookies(u, []*http.Cookie{{Name: "jar_only", Value: "private"}})
 	c.HTTP.Jar = jar
-	c.SetAccount(domain.Account{UID: "1", Cookies: map[string]string{"SESSDATA": "account-session", "bili_jct": "csrf"}})
+	// 预置设备票据与指纹，避免 ensureDevice 访问真实 Bilibili 接口。
+	c.SetAccount(domain.Account{UID: "1", Cookies: map[string]string{"SESSDATA": "account-session", "bili_jct": "csrf",
+		"bili_ticket": "ticket", "bili_ticket_expires": "4102444800", "buvid3": "b3", "buvid4": "b4"}})
 	stream, err := c.Start(context.Background(), 1, 2, "rtmpsrt")
 	if err != nil {
 		t.Fatal(err)
