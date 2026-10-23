@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import shutil
 import subprocess
@@ -30,6 +31,24 @@ def download(name, cache):
     if hashlib.sha256(path.read_bytes()).hexdigest() != spec["sha256"]:
         raise SystemExit(f"SHA256 mismatch: {path}")
     return path
+
+
+def verify_pins(build):
+    """核对在线配置实际锁定的依赖，Nix 离线构建按同一清单提供源码。"""
+    pinned = {}
+    for spec in MANIFEST["dependencies"].values():
+        pinned.setdefault(spec["cmake_name"].lower(), set()).add(spec["sha256"].lower())
+    records = sorted((build / "_deps").glob("*-subbuild/CMakeLists.txt"))
+    if not records:
+        raise SystemExit(f"No FetchContent records under {build / '_deps'}")
+    for record in records:
+        name = record.parent.name.removesuffix("-subbuild")
+        hashes = {value.lower() for value in re.findall(r"SHA256=([0-9a-fA-F]{64})", record.read_text())}
+        if not hashes:
+            raise SystemExit(f"FetchContent record has no SHA256: {record}")
+        if not hashes & pinned.get(name, set()):
+            raise SystemExit(f"scripts/tts-native/sources.json does not pin {name} as sherpa does: "
+                             f"expected SHA256 {', '.join(sorted(hashes))}")
 
 
 def replace(path, before, after, count=1):
@@ -249,6 +268,8 @@ def main():
         args += ["-DFETCHCONTENT_FULLY_DISCONNECTED=ON"]
     args += shlex.split(os.environ.get("TTS_NATIVE_CMAKE_ARGS", ""))
     subprocess.check_call(args, env=native_env)
+    if not dependencies:
+        verify_pins(work / "build")
     subprocess.check_call(["cmake", "--build", str(work / "build"), "--config", "Release",
                            "--target", "sherpa-onnx-c-api", "--parallel", os.environ.get("BUILD_JOBS", "2")],
                           env=native_env)
