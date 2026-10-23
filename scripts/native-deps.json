@@ -1,0 +1,55 @@
+{
+  "url": "https://github.com/TarocchiLive/arcana-world/releases/download/native-deps-20261023/",
+  "packs": {
+    "qt-darwin-amd64": {
+      "inputs": "e88bd29941d9fa5ba13078bba7638bccb8a2811908182dbee7e5631f64b0f4fd",
+      "sha256": "40f03ad26ba7cf29da8cc49f505e941be115badf4f4cf030bd8032455516b74f",
+      "size": 9183032
+    },
+    "qt-darwin-arm64": {
+      "inputs": "e88bd29941d9fa5ba13078bba7638bccb8a2811908182dbee7e5631f64b0f4fd",
+      "sha256": "3ad2944e4b27f6a7f65c537b80bcd1c59b63b6ce907c4dc79992ca5fa91789ef",
+      "size": 8156292
+    },
+    "qt-linux-amd64": {
+      "inputs": "869e73ef7b55841e748f300f039f0c2922554f1837c466e2d98a82bf758558e8",
+      "sha256": "e4fd8ecd09f9dd793b9184efaac3233ac4b3b0b0256bb7e2edbcf006dd25dd07",
+      "size": 8533344
+    },
+    "qt-linux-arm64": {
+      "inputs": "869e73ef7b55841e748f300f039f0c2922554f1837c466e2d98a82bf758558e8",
+      "sha256": "e1e442b55fec7de182184306521e597e7d949682f3f9f2f9e07a8488095ba1e4",
+      "size": 8086508
+    },
+    "qt-windows-amd64": {
+      "inputs": "636c1490436b0abe7aa1792816def3f4c8c6cb357df9f9eb4f516b812dc0904b",
+      "sha256": "e1f483c4374500ab6bf1d24ac57ef8cba41ab6b1df71c10b4ae9b5615b40b841",
+      "size": 10270872
+    },
+    "tts-darwin-arm64": {
+      "inputs": "1238e4f5ccdf649048de11478e4aeda050bff850dc916d00b021b9f1f4795ded",
+      "sha256": "b026398c292733a32128d2f6b98549309625889007a2c15e0bb3d4e5eaad64ae",
+      "size": 9492672
+    },
+    "tts-linux-amd64": {
+      "inputs": "1238e4f5ccdf649048de11478e4aeda050bff850dc916d00b021b9f1f4795ded",
+      "sha256": "35a252455c5d0c558377deaef1f3060cf73a64bebfa97a4a31f0b02d42c45b09",
+      "size": 12615548
+    },
+    "tts-linux-arm64": {
+      "inputs": "1238e4f5ccdf649048de11478e4aeda050bff850dc916d00b021b9f1f4795ded",
+      "sha256": "a1760ece41cbc5c216363c2c64a82f275e2c40826757f5c30bede8345e152bfb",
+      "size": 13080428
+    },
+    "tts-windows-amd64": {
+      "inputs": "1238e4f5ccdf649048de11478e4aeda050bff850dc916d00b021b9f1f4795ded",
+      "sha256": "d79c5fde4e1bb35b999b36d25d06820a18e5a033ca46ca3dced3ea8870b44fc8",
+      "size": 15501900
+    },
+    "tts-windows-arm64": {
+      "inputs": "1238e4f5ccdf649048de11478e4aeda050bff850dc916d00b021b9f1f4795ded",
+      "sha256": "a1edbbed63ef53dab937254eddd836789d10d075370764c0779e211ca7e766c6",
+      "size": 14588632
+    }
+  }
+}
