@@ -4,6 +4,23 @@
 
 Versions are listed newest first.
 
+## [v0.4.3]: 2026-10-23
+
+Block words hide messages that contain chosen words, or keep them from being read aloud, on this computer. The Elegant overlay can hide itself when no new messages arrive. Source builds now download prebuilt Qt and speech runtimes instead of compiling them locally.
+
+### What's changed
+
+- Add block words. Messages matching a global block word are hidden from the chat list, history browsing, WebUI, and overlay, and are not read aloud; speech block words only skip announcements. Edit them under Block words on the Room tab in the terminal, or on the Block words card of the Studio page in WebUI. See [Block words](docs/blocklist.md) (Chinese).
+- Matching ignores case and full-width forms and checks nicknames, chat text, gift names, the room title, and other event details. Received chat is still saved in full to local history, and Restore default settings keeps your block words.
+- The Elegant overlay adds "Hide when no new messages": when the content stays unchanged for the set time (default 6 seconds, 1–600 allowed), the whole panel fades out and fades back in on the next message. It stays visible while unlocked for dragging. It is off by default; turn it on in the Elegant overlay motion settings in the terminal or WebUI, or use `-idle-hide` and `-idle-seconds` when running the helper on its own.
+- For source builds, `make desktop` and the Qt setup scripts download verified prebuilt Qt SDKs and speech GPU runtimes, so local compilation is usually no longer needed. Set `NATIVE_DEPS=source` to build them locally; see [Building from source](docs/building.md) (Chinese).
+- Fix Nix builds: the full desktop package from `nix build` and `make desktop` inside `nix develop` build the speech helper again.
+- Add the [Building from source](docs/building.md) and [Architecture overview](docs/architecture.md) guides (Chinese).
+
+### Upgrade notes
+
+- Auto-hide needs the new Elegant overlay helper, so replace both the main program and the `libexec` folder when upgrading.
+
 ## [v0.4.2]: 2026-10-21
 
 Speech can now use Qwen and Doubao online voices or MeloTTS, Kokoro, and Piper local voices. Edge is built in, and online voices retry on their own when the network hiccups.
@@ -509,3 +526,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.4.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0
 [v0.4.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.1
 [v0.4.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.2
+[v0.4.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.3

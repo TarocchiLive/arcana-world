@@ -4,6 +4,23 @@
 
 版本按时间倒序记录。
 
+## [v0.4.3]：2026-10-23
+
+新增屏蔽词，可以在本机隐藏含指定词的消息或跳过播报；精美浮层可以在没有新消息时自动隐藏。从源码构建改为下载预编译的 Qt 和语音运行库，一般不用再在本机编译。
+
+### 本次更新
+
+- 新增屏蔽词：命中「全局屏蔽词」的消息不在弹幕列表、历史浏览、WebUI 和浮层中显示，也不播报；「播报屏蔽词」只跳过语音播报。终端在「直播间」页的「屏蔽词」中编辑，WebUI 在「直播台」页的「屏蔽词」卡片中编辑，详见[屏蔽词说明](docs/blocklist.md)。
+- 屏蔽词匹配不区分大小写和全角半角，检查昵称、弹幕内容、礼物名、直播间标题等内容；收到的弹幕仍完整保存在本地历史中，「恢复默认设置」会保留屏蔽词。
+- 精美浮层新增「无新消息时自动隐藏」：内容在设定时间内（默认 6 秒，可设 1–600 秒）没有变化时，整个面板淡出，有新消息时立即淡入；解锁拖动时保持显示。默认关闭，在终端或 WebUI 的精美浮层动效设置中开启；独立运行时使用 `-idle-hide` 和 `-idle-seconds`。
+- 从源码构建时，`make desktop` 和 Qt 准备脚本会下载经过校验的预编译 Qt SDK 和语音 GPU 运行库，一般不用再在本机编译；设置 `NATIVE_DEPS=source` 可改回本机构建，详见[从源码构建](docs/building.md)。
+- 修复 Nix 构建：`nix build` 的完整桌面包和 `nix develop` 中的 `make desktop` 能再次构建语音程序。
+- 新增[从源码构建](docs/building.md)和[架构概览](docs/architecture.md)文档。
+
+### 升级提示
+
+- 精美浮层的自动隐藏需要新版浮层程序，升级时请完整替换主程序和 `libexec` 目录。
+
 ## [v0.4.2]：2026-10-21
 
 语音播报新增千问、豆包在线语音和 MeloTTS、Kokoro、Piper 本地语音；Edge 改为内置实现，在线语音遇到网络波动会自动重试。
@@ -509,3 +526,4 @@
 [v0.4.0]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.0
 [v0.4.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.1
 [v0.4.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.2
+[v0.4.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.3

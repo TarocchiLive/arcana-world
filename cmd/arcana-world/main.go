@@ -25,7 +25,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-var version = "0.4.2"
+var version = "0.4.3"
 
 var logger = journal.Logger("main")
 
