@@ -195,6 +195,10 @@
             # Vulkan 由插件动态加载，常规 ELF 依赖扫描无法发现。
             runtimeDependencies = pkgs.lib.optionals pkgs.stdenv.isLinux [ (pkgs.lib.getLib pkgs.vulkan-loader) ];
             dontUseCmakeConfigure = true;
+            # espeak-ng 以 -Wno-format 编译，与 Nix 默认的 -Werror=format-security 冲突。
+            hardeningDisable = [ "format" ];
+            # 依赖下载只需 Go 模块；默认会继承 preBuild，在依赖派生中重复构建原生库。
+            overrideModAttrs = _: { preBuild = ""; };
             preBuild = pkgs.lib.optionalString gpuSupported ''
               mkdir -p "$TMPDIR/tts-deps" "$TMPDIR/tts-stage"
               ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (name: spec: ''
@@ -237,6 +241,10 @@
               ''}
               ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
                 chmod u+w "$out/bin/"*.so
+                # 去掉构建目录和模块缓存的 RPATH；系统库由 autoPatchelfHook 随后补齐。
+                for binary in "$out/bin/arcana-world-tts" "$out/bin/"*.so; do
+                  patchelf --set-rpath '$ORIGIN' "$binary"
+                done
               ''}
               ${pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
                 ${pkgs.lib.optionalString (!gpuSupported) ''
@@ -289,9 +297,15 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
+          # 构建语音原生库的 shell 共用：espeak-ng 以 -Wno-format 编译，与 Nix 默认的
+          # -Werror=format-security 冲突；预编译依赖包面向 Ubuntu/macOS/Windows 工具链，Nix 环境始终从源码构建。
+          ttsShellEnv = {
+            hardeningDisable = [ "format" ];
+            NATIVE_DEPS = "source";
+          };
         in
         rec {
-          default = pkgs.mkShell {
+          default = pkgs.mkShell (ttsShellEnv // {
             inputsFrom = [
               arcana-world
               arcana-world-overlay-native
@@ -310,7 +324,7 @@
             );
             CGO_ENABLED = "1";
             GOFLAGS = "-mod=readonly";
-          };
+          });
           arcana-world = pkgs.mkShell {
             packages = [ pkgs.go ];
             CGO_ENABLED = "0";
@@ -328,13 +342,13 @@
             CGO_ENABLED = "1";
             GOFLAGS = "-mod=readonly" + pkgs.lib.optionalString pkgs.stdenv.isLinux " -tags=wayland";
           };
-          arcana-world-tts = pkgs.mkShell {
+          arcana-world-tts = pkgs.mkShell (ttsShellEnv // {
             packages = [ pkgs.go pkgs.cmake pkgs.ninja pkgs.python3 ]
               ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
             buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.alsa-lib ];
             CGO_ENABLED = "1";
             GOFLAGS = "-mod=readonly";
-          };
+          });
         }
       );
 
