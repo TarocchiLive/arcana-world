@@ -116,6 +116,16 @@ jobs:
             bin/libexec/
           include-hidden-files: true
 
+  # 本地 Nix 环境与 Ubuntu 工具链默认参数不同，单独构建完整 flake 包。
+  nix:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cachix/install-nix-action@v31
+      - name: Build Nix desktop package
+        run: nix build -L --no-link .#default
+
   vulnerabilities:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
