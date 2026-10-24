@@ -557,6 +557,11 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		if key == "esc" && m.mode == "" && m.dismissNotification() {
 			return m, nil
 		}
+		// 缩放切换在弹窗分发之前处理，聊天历史结果页也可以用 z 双向切换。
+		if key == "z" && (m.mode == "" || m.mode == "chat-history") {
+			m.toggleZoom()
+			return m, nil
+		}
 		if m.mode != "" {
 			return m, m.modalKey(msg)
 		}
@@ -578,8 +583,6 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		case "0":
 			m.page = helpPage
 			m.view.GotoTop()
-		case "z":
-			m.toggleZoom()
 		case "up", "k":
 			if m.cursors[m.page] > 0 {
 				m.cursors[m.page]--

@@ -156,6 +156,10 @@ func blockHeight(block string) int {
 
 // 缩放模式隐藏顶栏、页面导航与底栏，为正文留出完整高度；再按 z 恢复。
 func (m *Model) toggleZoom() {
+	// 缩放会改变弹幕框高度；关闭前若在底部，保留跟随最新消息的语义。
+	if m.page == chatPage && m.mode == "" && m.chat != nil && m.view.AtBottom() {
+		m.chat.scrollToLatest = true
+	}
 	m.zoom = !m.zoom
 	if m.zoom {
 		m.setStatus(i18n.T(i18n.LumenZoomOn))
