@@ -7,25 +7,28 @@ import (
 
 // Settings 保存展示偏好，不包含动态渲染文本。
 type Settings struct {
-	Enabled         bool     `json:"enabled"`
-	Content         string   `json:"content"`
-	Position        Position `json:"position"`
-	Width           float64  `json:"width"`
-	Height          float64  `json:"height"`
-	Padding         Insets   `json:"padding"`
-	Font            Font     `json:"font"`
-	Outline         bool     `json:"outline"`
-	TextAlpha       float64  `json:"text_alpha"`
-	BackgroundAlpha float64  `json:"background_alpha"`
-	Colors          Colors   `json:"colors"`
-	DisplayID       uint32   `json:"display_id"`
-	Output          string   `json:"output"`
-	Displays        []string `json:"displays"`
+	Backend         Backend      `json:"backend"`
+	Qt              QtAppearance `json:"qt"`
+	Enabled         bool         `json:"enabled"`
+	Content         string       `json:"content"`
+	Position        Position     `json:"position"`
+	Width           float64      `json:"width"`
+	Height          float64      `json:"height"`
+	Padding         Insets       `json:"padding"`
+	Font            Font         `json:"font"`
+	Outline         bool         `json:"outline"`
+	TextAlpha       float64      `json:"text_alpha"`
+	BackgroundAlpha float64      `json:"background_alpha"`
+	Colors          Colors       `json:"colors"`
+	DisplayID       uint32       `json:"display_id"`
+	Output          string       `json:"output"`
+	Displays        []string     `json:"displays"`
 }
 
 func DefaultSettings() Settings {
 	cfg := DefaultConfig()
 	return Settings{
+		Backend: cfg.Backend, Qt: cfg.Qt,
 		Content: "danmaku", Position: cfg.Position,
 		Width: cfg.Width, Height: cfg.Height, Padding: cfg.Padding, Font: cfg.Font,
 		Outline:   cfg.Outline,
@@ -41,6 +44,12 @@ func (s *Settings) UnmarshalJSON(data []byte) error {
 	decoded := settingsJSON(DefaultSettings())
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		return err
+	}
+	// 仅迁移完整的旧默认文字样式，保留用户调整过的字号、透明度和渐变。
+	if q := &decoded.Qt; q.HistoryScale == .9 && q.LatestScale == 1.05 && q.HistoryAlpha == .55 && q.Gradient {
+		defaults := DefaultQtAppearance()
+		q.HistoryScale, q.LatestScale = defaults.HistoryScale, defaults.LatestScale
+		q.HistoryAlpha, q.Gradient = defaults.HistoryAlpha, defaults.Gradient
 	}
 	normalized, err := Settings(decoded).Normalize()
 	if err != nil {
@@ -61,6 +70,7 @@ func (s Settings) Normalize() (Settings, error) {
 		return Settings{}, err
 	}
 	s.Colors = cfg.Colors
+	s.Backend, s.Qt = cfg.Backend, cfg.Qt
 	return s, nil
 }
 
@@ -71,6 +81,7 @@ func (s Settings) Config(text string) Config {
 		displays = string(encoded)
 	}
 	return Config{
+		Backend: s.Backend, Qt: s.Qt,
 		Text: text, Position: s.Position,
 		Width: s.Width, Height: s.Height, Padding: s.Padding, Font: s.Font,
 		Outline:   s.Outline,

@@ -10,17 +10,24 @@ import (
 	"testing"
 
 	"arcana-world/internal/domain"
+	"arcana-world/internal/journal"
 	"arcana-world/internal/store"
 	tea "charm.land/bubbletea/v2"
 )
 
 func chatTestModel(t *testing.T) *Model {
 	t.Helper()
-	s, err := store.Open(t.TempDir(), store.Options{})
+	dir := t.TempDir()
+	disk, err := journal.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := New(context.Background(), s)
+	t.Cleanup(func() { _ = disk.Close() })
+	s, err := store.Open(dir, store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := New(context.Background(), s, disk)
 	if err != nil {
 		t.Fatal(err)
 	}

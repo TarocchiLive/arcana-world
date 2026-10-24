@@ -3,10 +3,13 @@ package bili
 
 import (
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/journal"
 
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,6 +50,7 @@ func (c *Client) Room(ctx context.Context) (domain.Room, error) {
 		return room, err
 	}
 	if info.ID <= 0 || info.Live == nil || pre.Cover.Status == nil {
+		logger.Error("room info response incomplete", "has_room_id", info.ID > 0, "has_live_status", info.Live != nil, "has_cover_status", pre.Cover.Status != nil)
 		return room, errors.New(i18n.T(i18n.BiliRoomResponseIncomplete))
 	}
 	var announcement struct {
@@ -84,12 +88,14 @@ func (c *Client) Areas(ctx context.Context) ([]domain.Area, error) {
 		return nil, err
 	}
 	if d.Parents == nil {
+		logger.Error("area list response incomplete")
 		return nil, errors.New(i18n.T(i18n.BiliCategoriesIncomplete))
 	}
 	areas := make([]domain.Area, 0)
 	for _, parent := range d.Parents {
 		for _, area := range parent.List {
 			if area.ID <= 0 || area.Name == "" || parent.Name == "" {
+				logger.Error("area list entry invalid", "parent", parent.Name, "area_id", int64(area.ID))
 				return nil, errors.New(i18n.T(i18n.BiliCategoryInvalid))
 			}
 			areas = append(areas, domain.Area{ID: int64(area.ID), Name: area.Name, Parent: parent.Name})
@@ -101,19 +107,24 @@ func (c *Client) Start(ctx context.Context, roomID, areaID int64, protocol strin
 	if roomID <= 0 || areaID <= 0 {
 		return domain.Stream{}, errors.New(i18n.T(i18n.BiliRoomCategoryInvalid))
 	}
-	if protocol != "rtmp" && protocol != "srt" && protocol != "srt-fallback" {
+	if protocol != "rtmp" && protocol != "srt" && protocol != "srt-fallback" && protocol != "rtmpsrt" {
 		return domain.Stream{}, errors.New(i18n.T(i18n.BiliStreamProtocolInvalid))
 	}
 	if err := c.ensureDevice(ctx); err != nil {
+		logger.Error("start live failed", "room", roomID, "area", areaID, "stage", "device", "err", err)
 		return domain.Stream{}, err
 	}
 	p, err := c.csrf(values("room_id", decimal(roomID), "area_v2", decimal(areaID), "type", "2"))
 	if err != nil {
 		return domain.Stream{}, err
 	}
+	if protocol == "rtmpsrt" {
+		p.Set("recommend_protocol", "rtmpsrt")
+	}
 	p = signed(p)
 	e, _, err := c.request(ctx, http.MethodPost, c.LiveBase, "/room/v1/Room/startLive", nil, strings.NewReader(encode(p)), "application/x-www-form-urlencoded", false, false)
 	if err != nil {
+		logger.Error("start live failed", "room", roomID, "area", areaID, "err", err)
 		return domain.Stream{}, err
 	}
 	c.roomID = roomID
@@ -124,9 +135,10 @@ func (c *Client) Start(ctx context.Context, roomID, areaID int64, protocol strin
 				Voucher string `json:"v_voucher"`
 			} `json:"risk_extra"`
 		}
-		if err = decode(e.Data, &d); err != nil {
+		if err = decode("/room/v1/Room/startLive", e.Data, &d); err != nil {
 			return domain.Stream{}, err
 		}
+		logger.Warn("start live requires identity verification", "room", roomID, "area", areaID, "code", *e.Code)
 		challenge := &domain.FaceChallenge{URL: d.QR, Voucher: d.Risk.Voucher, Message: i18n.T(i18n.BiliIdentityVerificationPrompt)}
 		if *e.Code == 60024 && !validLink(challenge.URL) {
 			return domain.Stream{}, errors.New(i18n.T(i18n.BiliIdentityLinkInvalid))
@@ -137,6 +149,8 @@ func (c *Client) Start(ctx context.Context, roomID, areaID int64, protocol strin
 		return domain.Stream{}, challenge
 	}
 	if err = e.check(i18n.T(i18n.BiliStartLiveRoom)); err != nil {
+		logCheck("/room/v1/Room/startLive", e, err)
+		logger.Error("start live failed", "room", roomID, "area", areaID, "code", *e.Code, "err", err)
 		return domain.Stream{}, err
 	}
 	var d struct {
@@ -144,33 +158,89 @@ func (c *Client) Start(ctx context.Context, roomID, areaID int64, protocol strin
 			Addr string `json:"addr"`
 			Code string `json:"code"`
 		} `json:"rtmp"`
-		Protocols []struct {
-			Protocol string `json:"protocol"`
-			Addr     string `json:"addr"`
-			Code     string `json:"code"`
-		} `json:"protocols"`
+		Protocols       []streamProtocol `json:"protocols"`
+		ProtocolsBackup []streamProtocol `json:"protocols_backup"`
 	}
-	if err = decode(e.Data, &d); err != nil {
+	if err = decode("/room/v1/Room/startLive", e.Data, &d); err != nil {
 		return domain.Stream{}, err
+	}
+	// 推流码是机密：登记后任何日志都会将其替换为 [REDACTED]。
+	journal.AddSecrets(d.RTMP.Code)
+	for _, p := range d.Protocols {
+		journal.AddSecrets(p.Code)
+	}
+	if protocol == "rtmpsrt" {
+		for _, records := range [][]streamProtocol{d.Protocols, d.ProtocolsBackup} {
+			for _, p := range records {
+				journal.AddSecrets(p.Code, p.NewLink)
+				if !strings.EqualFold(p.Protocol, "rtmpsrt") && !(strings.EqualFold(p.Protocol, "srt") && strings.HasPrefix(p.Addr, "rtmpsrt://")) {
+					continue
+				}
+				address, key := c.resolveStreamLink(ctx, p)
+				if ctx.Err() != nil {
+					return domain.Stream{}, ctx.Err()
+				}
+				if usableRTMPSRTEndpoint(address, key) {
+					logger.Info("live started", "room", roomID, "area", areaID, "protocol", "rtmpsrt")
+					return domain.Stream{Address: address, Key: key, Protocol: "rtmpsrt"}, nil
+				}
+			}
+		}
+		if ctx.Err() != nil {
+			return domain.Stream{}, ctx.Err()
+		}
+		return domain.Stream{}, errors.New(i18n.T(i18n.BiliRTMPSRTUrlMissing))
 	}
 	if protocol != "rtmp" {
 		for _, p := range d.Protocols {
-			if strings.EqualFold(p.Protocol, "srt") && p.Addr != "" && p.Code != "" {
+			if strings.EqualFold(p.Protocol, "srt") && usableStreamEndpoint(p.Addr, p.Code, true) {
+				logger.Info("live started", "room", roomID, "area", areaID, "protocol", "srt", "requested_protocol", protocol)
 				return domain.Stream{Address: p.Addr, Key: p.Code, Protocol: "srt"}, nil
 			}
 		}
 	}
 	if protocol == "srt" {
+		logger.Error("start live response has no srt stream", "room", roomID, "area", areaID)
 		return domain.Stream{}, errors.New(i18n.T(i18n.BiliSrtUrlMissing))
 	}
-	if d.RTMP.Addr == "" || d.RTMP.Code == "" {
+	if !usableStreamEndpoint(d.RTMP.Addr, d.RTMP.Code, false) {
+		logger.Error("start live response has no usable rtmp stream", "room", roomID, "area", areaID)
 		return domain.Stream{}, errors.New(i18n.T(i18n.BiliStreamUrlMissing))
 	}
 	result := domain.Stream{Address: d.RTMP.Addr, Key: d.RTMP.Code, Protocol: "rtmp"}
+	logger.Info("live started", "room", roomID, "area", areaID, "protocol", "rtmp", "requested_protocol", protocol)
 	if protocol == "srt-fallback" {
 		result.Warning = i18n.T(i18n.BiliSrtFallback)
 	}
 	return result, nil
+}
+
+// 只选择 OBS 可用的地址；不改写平台返回的协议、路径或密钥。
+func usableStreamEndpoint(address, key string, srt bool) bool {
+	if strings.TrimSpace(key) == "" || strings.ContainsAny(address, " \t\r\n") {
+		return false
+	}
+	u, err := url.Parse(address)
+	if err != nil || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
+		return false
+	}
+	if srt {
+		if u.Scheme != "srt" {
+			return false
+		}
+	} else if u.Scheme != "rtmp" && u.Scheme != "rtmps" {
+		return false
+	}
+	if strings.HasSuffix(u.Host, ":") {
+		return false
+	}
+	if port := u.Port(); port != "" {
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 {
+			return false
+		}
+	}
+	return true
 }
 func (c *Client) Stop(ctx context.Context, roomID int64) error {
 	if roomID <= 0 {
@@ -180,7 +250,12 @@ func (c *Client) Stop(ctx context.Context, roomID int64) error {
 	if err != nil {
 		return err
 	}
-	return c.call(ctx, http.MethodPost, c.LiveBase, "/room/v1/Room/stopLive", nil, p, false, false, nil)
+	if err = c.call(ctx, http.MethodPost, c.LiveBase, "/room/v1/Room/stopLive", nil, p, false, false, nil); err != nil {
+		logger.Error("stop live failed", "room", roomID, "err", err)
+		return err
+	}
+	logger.Info("live stopped", "room", roomID)
+	return nil
 }
 func (c *Client) SetTitle(ctx context.Context, roomID int64, title string) error {
 	if roomID <= 0 || strings.TrimSpace(title) == "" {
@@ -239,11 +314,13 @@ func (c *Client) SendDanmaku(ctx context.Context, roomID int64, text string) err
 		return err
 	}
 	if err := e.check(path); err != nil {
+		logCheck(path, e, err)
 		return err
 	}
 	// 此接口可能以状态码零和非空消息表示内容被拒绝。
-	// 服务端原始消息可能含敏感输入，不直接展示。
+	// 服务端原始消息可能含敏感输入，不直接展示，也不写入日志。
 	if e.Message != "" {
+		logger.Warn("danmaku send rejected", "room", roomID)
 		return errors.New(i18n.T(i18n.BiliDanmakuRejected))
 	}
 	return nil
@@ -267,6 +344,7 @@ func (c *Client) timeShift(ctx context.Context) (int, int, int, error) {
 		return 0, 0, 0, err
 	}
 	if d.Shift == nil || d.Min == nil || d.Max == nil || *d.Min > *d.Max {
+		logger.Error("time shift response invalid", "room", c.roomID)
 		return 0, 0, 0, errors.New(i18n.T(i18n.BiliStreamDelayResponseInvalid))
 	}
 	return *d.Shift, *d.Min, *d.Max, nil

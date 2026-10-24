@@ -39,7 +39,7 @@ func (m *Model) menu() []menuItem {
 		}
 		return append(items, menuItem{i18n.T(i18n.TUIMenuRemoveAccount), "delete-pick"})
 	case roomPage:
-		return []menuItem{{i18n.T(i18n.TUIMenuEditTitle), "title"}, {i18n.T(i18n.TUIMenuSelectCategory), "areas"}, {i18n.T(i18n.TUIMenuEditAnnouncement), "announcement"}, {i18n.T(i18n.TUIMenuManageCover), "cover"}, {i18n.T(i18n.TUIMenuManageDelay), "delay"}}
+		return []menuItem{{i18n.T(i18n.TUIMenuEditTitle), "title"}, {i18n.T(i18n.TUIMenuSelectCategory), "areas"}, {i18n.T(i18n.TUIMenuEditAnnouncement), "announcement"}, {i18n.T(i18n.TUIMenuManageCover), "cover"}, {i18n.T(i18n.TUIMenuManageDelay), "delay"}, {m.blocklistMenuLabel(), "blocklist"}}
 	case obsPage:
 		label := i18n.T(i18n.TUIOBSConnect)
 		action := "obs-connect"
@@ -80,6 +80,8 @@ func (m *Model) menu() []menuItem {
 			{i18n.T(i18n.TUIHelpStreamTitle), "help:" + string(i18n.TUIHelpStream)},
 			{i18n.T(i18n.TUIHelpChatTitle), "help:" + string(i18n.TUIHelpChat)},
 			{i18n.T(i18n.TUIHelpOutputTitle), "help:" + string(i18n.TUIHelpOutput)},
+			{i18n.T(i18n.TUIHelpTTSTitle), "help:" + string(i18n.TUIHelpTTS)},
+			{i18n.T(i18n.TUIHelpOutputTemplatesTitle), "help:" + string(i18n.TUIHelpOutputTemplates)},
 			{i18n.T(i18n.TUIHelpControlsTitle), "help:" + string(i18n.TUIHelpControls)},
 		}
 	}
@@ -93,12 +95,17 @@ func (m *Model) activate() tea.Cmd {
 	m.cursors[m.page] = min(m.cursors[m.page], len(items)-1)
 	return m.perform(items[m.cursors[m.page]].action)
 }
+
+// rejectAction 记录因前置条件不满足而被界面拒绝的操作；reason 为英文，仅供调试。
+func rejectAction(reason string) { logger.Debug("action rejected", "reason", reason) }
 func (m *Model) requireRoom() bool {
 	if m.account == nil {
+		rejectAction("account not loaded")
 		m.warn(i18n.T(i18n.TUIStatusAccountRequired))
 		return false
 	}
 	if m.room == nil {
+		rejectAction("room not loaded")
 		m.warn(i18n.T(i18n.TUIStatusRoomRequired))
 		return false
 	}
@@ -124,8 +131,14 @@ func (m *Model) perform(action string) tea.Cmd {
 	if action == "output-events" {
 		return m.pickOutputEvents()
 	}
-	if action == "tts-voice" {
-		return m.pickTTSVoice()
+	if action == "tts-provider" {
+		return m.pickTTSProvider()
+	}
+	if action == "tts-settings" {
+		return m.pickTTSSettings()
+	}
+	if strings.HasPrefix(action, "tts-field:") {
+		return m.editTTSField(strings.TrimPrefix(action, "tts-field:"))
 	}
 	if action == "tts-volume" {
 		return m.form("tts-volume", i18n.T(i18n.OutputVolume), strconv.Itoa(m.config.TTS.Volume), false)
@@ -189,10 +202,14 @@ func (m *Model) perform(action string) tea.Cmd {
 		return m.saveConfig(cfg, false)
 	case "chat-limit":
 		return m.form("chat-limit", i18n.T(i18n.DanmakuLimit), strconv.Itoa(m.config.DanmakuLimit), false)
+	case "blocklist":
+		m.selected = 0
+		return m.showBlocklist("")
 	case "login":
 		return work(m, qrOperation(), func(ctx context.Context) (domain.QR, error) { return m.client.GenerateQR(ctx) })
 	case "refresh":
 		if m.account == nil {
+			rejectAction("not signed in")
 			m.warn(i18n.T(i18n.TUIStatusSignInRequired))
 			return nil
 		}
@@ -202,10 +219,12 @@ func (m *Model) perform(action string) tea.Cmd {
 			return nil
 		}
 		if m.room.AreaID == 0 {
+			rejectAction("room category not selected")
 			m.warn(i18n.T(i18n.TUIStatusCategoryRequired))
 			return nil
 		}
 		if m.obsBusy {
+			rejectAction("obs operation in progress")
 			m.warn(i18n.T(i18n.TUIStatusWaitOBSConnection))
 			return nil
 		}
@@ -215,6 +234,7 @@ func (m *Model) perform(action string) tea.Cmd {
 			return nil
 		}
 		if m.obsBusy {
+			rejectAction("obs operation in progress")
 			m.warn(i18n.T(i18n.TUIStatusWaitOBSConnection))
 			return nil
 		}
@@ -225,6 +245,7 @@ func (m *Model) perform(action string) tea.Cmd {
 		return m.stopLive()
 	case "reveal":
 		if m.stream == nil {
+			rejectAction("stream info unavailable")
 			m.warn(i18n.T(i18n.TUIStatusStreamUnavailable))
 		} else {
 			m.reveal = !m.reveal
@@ -280,24 +301,27 @@ func (m *Model) perform(action string) tea.Cmd {
 		return m.pick("delete", i18n.T(i18n.TUIFormRemoveAccount))
 	case "obs-url":
 		if m.obsBusy {
+			rejectAction("obs operation in progress, settings locked")
 			m.warn(i18n.T(i18n.TUIStatusWaitOBSSettings))
 			return nil
 		}
 		return m.form("obs-url", i18n.T(i18n.TUISettingsOBSURL), m.config.OBSURL, false)
 	case "obs-password":
 		if m.obsBusy {
+			rejectAction("obs operation in progress, settings locked")
 			m.warn(i18n.T(i18n.TUIStatusWaitOBSSettings))
 			return nil
 		}
 		return m.form("obs-password", i18n.T(i18n.TUIFormOBSPassword), "", true)
 	case "proxy":
 		if m.store.Overrides().Proxy != nil {
+			rejectAction("proxy overridden by command line for this session")
 			m.warn(i18n.T(i18n.TUISessionOverride))
 			return nil
 		}
 		return m.form("proxy", i18n.T(i18n.TUIFormProxy), m.config.Proxy, false)
 	case "protocol":
-		m.choices = []choice{{"RTMP", "rtmp"}, {i18n.T(i18n.TUIProtocolSRTFallback), "srt-fallback"}, {i18n.T(i18n.TUIProtocolSRTOnly), "srt"}}
+		m.choices = []choice{{"RTMP", "rtmp"}, {"RTMPSRT", "rtmpsrt"}, {i18n.T(i18n.TUIProtocolSRTFallback), "srt-fallback"}, {i18n.T(i18n.TUIProtocolSRTOnly), "srt"}}
 		return m.pick("protocol", i18n.T(i18n.TUIFormProtocol))
 	case "obs-connect":
 		return m.connectOBS()
@@ -311,10 +335,12 @@ func (m *Model) perform(action string) tea.Cmd {
 	case "obs-auto-connect", "obs-auto-stream":
 		overrides := m.store.Overrides()
 		if action == "obs-auto-connect" && overrides.OBSAutoConnect != nil || action == "obs-auto-stream" && overrides.OBSAutoStream != nil {
+			rejectAction("obs option overridden by command line for this session")
 			m.warn(i18n.T(i18n.TUISessionOverride))
 			return nil
 		}
 		if m.obsBusy {
+			rejectAction("obs operation in progress")
 			m.warn(i18n.T(i18n.TUIStatusWaitOBS))
 			return nil
 		}
@@ -403,6 +429,16 @@ func (m *Model) choose() tea.Cmd {
 	if m.editKind == "appearance" {
 		return m.toggleAppearance(ch.value)
 	}
+	if m.editKind == "tts-settings" {
+		m.mode = ""
+		return m.perform(ch.value)
+	}
+	if strings.HasPrefix(m.editKind, "tts-field:") {
+		return m.saveTTSField(strings.TrimPrefix(m.editKind, "tts-field:"), ch.value)
+	}
+	if _, ok := blocklistPicker(m.editKind); ok {
+		return m.chooseBlocklist(ch.value)
+	}
 	m.mode = ""
 	if strings.HasPrefix(m.editKind, "overlay-") {
 		return m.chooseOverlay(ch.value)
@@ -412,10 +448,8 @@ func (m *Model) choose() tea.Cmd {
 		cfg := m.config
 		cfg.TUITheme = ch.value
 		return m.saveConfig(cfg, false)
-	case "tts-voice":
-		cfg := m.config
-		cfg.TTS.Voice = ch.value
-		return m.saveConfig(cfg, false)
+	case "tts-provider":
+		return m.selectTTSProvider(ch.value)
 	case "delete":
 		prompt := fmt.Sprintf(i18n.T(i18n.TUIConfirmRemoveAccount), ch.label)
 		if m.config.ActiveUID == ch.value {
@@ -469,10 +503,16 @@ func (m *Model) submitForm() tea.Cmd {
 		return m.quitCommand()
 	}
 	if strings.HasPrefix(kind, "overlay-") {
-		if m.editingOverlayColor() != nil {
+		if field := m.editingOverlayField(); field != nil && (field.color != nil || field.qtColor != nil) {
 			value = m.input.Value()
 		}
 		return m.submitOverlay(kind, value)
+	}
+	if id, ok := strings.CutPrefix(kind, blocklistAddKind); ok {
+		return m.submitBlockWords(id, m.input.Value())
+	}
+	if strings.HasPrefix(kind, "tts-field:") {
+		return m.saveTTSField(strings.TrimPrefix(kind, "tts-field:"), value)
 	}
 	// 密码保留原始字节，不去除首尾空白。
 	if kind == "obs-password" {
@@ -510,6 +550,7 @@ func (m *Model) submitForm() tea.Cmd {
 		}
 	case "proxy":
 		if m.store.Overrides().Proxy != nil {
+			rejectAction("proxy overridden by command line for this session")
 			m.warn(i18n.T(i18n.TUISessionOverride))
 			return nil
 		}

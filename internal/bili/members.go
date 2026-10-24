@@ -30,7 +30,8 @@ type RoomMemberList struct {
 
 // RoomMembers 读取当前直播间成员榜第一页，在线人数不等于返回的榜单人数。
 func (c *Client) RoomMembers(ctx context.Context, roomID int64) (RoomMemberList, error) {
-	incomplete := func() (RoomMemberList, error) {
+	incomplete := func(reason string) (RoomMemberList, error) {
+		logger.Error("response data incomplete", "op", "room members", "room", roomID, "reason", reason)
 		return RoomMemberList{}, errors.New(i18n.T(i18n.BiliRoomResponseIncomplete))
 	}
 	uid := c.account.UID
@@ -39,7 +40,7 @@ func (c *Client) RoomMembers(ctx context.Context, roomID int64) (RoomMemberList,
 	}
 	accountUID, err := strconv.ParseInt(uid, 10, 64)
 	if roomID <= 0 || err != nil || accountUID <= 0 {
-		return incomplete()
+		return incomplete("invalid room or account uid")
 	}
 	type member struct {
 		UID        integer `json:"uid"`
@@ -61,12 +62,12 @@ func (c *Client) RoomMembers(ctx context.Context, roomID int64) (RoomMemberList,
 		return RoomMemberList{}, err
 	}
 	if data.Total == nil || *data.Total < 0 || data.List == nil {
-		return incomplete()
+		return incomplete("total or list missing")
 	}
 	result := RoomMemberList{Total: int64(*data.Total), Members: make([]RoomMember, 0, len(*data.List))}
 	for _, item := range *data.List {
 		if (!item.Mystery && item.UID <= 0) || item.Name == "" || item.Rank <= 0 || item.Score < 0 || item.GuardLevel < 0 || item.Medal.Level < 0 {
-			return incomplete()
+			return incomplete("invalid member entry")
 		}
 		level := 0
 		if item.GuardLevel <= 3 {
@@ -89,7 +90,8 @@ func (c *Client) RoomMembers(ctx context.Context, roomID int64) (RoomMemberList,
 
 // RoomFleet 读取大航海榜第一页，榜单成员不代表当前在线观众。
 func (c *Client) RoomFleet(ctx context.Context, roomID int64) (RoomMemberList, error) {
-	incomplete := func() (RoomMemberList, error) {
+	incomplete := func(reason string) (RoomMemberList, error) {
+		logger.Error("response data incomplete", "op", "room fleet", "room", roomID, "reason", reason)
 		return RoomMemberList{}, errors.New(i18n.T(i18n.BiliRoomResponseIncomplete))
 	}
 	uid := c.account.UID
@@ -98,7 +100,7 @@ func (c *Client) RoomFleet(ctx context.Context, roomID int64) (RoomMemberList, e
 	}
 	accountUID, err := strconv.ParseInt(uid, 10, 64)
 	if roomID <= 0 || err != nil || accountUID <= 0 {
-		return incomplete()
+		return incomplete("invalid room or account uid")
 	}
 	type member struct {
 		UID        integer `json:"uid"`
@@ -121,13 +123,13 @@ func (c *Client) RoomFleet(ctx context.Context, roomID int64) (RoomMemberList, e
 		return RoomMemberList{}, err
 	}
 	if data.Info.Total == nil || *data.Info.Total < 0 {
-		return incomplete()
+		return incomplete("total missing")
 	}
 	result := RoomMemberList{Total: int64(*data.Info.Total), Members: make([]RoomMember, 0, len(data.Top3)+len(data.List))}
 	for _, group := range [][]member{data.Top3, data.List} {
 		for _, item := range group {
 			if item.UID <= 0 || item.Name == "" || item.Rank <= 0 || item.GuardLevel < 0 || item.Medal.Level < 0 {
-				return incomplete()
+				return incomplete("invalid member entry")
 			}
 			level := 0
 			if item.GuardLevel <= 3 {
@@ -140,7 +142,7 @@ func (c *Client) RoomFleet(ctx context.Context, roomID int64) (RoomMemberList, e
 		}
 	}
 	if (result.Total == 0) != (len(result.Members) == 0) {
-		return incomplete()
+		return incomplete("members/total mismatch")
 	}
 	result.Members = normalizeRoomMembers(result.Members)
 	return result, nil

@@ -31,7 +31,12 @@ var (
 // T 返回当前语言的文案；缺译时回退中文，未知消息键原样返回以便定位问题。
 // 只查找启动时加载的只读词表，不解析模板，也不处理用户内容。
 func T(key Key) string {
-	if english.Load() {
+	return ForLanguage(Language(), key)
+}
+
+// ForLanguage 用指定语言生成配置说明，不改变当前界面语言。
+func ForLanguage(language string, key Key) string {
+	if language == "en" {
 		if text, ok := englishCatalog[key]; ok {
 			return text
 		}
@@ -98,6 +103,14 @@ func decodeCatalog(r io.Reader, catalog map[Key]string) error {
 		return fmt.Errorf("词表对象之后存在额外内容")
 	}
 	return nil
+}
+
+// Language 返回当前语言的稳定标识，供分语言配置文件使用。
+func Language() string {
+	if english.Load() {
+		return "en"
+	}
+	return "zh-CN"
 }
 
 // SetLanguage 设置显示语言；auto 优先读取系统界面语言，再回退到终端环境变量。

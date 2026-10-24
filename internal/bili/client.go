@@ -3,6 +3,7 @@ package bili
 
 import (
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/journal"
 
 	"context"
 	"crypto/md5"
@@ -10,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -29,6 +31,8 @@ const (
 
 const requestTimeout = 30 * time.Second
 const liveWebOrigin = "https://live.bilibili.com"
+
+var logger = journal.Logger("bili")
 
 // Client 同步执行操作。调用方负责串行处理账号变更和各项操作。
 // 可替换基础 URL 和 HTTP 客户端以进行离线验证。
@@ -144,31 +148,75 @@ func (e envelope) check(op string) error {
 	}
 	return nil
 }
-func decode(data json.RawMessage, out any) error {
+func decode(path string, data json.RawMessage, out any) error {
 	if len(data) == 0 || string(data) == "null" {
+		logger.Error("response data missing", "path", path)
 		return errors.New(i18n.T(i18n.BiliResponseDataMissing))
 	}
 	if err := json.Unmarshal(data, out); err != nil {
+		logger.Error("response data decode failed", "path", path, "err", err)
 		return errors.New(i18n.T(i18n.BiliResponseDataInvalid))
 	}
 	return nil
+}
+
+// quietKey 标记会被周期性轮询的调用：成功时不记录请求日志，仅保留失败日志。
+type quietKey struct{}
+
+func quiet(ctx context.Context) context.Context { return context.WithValue(ctx, quietKey{}, true) }
+
+// netCause 去掉 *url.Error 携带的完整 URL（含查询串中的签名），只保留底层原因。
+func netCause(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) && ue.Err != nil {
+		return ue.Err
+	}
+	return err
 }
 
 // 每个请求都使用不带 Cookie 容器的副本，既隔离匿名二维码请求，
 // 也防止注入的 HTTP 客户端通过 Cookie 容器恢复过期账号。
 // 拒绝所有重定向，包括可信主机之间的重定向：签名 POST 请求体
 // 和 Cookie 请求头绝不能转发到其他目标。
-func (c *Client) request(ctx context.Context, method, base, path string, query url.Values, body io.Reader, contentType string, anonymous, web bool) (envelope, []*http.Cookie, error) {
-	var result envelope
+func (c *Client) request(ctx context.Context, method, base, path string, query url.Values, body io.Reader, contentType string, anonymous, web bool) (result envelope, cookies []*http.Cookie, err error) {
+	start := time.Now()
+	var host string
+	var status int
+	var cause error
+	level := slog.LevelError
+	defer func() {
+		attrs := []any{"method", method, "host", host, "path", path, "anonymous", anonymous, "web", web, "elapsed", time.Since(start)}
+		if status != 0 {
+			attrs = append(attrs, "status", status)
+		}
+		if result.Code != nil {
+			attrs = append(attrs, "code", *result.Code, "message", result.Message)
+		}
+		if err != nil {
+			if cause == nil {
+				cause = err
+			}
+			logger.Log(context.Background(), level, "http request failed", append(attrs, "err", cause)...)
+			return
+		}
+		if ctx.Value(quietKey{}) == nil {
+			logger.Debug("http request", attrs...)
+		}
+	}()
 	u, err := url.Parse(strings.TrimRight(base, "/") + path)
 	if err != nil || u.Host == "" || u.User != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		if err == nil {
+			cause = errors.New("invalid base url")
+		}
 		return result, nil, errors.New(i18n.T(i18n.BiliApiUrlInvalid))
 	}
+	host = u.Host
 	u.RawQuery = encode(query)
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
 	if err != nil {
+		cause = netCause(err)
 		return result, nil, errors.New(i18n.T(i18n.BiliApiRequestFailed))
 	}
 	req.Header.Set("Accept", "application/json")
@@ -193,12 +241,15 @@ func (c *Client) request(ctx context.Context, method, base, path string, query u
 		for k, v := range c.account.Cookies {
 			cookie := &http.Cookie{Name: k, Value: v}
 			if cookie.Valid() != nil {
+				// 只记录 Cookie 名称，绝不记录值。
+				cause = fmt.Errorf("invalid cookie %q", k)
 				return result, nil, errors.New(i18n.T(i18n.BiliCookieInvalid))
 			}
 			req.AddCookie(cookie)
 		}
 	}
 	if c.HTTP == nil {
+		cause = errors.New("http client is nil")
 		return result, nil, errors.New(i18n.T(i18n.BiliHttpClientMissing))
 	}
 	client := *c.HTTP
@@ -206,26 +257,40 @@ func (c *Client) request(ctx context.Context, method, base, path string, query u
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	response, err := client.Do(req)
 	if err != nil {
+		cause = netCause(err)
 		if ctx.Err() != nil {
+			level = slog.LevelWarn
 			return result, nil, ctx.Err()
 		}
 		return result, nil, errors.New(i18n.T(i18n.BiliNetworkFailed))
 	}
 	defer response.Body.Close()
+	status = response.StatusCode
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		cause = fmt.Errorf("unexpected http status %d", response.StatusCode)
 		return result, nil, fmt.Errorf(i18n.T(i18n.BiliApiHttpStatus), response.StatusCode)
 	}
 	raw, err := io.ReadAll(io.LimitReader(response.Body, maxResponse+1))
 	if ctx.Err() != nil {
+		cause = ctx.Err()
+		level = slog.LevelWarn
 		return result, nil, ctx.Err()
 	}
 	if err != nil {
+		cause = err
 		return result, nil, errors.New(i18n.T(i18n.BiliApiResponseReadFailed))
 	}
 	if len(raw) > maxResponse {
+		cause = fmt.Errorf("response exceeds %d bytes", maxResponse)
 		return result, nil, errors.New(i18n.T(i18n.BiliApiResponseTooLarge))
 	}
-	if json.Unmarshal(raw, &result) != nil || result.Code == nil {
+	if uerr := json.Unmarshal(raw, &result); uerr != nil {
+		cause = uerr
+		result = envelope{}
+		return result, nil, errors.New(i18n.T(i18n.BiliApiResponseInvalid))
+	}
+	if result.Code == nil {
+		cause = errors.New("response envelope has no code")
 		return result, nil, errors.New(i18n.T(i18n.BiliApiResponseInvalid))
 	}
 	return result, response.Cookies(), nil
@@ -242,12 +307,22 @@ func (c *Client) call(ctx context.Context, method, base, path string, query, for
 		return err
 	}
 	if err = e.check(path); err != nil {
+		logCheck(path, e, err)
 		return err
 	}
 	if out != nil {
-		return decode(e.Data, out)
+		return decode(path, e.Data, out)
 	}
 	return nil
+}
+
+// logCheck 记录接口信封校验失败的 code 和 message；翻译后的用户文案不含服务端消息。
+func logCheck(path string, e envelope, err error) {
+	attrs := []any{"path", path, "err", err}
+	if e.Code != nil {
+		attrs = append(attrs, "code", *e.Code)
+	}
+	logger.Warn("api call rejected", append(attrs, "message", e.Message)...)
 }
 
 // integer 接受 API 中可能使用十进制字符串或数字表示的字段。

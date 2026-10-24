@@ -7,25 +7,44 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
+
+	"arcana-world/internal/tts/meloproto"
 )
 
 const helperMode = "ARCANA_TTS_TEST_HELPER"
 
 func TestMain(m *testing.M) {
-	if os.Getenv(helperMode) == "wait" {
-		_, _ = io.Copy(io.Discard, os.Stdin)
-		conn, err := net.Dial("tcp", os.Getenv("ARCANA_TTS_TEST_READY"))
-		if err != nil {
+	if os.Getenv(helperMode) == "resident" {
+		if err := meloproto.Write(os.Stdout, []byte("test-ready")); err != nil {
 			os.Exit(2)
 		}
-		defer conn.Close()
-		_, _ = io.Copy(io.Discard, conn)
-		os.Exit(0)
+		for {
+			input, err := meloproto.Read(os.Stdin, 64)
+			if errors.Is(err, io.EOF) {
+				os.Exit(0)
+			}
+			if err != nil {
+				os.Exit(2)
+			}
+			if string(input) == "wait" {
+				conn, err := net.Dial("tcp", os.Getenv("ARCANA_TTS_TEST_READY"))
+				if err != nil {
+					os.Exit(2)
+				}
+				_, _ = io.Copy(io.Discard, conn)
+				_ = conn.Close()
+				os.Exit(0)
+			}
+			if err := meloproto.Write(os.Stdout, []byte(fmt.Sprint(os.Getpid()))); err != nil {
+				os.Exit(2)
+			}
+		}
 	}
 	os.Exit(m.Run())
 }
@@ -60,6 +79,30 @@ func TestHelperCancellationReapsChild(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer listener.Close()
+			client := newResidentClient()
+			t.Cleanup(func() { _ = client.Close() })
+			start := func(context.Context) (*exec.Cmd, error) {
+				cmd := exec.Command(executable)
+				cmd.Env = append(fixtureEnv("resident"), "ARCANA_TTS_TEST_READY="+listener.Addr().String())
+				return cmd, nil
+			}
+			request := func(ctx context.Context, text string) ([]byte, error) {
+				return client.request(ctx, start, "test-ready", []byte(text), 64, nil)
+			}
+			first, err := request(context.Background(), "pid")
+			if err != nil {
+				t.Fatal(err)
+			}
+			worker := client.worker
+			select {
+			case <-worker.done:
+				t.Fatal("idle worker exited")
+			case <-time.After(20 * time.Millisecond):
+			}
+			second, err := request(context.Background(), "pid")
+			if err != nil || string(first) != string(second) {
+				t.Fatalf("worker not reused: %q %q %v", first, second, err)
+			}
 			ctx, cancel := context.WithCancel(context.Background())
 			want := context.Canceled
 			if deadline {
@@ -70,7 +113,7 @@ func TestHelperCancellationReapsChild(t *testing.T) {
 			defer cancel()
 			result := make(chan error, 1)
 			go func() {
-				_, err := runHelper(ctx, executable, nil, []byte("request"), 8, append(fixtureEnv("wait"), "ARCANA_TTS_TEST_READY="+listener.Addr().String()))
+				_, err := request(ctx, "wait")
 				result <- err
 			}()
 			listener.(*net.TCPListener).SetDeadline(time.Now().Add(5 * time.Second))
@@ -100,6 +143,26 @@ func TestHelperCancellationReapsChild(t *testing.T) {
 				runtime.GOOS == "windows" && errors.Is(err, wsaeconnreset)
 			if n != 0 || !errors.Is(err, io.EOF) && !reset {
 				t.Fatalf("child connection still open: n=%d err=%v", n, err)
+			}
+			select {
+			case <-worker.done:
+			default:
+				t.Fatal("cancelled worker not reaped")
+			}
+			if _, err := request(context.Background(), "pid"); err != nil {
+				t.Fatalf("restart after cancellation: %v", err)
+			}
+			worker = client.worker
+			if err := client.Close(); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-worker.done:
+			default:
+				t.Fatal("idle worker not reaped by Close")
+			}
+			if _, err := request(context.Background(), "pid"); !errors.Is(err, ErrClosed) {
+				t.Fatalf("request after Close: %v", err)
 			}
 		})
 	}

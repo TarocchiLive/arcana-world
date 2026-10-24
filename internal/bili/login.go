@@ -30,6 +30,7 @@ func (c *Client) GenerateQR(ctx context.Context) (domain.QR, error) {
 		return domain.QR{}, err
 	}
 	if d.Key == "" || !validLink(d.URL) {
+		logger.Error("qr generate response incomplete", "has_key", d.Key != "", "link_valid", validLink(d.URL))
 		return domain.QR{}, errors.New(i18n.T(i18n.BiliLoginQrIncomplete))
 	}
 	return domain.QR{Key: d.Key, URL: d.URL}, nil
@@ -38,20 +39,23 @@ func (c *Client) PollQR(ctx context.Context, key string) (domain.LoginPoll, erro
 	if key == "" {
 		return domain.LoginPoll{}, errors.New(i18n.T(i18n.BiliLoginQrKeyEmpty))
 	}
-	e, cookies, err := c.request(ctx, http.MethodGet, c.PassportBase, "/x/passport-login/web/qrcode/poll", values("qrcode_key", key, "source", "live_pc", "web_location", "0.0"), nil, "", true, true)
+	// 二维码轮询间隔很短，成功的请求不记录日志，仅保留失败。
+	e, cookies, err := c.request(quiet(ctx), http.MethodGet, c.PassportBase, "/x/passport-login/web/qrcode/poll", values("qrcode_key", key, "source", "live_pc", "web_location", "0.0"), nil, "", true, true)
 	if err != nil {
 		return domain.LoginPoll{}, err
 	}
 	if err = e.check(i18n.T(i18n.BiliQrLogin)); err != nil {
+		logCheck("/x/passport-login/web/qrcode/poll", e, err)
 		return domain.LoginPoll{}, err
 	}
 	var d struct {
 		Code *int `json:"code"`
 	}
-	if err = decode(e.Data, &d); err != nil {
+	if err = decode("/x/passport-login/web/qrcode/poll", e.Data, &d); err != nil {
 		return domain.LoginPoll{}, err
 	}
 	if d.Code == nil {
+		logger.Error("qr poll status missing")
 		return domain.LoginPoll{}, errors.New(i18n.T(i18n.BiliLoginQrStatusMissing))
 	}
 	result := domain.LoginPoll{Code: *d.Code}
@@ -67,11 +71,14 @@ func (c *Client) PollQR(ctx context.Context, key string) (domain.LoginPoll, erro
 		}
 		account.UID = account.Cookies["DedeUserID"]
 		if account.UID == "" || account.Cookies["SESSDATA"] == "" || account.Cookies["bili_jct"] == "" {
+			// 仅记录缺失的 Cookie 名称，不记录值。
+			logger.Error("qr login cookies missing", "has_uid", account.UID != "", "has_sessdata", account.Cookies["SESSDATA"] != "", "has_csrf", account.Cookies["bili_jct"] != "")
 			return result, errors.New(i18n.T(i18n.BiliLoginCookiesMissing))
 		}
 		result.Account = &account
 		return result, nil
 	default:
+		logger.Warn("qr login rejected", "code", *d.Code)
 		return result, &APIError{Code: *d.Code, Operation: i18n.T(i18n.BiliQrLogin)}
 	}
 }
@@ -84,15 +91,20 @@ func (c *Client) Validate(ctx context.Context) (domain.AccountInfo, error) {
 	err := c.call(ctx, http.MethodGet, c.APIBase, "/x/web-interface/nav", signed(nil, "access_key", "build", "version"), nil, false, true, &d)
 	if err != nil {
 		var api *APIError
-		return domain.AccountInfo{}, &ValidationError{Permanent: errors.As(err, &api) && api.Code == -101, Cause: err}
+		permanent := errors.As(err, &api) && api.Code == -101
+		logger.Warn("account validation failed", "uid", c.account.UID, "permanent", permanent, "err", err)
+		return domain.AccountInfo{}, &ValidationError{Permanent: permanent, Cause: err}
 	}
 	if d.IsLogin == nil {
+		logger.Warn("account validation response incomplete", "uid", c.account.UID, "field", "isLogin")
 		return domain.AccountInfo{}, &ValidationError{}
 	}
 	if !*d.IsLogin {
+		logger.Warn("account validation: not logged in", "uid", c.account.UID)
 		return domain.AccountInfo{}, &ValidationError{Permanent: true}
 	}
 	if d.MID <= 0 || d.Name == nil {
+		logger.Warn("account validation response incomplete", "uid", c.account.UID, "field", "mid/uname")
 		return domain.AccountInfo{}, &ValidationError{}
 	}
 	uid := decimal(int64(d.MID))
@@ -101,6 +113,7 @@ func (c *Client) Validate(ctx context.Context) (domain.AccountInfo, error) {
 		expected = c.account.Cookies["DedeUserID"]
 	}
 	if expected == "" || uid != expected {
+		logger.Warn("account validation uid mismatch", "uid", expected, "remote_uid", uid)
 		return domain.AccountInfo{}, &ValidationError{Permanent: true}
 	}
 	return domain.AccountInfo{UID: uid, Name: *d.Name}, nil
@@ -132,6 +145,7 @@ func (c *Client) ensureDevice(ctx context.Context) error {
 			return err
 		}
 		if d.Ticket == "" || d.Created <= 0 || d.TTL <= 0 || int64(d.Created) > 1<<62 || int64(d.TTL) > 1<<62 {
+			logger.Error("device ticket response invalid")
 			return errors.New(i18n.T(i18n.BiliDeviceTicketInvalid))
 		}
 		c.account.Cookies["bili_ticket"] = d.Ticket
@@ -146,6 +160,7 @@ func (c *Client) ensureDevice(ctx context.Context) error {
 			return err
 		}
 		if d.B3 == "" || d.B4 == "" {
+			logger.Error("device fingerprint response invalid")
 			return errors.New(i18n.T(i18n.BiliDeviceResponseInvalid))
 		}
 		c.account.Cookies["buvid3"] = d.B3

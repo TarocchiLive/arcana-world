@@ -41,11 +41,12 @@ func TestAppendAcrossReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = log.Close() })
-	if err := log.Write("first event"); err != nil {
-		t.Fatal(err)
-	}
+	logger := Logger("test")
+	AddSecrets("session-cookie-value")
+	logger.Info("first event", "err", errors.New("request rejected for session-cookie-value"))
 	// 关闭前读取也必须能看到事件：日志并非仅在退出时才刷新缓冲。
-	if events := readEvents(t, log.Path()); len(events) != 1 || events[0] != "first event" {
+	first := `level=INFO msg="first event" component=test err="request rejected for [REDACTED]"`
+	if events := readEvents(t, log.Path()); len(events) != 1 || events[0] != first {
 		t.Fatalf("events before close: %q", events)
 	}
 	if err := log.Close(); err != nil {
@@ -54,21 +55,17 @@ func TestAppendAcrossReopen(t *testing.T) {
 	if err := log.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := log.Write("after close"); !errors.Is(err, os.ErrClosed) {
-		t.Fatalf("write after close: %v", err)
-	}
+	logger.Info("after close")
 	log, err = Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := log.Write("second event"); err != nil {
-		t.Fatal(err)
-	}
+	logger.Info("second event")
 	if err := log.Close(); err != nil {
 		t.Fatal(err)
 	}
 	events := readEvents(t, log.Path())
-	if len(events) != 2 || events[0] != "first event" || events[1] != "second event" {
+	if len(events) != 2 || events[0] != first || events[1] != `level=INFO msg="second event" component=test` {
 		t.Fatalf("reopened journal lost or replaced events: %q", events)
 	}
 }
@@ -88,9 +85,8 @@ func TestOpenWhileDirectoryOccupied(t *testing.T) {
 	if !errors.Is(err, bolt.ErrTimeout) {
 		t.Fatalf("lock contention did not retain its cause: %v", err)
 	}
-	if err := first.Write("still usable after contention"); err != nil {
-		t.Fatal(err)
-	}
+	logger := Logger("test")
+	logger.Info("still usable after contention")
 	if err := first.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -99,11 +95,9 @@ func TestOpenWhileDirectoryOccupied(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = reopened.Close() })
-	if err := reopened.Write("reopened"); err != nil {
-		t.Fatal(err)
-	}
+	logger.Info("reopened")
 	events := readEvents(t, reopened.Path())
-	if len(events) != 2 || events[0] != "still usable after contention" || events[1] != "reopened" {
+	if len(events) != 2 || events[0] != `level=INFO msg="still usable after contention" component=test` || events[1] != "level=INFO msg=reopened component=test" {
 		t.Fatalf("contention or reopening changed events: %q", events)
 	}
 }

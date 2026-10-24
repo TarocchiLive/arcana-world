@@ -1,0 +1,108 @@
+name: Native dependencies
+
+# 推送 native-deps-* 标签时从源码构建 Qt SDK 与语音 GPU 运行库，发布为预发布附件；
+# 再将附件中的 native-deps.json 提交到 scripts/，后续构建即改用这些包。
+on:
+  push:
+    tags: ['native-deps-*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-deps-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15-intel
+            goos: darwin
+            goarch: amd64
+            target: desktop
+            packs: qt
+          - os: macos-15
+            goos: darwin
+            goarch: arm64
+            target: desktop
+            packs: qt tts
+          - os: ubuntu-24.04
+            goos: linux
+            goarch: amd64
+            target: desktop
+            packs: qt tts
+          - os: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+            target: desktop
+            packs: qt tts
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            target: desktop
+            packs: qt tts
+          - os: windows-11-arm
+            goos: windows
+            goarch: arm64
+            target: desktop-native
+            packs: tts
+    runs-on: ${{ matrix.os }}
+    env:
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+      NATIVE_DEPS: source
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: ./.github/actions/setup-desktop
+      # 完整桌面构建验证源码产物可部署，再打包同一份 SDK 与运行库。
+      - name: Build from source and pack
+        shell: bash
+        run: |
+          bash scripts/build.sh "${{ matrix.target }}"
+          "./bin/libexec/arcana-world-tts$([[ "$GOOS" == windows ]] && echo .exe)" -help
+          for pack in ${{ matrix.packs }}; do
+            case "$pack" in
+              qt) source_dir="$CMAKE_PREFIX_PATH" ;;
+              tts) source_dir="bin/.tts-native-$GOOS-$GOARCH/stage" ;;
+            esac
+            python3 scripts/native-deps.py pack "$pack" "$GOOS" "$GOARCH" "$source_dir" dist
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: native-*
+          path: dist
+          merge-multiple: true
+      - name: Publish prerelease
+        run: |
+          python3 scripts/native-deps.py manifest "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG" dist
+          cat dist/native-deps.json >> "$GITHUB_STEP_SUMMARY"
+          gh release create "$TAG" --verify-tag --prerelease --latest=false \
+            --title "Native build dependencies $TAG" \
+            --notes "Build-time Qt SDKs and speech GPU runtimes for scripts/build.sh; not an application release. Commit native-deps.json as scripts/native-deps.json to use them." \
+            dist/*

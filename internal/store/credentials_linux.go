@@ -17,8 +17,10 @@ func systemKeyringMissing() (bool, error) {
 	if err != nil {
 		var executable *exec.Error
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ENXIO) || errors.As(err, &executable) && errors.Is(executable.Err, exec.ErrNotFound) {
+			logger.Warn("system keyring unavailable", "reason", "session bus not reachable", "err", err)
 			return true, nil
 		}
+		logger.Error("system keyring probe failed", "reason", "session bus connect", "err", err)
 		return false, err
 	}
 	defer conn.Close()
@@ -35,8 +37,10 @@ func systemKeyringMissing() (bool, error) {
 	if errors.As(err, &busError) {
 		switch busError.Name {
 		case "org.freedesktop.DBus.Error.ServiceUnknown", "org.freedesktop.DBus.Error.NameHasNoOwner":
+			logger.Warn("system keyring unavailable", "reason", "secret service not running", "bus_error", busError.Name, "err", err)
 			return true, nil
 		}
 	}
+	logger.Error("system keyring probe failed", "reason", "secret service call", "err", err)
 	return false, err
 }

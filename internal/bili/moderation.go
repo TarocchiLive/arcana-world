@@ -37,12 +37,12 @@ func (c *Client) SearchRoomUsers(ctx context.Context, name string) ([]RoomUser, 
 		return nil, err
 	}
 	if result.Items == nil {
-		return nil, errors.New(i18n.T(i18n.BiliResponseDataInvalid))
+		return nil, invalidData("user search", "items missing")
 	}
 	users := make([]RoomUser, 0, len(result.Items))
 	for _, item := range result.Items {
 		if item.UID <= 0 || item.Name == "" {
-			return nil, errors.New(i18n.T(i18n.BiliResponseDataInvalid))
+			return nil, invalidData("user search", "invalid user entry")
 		}
 		users = append(users, RoomUser{UID: int64(item.UID), Name: item.Name, Face: moderationFace(item.Face)})
 	}
@@ -71,13 +71,13 @@ func (c *Client) RoomAdmins(ctx context.Context, roomID int64) ([]RoomUser, erro
 			return nil, err
 		}
 		if result.Page.Total == nil || *result.Page.Total < 0 {
-			return nil, errors.New(i18n.T(i18n.BiliResponseDataInvalid))
+			return nil, invalidData("room admins", "total_page missing")
 		}
 		added := 0
 		for _, item := range result.Users {
 			uid := int64(item.UID)
 			if uid <= 0 || item.Name == "" {
-				return nil, errors.New(i18n.T(i18n.BiliResponseDataInvalid))
+				return nil, invalidData("room admins", "invalid user entry")
 			}
 			if !seen[uid] {
 				seen[uid] = true
@@ -89,7 +89,7 @@ func (c *Client) RoomAdmins(ctx context.Context, roomID int64) ([]RoomUser, erro
 			return users, nil
 		}
 		if added == 0 {
-			return nil, errors.New(i18n.T(i18n.BiliResponseDataInvalid))
+			return nil, invalidData("room admins", "page without new users")
 		}
 	}
 }
@@ -114,13 +114,13 @@ func (c *Client) RoomMutes(ctx context.Context, roomID int64) ([]RoomUser, error
 			return nil, err
 		}
 		if result.Total == nil || *result.Total < 0 {
-			return nil, errors.New(i18n.T(i18n.BiliResponseDataInvalid))
+			return nil, invalidData("mute list", "total_page missing")
 		}
 		added := 0
 		for _, item := range result.Users {
 			uid := int64(item.UID)
 			if uid <= 0 || item.Name == "" {
-				return nil, errors.New(i18n.T(i18n.BiliResponseDataInvalid))
+				return nil, invalidData("mute list", "invalid user entry")
 			}
 			if !seen[uid] {
 				seen[uid] = true
@@ -132,7 +132,7 @@ func (c *Client) RoomMutes(ctx context.Context, roomID int64) ([]RoomUser, error
 			return users, nil
 		}
 		if added == 0 {
-			return nil, errors.New(i18n.T(i18n.BiliResponseDataInvalid))
+			return nil, invalidData("mute list", "page without new users")
 		}
 	}
 }
@@ -158,7 +158,7 @@ func (c *Client) RoomBlocks(ctx context.Context, roomID int64) ([]RoomUser, erro
 			Face string  `json:"face"`
 		}
 		if len(result.Data) == 0 || json.Unmarshal(result.Data, &items) != nil {
-			return nil, errors.New(i18n.T(i18n.BiliResponseDataInvalid))
+			return nil, invalidData("blacklist", "data is not a user list")
 		}
 		if len(items) == 0 {
 			return users, nil
@@ -167,7 +167,7 @@ func (c *Client) RoomBlocks(ctx context.Context, roomID int64) ([]RoomUser, erro
 		for _, item := range items {
 			uid := int64(item.UID)
 			if uid <= 0 || item.Name == "" {
-				return nil, errors.New(i18n.T(i18n.BiliResponseDataInvalid))
+				return nil, invalidData("blacklist", "invalid user entry")
 			}
 			if !seen[uid] {
 				seen[uid] = true
@@ -176,7 +176,7 @@ func (c *Client) RoomBlocks(ctx context.Context, roomID int64) ([]RoomUser, erro
 			}
 		}
 		if added == 0 {
-			return nil, errors.New(i18n.T(i18n.BiliResponseDataInvalid))
+			return nil, invalidData("blacklist", "page without new users")
 		}
 	}
 }
@@ -253,9 +253,14 @@ func (c *Client) RemoveRoomMute(ctx context.Context, roomID, uid int64) error {
 func (c *Client) moderationPost(ctx context.Context, path string, form url.Values, out any) error {
 	form, err := c.csrf(form)
 	if err != nil {
+		logger.Warn("moderation request not sent", "path", path, "err", err)
 		return err
 	}
-	return c.call(ctx, http.MethodPost, c.LiveBase, path, nil, form, false, true, out)
+	if err = c.call(ctx, http.MethodPost, c.LiveBase, path, nil, form, false, true, out); err != nil {
+		return err
+	}
+	logger.Info("moderation action done", "path", path)
+	return nil
 }
 
 // 黑名单的作用域是房间主播，而非当前登录用户；同时支持短房间号。
@@ -272,7 +277,7 @@ func (c *Client) moderationAnchor(ctx context.Context, roomID int64) (int64, err
 		return 0, err
 	}
 	if room.UID <= 0 || room.ID <= 0 || (int64(room.ID) != roomID && int64(room.ShortID) != roomID) {
-		return 0, errors.New(i18n.T(i18n.BiliResponseDataInvalid))
+		return 0, invalidData("room info", "uid or room mismatch")
 	}
 	return int64(room.UID), nil
 }
@@ -293,9 +298,16 @@ func (c *Client) moderationOwnRoom(ctx context.Context, roomID int64) error {
 		return err
 	}
 	if int64(room.ID) != roomID {
+		logger.Warn("room is not own room", "room", roomID, "own_room", int64(room.ID), "uid", uid)
 		return errors.New(i18n.T(i18n.BiliModerationOwnRoomRequired))
 	}
 	return nil
+}
+
+// invalidData 记录响应数据校验失败的原因，并返回面向用户的统一错误。
+func invalidData(op, reason string) error {
+	logger.Error("response data invalid", "op", op, "reason", reason)
+	return errors.New(i18n.T(i18n.BiliResponseDataInvalid))
 }
 
 func moderationFace(face string) string {

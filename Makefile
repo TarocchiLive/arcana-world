@@ -1,4 +1,4 @@
-.PHONY: build overlay tts desktop run check clean
+.PHONY: build webui overlay overlay-qt tts desktop desktop-native run check clean
 
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
@@ -6,8 +6,8 @@ VERSION ?=
 OUT_DIR ?= bin
 BUILD = GOOS="$(GOOS)" GOARCH="$(GOARCH)" VERSION="$(VERSION)" OUT_DIR="$(OUT_DIR)" bash scripts/build.sh
 
-# 默认构建仍为独立且不依赖 CGO 的 TUI。
-build overlay tts desktop:
+# 默认构建保留独立且不依赖 CGO 的主程序；Windows 同时提供显式 WebUI 启动器。
+build webui overlay overlay-qt tts desktop desktop-native:
 	$(BUILD) $@
 
 run:
@@ -18,4 +18,5 @@ check:
 	go vet ./...
 
 clean:
-	rm -f "$(OUT_DIR)/arcana-world" "$(OUT_DIR)/arcana-world.exe" "$(OUT_DIR)/libexec/arcana-world-overlay" "$(OUT_DIR)/libexec/arcana-world-overlay.exe" "$(OUT_DIR)/libexec/arcana-world-tts" "$(OUT_DIR)/libexec/arcana-world-tts.exe"
+	rm -f "$(OUT_DIR)/arcana-world" "$(OUT_DIR)/arcana-world.exe" "$(OUT_DIR)/arcana-world-webui.exe"
+	rm -rf "$(OUT_DIR)/libexec" "$(OUT_DIR)/.overlay-qt-build" "$(OUT_DIR)"/.tts-native-*

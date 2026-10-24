@@ -57,34 +57,74 @@ jobs:
           else
             CGO_ENABLED=0 go test ./...
           fi
-      - name: Install Wayland drawing and audio dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libpango1.0-dev libcairo2-dev libasound2-dev pkg-config
+      - uses: ./.github/actions/setup-desktop
       - name: Build desktop bundle
         shell: bash
-        run: bash scripts/build.sh desktop
+        run: |
+          target=desktop
+          if [[ "$RUNNER_OS" == Windows && "$GOARCH" != amd64 ]]; then target=desktop-native; fi
+          bash scripts/build.sh "$target"
       - name: Check native helper packages without device access
         shell: bash
         run: |
-          audio_cgo=0
           overlay_cgo=1
           overlay_tags=
           case "$RUNNER_OS" in
-            Linux) audio_cgo=1; overlay_tags=wayland ;;
-            Windows) overlay_cgo=0 ;;
+            Linux) overlay_tags=wayland ;;
+            Windows)
+              overlay_cgo=0
+              export CC="$TTS_CC" CXX="$TTS_CXX"
+              export PATH="$PWD/bin/libexec:$PATH"
+              ;;
           esac
-          CGO_ENABLED="$audio_cgo" go test -tags tts_audio ./internal/tts/audio ./cmd/arcana-world-tts
+          CGO_ENABLED=1 go test -tags tts ./internal/tts/... ./cmd/arcana-world-tts
           CGO_ENABLED="$overlay_cgo" go test -tags "$overlay_tags" ./internal/overlay/...
       - name: Check command help
         shell: bash
         run: |
           "./bin/arcana-world${{ matrix.suffix }}" -help
-          "./bin/libexec/arcana-world-overlay${{ matrix.suffix }}" -help
+          "./bin/libexec/arcana-world-overlay-native${{ matrix.suffix }}" -help
+          if [[ "$RUNNER_OS" != Windows || "$GOARCH" == amd64 ]]; then
+            "./bin/libexec/arcana-world-overlay-qt${{ matrix.suffix }}" -help
+          fi
           "./bin/libexec/arcana-world-tts${{ matrix.suffix }}" -help
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            ./bin/arcana-world-webui.exe -help
+          fi
+      - name: Package Linux verification bundle
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp LICENSE bin/
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+            -C bin -cf - arcana-world libexec LICENSE | xz -T2 -6 > "dist/arcana-world-linux-${GOARCH}.tar.xz"
+          (cd dist && sha256sum -- *.tar.xz > checksums.txt)
       - uses: actions/upload-artifact@v7
+        if: runner.os == 'Linux'
         with:
           name: desktop-${{ runner.os }}-${{ matrix.goarch }}
-          path: bin/
+          path: dist/*
+          compression-level: 0
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: runner.os != 'Linux'
+        with:
+          name: desktop-${{ runner.os }}-${{ matrix.goarch }}
+          path: |
+            bin/arcana-world*
+            bin/libexec/
+          include-hidden-files: true
+
+  # 本地 Nix 环境与 Ubuntu 工具链默认参数不同，单独构建完整 flake 包。
+  nix:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cachix/install-nix-action@v31
+      - name: Build Nix desktop package
+        run: nix build -L --no-link .#default
 
   vulnerabilities:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -102,4 +142,4 @@ jobs:
       - name: Scan standalone TUI and core
         run: CGO_ENABLED=0 govulncheck ./...
       - name: Scan native desktop and speech code
-        run: CGO_ENABLED=1 govulncheck -tags=wayland,tts_audio ./...
+        run: CGO_ENABLED=1 govulncheck -tags=wayland,tts ./...

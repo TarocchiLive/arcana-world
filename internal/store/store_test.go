@@ -1,11 +1,15 @@
 package store
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"arcana-world/internal/domain"
+	"arcana-world/internal/journal"
 )
 
 func TestFailedIndexCommitRestoresPreviousCredential(t *testing.T) {
@@ -89,5 +93,85 @@ func TestSaveConfigPreservesAccountIndexAndOwnsHistory(t *testing.T) {
 	}
 	if loaded, err := s.Load(account.UID); err != nil || loaded.Name != account.Name {
 		t.Fatalf("settings save made the saved account unavailable: %v", err)
+	}
+	path := filepath.Join(s.Dir(), "config.json")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(before, &fields); err != nil {
+		t.Fatal(err)
+	}
+	fields["future_setting"] = json.RawMessage(`{"precise":9007199254740993,"nested":{"enabled":true}}`)
+	before, err = json.MarshalIndent(fields, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, before, 0600); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := journal.LockDirectory(s.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = lock.Close() })
+	if err := SaveDefaultUI(s.Dir(), "webui"); err == nil {
+		t.Fatal("startup preference save ignored the active instance lock")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("blocked preference save changed configuration: %v", err)
+	}
+	if err := lock.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveDefaultUI(s.Dir(), "webui"); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := ReadConfig(s.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got.DefaultUI = "webui"
+	if !reflect.DeepEqual(saved, got) {
+		t.Fatal("startup preference save changed account index or other settings")
+	}
+	after, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var savedFields map[string]json.RawMessage
+	if err := json.Unmarshal(after, &savedFields); err != nil {
+		t.Fatal(err)
+	}
+	delete(savedFields, "default_ui")
+	delete(fields, "default_ui")
+	expected, err := json.Marshal(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err := json.Marshal(savedFields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(actual, expected) {
+		t.Fatal("startup preference save changed unrelated raw fields")
+	}
+	// 运行时注入的云密钥也不能随普通配置写入磁盘。
+	cfg = s.Config()
+	for _, provider := range []string{"qwen", "doubao"} {
+		cfg.TTS.Provider = provider
+		cfg.TTS = cfg.TTS.WithValue("api_key", provider+"-private-key")
+	}
+	if err := s.SaveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte("private-key")) || bytes.Contains(data, []byte("api_key")) {
+		t.Fatal("cloud API key leaked into ordinary configuration")
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/overlay"
+
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -38,6 +40,8 @@ func (m *Model) modalContent() string {
 	case "help":
 		paragraphs := strings.Split(strings.TrimSpace(i18n.T(i18n.Key(m.editKind))), "\n\n")
 		rows := make([]string, 0, len(paragraphs)+1)
+		// 中文按标点断行，避免把整段中文当成一个单词移到下一行。
+		const breakpoints = "，。；、！？："
 		for i, paragraph := range paragraphs {
 			if i == 0 {
 				rows = append(rows, m.theme.sectionTitle(paragraph, width))
@@ -48,10 +52,10 @@ func (m *Model) modalContent() string {
 				}
 				if separated {
 					rows = append(rows, lipgloss.JoinVertical(lipgloss.Left,
-						m.theme.accent.Render(ansi.Wrap(heading, width, "")),
-						m.theme.textStyle.Render(ansi.Wrap(body, width, ""))))
+						m.theme.accent.Render(ansi.Wrap(heading, width, breakpoints)),
+						m.theme.textStyle.Render(ansi.Wrap(body, width, breakpoints))))
 				} else {
-					rows = append(rows, m.theme.textStyle.Render(ansi.Wrap(paragraph, width, "")))
+					rows = append(rows, m.theme.textStyle.Render(ansi.Wrap(paragraph, width, breakpoints)))
 				}
 			}
 		}
@@ -65,6 +69,14 @@ func (m *Model) modalContent() string {
 		controls := i18n.T(i18n.TUIFormControls)
 		if m.editKind == "cover-path" {
 			controls = i18n.T(i18n.TUIFormCoverControls)
+		}
+		if field := m.editingOverlayField(); field != nil {
+			if m.overlay != nil && m.overlay.state == "running" {
+				controls = i18n.T(i18n.TUIOverlayAppearanceControls)
+			}
+			if field.step != 0 {
+				controls += " · " + fmt.Sprintf(i18n.T(i18n.TUIOverlayNumberControls), field.step)
+			}
 		}
 		return lipgloss.JoinVertical(lipgloss.Left,
 			m.formPrompt(),
@@ -106,6 +118,8 @@ func (m *Model) modalContent() string {
 			controls = i18n.OutputEventsControls
 		} else if m.editKind == "overlay-displays" {
 			controls = i18n.OutputDisplaysControls
+		} else if strings.HasPrefix(m.editKind, blocklistWordsKind) {
+			controls = i18n.BlocklistControls
 		}
 		position := 0
 		if len(m.choices) > 0 {
@@ -113,6 +127,15 @@ func (m *Model) modalContent() string {
 		}
 		rows = append(rows, lipgloss.NewStyle().PaddingTop(1).
 			Render(m.theme.hintText(strings.TrimSpace(fmt.Sprintf(i18n.T(controls), position, len(m.choices))), width)))
+		if m.editKind == "overlay-backend" {
+			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(i18n.T(i18n.TUIOverlayBackendHelp), width)))
+		}
+		if _, ok := blocklistPicker(m.editKind); ok {
+			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(m.blocklistHint(), width)))
+		}
+		if m.editKind == "overlay-fields" && m.overlaySettings != nil && m.overlaySettings.group == overlaySettingsRoot && m.config.Overlay.Backend == overlay.BackendQt && !overlayTaskbarSupported() {
+			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(i18n.T(i18n.TUIOverlayTaskbarUnavailable), width)))
+		}
 		if ansi.StringWidth(selectionText(m.prompt)) > width || strings.Contains(m.prompt, "\n") {
 			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(m.prompt, width)))
 		}

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"arcana-world/internal/helperpath"
+	"arcana-world/internal/journal"
 )
 
 const (
@@ -26,6 +28,8 @@ const (
 	// 为各平台的 Unix 套接字路径长度限制预留余量。
 	socketPathLimit = 100
 )
+
+var logger = journal.Logger("overlay")
 
 // Options 控制独立原生子进程及其有界通信生命周期。
 type Options struct {
@@ -49,8 +53,12 @@ type Manager struct {
 }
 
 // 按真实安装目录定位，避免工作目录或启动器符号链接改变 helper 来源。
-func bundledExecutable(executable string) (string, error) {
-	path, err := helperpath.Installed(executable, "arcana-world-overlay")
+func bundledExecutable(executable string, backend Backend) (string, error) {
+	backend, err := backend.Normalize()
+	if err != nil {
+		return "", err
+	}
+	path, err := helperpath.Installed(executable, "arcana-world-overlay-"+string(backend))
 	if err != nil {
 		return "", fmt.Errorf("overlay: resolving application path: %w", err)
 	}
@@ -64,7 +72,20 @@ func bundledExecutable(executable string) (string, error) {
 	if !info.Mode().IsRegular() {
 		return "", fmt.Errorf("overlay: bundled executable %q is not a regular file; extract the complete portable package again", path)
 	}
-	return path, nil
+	// 使用真实 helper 路径启动，保证 macOS 能识别私有应用包的名称与激活策略。
+	resolved, err := canonicalExecutable(path)
+	if err != nil {
+		return "", fmt.Errorf("overlay: resolving bundled executable: %w", err)
+	}
+	return resolved, nil
+}
+
+func canonicalExecutable(name string) (string, error) {
+	path, err := exec.LookPath(name)
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(path)
 }
 
 // Start 仅在认证完成且原生窗口首次绘制后返回。
@@ -74,6 +95,7 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 	}
 	cfg, err := options.Config.Normalize()
 	if err != nil {
+		logger.Error("overlay config invalid", "op", "start", "err", err)
 		return nil, err
 	}
 	if options.StartupTimeout == 0 {
@@ -86,20 +108,33 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 		options.UpdateInterval = defaultUpdateInterval
 	}
 	if options.StartupTimeout < 0 || options.ShutdownTimeout < 0 || options.UpdateInterval < 0 {
+		logger.Error("overlay options invalid", "op", "start", "startup_timeout", options.StartupTimeout, "shutdown_timeout", options.ShutdownTimeout, "update_interval", options.UpdateInterval)
 		return nil, errors.New("overlay: timeouts and update interval must be positive")
 	}
+	options.Config = cfg
 	if options.Executable == "" {
 		executable, e := os.Executable()
 		if e != nil {
+			logger.Error("overlay helper resolve failed", "backend", cfg.Backend, "step", "app executable", "err", e)
 			return nil, e
 		}
-		options.Executable, e = bundledExecutable(executable)
+		options.Executable, e = bundledExecutable(executable, cfg.Backend)
 		if e != nil {
+			logger.Error("overlay helper resolve failed", "backend", cfg.Backend, "app", executable, "err", e)
 			return nil, e
+		}
+	} else {
+		requested := options.Executable
+		options.Executable, err = canonicalExecutable(options.Executable)
+		if err != nil {
+			logger.Error("overlay helper resolve failed", "backend", cfg.Backend, "executable", requested, "err", err)
+			return nil, fmt.Errorf("overlay: resolving helper executable: %w", err)
 		}
 	}
+	logger.Debug("overlay helper resolved", "backend", cfg.Backend, "executable", options.Executable)
 	directory, err := privateSocketDir(options.RuntimeDir)
 	if err != nil {
+		logger.Error("overlay runtime directory failed", "runtime_dir", options.RuntimeDir, "err", err)
 		return nil, err
 	}
 	var listener *net.UnixListener
@@ -115,20 +150,26 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 	}()
 	socketPath := filepath.Join(directory, "s")
 	if len(socketPath) >= socketPathLimit {
+		logger.Error("overlay socket path too long", "length", len(socketPath), "limit", socketPathLimit, "runtime_dir", options.RuntimeDir)
 		return nil, fmt.Errorf("overlay: runtime directory produces a Unix socket path of %d bytes (must be below %d)", len(socketPath), socketPathLimit)
 	}
 	listener, err = net.ListenUnix("unix", &net.UnixAddr{Name: socketPath, Net: "unix"})
 	if err != nil {
+		logger.Error("overlay socket listen failed", "socket", socketPath, "err", err)
 		return nil, fmt.Errorf("overlay: Unix sockets require a supported OS (Windows 10 1803 or newer): %w", err)
 	}
 	if err = secureSocket(socketPath); err != nil {
+		logger.Error("overlay socket permissions failed", "socket", socketPath, "err", err)
 		return nil, err
 	}
 	var secret [32]byte
 	if _, err = rand.Read(secret[:]); err != nil {
+		logger.Error("overlay token generation failed", "err", err)
 		return nil, err
 	}
 	token := hex.EncodeToString(secret[:])
+	// 令牌经环境变量传给子进程；登记后即使被误写入日志也会被脱敏。
+	journal.AddSecrets(token)
 	cmd := exec.Command(options.Executable, "-socket", socketPath)
 	setupChild(cmd)
 	for _, entry := range os.Environ() {
@@ -141,16 +182,24 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 	diagnostics := &diagnosticBuffer{}
 	cmd.Stderr = diagnostics
 	cmd.WaitDelay = options.ShutdownTimeout
+	started := time.Now()
 	if err = cmd.Start(); err != nil {
+		logger.Error("overlay helper spawn failed", "backend", cfg.Backend, "executable", options.Executable, "err", err)
 		return nil, fmt.Errorf("overlay: starting child: %w", err)
 	}
+	logger.Info("overlay helper spawned", "backend", cfg.Backend, "executable", options.Executable, "pid", cmd.Process.Pid, "args", cmd.Args[1:])
+	managedCtx, cancel := context.WithCancel(ctx)
 	childDone := make(chan struct{})
 	var childErr error
-	go func() { childErr = cmd.Wait(); close(childDone) }()
-	managedCtx, cancel := context.WithCancel(ctx)
+	go func() {
+		childErr = cmd.Wait()
+		// 先记录退出详情再通知 manage，保证退出记录早于后续的管理器停止记录。
+		logChildExit(cmd, childErr, diagnostics, started, managedCtx.Err() != nil)
+		close(childDone)
+	}()
 	manager := &Manager{cfg: cfg, done: make(chan struct{}), dirty: make(chan struct{}, 1), cancel: cancel}
 	ready := make(chan struct{})
-	go manager.manage(managedCtx, options, listener, directory, cmd, childDone, &childErr, diagnostics, token, ready)
+	go manager.manage(managedCtx, options, listener, directory, cmd, childDone, &childErr, diagnostics, token, started, ready)
 	transferred = true // 监听器、目录和子进程交由 manage 回收。
 	select {
 	case <-ready:
@@ -171,11 +220,12 @@ func Start(ctx context.Context, options Options) (*Manager, error) {
 	}
 }
 
-func (m *Manager) manage(ctx context.Context, options Options, listener *net.UnixListener, directory string, cmd *exec.Cmd, childDone <-chan struct{}, childErr *error, diagnostics *diagnosticBuffer, token string, ready chan<- struct{}) {
+func (m *Manager) manage(ctx context.Context, options Options, listener *net.UnixListener, directory string, cmd *exec.Cmd, childDone <-chan struct{}, childErr *error, diagnostics *diagnosticBuffer, token string, started time.Time, ready chan<- struct{}) {
 	var conn net.Conn
 	var workers sync.WaitGroup
 	var failure error
 	becameReady := false
+	stage := "accept" // 失败发生的阶段，仅用于日志。
 	startup, finishStartup := context.WithTimeout(ctx, options.StartupTimeout)
 	defer finishStartup()
 	stopListener := context.AfterFunc(startup, func() { _ = listener.Close() })
@@ -212,6 +262,7 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 			timer.Stop()
 		case <-timer.C:
 			_ = cmd.Process.Kill()
+			logger.Warn("overlay helper killed", "pid", cmd.Process.Pid, "grace", options.ShutdownTimeout/2)
 			reapTimer := time.NewTimer(time.Until(shutdownDeadline))
 			select {
 			case <-childDone:
@@ -224,6 +275,15 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 		}
 		workers.Wait()
 		_ = os.RemoveAll(directory)
+		if failure != nil {
+			level := slog.LevelError
+			if errors.Is(failure, context.Canceled) {
+				level = slog.LevelWarn
+			}
+			logger.Log(context.Background(), level, "overlay manager stopped", "pid", cmd.Process.Pid, "stage", stage, "ready", becameReady, "elapsed", time.Since(started), "err", failure)
+		} else {
+			logger.Info("overlay manager stopped", "pid", cmd.Process.Pid, "ready", becameReady, "elapsed", time.Since(started))
+		}
 		if failure != nil {
 			if text := diagnostics.String(); text != "" {
 				failure = fmt.Errorf("%w; child stderr: %s", failure, text)
@@ -239,7 +299,7 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 	workers.Add(1)
 	go func() {
 		defer workers.Done()
-		c, err := acceptHost(startup, listener, token)
+		c, err := acceptHost(startup, listener, token, options.Config.Backend)
 		if err != nil {
 			acceptErr <- err
 			return
@@ -261,6 +321,8 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 		failure = startup.Err()
 		return
 	}
+	logger.Info("overlay helper connected", "pid", cmd.Process.Pid, "elapsed", time.Since(started))
+	stage = "handshake"
 	_ = listener.Close()
 	stopConn := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stopConn()
@@ -274,13 +336,14 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 		failure = err
 		return
 	}
+	stage = "ready-wait"
 	frame, err := readFrame(conn)
 	if err != nil {
-		failure = fmt.Errorf("overlay: waiting for native readiness: %w", err)
+		failure = fmt.Errorf("overlay: waiting for renderer readiness: %w", err)
 		return
 	}
 	if frame.Type != "ready" {
-		failure = fmt.Errorf("overlay: native startup failed (%s): %s", frame.Type, frame.Error)
+		failure = fmt.Errorf("overlay: renderer startup failed (%s): %s", frame.Type, frame.Error)
 		return
 	}
 	if !stopStartupConn() || startup.Err() != nil {
@@ -290,6 +353,8 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 	finishStartup()
 	_ = conn.SetDeadline(time.Time{})
 	becameReady = true
+	stage = "running"
+	logger.Info("overlay helper ready", "pid", cmd.Process.Pid, "elapsed", time.Since(started))
 	close(ready)
 	failures := make(chan error, 2)
 	workers.Add(2)
@@ -300,7 +365,7 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 		if err == nil {
 			switch next.Type {
 			case "error":
-				err = fmt.Errorf("overlay: native error: %s", next.Error)
+				err = fmt.Errorf("overlay: renderer error: %s", next.Error)
 			case "stopped":
 				// 原生窗口主动正常退出与协议错误不同，不触发自动重启。
 			default:
@@ -320,7 +385,7 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 }
 
 // 未认证连接不能占用唯一宿主名额。每次认证最多等待一秒，且受总启动预算约束。
-func acceptHost(ctx context.Context, listener *net.UnixListener, token string) (net.Conn, error) {
+func acceptHost(ctx context.Context, listener *net.UnixListener, token string, backend Backend) (net.Conn, error) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -340,6 +405,7 @@ func acceptHost(ctx context.Context, listener *net.UnixListener, token string) (
 			return nil, ctx.Err()
 		}
 		if !authenticated {
+			logger.Warn("overlay connection rejected", "reason", "authentication failed", "read_err", readErr)
 			_ = conn.Close()
 			continue
 		}
@@ -350,6 +416,10 @@ func acceptHost(ctx context.Context, listener *net.UnixListener, token string) (
 		if hello.Type != "hello" {
 			_ = conn.Close()
 			return nil, errors.New("overlay: expected authenticated hello")
+		}
+		if hello.Backend != backend || hello.Capabilities != hostCapabilities {
+			_ = conn.Close()
+			return nil, errors.New("overlay: incompatible host backend or capabilities")
 		}
 		return conn, nil
 	}
@@ -393,6 +463,28 @@ func (m *Manager) Close() error {
 	m.cancel()
 	<-m.done
 	return m.Err()
+}
+
+// logChildExit 记录 helper 退出详情；异常退出时附带受限的 stderr 尾部。
+func logChildExit(cmd *exec.Cmd, err error, diagnostics *diagnosticBuffer, started time.Time, requested bool) {
+	attrs := []any{"pid", cmd.Process.Pid, "elapsed", time.Since(started), "requested", requested}
+	if state := cmd.ProcessState; state != nil {
+		attrs = append(attrs, "exit_code", state.ExitCode(), "status", state.String())
+	}
+	if err == nil {
+		logger.Info("overlay helper exited", attrs...)
+		return
+	}
+	attrs = append(attrs, "err", err)
+	if text := diagnostics.String(); text != "" {
+		attrs = append(attrs, "stderr", text)
+	}
+	// 由我们主动停止引起的退出不算故障。
+	if requested {
+		logger.Warn("overlay helper exited", attrs...)
+		return
+	}
+	logger.Error("overlay helper exited", attrs...)
 }
 
 type diagnosticBuffer struct {

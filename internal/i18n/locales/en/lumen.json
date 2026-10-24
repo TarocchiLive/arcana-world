@@ -46,5 +46,5 @@
   "lumen.voice": "Voice",
   "lumen.volume": "Volume",
   "lumen.proxy": "Proxy",
-  "lumen.tts_hint": "Select events to choose what to speak. Speech is Chinese only."
+  "lumen.tts_hint": "Select events to choose what to speak; voices and languages depend on the selected provider."
 }

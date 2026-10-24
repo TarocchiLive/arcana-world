@@ -66,6 +66,7 @@ git merge --no-ff --no-commit dev
 |---|---|
 | `cmd/arcana-world/main.go` 的 `version` | 使用不带 `v` 的目标版本，保证 `go run ... --version` 正确 |
 | `flake.nix` 的 `arcana-world.version` | 与程序版本一致；检查浮层、TTS 和桌面包仍继承该值 |
+| `flake.nix` 的 `vendorHash` | `go.mod` 或 `go.sum` 相较上一版有变化时重新计算，使 Nix 构建与依赖一致 |
 | `scripts/build.sh`、`Makefile`、发布工作流 | 确认 `VERSION` 注入和去除标签前缀的路径一致，不再添加重复版本常量 |
 | 用户文档和提示中的当前版本 | 必要时更新；动态 latest 链接无需改动 |
 
@@ -75,10 +76,16 @@ git merge --no-ff --no-commit dev
 
 - 在 `CHANGELOG.md` 和 `CHANGELOG.en.md` 顶部添加同一目标版本，日期使用实际发版日期。
 - 标题格式分别为 `## [vX.Y.Z]：YYYY-MM-DD`、`## [vX.Y.Z]: YYYY-MM-DD`，与工作流的提取规则兼容。预发布版本保留完整后缀。
-- 根据上一版本之后的实际提交整理新增、改进和修复；补齐遗漏的用户可见变化，不把开发笔记、skill 增补或每条内部重构都写成产品功能。
+- 先明确比较基线：优先使用用户指定版本，否则使用上一已发布版本。只记录相较基线的用户可见变化，按功能归纳新增、改进和修复。
+- 同一新功能在本轮开发中的调整、修复和方案替换合并为最终能力描述；仅将基线版本已存在问题的修复单列，避免把开发过程写成发布内容。
+- 每个版本先用一小段话说明最重要的用户收益，再以 `### 本次更新` / `### What's changed` 列出约 5–9 条变化；小版本按实际变化写，条目较多时合并同类项。每条一句，直接说明新增能力或修复的问题，省略内部实现和开发过程。必要的升级要求另列，保持中英文一致。
 - 保留已发布章节和链接；为新版本添加 `[vX.Y.Z]: .../releases/tag/vX.Y.Z`。
 - 两种语言的功能、风险和升级要求一致。主程序与辅助程序必须配套更新时，在升级提示中明确要求完整替换发行包。
 - 使用 `.github/workflows/release.yml` 中的实际提取逻辑检查两个章节均非空、边界正确、相对链接正确转换。不要另写一套不兼容的提取规则。
+- GitHub Release 标题为 `Arcana World vX.Y.Z`，正文顺序为：更新亮点、选择下载、快速开始、本次更新、完整差异链接。中文直接展示，英文放入折叠区。
+- 下载表固定使用「平台 | 架构 | 下载」三列，英文为 `Platform | Architecture | Download`。平台与架构分开填写，每个发行包占一行，同平台相邻排列；架构使用 x64、ARM64、x86（32 位），macOS 可注明 Apple Silicon 或 Intel。下载列以实际发行包文件名作为链接文字，链接指向当次版本资产。
+- 快速开始保持约三步，使用项目真实启动命令、地址和平台限制。
+- 发布前执行工作流中的正文生成代码，核对下载表采用上述三列格式且与构建产物一致、比较链接指向上一版本、本次更新长度接近上述范围。历史日志保持原样，不通过自动截断丢弃升级风险。
 
 ## 4. 验证并提交
 
@@ -86,7 +93,7 @@ git merge --no-ff --no-commit dev
 
 ```sh
 make check
-go test -tags tts_audio ./internal/tts/... ./cmd/arcana-world-tts
+CGO_ENABLED=1 go test -tags tts ./internal/tts/... ./cmd/arcana-world-tts
 go run ./cmd/arcana-world --version
 make desktop VERSION="$TAG"
 ```
@@ -94,6 +101,18 @@ make desktop VERSION="$TAG"
 检查构建后的主程序 `--version` 和 TTS helper `-help`。路径以实际构建输出为准，Windows 带 `.exe`。源码运行与打包程序都必须显示目标版本，不能只验证通过链接参数覆盖的发行版本。
 
 缺少原生构建依赖时，明确记录本地验证边界，并以对应原生 CI 构建补充。编译通过不等于图形运行验证；本次修改过图形行为时，按 `AGENTS.md` 另做实际后端验证。
+
+发布工作流以 `NATIVE_DEPS=prebuilt` 构建，Qt SDK 和语音 GPU 运行库必须来自 `scripts/native-deps.json`。提交前运行 `python3 scripts/native-deps.py status`：清单缺失、缺少矩阵所需的包或出现 `outdated` 时，先发布新的依赖包：
+
+```sh
+DEPS_TAG="native-deps-$(date +%Y%m%d)"   # 同日重发时追加 .2 等后缀
+git tag -a "$DEPS_TAG" -m "build: publish $DEPS_TAG"
+git push origin "$DEPS_TAG"
+# 等待 native-deps.yml 完成后取回清单，并在当前分支提交。
+gh release download "$DEPS_TAG" --pattern native-deps.json --output scripts/native-deps.json --clobber
+```
+
+依赖标签须指向已推送、包含当前构建脚本的提交。取回清单后再次运行 `status`，全部为 `current` 才继续发版。依赖包 Release 是预发布且不是 latest，不要公开为应用版本或删除仍被清单引用的依赖 Release。
 
 确认冲突全部解决，只暂存本次发布应包含的内容。发布提交可用 `release: prepare <tag>`；不要使用默认 `Merge branch ...` 信息。提交后记录完整提交 ID，确认开发分支与原发布分支均是其祖先。
 
@@ -113,7 +132,7 @@ git push --atomic origin main dev "$TAG"
 
 执行前必须确认目标标签仍不存在、分支引用符合预期。推送被拒绝时检查远端变化，不改用强推。其他分支和 worktree 不在发布范围内。
 
-标签推送会触发 `release.yml`。不要抢先手动创建 Release，以免与工作流冲突。按目标标签和完整提交 ID 找到本次运行，等待 checks、全部构建及 publish 完成；仅推送标签成功不算发布完成。
+标签推送会触发 `release.yml`，流水线只创建包含附件的草稿。不要抢先手动创建 Release，以免与工作流冲突。按目标标签和完整提交 ID 等待 checks、全部构建及草稿生成完成；下载草稿附件，核对 SHA-256，并在不注入开发环境库路径的条件下实际打开两种浮层，验证显示、更新和退出。全部通过后才公开 Release；预发布使用 `gh release edit "$TAG" --draft=false --prerelease --latest=false`，正式版使用 `--draft=false --prerelease=false --latest`。
 
 流水线和发布核验命令、失败处理见 [发布核验与恢复](references/github-release.md)。
 
@@ -122,6 +141,6 @@ git push --atomic origin main dev "$TAG"
 - 远端发布分支、已同步的开发分支与标签指向预期提交。
 - 对应 Release 已公开，版本类型正确，双语正文与 changelog 提取结果一致。
 - 当前构建矩阵的发行包齐全，另有 `checksums.txt`；所有资产上传完成且非空。
-- 下载本机可运行的发行包，核对 SHA-256，再解压执行 `--version` 和 helper 帮助检查。
+- 下载本机可运行的发行包，核对 SHA-256，执行版本和 helper 帮助检查，并实际验证两种浮层的显示、更新与退出；完成后再公开草稿。
 - 清理不再需要的临时程序、下载和解压目录；验证记录可留在 `.local/`。
 - 最后报告 Release 链接、版本、提交、实际验证结果和未验证边界。只有工作区确实干净时才称其干净，不把用户保留的无关文件纳入提交。

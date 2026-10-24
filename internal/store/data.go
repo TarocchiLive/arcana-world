@@ -8,12 +8,13 @@ import (
 
 	"arcana-world/internal/config"
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/tts"
 
 	"github.com/zalando/go-keyring"
 )
 
 // ResetSettings 重置应用、浮层和语音偏好，保留凭据、OBS 连接设置、
-// 账号选择和历史记录。
+// 启动界面偏好、账号选择、屏蔽词和历史记录。
 func (s *Store) ResetSettings() (config.Config, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -33,8 +34,10 @@ func (s *Store) ResetSettings() (config.Config, error) {
 	c.OverlayDisabledEvents = d.OverlayDisabledEvents
 	c.TTS = d.TTS
 	if err := s.persist(c); err != nil {
+		logger.Error("settings reset failed", "err", err)
 		return config.Config{}, err
 	}
+	logger.Info("settings reset to defaults")
 	s.config = c
 	return s.overrides.Apply(c), nil
 }
@@ -51,6 +54,7 @@ func (s *Store) ClearData() error {
 	var failures []error
 	deleteAccount := func(uid string) {
 		if err := s.backend.Delete("account:" + uid); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+			s.credentialFailed("clear_delete_account", uid, err)
 			failures = append(failures, secretError(i18n.T(i18n.StoreDeleteAccountCredentials), err))
 		}
 	}
@@ -66,14 +70,29 @@ func (s *Store) ClearData() error {
 		deleteAccount(unlistedActiveUID)
 	}
 	if err := s.backend.Delete("obs-password"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		s.credentialFailed("clear_delete_obs_password", "", err)
 		failures = append(failures, secretError(i18n.T(i18n.StoreDeleteObsPassword), err))
 	}
+	for _, provider := range tts.Providers() {
+		for _, field := range provider.Fields {
+			if !field.Secret {
+				continue
+			}
+			if err := s.backend.Delete(ttsSecretKey(provider.ID, field.ID)); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+				s.credentialFailed("clear_delete_tts_secret", "", err)
+				failures = append(failures, secretError(i18n.T(i18n.TTSSecretDelete), err))
+			}
+		}
+	}
 	if err := errors.Join(failures...); err != nil {
+		logger.Error("clear data aborted", "stage", "credentials", "failures", len(failures), "backend", storageName(s.backend.Storage()))
 		return err
 	}
 	if err := s.clearFiles(); err != nil {
+		logger.Error("clear data failed", "stage", "files", "dir", s.dir, "err", err)
 		return fmt.Errorf(i18n.T(i18n.StoreClearDataFailed), err)
 	}
+	logger.Info("data cleared", "dir", s.dir, "accounts", len(s.config.Accounts), "backend", storageName(s.backend.Storage()))
 	s.config = DefaultConfig()
 	return nil
 }
@@ -111,6 +130,7 @@ func (s *Store) clearFiles() error {
 		{"danmaku", []string{"history.db"}, ""},
 		{"logs", []string{"arcana-world.log", "journal.lock"}, ".journal-"},
 		{"credentials", []string{"secrets.json"}, ".secrets-"},
+		{"templates", []string{"overlay.zh-CN.yaml", "overlay.en.yaml", "tts.zh-CN.yaml", "tts.en.yaml"}, ""},
 	} {
 		info, err := root.Lstat(child.name)
 		if errors.Is(err, os.ErrNotExist) {
@@ -182,10 +202,17 @@ func removeOwnedFile(root *os.Root, name string) error {
 		return nil
 	}
 	if err != nil {
+		logger.Error("owned file stat failed", "dir", root.Name(), "file", name, "err", err)
 		return err
 	}
 	if info.IsDir() {
+		logger.Error("owned file is a directory", "dir", root.Name(), "file", name)
 		return errors.New(i18n.T(i18n.StoreConfigRegularFileRequired))
 	}
-	return root.Remove(name)
+	if err := root.Remove(name); err != nil {
+		logger.Error("owned file remove failed", "dir", root.Name(), "file", name, "err", err)
+		return err
+	}
+	logger.Info("owned file removed", "dir", root.Name(), "file", name)
+	return nil
 }

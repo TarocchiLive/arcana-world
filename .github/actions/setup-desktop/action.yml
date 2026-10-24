@@ -1,0 +1,126 @@
+name: Desktop toolchains
+description: Install the native overlay, Elegant overlay, and speech helper build dependencies
+runs:
+  using: composite
+  steps:
+    - name: Install Linux runtime data
+      if: runner.os == 'Linux'
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y xkb-data fontconfig-config
+    - name: Identify Linux graphics toolchain
+      if: runner.os == 'Linux'
+      id: linux-toolchain
+      shell: bash
+      run: bash scripts/setup-linux-qt.sh --cache-info >> "$GITHUB_OUTPUT"
+    - name: Restore Linux graphics toolchain
+      if: runner.os == 'Linux'
+      id: linux-toolchain-cache
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ steps.linux-toolchain.outputs.prefix }}
+        key: qt-ubuntu24-${{ runner.arch }}-${{ steps.linux-toolchain.outputs.toolchain-id }}
+    - name: Build Linux graphics toolchain
+      if: runner.os == 'Linux'
+      id: linux-toolchain-build
+      shell: bash
+      run: BUILD_JOBS="${BUILD_JOBS:-$(nproc)}" bash scripts/setup-linux-qt.sh
+    # 工具链成功后立即保存，避免后续桌面构建失败导致缓存丢失。
+    - name: Save Linux graphics toolchain
+      if: runner.os == 'Linux' && steps.linux-toolchain-build.outcome == 'success' && steps.linux-toolchain-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ steps.linux-toolchain.outputs.prefix }}
+        key: ${{ steps.linux-toolchain-cache.outputs.cache-primary-key }}
+    - name: Install macOS build tools
+      if: runner.os == 'macOS'
+      shell: bash
+      run: brew install cmake ninja gnu-tar xz
+    - name: Identify macOS graphics toolchain
+      if: runner.os == 'macOS'
+      id: macos-toolchain
+      shell: bash
+      run: bash scripts/setup-macos-qt.sh --cache-info >> "$GITHUB_OUTPUT"
+    - name: Restore macOS graphics toolchain
+      if: runner.os == 'macOS'
+      id: macos-toolchain-cache
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ steps.macos-toolchain.outputs.prefix }}
+        key: qt-macos15-${{ runner.arch }}-${{ steps.macos-toolchain.outputs.toolchain-id }}
+    - name: Build macOS graphics toolchain
+      if: runner.os == 'macOS'
+      id: macos-toolchain-build
+      shell: bash
+      run: BUILD_JOBS="${BUILD_JOBS:-$(sysctl -n hw.logicalcpu)}" bash scripts/setup-macos-qt.sh
+    - name: Save macOS graphics toolchain
+      if: runner.os == 'macOS' && steps.macos-toolchain-build.outcome == 'success' && steps.macos-toolchain-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ steps.macos-toolchain.outputs.prefix }}
+        key: ${{ steps.macos-toolchain-cache.outputs.cache-primary-key }}
+    - name: Install Windows graphics toolchain
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      id: msys2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        update: true
+        install: >-
+          mingw-w64-ucrt-x86_64-gcc
+          mingw-w64-ucrt-x86_64-cmake
+          mingw-w64-ucrt-x86_64-ninja
+          curl
+          tar
+          mingw-w64-ucrt-x86_64-python
+    - name: Identify Windows graphics toolchain
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      id: windows-toolchain
+      shell: msys2 {0}
+      run: bash scripts/setup-windows-qt.sh --cache-info >> "$GITHUB_OUTPUT"
+    - name: Restore Windows graphics toolchain
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      id: windows-toolchain-cache
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ steps.windows-toolchain.outputs.prefix }}
+        key: qt-windows-ucrt64-${{ runner.arch }}-${{ steps.windows-toolchain.outputs.toolchain-id }}
+    - name: Build Windows graphics toolchain
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      id: windows-toolchain-build
+      shell: msys2 {0}
+      run: BUILD_JOBS="${BUILD_JOBS:-$(nproc)}" bash scripts/setup-windows-qt.sh
+    # 工具链成功后立即保存；不使用回退键，避免编译器更新后命中旧 ABI。
+    - name: Save Windows graphics toolchain
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64' && steps.windows-toolchain-build.outcome == 'success' && steps.windows-toolchain-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ steps.windows-toolchain.outputs.prefix }}
+        key: ${{ steps.windows-toolchain-cache.outputs.cache-primary-key }}
+    # 语音辅助程序的 Windows 运行库来自 Visual Studio 可再分发目录，需要先加载其环境变量。
+    - name: Configure Windows speech runtime environment
+      if: runner.os == 'Windows' && env.GOARCH != '386'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: ${{ env.GOARCH == 'arm64' && 'amd64_arm64' || 'amd64' }}
+    - name: Install pinned Windows speech compiler
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        host=x86_64
+        digest=82babcd6aae4dc3606e8e0471d816989c384b4bf86a139f184a8b4a1b2c2758d
+        if [[ "$RUNNER_ARCH" == ARM64 ]]; then
+          host=aarch64
+          digest=167e9afb1288f6d8c68d0d38f5236d34d3c773768b6d885a39a344c733e46977
+        fi
+        name="llvm-mingw-20250709-ucrt-$host"
+        root="$(cygpath -u "$RUNNER_TEMP")/tts-toolchain"
+        mkdir -p "$root"
+        curl --fail --location --retry 3 "https://github.com/mstorsjo/llvm-mingw/releases/download/20250709/$name.zip" -o "$root/compiler.zip"
+        printf '%s  %s\n' "$digest" "$root/compiler.zip" | sha256sum --check --strict
+        unzip -q "$root/compiler.zip" -d "$root"
+        target=x86_64
+        case "$GOARCH" in 386) target=i686 ;; arm64) target=aarch64 ;; esac
+        prefix="$(cygpath -m "$root/$name/bin")"
+        echo "TTS_CC=$prefix/$target-w64-mingw32-clang.exe" >> "$GITHUB_ENV"
+        echo "TTS_CXX=$prefix/$target-w64-mingw32-clang++.exe" >> "$GITHUB_ENV"
+        echo "TTS_OBJDUMP=$prefix/llvm-objdump.exe" >> "$GITHUB_ENV"

@@ -12,7 +12,9 @@ import (
 
 	"arcana-world/internal/bili"
 	"arcana-world/internal/helperpath"
+	"arcana-world/internal/overlay"
 	"arcana-world/internal/store"
+	"arcana-world/internal/tts/models"
 )
 
 type doctorReport struct {
@@ -42,6 +44,7 @@ func runDoctor(ctx context.Context, out io.Writer, dir string, options store.Opt
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	r := &doctorReport{out: out}
+	overlayBackend := overlay.BackendNative
 	r.line("OK", "scope", "read-only diagnostics; helpers, audio devices, OBS and Bilibili are not started or contacted")
 	resolved, err := store.ResolveDir(dir)
 	if err != nil {
@@ -54,6 +57,7 @@ func runDoctor(ctx context.Context, out io.Writer, dir string, options store.Opt
 			r.line("ERROR", "config", "cannot read configuration: invalid contents, file type or access permissions")
 		} else {
 			cfg = options.Overrides.Apply(cfg)
+			overlayBackend = cfg.Overlay.Backend
 			client, proxyErr := bili.New(cfg.Proxy, "")
 			if proxyErr != nil {
 				r.line("ERROR", "proxy", "invalid proxy configuration; value omitted")
@@ -79,6 +83,23 @@ func runDoctor(ctx context.Context, out io.Writer, dir string, options store.Opt
 			}
 			ttsEnabled := ttsOverride != nil && *ttsOverride
 			r.line("OK", "features", "overlay=%t; TTS=%t; only explicit enables make missing optional prerequisites blocking", overlayEnabled, ttsEnabled)
+			switch cfg.TTS.Provider {
+			case "edge", "qwen", "doubao":
+				r.line("WARN", "tts network", "%s speech is generated online; endpoint and proxy connectivity not probed", cfg.TTS.Provider)
+			case "melo", "kokoro", "piper":
+				appDir, appDirErr := helperpath.ApplicationDir()
+				if appDirErr != nil {
+					r.issue(ttsEnabled, "tts model", "cannot resolve application directory")
+				} else {
+					status := models.Inspect(appDir, cfg.TTS.Provider)
+					if status.Installed {
+						r.line("OK", "tts model", "%s model files found; checksums are verified before synthesis", cfg.TTS.Provider)
+					} else {
+						r.issue(ttsEnabled, "tts model", "%s model is missing or incomplete: %q", cfg.TTS.Provider, status.Dir)
+					}
+				}
+				r.line("WARN", "tts runtime", "Local TTS uses the helper's bundled native libraries; runtime compatibility not probed")
+			}
 		}
 		r.credentials(ctx, resolved, options.CredentialBackend)
 	}
@@ -86,7 +107,7 @@ func runDoctor(ctx context.Context, out io.Writer, dir string, options store.Opt
 	// 已知缺失的前置条件才会成为阻断问题。
 	overlayRequired := overlayOverride != nil && *overlayOverride
 	ttsRequired := ttsOverride != nil && *ttsOverride
-	r.helper("overlay", "arcana-world-overlay", overlayExecutable, overlayRequired)
+	r.helper("overlay", "arcana-world-overlay-"+string(overlayBackend), overlayExecutable, overlayRequired)
 	r.helper("tts", "arcana-world-tts", "", ttsRequired)
 	r.graphics(overlayRequired)
 	r.audio(ttsRequired)
@@ -253,5 +274,4 @@ func (r *doctorReport) audio(required bool) {
 	default:
 		r.issue(required, "audio", "TTS audio support is unverified on this platform")
 	}
-	r.line("WARN", "tts network", "speech synthesis requires network access; endpoint and proxy connectivity not probed")
 }

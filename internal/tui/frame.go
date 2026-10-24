@@ -31,6 +31,10 @@ type pollViewState struct {
 func (m *Model) pollViewState() pollViewState {
 	state := pollViewState{notification: m.notification.generation}
 	if m.mode != "" {
+		// 设置弹层的末项会随模型任务切换为取消按钮，借此让弹层及时刷新。
+		if m.mode == "pick" && m.editKind == "tts-settings" && len(m.choices) != 0 {
+			state.output = m.choices[len(m.choices)-1].label
+		}
 		return state
 	}
 	switch m.page {
@@ -44,6 +48,9 @@ func (m *Model) pollViewState() pollViewState {
 		}
 	case ttsPage:
 		state.output = m.ttsStateText()
+		if m.ttsProvider().Model {
+			state.output += m.ttsModelText()
+		}
 	case overlayPage:
 		state.output = m.overlayStateText()
 	}

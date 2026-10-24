@@ -332,6 +332,9 @@ func (m *Model) confirmationBackdrop(l workspaceLayout) string {
 }
 
 func (m *Model) View() tea.View {
+	if m.web.enabled {
+		return tea.View{}
+	}
 	if m.frame.reuse {
 		m.frame.reuse = false
 		m.refreshShowcaseFrame()

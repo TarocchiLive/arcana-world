@@ -14,14 +14,17 @@ import (
 const maxHostErrorBytes = 8 << 10
 
 // Serve 在当前线程运行原生入口；控制连接断开时取消原生生命周期。
-func Serve(ctx context.Context, socketPath string, run func(context.Context, Config, <-chan Config, func()) error) error {
+func Serve(ctx context.Context, socketPath string, backend Backend, run func(context.Context, Config, <-chan Config, func()) error) error {
+	if backend != BackendNative && backend != BackendQt {
+		return errors.New("overlay: invalid host backend")
+	}
 	token := os.Getenv(tokenEnvironment)
 	_ = os.Unsetenv(tokenEnvironment)
 	if token == "" {
 		return errors.New("overlay: missing authentication token")
 	}
 	if run == nil {
-		return errors.New("overlay: missing native runner")
+		return errors.New("overlay: missing renderer")
 	}
 	conn, err := (&net.Dialer{Timeout: defaultStartupTimeout}).DialContext(ctx, "unix", socketPath)
 	if err != nil {
@@ -35,7 +38,7 @@ func Serve(ctx context.Context, socketPath string, run func(context.Context, Con
 	if err = conn.SetDeadline(time.Now().Add(defaultStartupTimeout)); err != nil {
 		return err
 	}
-	if err = writeFrame(conn, wireFrame{Type: "hello", Token: token}); err != nil {
+	if err = writeFrame(conn, wireFrame{Type: "hello", Token: token, Backend: backend, Capabilities: hostCapabilities}); err != nil {
 		return err
 	}
 	initial, err := readFrame(conn)
@@ -51,6 +54,9 @@ func Serve(ctx context.Context, socketPath string, run func(context.Context, Con
 	cfg, err := initial.Config.Normalize()
 	if err != nil {
 		return err
+	}
+	if cfg.Backend != backend {
+		return errors.New("overlay: host backend does not match configuration")
 	}
 	if err = conn.SetDeadline(time.Time{}); err != nil {
 		return err
@@ -80,6 +86,11 @@ func Serve(ctx context.Context, socketPath string, run func(context.Context, Con
 			next, normalizeErr := frame.Config.Normalize()
 			if normalizeErr != nil {
 				readDone <- normalizeErr
+				cancel()
+				return
+			}
+			if next.Backend != backend {
+				readDone <- errors.New("overlay: backend changes require a new host")
 				cancel()
 				return
 			}

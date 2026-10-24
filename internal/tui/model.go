@@ -13,10 +13,12 @@ import (
 	"arcana-world/internal/config"
 	"arcana-world/internal/coverimage"
 	"arcana-world/internal/domain"
+	"arcana-world/internal/helperpath"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/journal"
 	"arcana-world/internal/obs"
 	"arcana-world/internal/overlay"
+	"arcana-world/internal/presentation"
 	"arcana-world/internal/store"
 
 	"charm.land/bubbles/v2/textarea"
@@ -47,6 +49,8 @@ const (
 	logEntryLimit    = 200
 )
 
+var logger = journal.Logger("tui")
+
 func pageNames() [pageCount]string {
 	return [pageCount]string{
 		livePage:     i18n.T(i18n.TUIPageLive),
@@ -66,107 +70,111 @@ type pollTick struct{ generation int }
 type choice struct{ label, value string }
 
 type Model struct {
-	ctx                    context.Context
-	store                  *store.Store
-	client                 *bili.Client
-	config                 config.Config
-	theme                  tuiTheme
-	themeID                string
-	darkBackground         bool
-	showcase               showcaseState
+	web                      webState
+	ctx                      context.Context
+	store                    *store.Store
+	appDir                   string
+	client                   *bili.Client
+	config                   config.Config
+	theme                    tuiTheme
+	themeID                  string
+	darkBackground           bool
+	showcase                 showcaseState
 	zoom                   bool
-	blurred                bool
-	mouseTargets           []mouseTarget
-	mouseScrolling         bool
-	mouseX, mouseY         int
-	mouseKnown             bool
-	pointerShape           string
-	frame                  renderFrame
-	exitPrompt             *exitConfirmation
-	backdrop               string
-	backdropWidth          int
-	backdropHeight         int
-	backdropFooterHeight   int
-	account                *domain.Account
-	room                   *domain.Room
-	stream                 *domain.Stream
-	obsClient              *obs.Client
-	obsState               obs.Snapshot
-	obsBusy                bool
-	obsCancel              context.CancelFunc
-	obsOperation           int
-	session                *app.Session
-	initialized            bool
-	overlay                *overlayRuntime
-	tts                    *ttsRuntime
-	ttsOverride            *bool
-	overlayEnabled         bool
-	overlayColorPreview    *overlay.Colors
-	overlaySettings        *overlaySettingsNavigation
-	overlayChat            overlayChatState
-	selection              *roomSelection
-	textSelection          *textSelection
-	cover                  *coverimage.Prepared
-	moderation             *moderationState
-	members                *roomMembersState
-	speaker                *chatSpeaker
-	inlineImage            inlineImage
-	previewing             bool
-	page                   int
-	cursors                [pageCount]int
-	width, height          int
-	mode, editKind, prompt string
-	input                  textinput.Model
-	chatInput              textarea.Model
-	choices                []choice
-	selected               int
-	pickerTop              int
-	pickerLeft             int
-	overlayDisplays        []overlay.Display
-	confirmAction          string
-	busy                   bool
-	canceled               bool
-	cancel                 context.CancelFunc
-	operation              int
-	qrGeneration           int
-	qr                     *domain.QR
-	qrText                 string
-	qrImageOpening         bool
-	faceURL                string
-	pendingAccount         *domain.Account
-	status                 string
-	statusWarning          bool
-	notification           notificationState
-	noticeLayer            floatingLayer
-	logs                   []string
-	journal                *journal.Log
-	closeOnce              sync.Once
-	closeErr               error
-	clearDataOnExit        bool
-	reveal                 bool
-	view                   viewport.Model
-	chat                   *danmakuUI
-	audience               audienceUI
+	blurred                  bool
+	mouseTargets             []mouseTarget
+	mouseScrolling           bool
+	mouseX, mouseY           int
+	mouseKnown               bool
+	pointerShape             string
+	frame                    renderFrame
+	exitPrompt               *exitConfirmation
+	backdrop                 string
+	backdropWidth            int
+	backdropHeight           int
+	backdropFooterHeight     int
+	account                  *domain.Account
+	room                     *domain.Room
+	stream                   *domain.Stream
+	obsClient                *obs.Client
+	obsState                 obs.Snapshot
+	obsBusy                  bool
+	obsCancel                context.CancelFunc
+	obsOperation             int
+	session                  *app.Session
+	initialized              bool
+	overlay                  *overlayRuntime
+	tts                      *ttsRuntime
+	ttsOverride              *bool
+	overlayEnabled           bool
+	overlayAppearancePreview *overlay.Config
+	overlaySettings          *overlaySettingsNavigation
+	overlayChat              overlayChatState
+	outputTemplates          *presentation.TemplateSet
+	templateLanguage         string
+	selection                *roomSelection
+	textSelection            *textSelection
+	cover                    *coverimage.Prepared
+	moderation               *moderationState
+	members                  *roomMembersState
+	speaker                  *chatSpeaker
+	inlineImage              inlineImage
+	previewing               bool
+	page                     int
+	cursors                  [pageCount]int
+	width, height            int
+	mode, editKind, prompt   string
+	input                    textinput.Model
+	chatInput                textarea.Model
+	choices                  []choice
+	selected                 int
+	pickerTop                int
+	pickerLeft               int
+	overlayDisplays          []overlay.Display
+	confirmAction            string
+	busy                     bool
+	canceled                 bool
+	cancel                   context.CancelFunc
+	operation                int
+	qrGeneration             int
+	qr                       *domain.QR
+	qrText                   string
+	qrPollCode               int // 上一次登录轮询状态码，仅用于记录状态变化
+	qrImageOpening           bool
+	faceURL                  string
+	pendingAccount           *domain.Account
+	status                   string
+	statusWarning            bool
+	notification             notificationState
+	noticeLayer              floatingLayer
+	logs                     []string
+	journal                  *journal.Log
+	closeOnce                sync.Once
+	closeErr                 error
+	clearDataOnExit          bool
+	reveal                   bool
+	view                     viewport.Model
+	chat                     *danmakuUI
+	audience                 audienceUI
 }
 
-func New(ctx context.Context, s *store.Store) (*Model, error) {
-	cfg := s.Config()
-	disk, err := journal.Open(s.Dir())
+// New 接管已锁定数据目录的日志；初始化失败或模型关闭时释放。
+func New(ctx context.Context, s *store.Store, disk *journal.Log) (*Model, error) {
+	appDir, err := helperpath.ApplicationDir()
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(err, disk.Close())
 	}
+	cfg := s.Config()
 	c, err := bili.New(cfg.Proxy, s.DeviceID())
 	if err != nil {
-		return nil, errors.Join(err, disk.Write(i18n.T(i18n.TUILogStartupFailed)+err.Error()), disk.Close())
-	}
-	if err := disk.Write(i18n.T(i18n.TUILogApplicationStarted)); err != nil {
-		c.HTTP.CloseIdleConnections()
+		logger.Error("bilibili client init failed", "err", err)
 		return nil, errors.Join(err, disk.Close())
 	}
 	in := textinput.New()
 	in.SetVirtualCursor(false)
 	in.CharLimit = 4096
 	m := &Model{ctx: ctx, store: s, config: cfg, client: c, journal: disk, obsClient: obs.NewClient(), width: 100, height: 32, input: in, status: i18n.T(i18n.TUIStatusReady), view: viewport.New(viewport.WithWidth(96), viewport.WithHeight(24))}
+	m.appDir = appDir
 	m.chatInput = textarea.New()
 	m.chatInput.SetVirtualCursor(false)
 	m.chatInput.Prompt = "› "
@@ -179,6 +187,7 @@ func New(ctx context.Context, s *store.Store) (*Model, error) {
 	m.session = app.New(s, m.obsClient, c)
 	m.openChat()
 	m.logCredentialStorage()
+	m.syncOutputTemplates()
 	m.syncWorkspace()
 	return m, nil
 }
@@ -187,7 +196,10 @@ func (m *Model) Init() tea.Cmd {
 		return nil
 	}
 	m.initialized = true
-	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.watchOBS(), chatTickCmd(), m.syncShowcase(), m.notificationCommand(), m.pointerCommand(), m.initInlineImage()}
+	cmds := []tea.Cmd{m.watchOBS(), chatTickCmd()}
+	if !m.web.enabled {
+		cmds = append(cmds, tea.RequestBackgroundColor, m.syncShowcase(), m.notificationCommand(), m.pointerCommand(), m.initInlineImage())
+	}
 	if m.overlay != nil && m.overlayEnabled {
 		cmds = append(cmds, m.startOverlay())
 	}
@@ -209,19 +221,16 @@ func (m *Model) logCredentialStorage() {
 	}
 }
 
+// log 与 warn 仅面向界面（状态行与操作记录面板）；调试日志由 logger 单独记录。
 func (m *Model) log(s string) { m.logStatus(s, false) }
 
 func (m *Model) logStatus(s string, warning bool) {
 	s = m.safe(s)
-	err := m.journal.Write(s)
-	if err != nil {
-		s += i18n.T(i18n.TUILogWriteFailedPrefix) + m.safe(err.Error()) + i18n.T(i18n.TUILogWriteFailedSuffix)
-	}
 	m.logs = append(m.logs, time.Now().Format("15:04:05")+"  "+s)
 	if len(m.logs) > logEntryLimit {
 		m.logs = append([]string(nil), m.logs[len(m.logs)-logEntryLimit:]...)
 	}
-	m.status, m.statusWarning = s, warning || err != nil
+	m.status, m.statusWarning = s, warning
 	m.resetNotification()
 }
 
@@ -267,6 +276,9 @@ func (m *Model) safe(s string) string {
 func (m *Model) updatePolling() tea.Cmd {
 	cmds := []tea.Cmd{m.updateChat(), m.updateTTS(), m.updateAudience()}
 	m.publishOverlay()
+	if m.web.enabled {
+		return tea.Batch(cmds...)
+	}
 	if m.frame.base != "" && m.frame.poll == m.pollViewState() {
 		m.frame.reuse = true
 	} else {
@@ -281,6 +293,16 @@ func (m *Model) updatePolling() tea.Cmd {
 	return tea.Batch(append(cmds, m.notificationCommand())...)
 }
 func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
+	m.syncOutputTemplates()
+	if m.web.enabled {
+		defer m.observeWebContext()
+		switch msg := msg.(type) {
+		case webRequest:
+			return m, m.handleWebRequest(msg)
+		case webPreviewCheck:
+			return m, m.handleWebPreviewCheck()
+		}
+	}
 	// 原始终端输出已由 Bubble Tea 执行，不改变界面状态，也不再次设置指针。
 	switch msg.(type) {
 	case pointerRefreshMsg:
@@ -359,6 +381,9 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		m.noticeLayer = floatingLayer{}
 	}
 	defer func() {
+		if m.web.enabled {
+			return
+		}
 		m.syncWorkspace()
 		if m.confirmationAvatar() != m.inlineImage.thumbnail || !m.nativeAvatar() {
 			cmd = tea.Batch(cmd, m.clearInlineImage())
@@ -420,6 +445,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	case qrImageOpened:
 		m.qrImageOpening = false
 		if msg.err != nil {
+			logger.Warn("qr image open failed", "err", msg.err)
 			m.warn(i18n.T(i18n.TUIQROpenFailed) + msg.err.Error())
 		}
 		return m, nil
@@ -436,6 +462,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	case coverPreviewFinished:
 		m.previewing = false
 		if msg.err != nil {
+			logger.Warn("cover preview failed", "err", msg.err)
 			m.warn(i18n.T(i18n.TUILogCoverPreviewFailed) + msg.err.Error())
 		} else {
 			m.setStatus(i18n.T(i18n.TUIStatusPreviewClosed))
@@ -486,18 +513,22 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 				return m, nil
 			}
 			if key == "esc" && m.cancel != nil {
+				logger.Info("operation cancel requested", "id", m.operation)
 				m.canceled = true
 				m.cancel()
 				if m.mode == "members" {
 					m.closeRoomMembers()
 				}
 				m.qrGeneration++
+				if m.mode == "cover-review" {
+					m.cover = nil
+				}
 				m.mode = ""
 				m.qr = nil
 				m.qrText = ""
 				m.faceURL = ""
 				m.progressStatus(i18n.T(i18n.TUIStatusCancelRequested))
-				m.clearOverlayColorPreview()
+				m.clearOverlayAppearancePreview()
 				if m.overlaySettings != nil {
 					return m, m.showOverlaySettings()
 				}
@@ -587,7 +618,7 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		return m, cmd
 	}
 	m.input, cmd = m.input.Update(msg)
-	m.updateOverlayColorPreview()
+	m.updateOverlayAppearancePreview()
 	return m, cmd
 }
 func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -645,11 +676,21 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 	if m.mode == "members" {
 		return m.roomMembersKey(msg)
 	}
+	if key == "esc" {
+		if cmd, handled := m.blocklistBack(); handled {
+			return cmd
+		}
+	}
 	if key == "esc" && m.overlaySettings != nil {
 		if m.mode == "pick" && m.editKind == "overlay-fields" {
+			if navigation := m.overlaySettings; navigation.group != overlaySettingsRoot {
+				navigation.positions[navigation.group] = overlaySettingsPosition{m.selected, m.view.YOffset()}
+				navigation.group = overlaySettingsRoot
+				return m.showOverlaySettings()
+			}
 			m.overlaySettings = nil
 		} else {
-			m.clearOverlayColorPreview()
+			m.clearOverlayAppearancePreview()
 			return m.showOverlaySettings()
 		}
 	}
@@ -663,7 +704,7 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.input.SetValue("")
 		m.input.Blur()
 		m.view.GotoTop()
-		m.clearOverlayColorPreview()
+		m.clearOverlayAppearancePreview()
 		return nil
 	}
 	switch m.mode {
@@ -671,9 +712,12 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 		if key == "enter" {
 			return m.submitForm()
 		}
+		if m.stepOverlayNumber(key) {
+			return nil
+		}
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
-		m.updateOverlayColorPreview()
+		m.updateOverlayAppearancePreview()
 		return cmd
 	case "pick":
 		switch key {

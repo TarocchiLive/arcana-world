@@ -1,4 +1,4 @@
-// journal 包无缓冲地持久化经过脱敏的应用事件。
+// journal 包将调试日志无缓冲地持久化到数据目录，记录前隐藏已登记的机密值。
 package journal
 
 import (
@@ -12,22 +12,25 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
-	"unicode"
 
-	"github.com/charmbracelet/x/ansi"
 	bolt "go.etcd.io/bbolt"
 )
 
-// Log 串行处理事件写入和关闭；调用方必须在 Write 前移除机密信息。
+// Log 串行处理记录写入和关闭；同一进程内最近打开的 Log 接收 Logger 输出。
 type Log struct {
 	mu       sync.Mutex
 	file     *os.File
 	path     string
 	closeErr error
-	lock     *bolt.DB
+	writeErr error
+	lock     io.Closer
 	stop     chan struct{}
 }
+
+// active 指向当前接收调试记录的日志；为空时 Logger 直接丢弃记录。
+var active atomic.Pointer[Log]
 
 // Open 在 dataDir 下打开仅追加日志，并确保目录和文件权限安全。
 func Open(dataDir string) (*Log, error) {
@@ -35,45 +38,11 @@ func Open(dataDir string) (*Log, error) {
 	if err != nil {
 		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryResolveFailed), err)
 	}
-	if info, err := os.Lstat(base); err == nil {
-		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return nil, errors.New(i18n.T(i18n.JournalDataDirectoryRequired))
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf(i18n.T(i18n.JournalDataDirectoryInspectFailed), err)
+	lock, err := LockDirectory(base)
+	if err != nil {
+		return nil, err
 	}
 	dir := filepath.Join(base, "logs")
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryCreateFailed), err)
-	}
-	info, err := os.Lstat(dir)
-	if err != nil {
-		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryInspectFailed), err)
-	}
-	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return nil, errors.New(i18n.T(i18n.JournalDirectoryRequired))
-	}
-	if err := os.Chmod(dir, 0700); err != nil {
-		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectorySecureFailed), err)
-	}
-
-	// 独立且稳定的锁 inode 同时保护跨进程的日志原子替换和写入。
-	// Bolt 提供跨平台的咨询锁。
-	lockPath := filepath.Join(dir, "journal.lock")
-	if info, err := os.Lstat(lockPath); err == nil {
-		if !info.Mode().IsRegular() {
-			return nil, errors.New(i18n.T(i18n.JournalRegularFileRequired))
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
-	lock, err := bolt.Open(lockPath, 0600, &bolt.Options{Timeout: time.Second})
-	if err != nil {
-		if errors.Is(err, bolt.ErrTimeout) {
-			return nil, fmt.Errorf(i18n.T(i18n.DataDirectoryOccupied), base, err)
-		}
-		return nil, err
-	}
 	keepLock := false
 	defer func() {
 		if !keepLock {
@@ -131,55 +100,103 @@ func Open(dataDir string) (*Log, error) {
 	}
 	keepLock = true
 	go l.retain()
+	active.Store(l)
 	return l, nil
+}
+
+// LockDirectory 复用日志的独占目录锁，不打开日志或启动后台任务。
+// 调用方必须在完成配置读写后关闭锁。
+func LockDirectory(dataDir string) (io.Closer, error) {
+	base, err := filepath.Abs(dataDir)
+	if err != nil {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryResolveFailed), err)
+	}
+	if info, err := os.Lstat(base); err == nil {
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return nil, errors.New(i18n.T(i18n.JournalDataDirectoryRequired))
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDataDirectoryInspectFailed), err)
+	}
+	if err := os.MkdirAll(base, 0700); err != nil {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryCreateFailed), err)
+	}
+	info, err := os.Lstat(base)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New(i18n.T(i18n.JournalDataDirectoryRequired))
+	}
+	if err := os.Chmod(base, 0700); err != nil {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectorySecureFailed), err)
+	}
+	dir := filepath.Join(base, "logs")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryCreateFailed), err)
+	}
+	info, err = os.Lstat(dir)
+	if err != nil {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectoryInspectFailed), err)
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New(i18n.T(i18n.JournalDirectoryRequired))
+	}
+	if err := os.Chmod(dir, 0700); err != nil {
+		return nil, fmt.Errorf(i18n.T(i18n.JournalDirectorySecureFailed), err)
+	}
+	// 独立且稳定的锁 inode 同时保护跨进程的日志原子替换和写入。
+	// Bolt 提供跨平台的咨询锁。
+	lockPath := filepath.Join(dir, "journal.lock")
+	if info, err := os.Lstat(lockPath); err == nil {
+		if !info.Mode().IsRegular() {
+			return nil, errors.New(i18n.T(i18n.JournalRegularFileRequired))
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	lock, err := bolt.Open(lockPath, 0600, &bolt.Options{Timeout: time.Second})
+	if err != nil {
+		if errors.Is(err, bolt.ErrTimeout) {
+			return nil, fmt.Errorf(i18n.T(i18n.DataDirectoryOccupied), base, err)
+		}
+		return nil, err
+	}
+	return lock, nil
 }
 
 // Path 返回日志文件的绝对路径。
 func (l *Log) Path() string { return l.path }
 
-// Write 追加一条带时间戳的物理行，移除终端控制序列及控制和格式字符，
-// 并转义换行符，避免将其误写成新的日志记录。
-func (l *Log) Write(message string) error {
+// timestampLayout 保留毫秒以便对齐并发组件的先后顺序；prune 仍按 RFC 3339 解析。
+const timestampLayout = "2006-01-02T15:04:05.000Z07:00"
+
+// writeRecord 为一条已格式化且以换行结尾的记录加上时间戳并追加写入。
+// 写入失败只保留首个错误并在 Close 时返回，避免日志故障打断业务流程。
+func (l *Log) writeRecord(record []byte) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.file == nil {
-		return os.ErrClosed
+		return
 	}
-	var line strings.Builder
-	line.Grow(len(message) + 40)
-	line.WriteString(time.Now().Format(time.RFC3339))
-	line.WriteByte(' ')
-	for _, r := range ansi.Strip(message) {
-		switch r {
-		case '\n':
-			line.WriteString(`\n`)
-		case '\r':
-			line.WriteString(`\r`)
-		case '\u2028':
-			line.WriteString(`\u2028`)
-		case '\u2029':
-			line.WriteString(`\u2029`)
-		default:
-			if !unicode.IsControl(r) && !unicode.Is(unicode.Cf, r) {
-				line.WriteRune(r)
-			}
-		}
-	}
-	line.WriteByte('\n')
-	n, err := l.file.WriteString(line.String())
-	if err == nil && n != line.Len() {
+	line := make([]byte, 0, len(timestampLayout)+1+len(record))
+	line = time.Now().AppendFormat(line, timestampLayout)
+	line = append(line, ' ')
+	line = append(line, record...)
+	n, err := l.file.Write(line)
+	if err == nil && n != len(line) {
 		err = io.ErrShortWrite
 	}
-	return err
+	if err != nil && l.writeErr == nil {
+		l.writeErr = fmt.Errorf("journal: write %s: %w", l.path, err)
+	}
 }
 
 // Close 只同步并关闭日志一次，重复调用时保留此前的错误。
 func (l *Log) Close() error {
+	active.CompareAndSwap(l, nil)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.file != nil {
 		close(l.stop)
-		l.closeErr = errors.Join(l.closeErr, l.file.Sync(), l.file.Close(), l.lock.Close())
+		l.closeErr = errors.Join(l.closeErr, l.writeErr, l.file.Sync(), l.file.Close(), l.lock.Close())
 		l.file = nil
 	}
 	return l.closeErr

@@ -2,6 +2,7 @@ package termimage
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"image"
@@ -40,6 +41,14 @@ func NewThumbnail(img image.Image) (*Thumbnail, error) {
 		return nil, err
 	}
 	return &Thumbnail{pixels: pixels, png: encoded.Bytes()}, nil
+}
+
+// DataURL 使用已编码的 PNG；调用方按头像身份缓存结果，避免轮询重复编码。
+func (t *Thumbnail) DataURL() string {
+	if t == nil || len(t.png) == 0 {
+		return ""
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(t.png)
 }
 
 // Fallback 用上下半像素填满预留区域；调用方仅在原生图形不可用时使用。

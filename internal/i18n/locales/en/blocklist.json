@@ -1,0 +1,19 @@
+{
+  "blocklist.menu": "Block words · %d",
+  "blocklist.title": "Block words",
+  "blocklist.rules": "Messages whose name, text, gift or other event details contain a block word are hidden or not read aloud. Matching ignores letter case and full-width forms. Chat history keeps every message; removing a word shows its messages again.",
+  "blocklist.count": "%s · %d",
+  "blocklist.global": "Global block words",
+  "blocklist.global_help": "Hidden from Chat, the web panel and the overlay, and not read aloud.",
+  "blocklist.tts": "Speech block words",
+  "blocklist.tts_help": "Not read aloud; still shown in Chat.",
+  "blocklist.add": "+ Add words…",
+  "blocklist.add_prompt": "%s: add words (separate several with commas)",
+  "blocklist.controls": "\n%d / %d · ↑ ↓ select · Enter adds or removes the selected word · Esc back\n",
+  "blocklist.added": "Added %d block words",
+  "blocklist.removed": "Removed block word: %s",
+  "blocklist.duplicate": "These words are already in the list",
+  "blocklist.empty": "Enter at least one word",
+  "blocklist.too_long": "Each block word can have at most %d characters",
+  "blocklist.too_many": "Each list can hold at most %d words"
+}

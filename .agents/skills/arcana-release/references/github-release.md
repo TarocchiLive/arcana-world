@@ -27,13 +27,13 @@ git ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}"
 
 | 系统 | 架构 | 文件格式 |
 |---|---|---|
-| macOS | amd64、arm64 | `.tar.gz` |
-| Linux | amd64、arm64 | `.tar.gz` |
+| macOS | amd64、arm64 | `.tar.xz` |
+| Linux | amd64、arm64 | `.tar.xz` |
 | Windows | 386、amd64、arm64 | `.zip` |
 
 命名为 `arcana-world-<goos>-<goarch>`，macOS 的 `goos` 是 `darwin`。当前共七个发行包，另有 `checksums.txt`；以后工作流改变时，以实际矩阵为准。
 
-发行包应包含主程序、`libexec/arcana-world-overlay`、`libexec/arcana-world-tts` 和 `LICENSE`；Windows 可执行文件带 `.exe`。当前工作流还会提交 GitHub 构建来源证明，不要将其误算成必须存在的额外下载附件。
+发行包应包含主程序、`libexec/arcana-world-overlay-native`、`libexec/arcana-world-tts` 和 `LICENSE`；完整包另含 `libexec/arcana-world-overlay-qt`，Windows 可执行文件带 `.exe`。当前工作流还会提交 GitHub 构建来源证明，不要将其误算成必须存在的额外下载附件。
 
 ## 检查 Release 状态与正文
 
@@ -48,14 +48,14 @@ gh api "repos/$REPO/releases/tags/$TAG"
 完成时必须满足：
 
 - `draft` 为 false，`published_at` 非空。
-- 正式版不是 prerelease；按当前工作流，带预发布后缀的版本是 prerelease，不设为 latest。
+- 正式版不是 prerelease；公开带预发布后缀的版本时使用 `--prerelease --latest=false`。
 - 正式版的 latest 状态符合本次发布目标，可用下列接口核对：
 
 ```sh
 gh api "repos/$REPO/releases/latest" --jq .tag_name
 ```
 
-- 正文是从同一标签提交下的中英文 changelog 提取的内容，含 `## 中文`、`## English`，没有误带其他版本章节。
+- 正文来自同一标签提交下的双语 changelog；中文直接展示，英文位于 `<details>` 折叠区，没有误带其他版本章节。
 - 资产名称集合与矩阵匹配，每项非空且状态为 `uploaded`；manifest 中的记录覆盖全部发行包。
 
 不要仅凭 Release 页面存在便认定成功。草稿、缺资产、错误版本类型或不完整正文都需要继续处理。
@@ -71,9 +71,11 @@ gh release download "$TAG" --repo "$REPO" \
 
 1. 在 `checksums.txt` 中找到与 `ASSET` 完全同名的记录。
 2. 用宿主支持的 SHA-256 工具计算下载文件的哈希并比较：macOS 可用 `shasum -a 256`，Linux 可用 `sha256sum`，Windows 可用 `Get-FileHash -Algorithm SHA256`。只计算、不比较不能算通过。
-3. 校验通过后解压到独立目录，检查包内路径完整，执行主程序 `--version`，确认版本等于不带 `v` 的目标版本；再运行 TTS helper `-help`。
+3. 校验后解压到独立目录，检查路径完整、主程序版本等于目标版本、TTS helper 帮助正常；在不注入开发环境库路径的情况下实际打开两种浮层，检查中文显示、内容更新和正常退出。
 4. 不能运行本机不支持的平台包，也不能把这一项冒烟验证写成全部平台的运行验证。
 5. 保留必要结果记录，移除不再需要的下载、解压和临时脚本。不要删除用户原有文件。
+
+流水线只准备草稿；验证完成后再执行公开操作。预发布：`gh release edit "$TAG" --repo "$REPO" --draft=false --prerelease --latest=false`；正式版改用 `--draft=false --prerelease=false --latest`。公开后重新核对状态和资产。
 
 ## 失败与重试
 

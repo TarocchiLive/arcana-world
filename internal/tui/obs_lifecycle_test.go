@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"arcana-world/internal/domain"
+	"arcana-world/internal/journal"
 	"arcana-world/internal/store"
 	"github.com/gorilla/websocket"
 	"github.com/zalando/go-keyring"
@@ -41,6 +42,7 @@ type lifecycleOBS struct {
 	active       atomic.Bool
 	stops        atomic.Int32
 	rejectStop   bool
+	dropStart    bool
 	started      chan struct{}
 	releaseStart chan struct{}
 	closed       chan struct{}
@@ -90,6 +92,9 @@ func lifecycleServer(t *testing.T, state *lifecycleOBS) string {
 					close(state.started)
 					<-state.releaseStart
 				}
+				if state.dropStart {
+					return
+				}
 			case "StopStream":
 				state.stops.Add(1)
 				if state.rejectStop {
@@ -109,11 +114,17 @@ func lifecycleServer(t *testing.T, state *lifecycleOBS) string {
 
 func lifecycleModel(t *testing.T, ctx context.Context) *Model {
 	t.Helper()
-	s, err := store.OpenWithBackend(t.TempDir(), lifecycleSecrets{})
+	dir := t.TempDir()
+	disk, err := journal.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := New(ctx, s)
+	t.Cleanup(func() { _ = disk.Close() })
+	s, err := store.OpenWithBackend(dir, lifecycleSecrets{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := New(ctx, s, disk)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,6 +145,11 @@ func TestCloseWaitsForCanceledStartBeforeStopping(t *testing.T) {
 	state := &lifecycleOBS{started: make(chan struct{}), releaseStart: make(chan struct{})}
 	endpoint := lifecycleServer(t, state)
 	m := lifecycleModel(t, context.Background())
+	cfg := m.store.Config()
+	cfg.OBSURL = endpoint
+	if err := m.store.SaveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
 	if err := m.obsClient.Connect(context.Background(), endpoint, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -158,6 +174,30 @@ func TestCloseWaitsForCanceledStartBeforeStopping(t *testing.T) {
 	}
 	if err := m.session.Lock(context.Background()); err == nil {
 		t.Fatal("accepted OBS operation after shutdown")
+	}
+}
+
+func TestCloseStopsUnacknowledgedOBSStart(t *testing.T) {
+	state := &lifecycleOBS{dropStart: true}
+	endpoint := lifecycleServer(t, state)
+	m := lifecycleModel(t, context.Background())
+	cfg := m.store.Config()
+	cfg.OBSURL = endpoint
+	if err := m.store.SaveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.obsClient.Connect(context.Background(), endpoint, ""); err != nil {
+		t.Fatal(err)
+	}
+	// OBS 已执行开播，但连接在响应前断开；退出仍须查明状态并停播。
+	if err := m.obsClient.Start(context.Background()); err == nil {
+		t.Fatal("start succeeded without a response")
+	}
+	if err := m.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if state.active.Load() || state.stops.Load() != 1 {
+		t.Fatal("unacknowledged start escaped shutdown stop")
 	}
 }
 

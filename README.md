@@ -31,18 +31,41 @@ Arcana World 是一款基于 Go 的 bilibili 直播姬 + 弹幕姬。
 
 - **扫码登录，连接 OBS，然后一键开播**
 - **直播间实时弹幕收发，提供穿透弹幕悬浮窗，不干扰鼠标键盘操作**
-- **支持弹幕，礼物语音播报，SC播报，基于 Edge TTS，0 占用，高质量**
+- **弹幕、礼物和 SC 语音播报，支持 Edge、千问、豆包云端语音，以及 MeloTTS、Kokoro、Piper 本地语音**
 - **常态内存占用 40MB，超轻量、超流畅、超稳定**
+- **可选本机 Web 控制面板。**
 
 ## 安装
 
 ### 快速开始
 
-从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载对应平台的包，如 arcana-world-windows-amd64.zip，完整解压后运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`）即可。
+从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载对应平台的包，如 arcana-world-windows-amd64.zip，完整解压后运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`）。主程序按已保存的默认界面启动，未设置时使用终端界面。Windows 用户也可运行同目录的 `arcana-world-webui.exe`，直接打开浏览器界面。
+
+### Windows（Scoop）
+
+```powershell
+scoop bucket add tarocchilive https://github.com/TarocchiLive/scoop-bucket
+scoop install tarocchilive/arcana-world
+```
+
+### Debian / Ubuntu（APT）
+
+支持 amd64 和 arm64。
+
+```sh
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://tarocchilive.github.io/apt/tarocchilive-archive-keyring.gpg | sudo tee /etc/apt/keyrings/tarocchilive.gpg >/dev/null
+sudo chmod 0644 /etc/apt/keyrings/tarocchilive.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/tarocchilive.gpg] https://tarocchilive.github.io/apt stable main" | sudo tee /etc/apt/sources.list.d/tarocchilive.list
+sudo apt-get update
+sudo apt-get install arcana-world
+```
 
 ### 从源码构建
 
-从源码构建需要 Go 1.26.8+ 和对应平台的[浮层构建依赖](cmd/arcana-world-overlay/README.md#构建与启动)。Linux 下还需安装 ALSA 开发库与 `pkg-config`，用于构建配套音频程序（Debian/Ubuntu：`libasound2-dev pkg-config`）：
+从源码构建需要 Go 1.26.8+ 和对应平台的[浮层构建依赖](cmd/arcana-world-overlay/README.md#构建与启动)。`make desktop` 还会构建语音程序，需要 Python 3 和 C 编译器，GPU 运行库优先下载 `scripts/native-deps.json` 中经过校验的预编译包；需要从源码构建时另需 CMake 3.24+、Ninja 和 C++ 编译器。Linux 另需 ALSA 开发库与 `pkg-config`（Debian/Ubuntu：`libasound2-dev pkg-config`）。各平台的编译器要求见 `bash scripts/build.sh --help`：
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git
@@ -51,11 +74,35 @@ make desktop
 ./bin/arcana-world
 ```
 
-构建后运行 `bin/arcana-world`（Windows 为 `bin/arcana-world.exe`）。只需要终端功能时（无浮层），可使用 `make build`，无需安装图形开发库。浮层的平台支持情况见 [Arcana World Overlay](cmd/arcana-world-overlay/README.md#支持的平台)。
+NixOS:
+```sh
+nix build
+./result/bin/arcana-world
+```
+
+构建后运行 `bin/arcana-world`（Windows 为 `bin/arcana-world.exe`）。只需要终端功能时（无浮层、无语音），可使用 `make build`，无需安装图形或语音相关依赖。浮层的平台支持情况见 [Arcana World Overlay](cmd/arcana-world-overlay/README.md#支持的平台)。
 
 ## 使用帮助
 
-在软件中按 `0` 或打开「帮助」查看操作说明和常见问题；命令行选项见 `arcana-world --help`。
+终端界面按 `0` 查看帮助；Web 面板从顶部「帮助」搜索主题并直接阅读。命令行选项见 `arcana-world --help`。
+
+### RTMPSRT 推流
+
+RTMPSRT 需要 [libsrt](https://github.com/Haivision/srt) 1.5 运行库，不用这个协议就不必安装：
+
+- macOS：`brew install srt`
+- Linux：安装发行版提供的 libsrt 1.5 包，例如 Debian / Ubuntu 的 `libsrt1.5-openssl`
+- Windows：把与主程序架构一致的 `srt.dll` 及其依赖 DLL 放进主程序旁的 `lib` 目录，可用 vcpkg 的 `srt` 包构建
+
+安装后，在「设置」的推流协议中选择 `RTMPSRT`，连接本机 OBS 再开播。OBS 推流到本机地址，由本应用转发给 B 站，所以推流期间要保持应用运行、OBS 保持连接；断开 OBS 或退出应用都会中断推流。B 站没有提供 RTMPSRT 地址时会报错，请停播后改用其他协议。
+
+从源码把运行库打包进发行目录的方法见 `bash scripts/build.sh --help`。
+
+### 语音播报
+
+支持 Edge、千问、豆包在线语音，以及 MeloTTS、Kokoro、Piper 本地语音。在「TTS」页选择语音供应商并打开设置（WebUI 在「输出 → 声音」），试听确认能听到后，再打开语音播报。
+
+Edge 免费，选好音色就能用；千问和豆包需要自己的 API Key；本地语音第一次使用时下载模型，之后不联网也能用。开通方法、手动安装模型和常见问题见[语音播报说明](cmd/arcana-world-tts/README.md)。
 
 ## TODO
 - [x] 支持获取 B 站推流直链，自动连接 OBS 并开播。
@@ -66,13 +113,15 @@ make desktop
 - [x] 鼠标 tui 操作。
 - [x] tui 界面重构美化。
 - [x] 在终端发送弹幕。
-- [ ] 浮层界面重构美化。
-- [ ] 支持 iterm2 图片协议。
-- [ ] 终端缩放裁剪封面图。
-- [ ] 版本更新检查。
-- [ ] Scoop、Homebrew、nixpkgs 等软件仓库支持。
+- [x] 浮层界面重构美化。
+- [x] 封面预览支持 iTerm2 图片协议。
+- [x] 终端缩放裁剪封面图。
+- [x] 版本更新检查。
+- [x] Scoop、APT 软件仓库支持。
+- [ ] Homebrew、nixpkgs 软件仓库支持。
 - [ ] 机器人协议接口。
-- [?] GUI / WebUI 支持（待定）。
+- [x] 可选 WebUI 控制面板。
+- [?] 原生 GUI 支持（待定）。
 
 ## 开发
 
@@ -101,7 +150,10 @@ make build  # 构建
 
 - [Radekyspec/StartLive](https://github.com/Radekyspec/StartLive)
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+- [Kotonoha](https://github.com/locez/kotonoha)
 - [Bubbles](https://github.com/charmbracelet/bubbles)
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss)
 - [edge-tts](https://github.com/rany2/edge-tts)
-- [edge-tts-go](https://github.com/wujunwei928/edge-tts-go)
+- [Haivision SRT](https://github.com/Haivision/srt)
+- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)、[ONNX Runtime](https://github.com/microsoft/onnxruntime)、[MeloTTS](https://github.com/myshell-ai/MeloTTS)
+- [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh)、[Piper](https://github.com/rhasspy/piper)、[LJ Speech](https://keithito.com/LJ-Speech-Dataset/)、[eSpeak NG](https://github.com/espeak-ng/espeak-ng)

@@ -82,7 +82,10 @@ func (m *Model) pageContent(width int) string {
 	case ttsPage:
 		title(i18n.OutputTTSTitle)
 		b.WriteString(ansi.Wrap(strings.TrimSpace(m.ttsStateText()), width, "") + "\n")
-		field(i18n.LumenVoice, clean(m.ttsVoiceName()))
+		field(i18n.TTSProvider, clean(i18n.T(m.ttsProvider().Name)))
+		if m.ttsProvider().Model {
+			note(m.ttsModelText())
+		}
 		field(i18n.LumenVolume, fmt.Sprintf("%d%%", m.config.TTS.Volume))
 		note(i18n.T(i18n.LumenTTSHint))
 	case settingsPage:

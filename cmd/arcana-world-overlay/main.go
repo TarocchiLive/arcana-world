@@ -1,4 +1,4 @@
-// arcana-world-overlay 是可选的原生桌面文字浮层，独立于 TUI。
+// arcana-world-overlay 是独立于 TUI 的桌面文字浮层。
 package main
 
 import (
@@ -18,19 +18,29 @@ import (
 	"time"
 
 	"arcana-world/internal/overlay"
-	"arcana-world/internal/overlay/native"
 )
 
 func init() { runtime.LockOSThread() }
+
+// startupContext 在参数解析后填入运行模式与显示器选择，供致命错误诊断使用。
+var startupContext string
+
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "arcana-world-overlay:", err)
+		// 父进程把本进程 stderr 收入日志；输出单行英文诊断，包含后端、显示器与原因。
+		line := "arcana-world-overlay: fatal: backend=" + string(backendID)
+		if startupContext != "" {
+			line += " " + startupContext
+		}
+		line += " err=" + strings.Join(strings.Fields(err.Error()), " ")
+		fmt.Fprintln(os.Stderr, line)
 		os.Exit(1)
 	}
 }
 func run() error {
 	flags := flag.NewFlagSet("arcana-world-overlay", flag.ContinueOnError)
 	cfg := overlay.DefaultConfig()
+	cfg.Backend = backendID
 	flags.StringVar(&cfg.Text, "text", cfg.Text, "text to display")
 	anchor := flags.String("anchor", string(cfg.Position.Anchor), "top-left, top, top-right, left, center, right, bottom-left, bottom, bottom-right")
 	flags.Float64Var(&cfg.Position.X, "x", cfg.Position.X, "horizontal anchor offset in logical points; positive points inward at edges")
@@ -52,13 +62,16 @@ func run() error {
 	displayConfigStdin := flags.Bool("display-config-stdin", false, "read display selection config from stdin; requires -list-displays")
 	clock := flags.Bool("clock", false, "append a live clock to demonstrate updates")
 	stdin := flags.Bool("stdin", false, "replace text with each input line; EOF retains the last line")
+	demo := flags.Bool("demo", false, "continuously cycle sample chat messages")
+	reducedMotion := flags.Bool("reduced-motion", false, "disable Elegant overlay motion")
+	unlocked := flags.Bool("unlocked", false, "allow dragging the Elegant overlay")
+	flags.BoolVar(&cfg.Qt.ShowInTaskbar, "show-in-taskbar", false, "show Elegant overlay in macOS Dock or Windows taskbar; inactive on Linux; does not guarantee capture")
+	registerBackendFlags(flags, &cfg)
 	duration := flags.Duration("duration", 0, "close automatically after this duration; 0 waits for Ctrl+C")
 	socket := flags.String("socket", "", "managed host Unix socket; cannot be combined with standalone options")
 	flags.Usage = func() {
 		fmt.Fprintln(flags.Output(), "Usage: arcana-world-overlay [options]")
-		fmt.Fprintln(flags.Output(), "Native click-through overlay: macOS, Windows 10 1803+, KDE/niri Wayland.")
-		fmt.Fprintln(flags.Output(), "Linux: make overlay requires cgo, -tags wayland, wayland-client and pangocairo.")
-		fmt.Fprintln(flags.Output(), "GNOME/Mutter lacks layer-shell. No ordinary-window or X11 fallback.")
+		fmt.Fprintln(flags.Output(), backendHelp)
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(os.Args[1:]); err != nil {
@@ -70,20 +83,40 @@ func run() error {
 	if flags.NArg() != 0 {
 		return errors.New("positional arguments are not supported")
 	}
-	var explicitDisplays, legacyDisplay bool
+	mode := "standalone"
+	switch {
+	case *socket != "":
+		mode = "managed"
+	case *listDisplays:
+		mode = "list-displays"
+	}
+	if mode == "managed" {
+		startupContext = "mode=managed" // 显示器选择由父进程经套接字下发。
+	} else {
+		startupContext = fmt.Sprintf("mode=%s display=%d output=%q displays=%q", mode, *display, cfg.Output, cfg.Displays)
+	}
+	var explicitDisplays, legacyDisplay, explicitTaskbar bool
 	flags.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "displays":
 			explicitDisplays = true
 		case "display", "output":
 			legacyDisplay = true
+		case "show-in-taskbar":
+			explicitTaskbar = true
 		}
 	})
+	if explicitTaskbar && backendID != overlay.BackendQt {
+		return errors.New("-show-in-taskbar requires the Elegant overlay helper")
+	}
 	if explicitDisplays && legacyDisplay {
 		return errors.New("-displays cannot be combined with -display or -output")
 	}
 	if explicitDisplays && cfg.Displays == "" {
 		return errors.New("-displays requires a JSON array; use [] to hide all displays")
+	}
+	if err := configurePortableData(); err != nil {
+		return err
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -106,8 +139,11 @@ func run() error {
 			if err != nil {
 				return err
 			}
+			if cfg.Backend != backendID {
+				return errors.New("display selection backend does not match this helper")
+			}
 		}
-		displays, err := native.ListDisplays(ctx, cfg)
+		displays, err := listBackendDisplays(ctx, cfg)
 		if err != nil {
 			return err
 		}
@@ -123,7 +159,7 @@ func run() error {
 		if flags.NFlag() != 1 {
 			return errors.New("-socket cannot be combined with standalone options")
 		}
-		return overlay.Serve(ctx, *socket, native.Run)
+		return overlay.Serve(ctx, *socket, backendID, runBackend)
 	}
 	if uint64(*display) > uint64(^uint32(0)) {
 		return errors.New("-display must fit in an unsigned 32-bit integer")
@@ -131,8 +167,8 @@ func run() error {
 	if *duration < 0 {
 		return errors.New("-duration must not be negative")
 	}
-	if *clock && *stdin {
-		return errors.New("-clock and -stdin are mutually exclusive")
+	if (*clock && *stdin) || (*demo && (*clock || *stdin)) {
+		return errors.New("-clock, -stdin and -demo are mutually exclusive")
 	}
 	cfg.DisplayID = uint32(*display)
 	cfg.Position.Anchor = overlay.Anchor(*anchor)
@@ -145,6 +181,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if err := configureBackend(*reducedMotion, *unlocked); err != nil {
+		return err
+	}
+	if *demo {
+		cfg.Text = demoLines[0]
+		cfg.TextRoles = "n"
+	}
 	if *duration > 0 {
 		var stop context.CancelFunc
 		ctx, stop = context.WithTimeout(ctx, *duration)
@@ -152,8 +195,11 @@ func run() error {
 	}
 	var updates chan overlay.Config
 	inputError := make(chan error, 1)
-	if *clock || *stdin {
+	if *clock || *stdin || *demo {
 		updates = make(chan overlay.Config)
+	}
+	if *demo {
+		go streamDemo(ctx, cfg, updates)
 	}
 	if *clock {
 		go func() {
@@ -196,7 +242,7 @@ func run() error {
 			}
 		}()
 	}
-	err = native.Run(ctx, cfg, updates, func() { fmt.Fprintln(os.Stderr, "Arcana World Overlay: ready; Ctrl+C to close") })
+	err = runBackend(ctx, cfg, updates, func() { fmt.Fprintln(os.Stderr, "Arcana World Overlay: ready; Ctrl+C to close") })
 	select {
 	case inputErr := <-inputError:
 		return inputErr

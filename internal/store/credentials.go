@@ -55,22 +55,28 @@ func (b *automaticBackend) backend() (Backend, error) {
 	if b.selected != nil {
 		return b.selected, nil
 	}
-	_, err := os.Lstat(filepath.Join(b.dir, "credentials", credentialFile))
+	path := filepath.Join(b.dir, "credentials", credentialFile)
+	_, err := os.Lstat(path)
 	if err == nil {
 		b.selected = newFileBackend(b.dir)
+		logger.Info("credential backend selected", "requested", "auto", "chosen", "file", "reason", "existing credential file", "path", path)
 		return b.selected, nil
 	}
 	if !os.IsNotExist(err) {
+		logger.Error("credential file stat failed", "requested", "auto", "path", path, "err", err)
 		return nil, err
 	}
 	missing, err := b.probe()
 	if err != nil {
+		logger.Error("credential backend selection failed", "requested", "auto", "err", err)
 		return nil, err
 	}
 	if missing {
 		b.selected = newFileBackend(b.dir)
+		logger.Warn("credential backend fell back to file", "requested", "auto", "chosen", "file", "reason", "system keyring missing")
 	} else {
 		b.selected = b.system
+		logger.Info("credential backend selected", "requested", "auto", "chosen", "system")
 	}
 	return b.selected, nil
 }

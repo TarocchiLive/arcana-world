@@ -4,6 +4,7 @@ package config
 import (
 	"arcana-world/internal/domain"
 	"arcana-world/internal/overlay"
+	"arcana-world/internal/presentation"
 	"arcana-world/internal/tts"
 )
 
@@ -12,8 +13,12 @@ type Config struct {
 	ActiveUID string               `json:"active_uid"`
 	Accounts  []domain.AccountInfo `json:"accounts"`
 	Proxy     string               `json:"proxy"`    // 留空时使用环境变量；"direct" 禁用代理
-	Protocol  string               `json:"protocol"` // 支持 rtmp、srt 和 srt-fallback
+	Protocol  string               `json:"protocol"` // 支持 rtmp、srt、srt-fallback 和 rtmpsrt
 	TUITheme  string               `json:"tui_theme,omitempty"`
+	// 空值与 tui 均使用 TUI；webui 使用浏览器界面。
+	DefaultUI string `json:"default_ui,omitempty"`
+	// 默认仅监听本机；手动改为 0.0.0.0 后，局域网设备可直接控制应用。
+	WebBindAddress string `json:"web_bind_address"`
 	// 零值保留默认动效、完整标题和结果通知。
 	TUIMotionDisabled            bool   `json:"tui_motion_disabled,omitempty"`
 	TUICompactHeader             bool   `json:"tui_compact_header,omitempty"`
@@ -33,4 +38,6 @@ type Config struct {
 	Overlay               overlay.Settings `json:"overlay"`
 	OverlayDisabledEvents []string         `json:"overlay_disabled_events,omitempty"`
 	TTS                   tts.Settings     `json:"tts"`
+	// 屏蔽词属于用户整理的内容，重置设置时保留。
+	Blocklist presentation.Blocklist `json:"blocklist"`
 }

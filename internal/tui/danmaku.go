@@ -6,6 +6,7 @@ import (
 
 	"arcana-world/internal/danmaku"
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/presentation"
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -25,6 +26,7 @@ type danmakuUI struct {
 	since                 time.Time
 	limit                 int
 	showOther             bool
+	blocklist             presentation.Blocklist
 	scrollToLatest, shown bool
 	historyBrowser        *chatHistoryBrowser
 }
@@ -35,6 +37,7 @@ type chatPageMsg struct {
 	err               error
 	limit             int
 	showOther         bool
+	blocklist         presentation.Blocklist
 	at                time.Time
 }
 
@@ -78,7 +81,7 @@ func (m *Model) updateChat() tea.Cmd {
 	}
 	var read tea.Cmd
 	expired := len(c.entries) > 0 && c.entries[len(c.entries)-1].Time.Before(time.Now().Add(-24*time.Hour))
-	if !c.loaded || c.revision != c.state.Revision || c.limit != m.config.DanmakuLimit || c.showOther != m.config.DanmakuShowOther || expired {
+	if !c.loaded || c.revision != c.state.Revision || c.limit != m.config.DanmakuLimit || c.showOther != m.config.DanmakuShowOther || !c.blocklist.Equal(m.config.Blocklist) || expired {
 		read = m.readChat()
 	}
 	return tea.Batch(chatTickCmd(), read)
@@ -91,7 +94,8 @@ func (m *Model) readChat() tea.Cmd {
 	c.loading = true
 	c.request++
 	request, revision, h := c.request, c.state.Revision, c.history
-	limit, showOther := m.config.DanmakuLimit, m.config.DanmakuShowOther
+	limit, showOther, blocklist := m.config.DanmakuLimit, m.config.DanmakuShowOther, m.config.Blocklist
+	blocked := blocklist.DisplayMatcher()
 	if limit <= 0 {
 		limit = 30
 	}
@@ -110,9 +114,9 @@ func (m *Model) readChat() tea.Cmd {
 			if e.Time.Equal(since) && (e.RoomID < sinceRoom || e.RoomID == sinceRoom && e.Sequence < sinceSequence) {
 				return false
 			}
-			return chatEventVisible(e, showOther)
+			return chatEventVisible(e, showOther) && !blocked.Blocks(e)
 		})
-		return chatPageMsg{request: request, revision: revision, entries: entries, err: err, limit: limit, showOther: showOther, at: at}
+		return chatPageMsg{request: request, revision: revision, entries: entries, err: err, limit: limit, showOther: showOther, blocklist: blocklist, at: at}
 	}
 }
 func (m *Model) applyChatPage(msg chatPageMsg) tea.Cmd {
@@ -121,7 +125,7 @@ func (m *Model) applyChatPage(msg chatPageMsg) tea.Cmd {
 		return nil
 	}
 	c.loading = false
-	if msg.limit != m.config.DanmakuLimit || msg.showOther != m.config.DanmakuShowOther {
+	if msg.limit != m.config.DanmakuLimit || msg.showOther != m.config.DanmakuShowOther || !msg.blocklist.Equal(m.config.Blocklist) {
 		return m.readChat()
 	}
 	c.err = msg.err
@@ -163,7 +167,7 @@ func (m *Model) applyChatPage(msg chatPageMsg) tea.Cmd {
 		}
 	}
 	c.entries, c.revision, c.loaded = msg.entries, msg.revision, true
-	c.limit, c.showOther = msg.limit, msg.showOther
+	c.limit, c.showOther, c.blocklist = msg.limit, msg.showOther, msg.blocklist
 	if mainReader {
 		reader.SetContent(m.chatEventsView(c.entries, reader.Width(), &c.speakerSpans))
 		reader.SetYOffset(max(0, offset))
