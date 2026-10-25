@@ -50,7 +50,7 @@ func Listen(bindAddress string, port int, request Request) (*Server, error) {
 	listener, err := net.Listen("tcp4", net.JoinHostPort(bindAddress, strconv.Itoa(port)))
 	if err != nil {
 		logger.Error("web ui listen failed", "bind", bindAddress, "port", port, "err", err)
-		return nil, err
+		return nil, fmt.Errorf(i18n.T(i18n.WebListenFailed), port)
 	}
 	// 启动链接始终使用本机可访问地址，不把通配监听地址当作浏览器目的地址。
 	host := net.JoinHostPort("127.0.0.1", strconv.Itoa(listener.Addr().(*net.TCPAddr).Port))
@@ -78,7 +78,7 @@ func (s *Server) Serve() error {
 		return nil
 	}
 	logger.Error("web ui serve failed", "addr", s.listener.Addr().String(), "err", err)
-	return err
+	return errors.New(i18n.T(i18n.WebServeFailed))
 }
 
 func (s *Server) Close(ctx context.Context) error {

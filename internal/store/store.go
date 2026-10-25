@@ -630,18 +630,22 @@ func writeConfig(dir string, data []byte) error {
 	}
 	name := f.Name()
 	defer os.Remove(name)
+	stage := "chmod"
 	if err = f.Chmod(0600); err == nil {
+		stage = "write"
 		_, err = f.Write(append(data, '\n'))
 	}
 	if err == nil {
+		stage = "sync"
 		err = f.Sync()
 	}
 	closeErr := f.Close()
 	if err == nil {
+		stage = "close"
 		err = closeErr
 	}
 	if err != nil {
-		logger.Error("config write failed", "dir", dir, "err", err)
+		logger.Error("config write failed", "dir", dir, "stage", stage, "bytes", len(data), "err", err, "close_err", closeErr)
 		return errors.New(i18n.T(i18n.StoreConfigWriteFailed))
 	}
 	if err = os.Rename(name, filepath.Join(dir, "config.json")); err != nil {

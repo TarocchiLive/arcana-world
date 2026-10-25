@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,17 +29,20 @@ func resolveHelper(name, explicit string) (string, error) {
 	if path == "" {
 		executable, err := os.Executable()
 		if err != nil {
-			return "", fmt.Errorf("tts: locating application: %w", err)
+			logger.Error("helper resolution failed", "helper", name, "stage", "application_path", "err", err)
+			return "", helperFailureError("")
 		}
 		path, err = helperpath.Installed(executable, name)
 		if err != nil {
-			return "", fmt.Errorf("tts: resolving application: %w", err)
+			logger.Error("helper resolution failed", "helper", name, "stage", "installed_path", "err", err)
+			return "", helperFailureError("")
 		}
 	} else {
 		var err error
 		path, err = filepath.Abs(path)
 		if err != nil {
-			return "", fmt.Errorf("tts: resolving helper: %w", err)
+			logger.Error("helper resolution failed", "helper", name, "stage", "absolute_path", "err", err)
+			return "", helperFailureError("")
 		}
 	}
 	info, err := os.Stat(path)
@@ -46,7 +50,8 @@ func resolveHelper(name, explicit string) (string, error) {
 		return "", fmt.Errorf(i18n.T(i18n.TTSHelperMissing), path)
 	}
 	if err != nil {
-		return "", fmt.Errorf(i18n.T(i18n.TTSHelperUnusable)+": %w", path, err)
+		logger.Error("helper resolution failed", "helper", name, "executable", path, "stage", "stat", "err", err)
+		return "", fmt.Errorf(i18n.T(i18n.TTSHelperUnusable), path)
 	}
 	if !info.Mode().IsRegular() || runtime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
 		return "", fmt.Errorf(i18n.T(i18n.TTSHelperUnusable), path)
@@ -133,6 +138,7 @@ type residentProcess struct {
 	input      io.WriteCloser
 	output     io.ReadCloser
 	diagnostic *cappedDiagnostics
+	waitErr    error
 	done       chan struct{}
 }
 
@@ -180,13 +186,15 @@ func (c *residentClient) request(ctx context.Context, start func(context.Context
 		cmd.Stderr = p.diagnostic
 		p.input, err = cmd.StdinPipe()
 		if err != nil {
-			return nil, err
+			logger.Error("resident worker setup failed", "executable", cmd.Path, "stage", "stdin_pipe", "err", err)
+			return nil, helperFailureError("")
 		}
 		// stdout 自主管理，避免后台 Wait 提前关闭尚未读取的回复帧。
 		output, writer, err := os.Pipe()
 		if err != nil {
+			logger.Error("resident worker setup failed", "executable", cmd.Path, "stage", "stdout_pipe", "err", err)
 			_ = p.input.Close()
-			return nil, err
+			return nil, helperFailureError("")
 		}
 		p.output = output
 		cmd.Stdout = writer
@@ -194,12 +202,13 @@ func (c *residentClient) request(ctx context.Context, start func(context.Context
 			_ = p.input.Close()
 			_ = output.Close()
 			_ = writer.Close()
-			return nil, fmt.Errorf("starting worker: %w", err)
+			logger.Error("resident worker start failed", "executable", cmd.Path, "err", err)
+			return nil, helperFailureError("")
 		}
 		_ = writer.Close()
-		go func() { _ = cmd.Wait(); close(p.done) }()
+		go func() { p.waitErr = cmd.Wait(); close(p.done) }()
 		c.worker = p
-		logger.Debug("resident worker started", "pid", cmd.Process.Pid)
+		logger.Debug("resident worker started", "pid", cmd.Process.Pid, "executable", cmd.Path)
 		if _, err = c.exchange(ctx, nil, len(ready), func(data []byte) bool { return string(data) == ready }); err != nil {
 			return nil, err
 		}
@@ -209,6 +218,11 @@ func (c *residentClient) request(ctx context.Context, start func(context.Context
 
 func (c *residentClient) exchange(ctx context.Context, input []byte, limit int, valid func([]byte) bool) ([]byte, error) {
 	p := c.worker
+	started := time.Now()
+	stage := "request"
+	if input == nil {
+		stage = "ready"
+	}
 	type result struct {
 		data []byte
 		err  error
@@ -233,6 +247,12 @@ func (c *residentClient) exchange(ctx context.Context, input []byte, limit int, 
 	case <-ctx.Done():
 		c.stopWorker()
 		<-done
+		// 跳过与停止播报属于正常取消；超时等其他原因才值得告警。
+		level := slog.LevelWarn
+		if errors.Is(ctx.Err(), context.Canceled) {
+			level = slog.LevelDebug
+		}
+		logger.Log(context.Background(), level, "resident worker interrupted", "pid", p.cmd.Process.Pid, "executable", p.cmd.Path, "stage", stage, "elapsed", time.Since(started), "err", ctx.Err(), "process_error", p.waitErr)
 		return nil, ctx.Err()
 	}
 	if err := ctx.Err(); err != nil {
@@ -241,8 +261,13 @@ func (c *residentClient) exchange(ctx context.Context, input []byte, limit int, 
 	}
 	if r.err != nil {
 		c.stopWorker()
-		// 细节只写入日志；stderr 可能含文本或代理凭据，返回的错误仅含固定类别。
-		logger.Error("resident worker failed", "pid", p.cmd.Process.Pid, "stderr", strings.TrimSpace(string(p.diagnostic.data)), "err", r.err)
+		diagnostic := strings.TrimSpace(string(p.diagnostic.data))
+		// 只去掉 worker 原样回显的整段文本；音频输入远长于受限的 stderr，不做无用复制。
+		if len(input) != 0 && len(input) <= len(diagnostic) {
+			diagnostic = strings.ReplaceAll(diagnostic, string(input), "[REDACTED]")
+		}
+		// 细节只写入日志；stderr 可能含文本片段或代理凭据，返回的错误仅含固定类别。
+		logger.Error("resident worker failed", "pid", p.cmd.Process.Pid, "executable", p.cmd.Path, "stage", stage, "elapsed", time.Since(started), "stderr", diagnostic, "err", r.err, "process_error", p.waitErr)
 		return nil, helperFailureError(string(p.diagnostic.data))
 	}
 	return r.data, nil
@@ -258,7 +283,7 @@ func (c *residentClient) stopWorker() {
 	_ = p.cmd.Process.Kill()
 	_ = p.output.Close()
 	<-p.done
-	logger.Debug("resident worker reaped", "pid", p.cmd.Process.Pid)
+	logger.Debug("resident worker reaped", "pid", p.cmd.Process.Pid, "executable", p.cmd.Path, "process_error", p.waitErr)
 }
 
 func (c *residentClient) Close() error {

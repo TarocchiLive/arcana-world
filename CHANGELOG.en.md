@@ -4,6 +4,23 @@
 
 Versions are listed newest first.
 
+## [v0.4.4]: 2026-10-25
+
+Fix Edge online speech and Kokoro GPU synthesis, and bundle the missing Linux speech runtime dependency. The terminal adds a zoom mode for viewing the current page with more space.
+
+### What's changed
+
+- Fix HTTP 403 errors in Edge online speech caused by the service's updated token protocol, restoring synthesis.
+- Fix a native crash during Kokoro GPU synthesis and update the bundled speech runtimes; GPU initialization or synthesis failures now suggest checking the graphics driver or selecting CPU.
+- Bundle the Vulkan loader in Linux desktop packages so local GPU speech can start without a separately installed loader; graphics drivers are still supplied by the system.
+- Add terminal zoom mode: press `z` to hide the header, navigation, and footer, and press it again to restore them.
+- Shorten failure messages for overlays, the browser control panel, and speech; logs now include failure stages, source locations, and underlying causes for troubleshooting.
+- Keep command-line `--help` focused on startup options, with interface controls documented in the in-app help.
+
+### Upgrade notes
+
+- This update fixes bundled speech runtimes. Replace both the main program and the `libexec` folder when upgrading.
+
 ## [v0.4.3]: 2026-10-23
 
 Block words hide messages that contain chosen words, or keep them from being read aloud, on this computer. The Elegant overlay can hide itself when no new messages arrive. Source builds now download prebuilt Qt and speech runtimes instead of compiling them locally.
@@ -527,3 +544,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.4.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.1
 [v0.4.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.2
 [v0.4.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.3
+[v0.4.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.4

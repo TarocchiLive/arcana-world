@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/xml"
@@ -24,10 +23,10 @@ import (
 
 const (
 	trustedClientToken = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
-	// 2026 年 10 月起旧 Bing 合成端点返回 403；新端点沿用同一令牌，参数名不同。
-	endpoint        = "wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1"
-	chromiumVersion = "134.0.3124.66"
-	chromiumMajor   = "134"
+	// 与上游保持一致：Bing 朗读端点使用 TrustedClientToken 和 GEC v2。
+	endpoint        = "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1"
+	chromiumVersion = "143.0.3650.75"
+	chromiumMajor   = "143"
 	outputFormat    = "audio-24khz-48kbitrate-mono-mp3"
 	// 服务端在合成期间持续推送音频；超过该间隔没有任何消息即视为连接已失效。
 	receiveTimeout = 20 * time.Second
@@ -53,17 +52,33 @@ func (e *HandshakeError) Error() string {
 	return fmt.Sprintf("edgetts: handshake rejected (HTTP %d)", e.Status)
 }
 
+// Error 标明失败所在的协议阶段，供调用方记录诊断；Unwrap 保留原始错误判定。
+type Error struct {
+	Stage string
+	Err   error
+}
+
+func (e *Error) Error() string { return "edgetts: " + e.Stage + ": " + e.Err.Error() }
+func (e *Error) Unwrap() error { return e.Err }
+
 // clockSkew 记录本机与服务端的时间差（纳秒）。令牌按服务端时间计算，
 // 本机时钟偏差过大时服务端以 403 拒绝，下次请求使用校正后的时间。
 var clockSkew atomic.Int64
 
 // Synthesize 合成一段纯文本并返回 MP3。dialer 决定代理与握手超时；
 // ctx 取消会立即关闭连接。limit 是允许的最大音频字节数。
-func Synthesize(ctx context.Context, dialer *websocket.Dialer, voice, text string, limit int) ([]byte, error) {
+func Synthesize(ctx context.Context, dialer *websocket.Dialer, voice, text string, limit int) (_ []byte, resultErr error) {
+	stage := "encode_ssml"
+	defer func() {
+		if resultErr != nil {
+			resultErr = &Error{Stage: stage, Err: resultErr}
+		}
+	}()
 	var escaped bytes.Buffer
 	if err := xml.EscapeText(&escaped, []byte(text)); err != nil {
 		return nil, err
 	}
+	stage = "handshake"
 	conn, response, err := dialer.DialContext(ctx, requestURL(), requestHeader())
 	if err != nil {
 		if response != nil {
@@ -88,6 +103,7 @@ func Synthesize(ctx context.Context, dialer *websocket.Dialer, voice, text strin
 		"Path:ssml\r\n\r\n" +
 		"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>" +
 		"<voice name='" + voice + "'><prosody pitch='+0Hz' rate='+0%' volume='+0%'>" + escaped.String() + "</prosody></voice></speak>"
+	stage = "write_request"
 	for _, message := range []string{config, ssml} {
 		if err := conn.WriteMessage(websocket.TextMessage, []byte(message)); err != nil {
 			return nil, contextError(ctx, err)
@@ -95,6 +111,7 @@ func Synthesize(ctx context.Context, dialer *websocket.Dialer, voice, text strin
 	}
 	var audio []byte
 	for {
+		stage = "read_message"
 		if err := conn.SetReadDeadline(time.Now().Add(receiveTimeout)); err != nil {
 			return nil, contextError(ctx, err)
 		}
@@ -102,6 +119,7 @@ func Synthesize(ctx context.Context, dialer *websocket.Dialer, voice, text strin
 		if err != nil {
 			return nil, contextError(ctx, err)
 		}
+		stage = "decode_message"
 		switch kind {
 		case websocket.TextMessage:
 			path, ok := messagePath(data)
@@ -163,30 +181,33 @@ func messagePath(data []byte) (string, bool) {
 }
 
 func requestURL() string {
-	return endpoint + "?Ocp-Apim-Subscription-Key=" + trustedClientToken +
+	return endpoint + "?TrustedClientToken=" + trustedClientToken +
 		"&Sec-MS-GEC=" + secMSGEC(time.Now()) +
-		"&Sec-MS-GEC-Version=1-" + chromiumVersion +
+		"&Sec-MS-GEC-Version=2-" + chromiumVersion +
 		"&ConnectionId=" + randomID()
 }
 
 func requestHeader() http.Header {
 	header := http.Header{}
 	header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/"+chromiumMajor+".0.0.0 Safari/537.36 Edg/"+chromiumMajor+".0.0.0")
-	header.Set("Accept-Encoding", "gzip, deflate, br")
+	header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
 	header.Set("Accept-Language", "en-US,en;q=0.9")
 	header.Set("Pragma", "no-cache")
 	header.Set("Cache-Control", "no-cache")
 	header.Set("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold")
+	header.Set("Cookie", "muid="+strings.ToUpper(randomID())+";")
 	return header
 }
 
-// secMSGEC 生成 Sec-MS-GEC 令牌：服务端时间按 5 分钟取整后换算为 Windows 文件时间，
-// 与客户端令牌拼接后取 SHA-256 大写十六进制。
+// secMSGEC 按服务端时间的五分钟窗口生成 v2 的 CS64 与定制 SHA-256 摘要。
 func secMSGEC(now time.Time) string {
 	seconds := now.Add(time.Duration(clockSkew.Load())).Unix() + windowsEpochOffset
 	seconds -= seconds % 300
-	sum := sha256.Sum256(fmt.Appendf(nil, "%d%s", seconds*10_000_000, trustedClientToken))
-	return strings.ToUpper(hex.EncodeToString(sum[:]))
+	var salt [64]byte
+	data := fmt.Appendf(salt[:0], "%d%s", seconds*10_000_000, trustedClientToken)
+	digest := gecSHA256(data)
+	cs64 := gecCS64(data, digest)
+	return strings.ToUpper(hex.EncodeToString(cs64[:]) + "-" + hex.EncodeToString(digest[:]))
 }
 
 // adjustClock 依据拒绝响应的 Date 头校正本机时钟偏差。

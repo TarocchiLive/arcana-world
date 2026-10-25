@@ -178,6 +178,7 @@ func readCredentials(root *os.Root) (map[string]string, error) {
 	decoder := json.NewDecoder(f)
 	token, err := decoder.Token()
 	if err != nil || token != json.Delim('{') {
+		logger.Error("credential json invalid", "stage", "object_start", "offset", decoder.InputOffset(), "reason", "expected object")
 		return nil, invalidCredentialData()
 	}
 	values := make(map[string]string)
@@ -187,17 +188,22 @@ func readCredentials(root *os.Root) (map[string]string, error) {
 		user, keyOK := key.(string)
 		password, valueOK := value.(string)
 		if keyErr != nil || valueErr != nil || !keyOK || !valueOK {
+			// 仅记录类型和位置，不记录可能携带凭据片段的解码错误。
+			logger.Error("credential json invalid", "stage", "entry", "offset", decoder.InputOffset(), "reason", "expected string key and value")
 			return nil, invalidCredentialData()
 		}
 		if _, duplicate := values[user]; duplicate {
+			logger.Error("credential json invalid", "stage", "entry", "offset", decoder.InputOffset(), "reason", "duplicate key")
 			return nil, invalidCredentialData()
 		}
 		values[user] = password
 	}
 	if token, err = decoder.Token(); err != nil || token != json.Delim('}') {
+		logger.Error("credential json invalid", "stage", "object_end", "offset", decoder.InputOffset(), "reason", "expected object end")
 		return nil, invalidCredentialData()
 	}
 	if _, err = decoder.Token(); !errors.Is(err, io.EOF) {
+		logger.Error("credential json invalid", "stage", "document_end", "offset", decoder.InputOffset(), "reason", "trailing data")
 		return nil, invalidCredentialData()
 	}
 	return values, nil

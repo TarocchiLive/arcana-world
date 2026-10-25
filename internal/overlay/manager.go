@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"arcana-world/internal/helperpath"
+	"arcana-world/internal/i18n"
 	"arcana-world/internal/journal"
 )
 
@@ -30,6 +31,15 @@ const (
 )
 
 var logger = journal.Logger("overlay")
+
+// 提示与诊断分离，同时保留取消和超时的错误判定语义。
+type operationError struct {
+	key   i18n.Key
+	cause error
+}
+
+func (e *operationError) Error() string { return i18n.T(e.key) }
+func (e *operationError) Unwrap() error { return e.cause }
 
 // Options 控制独立原生子进程及其有界通信生命周期。
 type Options struct {
@@ -89,7 +99,18 @@ func canonicalExecutable(name string) (string, error) {
 }
 
 // Start 仅在认证完成且原生窗口首次绘制后返回。
-func Start(ctx context.Context, options Options) (*Manager, error) {
+func Start(ctx context.Context, options Options) (managerResult *Manager, resultErr error) {
+	defer func() {
+		if resultErr == nil {
+			return
+		}
+		// 启动期间子进程退出时 manager 已标记为运行错误；改为启动提示，保留原始原因。
+		var failed *operationError
+		if errors.As(resultErr, &failed) {
+			resultErr = failed.cause
+		}
+		resultErr = &operationError{key: i18n.OverlayStartupFailed, cause: resultErr}
+	}()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -285,9 +306,7 @@ func (m *Manager) manage(ctx context.Context, options Options, listener *net.Uni
 			logger.Info("overlay manager stopped", "pid", cmd.Process.Pid, "ready", becameReady, "elapsed", time.Since(started))
 		}
 		if failure != nil {
-			if text := diagnostics.String(); text != "" {
-				failure = fmt.Errorf("%w; child stderr: %s", failure, text)
-			}
+			failure = &operationError{key: i18n.OverlayRuntimeFailed, cause: failure}
 		}
 		m.mu.Lock()
 		m.err = failure

@@ -161,6 +161,7 @@
   "tts.error.helper_unusable": "语音组件 %s 无法运行，请使用完整的发行包",
   "tts.error.helper_stopped": "语音组件意外退出了，请重试",
   "tts.error.timeout": "语音合成或播放超时，请重试",
+  "tts.error.local_gpu": "GPU 语音合成失败，请更新显卡驱动，或在语音设置中把「运行设备」改为 CPU",
   "tts.error.helper_audio_empty": "没有得到可播放的声音，请重试",
   "tts.error.helper_audio_limit": "声音太长，无法播放",
   "tts.error.helper_audio_format": "无法播放这段声音，格式不受支持或已损坏",

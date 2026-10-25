@@ -72,6 +72,7 @@ const (
 	TTSHelperUnusable              Key = "tts.error.helper_unusable"
 	TTSHelperStopped               Key = "tts.error.helper_stopped"
 	TTSTimeout                     Key = "tts.error.timeout"
+	TTSLocalGPUFailed              Key = "tts.error.local_gpu"
 	TTSHelperAudioEmpty            Key = "tts.error.helper_audio_empty"
 	TTSHelperAudioLimit            Key = "tts.error.helper_audio_limit"
 	TTSHelperAudioFormat           Key = "tts.error.helper_audio_format"

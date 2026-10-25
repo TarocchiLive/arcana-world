@@ -20,7 +20,7 @@ var (
 	secrets   atomic.Pointer[[]string]
 	// level 零值为 INFO：默认只记录生命周期、状态变化和失败，请求级细节需显式开启 DEBUG。
 	level slog.LevelVar
-	base  = slog.NewTextHandler(sink{}, &slog.HandlerOptions{Level: &level, ReplaceAttr: replaceAttr})
+	base  = slog.NewTextHandler(sink{}, &slog.HandlerOptions{Level: &level, AddSource: true, ReplaceAttr: replaceAttr})
 )
 
 // SetLevel 设置写入日志的最低级别，对已创建的 Logger 立即生效。

@@ -135,7 +135,8 @@ func (m *Model) handleOverlayStarted(msg overlayStartedMsg) tea.Cmd {
 		owner.cancel()
 		owner.state, owner.lastError = "failed", msg.err
 		logger.Error("overlay start failed", "op", "overlay start", "elapsed", msg.elapsed, "err", msg.err)
-		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayStartupFailed), msg.err))
+		// 浮层错误已是完整的本地化提示，不再套用前缀模板。
+		m.warn(msg.err.Error())
 		return nil
 	}
 	owner.manager, owner.state = msg.manager, "running"
@@ -168,7 +169,7 @@ func (m *Model) handleOverlayStopped(msg overlayStoppedMsg) tea.Cmd {
 	if msg.err != nil {
 		owner.state = "failed"
 		owner.lastError = msg.err
-		m.warn(fmt.Sprintf(i18n.T(i18n.TUILogOverlayStopped), msg.err))
+		m.warn(msg.err.Error())
 	}
 	// 只有停止期间明确收到启用请求，才启动下一进程。
 	if requested && m.overlayEnabled && msg.err == nil {

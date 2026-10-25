@@ -2,13 +2,11 @@ package tts
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"net"
 	"net/url"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"arcana-world/internal/i18n"
@@ -58,8 +56,13 @@ func (e *edge) Synthesize(ctx context.Context, text string) ([]byte, error) {
 		if err == nil {
 			return audio, nil
 		}
-		// 日志只记录错误类别，不含文本、令牌或代理凭据。
-		logger.Debug("edge synthesis failed", "cause", edgeFailureKind(err))
+		// 记录协议阶段与安全的错误类别，不含文本、令牌或代理凭据。
+		stage := "synthesize"
+		var failed *edgetts.Error
+		if errors.As(err, &failed) {
+			stage = failed.Stage
+		}
+		e.diagnostic(ctx, stage, err)
 		var rejected *edgetts.HandshakeError
 		switch {
 		case errors.Is(err, edgetts.ErrEmptyAudio):
@@ -71,41 +74,6 @@ func (e *edge) Synthesize(ctx context.Context, text string) ([]byte, error) {
 		}
 		return nil, e.failure(ctx, i18n.TTSEdgeUnreachable)
 	})
-}
-
-// edgeFailureKind 把底层错误归类为不含文本、凭据的简短原因。
-func edgeFailureKind(err error) string {
-	var timeout net.Error
-	var dns *net.DNSError
-	var op *net.OpError
-	var closeErr *websocket.CloseError
-	var verify *tls.CertificateVerificationError
-	var rejected *edgetts.HandshakeError
-	var errno syscall.Errno
-	switch {
-	case errors.As(err, &rejected):
-		return "handshake rejected (HTTP " + strconv.Itoa(rejected.Status) + ")"
-	case errors.Is(err, edgetts.ErrEmptyAudio):
-		return "empty audio"
-	case errors.Is(err, edgetts.ErrAudioTooLarge):
-		return "audio too large"
-	case errors.Is(err, edgetts.ErrProtocol):
-		return "protocol error"
-	case errors.Is(err, context.DeadlineExceeded) || errors.As(err, &timeout) && timeout.Timeout():
-		return "timeout"
-	case errors.As(err, &dns):
-		return "dns lookup failed"
-	case errors.As(err, &verify):
-		return "tls certificate verification failed"
-	case errors.As(err, &closeErr):
-		return "websocket closed (code " + strconv.Itoa(closeErr.Code) + ")"
-	case errors.As(err, &op):
-		if errors.As(err, &errno) {
-			return op.Op + ": " + errno.Error()
-		}
-		return op.Op + " failed"
-	}
-	return "network error"
 }
 
 func validVoice(voice string) bool {

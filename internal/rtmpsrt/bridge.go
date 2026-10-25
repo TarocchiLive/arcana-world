@@ -6,7 +6,11 @@ import (
 	"io"
 	"net"
 	"sync"
+
+	"arcana-world/internal/journal"
 )
+
+var logger = journal.Logger("rtmpsrt")
 
 // Available 只在用户选择 RTMPSRT 时加载可选原生库。
 func Available() error { _, err := loadSRT(); return err }
@@ -33,6 +37,7 @@ func New(target Target, onError func(error)) (*Bridge, error) {
 	}
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
+		logger.Error("bridge listener failed", "stage", "listen", "err", err)
 		return nil, errors.New("RTMPSRT local listener failed")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -87,6 +92,12 @@ func (b *Bridge) run() {
 	for {
 		local, err := b.listener.Accept()
 		if err != nil {
+			if b.ctx.Err() == nil {
+				logger.Error("bridge accept failed", "stage", "accept", "err", err)
+				if b.onError != nil {
+					b.onError(err)
+				}
+			}
 			return
 		}
 		ctx, cancel := context.WithCancel(b.ctx)
@@ -115,6 +126,9 @@ func (b *Bridge) run() {
 func (b *Bridge) serve(ctx context.Context, local net.Conn) error {
 	remote, err := dialSRT(ctx, b.api, b.target)
 	if err != nil {
+		if ctx.Err() == nil {
+			logger.Error("bridge connection failed", "stage", "srt_dial", "host", b.target.Host, "err", err)
+		}
 		return err
 	}
 	stop := context.AfterFunc(ctx, func() { local.Close(); remote.Close() })
@@ -137,6 +151,9 @@ func (b *Bridge) serve(ctx context.Context, local net.Conn) error {
 	}
 	if err == nil {
 		err = reverseErr
+	}
+	if err != nil && ctx.Err() == nil {
+		logger.Error("bridge relay failed", "stage", "relay", "host", b.target.Host, "err", err, "reply_err", reverseErr)
 	}
 	return err
 }

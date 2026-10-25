@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"arcana-world/internal/i18n"
 	"arcana-world/internal/tts/meloproto"
 	"arcana-world/internal/tts/models"
 )
@@ -73,6 +74,7 @@ func NewLocal(options LocalOptions) (Synthesizer, error) {
 	options.ModelDir = dir
 	executable, err := resolveHelper("arcana-world-tts", options.Executable)
 	if err != nil {
+		logger.Error("local synthesizer setup failed", "provider", options.Provider, "model_dir", options.ModelDir, "backend", options.Backend, "executable", options.Executable, "stage", "resolve_helper", "err", err)
 		return nil, err
 	}
 	options.Executable = executable
@@ -86,25 +88,35 @@ func (m *Local) Synthesize(ctx context.Context, text string) ([]byte, error) {
 	if !meloproto.ValidText(text) {
 		return nil, errors.New("local TTS: text must contain 1..2048 valid UTF-8 bytes without NUL")
 	}
+	started := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, m.options.Timeout)
 	defer cancel()
 	if !m.verified.Load() {
 		// 缺失或损坏的模型直接返回本地化的模型错误，不当作 worker 故障。
 		if err := models.Verify(ctx, m.options.ModelDir, m.options.Provider); err != nil {
+			if !errors.Is(err, context.Canceled) {
+				logger.Warn("local synthesis failed", "provider", m.options.Provider, "model_dir", m.options.ModelDir, "backend", m.options.Backend, "executable", m.options.Executable, "stage", "verify_model", "elapsed", time.Since(started), "err", err)
+			}
 			return nil, err
 		}
 		m.verified.Store(true)
 	}
 	spec, _ := models.SpecFor(m.options.Provider)
 	audio, err := m.client.request(ctx, func(context.Context) (*exec.Cmd, error) {
+		logger.Info("local worker starting", "provider", m.options.Provider, "model_dir", m.options.ModelDir, "backend", m.options.Backend, "executable", m.options.Executable, "threads", m.options.Threads)
 		return exec.Command(m.options.Executable, "--provider", m.options.Provider, "--speaker", strconv.Itoa(m.options.Speaker), "--model-dir", m.options.ModelDir, "--threads", strconv.Itoa(m.options.Threads), "--speed", strconv.FormatFloat(m.options.Speed, 'g', -1, 64), "--backend", m.options.Backend, "worker"), nil
 	}, meloproto.Ready, []byte(text), 44+2*meloproto.SampleLimit(spec.SampleRate), func(data []byte) bool {
 		return meloproto.ValidWAV(data, spec.SampleRate)
 	})
-	if err != nil && m.options.Backend == "webgpu" && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, ErrClosed) {
-		return nil, fmt.Errorf("%w; if this keeps happening, update the graphics driver or switch the backend to CPU in the voice settings", err)
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, ErrClosed) {
+		return audio, err
 	}
-	return audio, err
+	logger.Warn("local synthesis failed", "provider", m.options.Provider, "model_dir", m.options.ModelDir, "backend", m.options.Backend, "executable", m.options.Executable, "stage", "worker_request", "elapsed", time.Since(started), "err", err)
+	// 显卡驱动或 WebGPU 运行库故障重试无法恢复；超时由播报队列统一转换。
+	if m.options.Backend == "webgpu" && !errors.Is(err, context.DeadlineExceeded) {
+		return nil, errors.New(i18n.T(i18n.TTSLocalGPUFailed))
+	}
+	return nil, err
 }
 
 func (m *Local) Close() error {

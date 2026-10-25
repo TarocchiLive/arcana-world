@@ -43,12 +43,14 @@ func TestAppendAcrossReopen(t *testing.T) {
 	t.Cleanup(func() { _ = log.Close() })
 	logger := Logger("test")
 	AddSecrets("session-cookie-value")
-	logger.Info("first event", "err", errors.New("request rejected for session-cookie-value"))
-	// 关闭前读取也必须能看到事件：日志并非仅在退出时才刷新缓冲。
-	first := `level=INFO msg="first event" component=test err="request rejected for [REDACTED]"`
-	if events := readEvents(t, log.Path()); len(events) != 1 || events[0] != first {
+	logger.Info("first event", "event_id", 1, "err", errors.New("request rejected for session-cookie-value"))
+	// 关闭前即可读到已脱敏的记录，不依赖字段顺序、源码位置或固定文案。
+	events := readEvents(t, log.Path())
+	if len(events) != 1 || !strings.Contains(events[0], "event_id=1") ||
+		strings.Contains(events[0], "session-cookie-value") || !strings.Contains(events[0], "[REDACTED]") {
 		t.Fatalf("events before close: %q", events)
 	}
+	first := events[0]
 	if err := log.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -60,12 +62,12 @@ func TestAppendAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	logger.Info("second event")
+	logger.Info("second event", "event_id", 2)
 	if err := log.Close(); err != nil {
 		t.Fatal(err)
 	}
-	events := readEvents(t, log.Path())
-	if len(events) != 2 || events[0] != first || events[1] != `level=INFO msg="second event" component=test` {
+	events = readEvents(t, log.Path())
+	if len(events) != 2 || events[0] != first || !strings.Contains(events[1], "event_id=2") {
 		t.Fatalf("reopened journal lost or replaced events: %q", events)
 	}
 }
@@ -86,7 +88,7 @@ func TestOpenWhileDirectoryOccupied(t *testing.T) {
 		t.Fatalf("lock contention did not retain its cause: %v", err)
 	}
 	logger := Logger("test")
-	logger.Info("still usable after contention")
+	logger.Info("still usable after contention", "event_id", 1)
 	if err := first.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -95,9 +97,9 @@ func TestOpenWhileDirectoryOccupied(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = reopened.Close() })
-	logger.Info("reopened")
+	logger.Info("reopened", "event_id", 2)
 	events := readEvents(t, reopened.Path())
-	if len(events) != 2 || events[0] != `level=INFO msg="still usable after contention" component=test` || events[1] != "level=INFO msg=reopened component=test" {
+	if len(events) != 2 || !strings.Contains(events[0], "event_id=1") || !strings.Contains(events[1], "event_id=2") {
 		t.Fatalf("contention or reopening changed events: %q", events)
 	}
 }

@@ -127,7 +127,8 @@ func (s *doubaoSynthesizer) Synthesize(ctx context.Context, text string) ([]byte
 	payload.Params.Audio.SampleRate = 24000
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return nil, errors.New("encoding Doubao request failed")
+		s.diagnostic(ctx, "encode_request", err)
+		return nil, s.fail(i18n.TTSCloudBadResponse)
 	}
 	return s.synthesize(ctx, func(ctx context.Context) ([]byte, error) { return s.request(ctx, body) })
 }
@@ -136,14 +137,15 @@ func (s *doubaoSynthesizer) Synthesize(ctx context.Context, text string) ([]byte
 func (s *doubaoSynthesizer) request(ctx context.Context, body []byte) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.endpoint, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.New("Doubao request could not be created")
+		s.diagnostic(ctx, "create_request", err)
+		return nil, s.fail(i18n.TTSCloudUnreachable)
 	}
 	// 重试由 synthesize 统一控制，传输层不自行重放请求。
 	req.GetBody = nil
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Api-Key", s.apiKey)
 	req.Header.Set("X-Api-Resource-Id", s.resource)
-	response, err := s.client.Do(req)
+	response, err := s.requestHTTP(req, "synthesis", doubaoEndpoint)
 	if err != nil {
 		// 不透传 URL、服务端消息或底层网络错误，以免泄漏用户配置及凭据。
 		return nil, s.failure(ctx, i18n.TTSCloudUnreachable)
@@ -152,7 +154,7 @@ func (s *doubaoSynthesizer) request(ctx context.Context, body []byte) ([]byte, e
 	if response.StatusCode != http.StatusOK {
 		return nil, s.statusError(response.StatusCode)
 	}
-	audio, err := s.readAudio(response.Body)
+	audio, err := s.readAudio(ctx, response.Body)
 	if ctx.Err() != nil || s.lifetime.Err() != nil {
 		return nil, s.failure(ctx, i18n.TTSCloudInterrupted)
 	}
@@ -160,7 +162,7 @@ func (s *doubaoSynthesizer) request(ctx context.Context, body []byte) ([]byte, e
 }
 
 // readAudio 逐条解析流式 JSON 包并解码音频；连接中断与空音频可以重试，协议错误不能。
-func (s *doubaoSynthesizer) readAudio(reader io.Reader) ([]byte, error) {
+func (s *doubaoSynthesizer) readAudio(ctx context.Context, reader io.Reader) ([]byte, error) {
 	limited := &io.LimitedReader{R: reader, N: doubaoMaxResponseBytes + 1}
 	decoder := json.NewDecoder(limited)
 	var audio []byte
@@ -172,13 +174,16 @@ func (s *doubaoSynthesizer) readAudio(reader io.Reader) ([]byte, error) {
 		}
 		err := decoder.Decode(&packet)
 		if limited.N == 0 {
+			s.diagnostic(ctx, "response_size_limit", nil)
 			return nil, s.fail(i18n.TTSCloudBadResponse)
 		}
 		if err == io.EOF {
 			if !finished {
+				s.diagnostic(ctx, "stream_incomplete", io.EOF)
 				return nil, retryableError{s.fail(i18n.TTSCloudInterrupted)}
 			}
 			if len(audio) == 0 {
+				s.diagnostic(ctx, "empty_audio", nil)
 				return nil, retryableError{s.fail(i18n.TTSCloudAudioInvalid)}
 			}
 			return audio, nil
@@ -186,12 +191,15 @@ func (s *doubaoSynthesizer) readAudio(reader io.Reader) ([]byte, error) {
 		var syntax *json.SyntaxError
 		var mismatch *json.UnmarshalTypeError
 		if errors.As(err, &syntax) || errors.As(err, &mismatch) {
+			s.diagnostic(ctx, "decode_packet", err)
 			return nil, s.fail(i18n.TTSCloudBadResponse)
 		}
 		if err != nil {
+			s.diagnostic(ctx, "read_packet", err)
 			return nil, retryableError{s.fail(i18n.TTSCloudInterrupted)}
 		}
 		if finished || packet.Code == nil {
+			s.diagnostic(ctx, "invalid_packet_sequence", nil)
 			return nil, s.fail(i18n.TTSCloudBadResponse)
 		}
 		switch *packet.Code {
@@ -199,6 +207,7 @@ func (s *doubaoSynthesizer) readAudio(reader io.Reader) ([]byte, error) {
 		case 20000000:
 			finished = true
 		default:
+			s.diagnostic(ctx, "packet_status", nil, "status", *packet.Code)
 			return nil, s.fail(i18n.TTSCloudRejected)
 		}
 		if packet.Data == "" {
@@ -207,14 +216,17 @@ func (s *doubaoSynthesizer) readAudio(reader io.Reader) ([]byte, error) {
 		// 先检查上限，再为本块扩容；解码直接追加到最终音频，避免额外音频副本。
 		remaining := MaxAudioBytes - len(audio)
 		if len(packet.Data) > base64.StdEncoding.EncodedLen(remaining) {
+			s.diagnostic(ctx, "audio_size_limit", nil)
 			return nil, s.fail(i18n.TTSCloudAudioInvalid)
 		}
 		previous := len(audio)
 		audio, err = base64.StdEncoding.Strict().AppendDecode(audio, []byte(packet.Data))
 		if err != nil || len(audio) == previous {
+			s.diagnostic(ctx, "decode_audio", err, "empty", len(audio) == previous)
 			return nil, s.fail(i18n.TTSCloudAudioInvalid)
 		}
 		if len(audio) > MaxAudioBytes {
+			s.diagnostic(ctx, "audio_size_limit", nil)
 			return nil, s.fail(i18n.TTSCloudAudioInvalid)
 		}
 	}

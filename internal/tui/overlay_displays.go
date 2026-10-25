@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -22,6 +23,11 @@ func (m *Model) pickOverlayDisplays() tea.Cmd {
 }
 
 func (m *Model) handleOverlayDisplays(displays []overlay.Display, err error, label i18n.Key) tea.Cmd {
+	if err != nil && !errors.Is(err, context.Canceled) {
+		// 浮层错误已是完整的本地化提示，不再套用“操作失败”模板。
+		m.warn(err.Error())
+		return nil
+	}
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}

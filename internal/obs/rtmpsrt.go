@@ -27,6 +27,7 @@ func (c *Client) CheckRTMPSRT() error {
 		return errors.New(i18n.T(i18n.OBSRTMPSRTLocalOnly))
 	}
 	if err := rtmpsrt.Available(); err != nil {
+		logger.Error("rtmpsrt runtime unavailable", "stage", "load_library", "err", err)
 		return errors.New(i18n.T(i18n.OBSRTMPSRTUnavailable))
 	}
 	return nil
@@ -79,6 +80,7 @@ func (c *Client) installBridge(ctx context.Context, s *session, target rtmpsrt.T
 	})
 	close(ready)
 	if err != nil {
+		logger.Error("rtmpsrt bridge startup failed", "stage", "create_bridge", "host", target.Host, "err", err)
 		return errors.New(i18n.T(i18n.OBSRTMPSRTFailed))
 	}
 	c.mu.Lock()

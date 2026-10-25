@@ -26,7 +26,7 @@
           default = arcana-world-desktop;
           arcana-world = pkgs.buildGoModule rec {
             pname = "arcana-world";
-            version = "0.4.3";
+            version = "0.4.4";
 
             src = pkgs.lib.fileset.toSource {
               root = ./.;
@@ -302,6 +302,9 @@
           ttsShellEnv = {
             hardeningDisable = [ "format" ];
             NATIVE_DEPS = "source";
+          } // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+            # 便携部署显式收集 dlopen 依赖，不能依赖 Qt 顺带安装开发链接。
+            TTS_VULKAN_LIBRARY = "${pkgs.lib.getLib pkgs.vulkan-loader}/lib/libvulkan.so.1";
           };
         in
         rec {
@@ -344,8 +347,8 @@
           };
           arcana-world-tts = pkgs.mkShell (ttsShellEnv // {
             packages = [ pkgs.go pkgs.cmake pkgs.ninja pkgs.python3 ]
-              ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config ];
-            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.alsa-lib ];
+              ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.pkg-config pkgs.patchelf ];
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.alsa-lib pkgs.vulkan-loader ];
             CGO_ENABLED = "1";
             GOFLAGS = "-mod=readonly";
           });

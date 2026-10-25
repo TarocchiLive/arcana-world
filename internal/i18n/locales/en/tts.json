@@ -161,6 +161,7 @@
   "tts.error.helper_unusable": "The speech component %s cannot run. Use the complete release package",
   "tts.error.helper_stopped": "The speech component stopped unexpectedly. Try again",
   "tts.error.timeout": "Speech synthesis or playback timed out. Try again",
+  "tts.error.local_gpu": "GPU speech synthesis failed. Update the graphics driver, or set Run on to CPU in the voice settings",
   "tts.error.helper_audio_empty": "No playable audio was produced. Try again",
   "tts.error.helper_audio_limit": "The audio is too long to play",
   "tts.error.helper_audio_format": "This audio cannot be played; its format is unsupported or damaged",

@@ -87,7 +87,9 @@ flowchart LR
 实现在 `internal/tts`（`process.go`、`player.go`、`local.go`、`manager.go`）。`tts.Manager` 维护播报队列，串联 `Synthesizer`（合成）和 `Player`（播放）：
 
 - 在线音色（`edge.go`、`qwen.go`、`doubao.go`，共用 `cloud_http.go`）在主进程内合成，返回音频字节。
+- Edge 内置协议使用上游 `Sec-MS-GEC` v2（CS64 与定制 SHA-256），与 `Sec-MS-GEC-Version=2-...` 配套；仅替换域名或版本字符串无法修复旧令牌导致的 403。实现依据 [edge-tts #492](https://github.com/rany2/edge-tts/pull/492)，保留五分钟时间窗口和服务端时钟校正。
 - 本地音色（MeloTTS、Kokoro、Piper）由 `Local` 启动 `arcana-world-tts ... worker`。模型目录、音色、线程数、语速、推理后端通过命令行参数传入，文本不放入参数。
+- WebGPU EP 0.4.0 在 Kokoro 常量权重预打包阶段存在原生崩溃；`arcana-webgpu.h` 对所有 WebGPU 会话（含 Melo、Piper）禁用该可选优化，显式 CPU 后端保持原配置。GPU 不支持的算子仍按 ONNX Runtime 的分配在 CPU 上执行。WebGPU 后端合成失败时提示改用 CPU。
 - 播放统一由 `ProcessPlayer` 启动 `arcana-world-tts --volume N play-worker`，所以在线音色同样依赖该 helper。
 
 `residentClient`（`process.go`）负责常驻进程：同一时间只处理一个请求；首帧是就绪标记（`play-worker` 为 `audio-play-v1`，`worker` 为 `local-tts-v1`）；之后每次交换为 `uint32` 小端长度加载荷（`internal/tts/meloproto`），播放完成回复 `played`，合成回复 PCM16 WAV。出错、取消或超时时终止并回收子进程，下次请求重新启动；正常关闭先关 stdin 让 helper 自行退出，两秒后强制结束。返回给界面的错误只含固定类别，stderr 细节只写日志。
@@ -175,6 +177,14 @@ WebUI 复用同一个 `tui.Model`，没有第二套业务代码。
 - 命令行 `--proxy`、`--obs-auto-connect`、`--obs-auto-stream` 作为 `store.ConfigOverrides` 只在本次会话生效，保存设置时不写入。
 - `ResetSettings` 和 `ClearData`（`store/data.go`）定义了「恢复默认设置」和「清除应用数据」的范围；新增数据文件时同步更新 `clearFiles`。`ClearData` 要求调用方先关闭监听器、历史库、语音、浮层、OBS 和日志。
 - 核心行为的回归测试在 `store/*_test.go`、`danmaku/*_test.go` 和 `journal/journal_test.go` 等处。
+
+## 诊断日志与用户提示
+
+- `logs/arcana-world.log` 保存技术诊断，界面通知和操作记录保存面向用户的结果与处理建议。底层错误在转换成本地化提示之前记录，避免日志只剩同一条用户提示。
+- 使用 `journal.Logger(component)` 记录固定英文事件名；按失败路径添加操作、阶段、HTTP 状态、耗时、进程信息和底层原因。每条记录包含 `source` 源码位置；在线语音的诊断辅助函数以调用处作为 `source`，并用 `stage` 区分协议阶段。
+- 跳过、停止或关闭造成的取消属于正常操作，只在 DEBUG 级别记录或不记录；超时和其他失败按 WARN 记录。
+- 默认 INFO 级别保留失败诊断及生命周期事件；`--log-level debug` 增加请求和进程交互细节。应用内提示使用双语目录，不直接拼接底层异常、辅助进程 stderr 或协议报文。
+- 日志中的凭据由 `journal.AddSecrets` 登记脱敏；网络诊断只选择必要的主机、路径和状态，不记录完整签名 URL、认证头、请求体或语音文本。分享日志前仍需检查本机路径、账号及房间信息。
 
 ## 国际化
 

@@ -4,6 +4,23 @@
 
 版本按时间倒序记录。
 
+## [v0.4.4]：2026-10-25
+
+修复 Edge 在线语音和 Kokoro GPU 合成，补齐 Linux 语音运行库；终端新增缩放模式，方便集中查看当前页面。
+
+### 本次更新
+
+- 修复 Edge 在线语音因服务端令牌协议更新而返回 403 的问题，恢复语音合成。
+- 修复 Kokoro 在 GPU 合成时的原生崩溃，并更新配套语音运行库；GPU 初始化或合成失败时提示检查显卡驱动或切换 CPU。
+- Linux 桌面包补齐 Vulkan loader，减少本地 GPU 语音因缺少运行库而启动失败的情况；显卡驱动仍由系统提供。
+- 终端新增缩放模式：按 `z` 隐藏顶栏、导航和底栏，再按一次恢复，为当前页面留出更多空间。
+- 浮层、网页控制面板和语音失败提示更加简短；日志补充失败阶段、源码位置和底层原因，便于排查问题。
+- 命令行 `--help` 聚焦启动参数，界面操作说明保留在应用内帮助中。
+
+### 升级提示
+
+- 本次包含语音运行库修复，升级时请完整替换主程序和 `libexec` 目录。
+
 ## [v0.4.3]：2026-10-23
 
 新增屏蔽词，可以在本机隐藏含指定词的消息或跳过播报；精美浮层可以在没有新消息时自动隐藏。从源码构建改为下载预编译的 Qt 和语音运行库，一般不用再在本机编译。
@@ -527,3 +544,4 @@
 [v0.4.1]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.1
 [v0.4.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.2
 [v0.4.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.3
+[v0.4.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.4

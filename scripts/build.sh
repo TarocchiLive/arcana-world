@@ -34,7 +34,8 @@ Visual Studio installation. TTS_MSVC_LICENSE_FILE supplies the Visual C++ runtim
 otherwise it is downloaded from Microsoft.
 GPU support: macOS 14+ on Apple Silicon, and Linux and Windows on x64 or ARM64.
 Intel macOS and 32-bit Windows builds support CPU only.
-Linux also requires patchelf and the distribution's package license data.
+Linux also requires the Vulkan loader, patchelf and the distribution's package license data.
+TTS_VULKAN_LIBRARY optionally supplies the full path to libvulkan.so.1 for Linux packaging.
 Linux packages bundle non-glibc dependencies with relative runtime paths; LD_LIBRARY_PATH is not required to run them.
 TTS_LICENSE_DIR supplies the ONNX Runtime license files offline.
 TTS_SHERPA_SOURCE supplies unpacked sherpa-onnx sources, and TTS_WEBGPU_PACKAGE supplies the WebGPU NuGet package.

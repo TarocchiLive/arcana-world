@@ -1,7 +1,9 @@
 {
   "web.cli_port_usage": "WebUI 端口（需以 WebUI 启动；默认 5273；0 自动选择）",
   "web.started": "Web 控制面板：%s\n关闭浏览器不会退出；在此按 Ctrl+C 停止服务并按配置清理直播与 OBS。\n",
-  "web.browser_open_failed": "无法自动打开浏览器，请手动访问 %s：%v\n",
+  "web.browser_open_failed": "无法自动打开浏览器，请手动访问 %s\n",
+  "web.listen_failed": "无法在端口 %d 启动控制面板，请检查端口占用或更换端口；详细原因见日志",
+  "web.serve_failed": "控制面板服务已停止，请重新启动程序；详细原因见日志",
   "web.port_invalid": "Web 端口必须在 0 到 65535 之间",
   "web.bind_invalid": "Web 监听地址只支持 127.0.0.1 或 0.0.0.0",
   "web.port_requires_web": "--web-port 仅适用于 WebUI；请指定 --gui 或将默认启动项设为 WebUI",

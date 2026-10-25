@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"arcana-world/internal/i18n"
 )
 
 // Display 是原生后端返回的稳定标识和用户可见名称。Selected 反映查询时的配置。
@@ -23,7 +25,12 @@ type Display struct {
 
 // ListDisplays 通过独立 helper 枚举原生输出，不把 GUI 库链接进 TUI。
 // Options.Config 仅使用显示器选择字段；零值表示旧版默认输出。
-func ListDisplays(ctx context.Context, options Options) ([]Display, error) {
+func ListDisplays(ctx context.Context, options Options) (result []Display, resultErr error) {
+	defer func() {
+		if resultErr != nil {
+			resultErr = &operationError{key: i18n.OverlayDisplaysFailed, cause: resultErr}
+		}
+	}()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -91,7 +98,7 @@ func ListDisplays(ctx context.Context, options Options) ([]Display, error) {
 			return nil, ctx.Err()
 		}
 		logger.Error("overlay display enumeration failed", attrs...)
-		return nil, fmt.Errorf("overlay: enumerating displays: %w: %s", err, diagnostics.String())
+		return nil, err
 	}
 	var displays []Display
 	if err := json.Unmarshal(stdout.Bytes(), &displays); err != nil {

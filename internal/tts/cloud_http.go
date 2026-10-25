@@ -2,14 +2,24 @@ package tts
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
+	"runtime"
+	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"arcana-world/internal/i18n"
+	"arcana-world/internal/tts/edgetts"
+	"github.com/gorilla/websocket"
 )
 
 // cloudRetryDelays 是在线合成每次尝试前的等待时间：失败后隔 0.5 秒、1.5 秒各重试一次。
@@ -60,6 +70,7 @@ func (s *cloudSession) synthesize(ctx context.Context, attempt func(context.Cont
 				return nil, s.stopped(ctx)
 			}
 		}
+		started := time.Now()
 		attemptCtx, cancel := context.WithTimeout(ctx, defaultSynthesisTimeout)
 		audio, err := attempt(attemptCtx)
 		timedOut := errors.Is(attemptCtx.Err(), context.DeadlineExceeded)
@@ -70,6 +81,7 @@ func (s *cloudSession) synthesize(ctx context.Context, attempt func(context.Cont
 		if ctx.Err() != nil {
 			return nil, s.stopped(ctx)
 		}
+		logger.Warn("online synthesis attempt failed", "service", s.service, "attempt", i+1, "attempts", len(cloudRetryDelays), "elapsed", time.Since(started), "timeout", timedOut, "err", err)
 		if timedOut {
 			err = retryableError{s.fail(i18n.TTSCloudTimeout)}
 		}
@@ -78,7 +90,6 @@ func (s *cloudSession) synthesize(ctx context.Context, attempt func(context.Cont
 			return nil, err
 		}
 		last = retry.error
-		logger.Warn("online synthesis attempt failed", "service", s.service, "attempt", i+1, "attempts", len(cloudRetryDelays), "err", last)
 	}
 	return nil, last
 }
@@ -136,6 +147,92 @@ func (s *cloudSession) failure(ctx context.Context, key i18n.Key) error {
 		return err
 	}
 	return retryableError{s.fail(key)}
+}
+
+// requestHTTP 记录传输故障与非 200 状态；path 由调用方给出固定协议路由或占位符，签名 URL 不进入日志。
+func (s *cloudSession) requestHTTP(req *http.Request, stage, path string) (*http.Response, error) {
+	started := time.Now()
+	response, err := s.client.Do(req)
+	status := 0
+	if response != nil {
+		status = response.StatusCode
+	}
+	if err != nil || status != http.StatusOK {
+		s.logDiagnostic(req.Context(), 3, stage, err, "host", req.URL.Hostname(), "path", path, "status", status, "elapsed", time.Since(started))
+	}
+	return response, err
+}
+
+// diagnostic 在失败转换为用户提示之前记录技术原因，attrs 追加阶段相关字段。
+func (s *cloudSession) diagnostic(ctx context.Context, stage string, err error, attrs ...any) {
+	s.logDiagnostic(ctx, 3, stage, err, attrs...)
+}
+
+// logDiagnostic 以跳过 skip 层后的调用位置作为 source，便于定位产生失败的代码。
+// 调用方取消或合成器关闭不属于故障，不记录。
+func (s *cloudSession) logDiagnostic(ctx context.Context, skip int, stage string, err error, attrs ...any) {
+	if errors.Is(ctx.Err(), context.Canceled) || s.lifetime.Err() != nil || !logger.Enabled(ctx, slog.LevelWarn) {
+		return
+	}
+	var pc [1]uintptr
+	runtime.Callers(skip, pc[:])
+	record := slog.NewRecord(time.Now(), slog.LevelWarn, "online synthesis failed", pc[0])
+	record.Add("service", s.service, "stage", stage)
+	if err != nil {
+		record.Add("cause", safeCloudCause(err))
+	}
+	record.Add(attrs...)
+	_ = logger.Handler().Handle(context.Background(), record)
+}
+
+// safeCloudCause 只输出可安全记录的错误类别与解码偏移，不含 URL、响应内容、服务端自由文本或语音文本。
+func safeCloudCause(err error) string {
+	var rejected *edgetts.HandshakeError
+	var syntax *json.SyntaxError
+	var mismatch *json.UnmarshalTypeError
+	var timeout net.Error
+	var dns *net.DNSError
+	var verify *tls.CertificateVerificationError
+	var closeErr *websocket.CloseError
+	var op *net.OpError
+	var errno syscall.Errno
+	switch {
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded) || errors.As(err, &timeout) && timeout.Timeout():
+		return "timeout"
+	case errors.As(err, &rejected):
+		return "handshake rejected (HTTP " + strconv.Itoa(rejected.Status) + ")"
+	case errors.Is(err, edgetts.ErrEmptyAudio):
+		return "empty audio"
+	case errors.Is(err, edgetts.ErrAudioTooLarge):
+		return "audio too large"
+	case errors.Is(err, edgetts.ErrProtocol):
+		return "protocol error"
+	case errors.As(err, &syntax):
+		return fmt.Sprintf("JSON syntax error at byte %d", syntax.Offset)
+	case errors.As(err, &mismatch):
+		return fmt.Sprintf("JSON type mismatch at byte %d", mismatch.Offset)
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		return "unexpected EOF"
+	case errors.Is(err, io.EOF):
+		return "EOF"
+	case errors.As(err, &dns):
+		return "dns lookup failed: " + dns.Err
+	case errors.As(err, &verify):
+		return "tls certificate verification failed: " + verify.Err.Error()
+	case errors.As(err, &closeErr):
+		return "websocket closed (code " + strconv.Itoa(closeErr.Code) + ")"
+	case errors.As(err, &op) && errors.As(err, &errno):
+		return op.Op + ": " + errno.Error()
+	case errors.As(err, &op):
+		return op.Op + " failed"
+	}
+	// 未归类的错误只记录最内层类型，外层包装可能携带 URL。
+	for inner := errors.Unwrap(err); inner != nil; inner = errors.Unwrap(err) {
+		err = inner
+	}
+	return fmt.Sprintf("unclassified %T", err)
 }
 
 // Close 先取消再等待，返回后不存在进行中的请求。

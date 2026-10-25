@@ -1,4 +1,6 @@
 """部署统一 TTS 辅助程序所需的固定版本原生运行库。"""
+import ctypes
+import ctypes.util
 import hashlib
 import json
 import os
@@ -82,11 +84,43 @@ def macos(root, binaries):
         subprocess.check_call(["codesign", "--force", "--sign", "-", str(binary)])
 
 
+def vulkan_loader():
+    """返回实际加载的 Vulkan loader 路径；WebGPU 通过 dlopen 使用它，ldd 无法收集。"""
+    name = os.environ.get("TTS_VULKAN_LIBRARY") or ctypes.util.find_library("vulkan") or "libvulkan.so.1"
+
+    class DlInfo(ctypes.Structure):
+        _fields_ = [("filename", ctypes.c_char_p), ("base", ctypes.c_void_p),
+                    ("symbol", ctypes.c_char_p), ("address", ctypes.c_void_p)]
+
+    try:
+        loader = ctypes.CDLL(name)
+        dl = ctypes.CDLL(ctypes.util.find_library("dl") or None)
+        dl.dladdr.argtypes = [ctypes.c_void_p, ctypes.POINTER(DlInfo)]
+        dl.dladdr.restype = ctypes.c_int
+        info = DlInfo()
+        if not dl.dladdr(ctypes.cast(loader.vkGetInstanceProcAddr, ctypes.c_void_p), ctypes.byref(info)):
+            raise SystemExit("Cannot resolve Vulkan loader path")
+    except (OSError, AttributeError) as error:
+        raise SystemExit(f"Linux WebGPU packaging requires the Vulkan loader: {error}") from error
+    return Path(os.fsdecode(info.filename)).resolve()
+
+
 def linux(root, binaries, source):
     from deploy_linux import SYSTEM, licenses, output as linux_output
     queue = [(binary, binary) for binary in binaries]
     seen = set()
     licensed = set()
+    # 按 SONAME 部署 Vulkan loader，不依赖 Qt 偶然带来的开发链接，也不打包主机显卡驱动。
+    loader = vulkan_loader()
+    soname = linux_output("patchelf", "--print-soname", str(loader))
+    if soname != "libvulkan.so.1":
+        raise SystemExit(f"Unexpected Vulkan loader SONAME: {soname}")
+    dest = root / soname
+    if loader != dest.resolve():
+        shutil.copy2(loader, dest)
+    dest.chmod(0o755)
+    licensed.add(loader)
+    queue.append((loader, dest))
     while queue:
         original, binary = queue.pop()
         if binary in seen:

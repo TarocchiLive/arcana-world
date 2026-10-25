@@ -76,7 +76,7 @@ func openBrowser(ctx context.Context, url string) <-chan struct{} {
 	}
 	if err := command.Start(); err != nil {
 		logger.Warn("browser open failed", "command", command.Path, "url", url, "err", err)
-		fmt.Fprintf(os.Stderr, i18n.T(i18n.WebBrowserOpenFailed), url, err)
+		fmt.Fprintf(os.Stderr, i18n.T(i18n.WebBrowserOpenFailed), url)
 		close(done)
 		return done
 	}
@@ -85,7 +85,7 @@ func openBrowser(ctx context.Context, url string) <-chan struct{} {
 		defer close(done)
 		if err := command.Wait(); err != nil && ctx.Err() == nil {
 			logger.Warn("browser exited with error", "command", command.Path, "url", url, "err", err)
-			fmt.Fprintf(os.Stderr, i18n.T(i18n.WebBrowserOpenFailed), url, err)
+			fmt.Fprintf(os.Stderr, i18n.T(i18n.WebBrowserOpenFailed), url)
 		}
 	}()
 	return done

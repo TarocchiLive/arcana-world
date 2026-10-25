@@ -59,10 +59,12 @@ Linux 的 Qt 与 LayerShellQt 可由 `scripts/setup-linux-qt.sh` 准备，macOS�
 
 - Python 3、C/C++ 编译器；
 - 从源码构建语音运行库时，另需 CMake >= 3.24 和 Ninja；
-- Linux 另需 ALSA 开发库和 `pkg-config`（Debian/Ubuntu：`libasound2-dev pkg-config`），以及 `patchelf` 和发行版软件包的许可数据；
+- Linux 另需 ALSA 开发库和 `pkg-config`（Debian/Ubuntu：`libasound2-dev pkg-config`），以及 Vulkan loader、`patchelf` 和发行版软件包的许可数据；
 - Windows 使用 MinGW-w64 编译 helper，通过 `TTS_CC`、`TTS_CXX`、`TTS_OBJDUMP` 指定；从源码构建 Windows GPU 运行库还需要 Visual Studio 2022 或 2026 的 C++ 工具。细节见 `bash scripts/build.sh --help`。
 
 语音 helper 的 GPU 运行库支持 macOS 14+ 的 Apple Silicon，以及 Linux、Windows 的 x64 和 ARM64；Intel macOS 和 32 位 Windows 只支持 CPU。
+
+Linux 部署脚本按 SONAME 打包 `libvulkan.so.1`；若构建环境无法自动定位，可通过 `TTS_VULKAN_LIBRARY=/path/to/libvulkan.so.1` 指定。显卡驱动由运行机器提供，不随包分发。NixOS 更新显卡驱动后，旧构建产物的 glibc 可能无法满足新 Mesa/LLVM 的要求；遇到 `GLIBC_x.y not found` 时，在当前 `nix develop` 环境重新构建语音 helper。
 
 ### RTMPSRT 运行库
 

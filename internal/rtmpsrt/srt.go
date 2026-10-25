@@ -126,7 +126,7 @@ func dialSRT(ctx context.Context, a *nativeAPI, target Target) (*srtConn, error)
 	host, port, _ := net.SplitHostPort(target.Host)
 	ips, err := net.DefaultResolver.LookupIP(ctx, "ip4", host)
 	if err != nil {
-		return nil, errors.New("SRT host lookup failed")
+		return nil, fmt.Errorf("SRT host lookup failed: %w", err)
 	}
 	if len(ips) == 0 {
 		return nil, errors.New("SRT host has no IPv4 address")

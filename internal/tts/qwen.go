@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -115,7 +114,8 @@ func (q *qwen) Synthesize(ctx context.Context, text string) ([]byte, error) {
 	payload.Input.Text, payload.Input.Voice, payload.Input.Language = text, q.voice, q.language
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return nil, errors.New("encoding Qwen request failed")
+		q.diagnostic(ctx, "encode_request", err)
+		return nil, q.fail(i18n.TTSCloudBadResponse)
 	}
 	return q.synthesize(ctx, func(ctx context.Context) ([]byte, error) { return q.request(ctx, body) })
 }
@@ -124,13 +124,14 @@ func (q *qwen) Synthesize(ctx context.Context, text string) ([]byte, error) {
 func (q *qwen) request(ctx context.Context, body []byte) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, q.endpoint, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.New("Qwen request could not be created")
+		q.diagnostic(ctx, "create_request", err)
+		return nil, q.fail(i18n.TTSCloudUnreachable)
 	}
 	// 重试由 synthesize 统一控制，传输层不自行重放请求。
 	req.GetBody = nil
 	req.Header.Set("Authorization", "Bearer "+q.key)
 	req.Header.Set("Content-Type", "application/json")
-	response, err := q.client.Do(req)
+	response, err := q.requestHTTP(req, "synthesis", qwenServicePath)
 	if err != nil {
 		return nil, q.failure(ctx, i18n.TTSCloudUnreachable)
 	}
@@ -140,9 +141,11 @@ func (q *qwen) request(ctx context.Context, body []byte) ([]byte, error) {
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, qwenResponseLimit+1))
 	if err != nil {
+		q.diagnostic(ctx, "read_response", err)
 		return nil, q.failure(ctx, i18n.TTSCloudInterrupted)
 	}
 	if len(data) > qwenResponseLimit {
+		q.diagnostic(ctx, "response_size_limit", nil)
 		return nil, q.fail(i18n.TTSCloudBadResponse)
 	}
 	var result struct {
@@ -155,13 +158,16 @@ func (q *qwen) request(ctx context.Context, body []byte) ([]byte, error) {
 			} `json:"audio"`
 		} `json:"output"`
 	}
-	if json.Unmarshal(data, &result) != nil {
+	if err := json.Unmarshal(data, &result); err != nil {
+		q.diagnostic(ctx, "decode_response", err)
 		return nil, q.fail(i18n.TTSCloudBadResponse)
 	}
 	if result.Code != "" || (result.StatusCode != 0 && result.StatusCode != http.StatusOK) {
+		q.diagnostic(ctx, "response_status", nil, "status", result.StatusCode, "has_code", result.Code != "")
 		return nil, q.fail(i18n.TTSCloudRejected)
 	}
 	if result.Output.FinishReason != "" && result.Output.FinishReason != "stop" {
+		q.diagnostic(ctx, "finish_reason", nil)
 		return nil, q.fail(i18n.TTSCloudAudioInvalid)
 	}
 	return q.download(ctx, result.Output.Audio.URL)
@@ -171,14 +177,17 @@ func (q *qwen) download(ctx context.Context, address string) ([]byte, error) {
 	u, err := url.Parse(address)
 	if err != nil || len(address) > 16384 || u == nil || u.Hostname() == "" ||
 		(u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.Opaque != "" || u.Fragment != "" {
+		q.diagnostic(ctx, "audio_url_invalid", err)
 		return nil, q.fail(i18n.TTSCloudBadResponse)
 	}
 	// 官方返回的 OSS 链接可能使用 HTTP；使用独立请求且绝不附带 API key。
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, errors.New("Qwen audio request could not be created")
+		q.diagnostic(ctx, "create_audio_request", err)
+		return nil, q.fail(i18n.TTSCloudBadResponse)
 	}
-	response, err := q.client.Do(req)
+	// 音频链接带签名，日志只用占位路径。
+	response, err := q.requestHTTP(req, "audio_download", "[REDACTED]")
 	if err != nil {
 		return nil, q.failure(ctx, i18n.TTSCloudInterrupted)
 	}
@@ -187,20 +196,25 @@ func (q *qwen) download(ctx context.Context, address string) ([]byte, error) {
 		return nil, q.statusError(response.StatusCode)
 	}
 	if response.ContentLength > MaxAudioBytes {
+		q.diagnostic(ctx, "audio_content_length_limit", nil)
 		return nil, q.fail(i18n.TTSCloudAudioInvalid)
 	}
 	audio, err := io.ReadAll(io.LimitReader(response.Body, MaxAudioBytes+1))
 	if err != nil {
+		q.diagnostic(ctx, "read_audio", err)
 		return nil, q.failure(ctx, i18n.TTSCloudInterrupted)
 	}
 	if len(audio) > MaxAudioBytes {
+		q.diagnostic(ctx, "audio_size_limit", nil)
 		return nil, q.fail(i18n.TTSCloudAudioInvalid)
 	}
 	if len(audio) == 0 {
+		q.diagnostic(ctx, "empty_audio", nil)
 		return nil, retryableError{q.fail(i18n.TTSCloudAudioInvalid)}
 	}
 	// 只确认是 WAV 容器；流式头部的长度可能为 0 或 0xFFFFFFFF，采样布局由音频播放器校验。
 	if len(audio) < 44 || string(audio[:4]) != "RIFF" || string(audio[8:12]) != "WAVE" {
+		q.diagnostic(ctx, "invalid_wav_header", nil)
 		return nil, q.fail(i18n.TTSCloudAudioInvalid)
 	}
 	if err := ctx.Err(); err != nil {
