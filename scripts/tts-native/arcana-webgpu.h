@@ -54,6 +54,9 @@ class ArcanaWebGpu {
         }
       }
       if (!selected) throw std::runtime_error("Local TTS WebGPU: no GPU adapter available (CPU fallback is disabled)");
+      // EP 0.4.0 在 Kokoro 常量权重预打包阶段发生原生崩溃；此项作用于所有 WebGPU
+      // 会话（含 Melo、Piper），GPU 算子不受影响，显式 CPU 后端保留预打包。
+      options.AddConfigEntry("session.disable_prepacking", "1");
       Ort::ThrowOnError(api.SessionOptionsAppendExecutionProvider_V2(
           options, env_, &selected, 1, nullptr, nullptr, 0));
       SHERPA_ONNX_LOGE("Local TTS: selected WebGpuExecutionProvider GPU device; unsupported operators may run on CPU");
