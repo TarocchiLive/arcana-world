@@ -80,6 +80,7 @@ type Model struct {
 	themeID                  string
 	darkBackground           bool
 	showcase                 showcaseState
+	zoom                     bool
 	blurred                  bool
 	mouseTargets             []mouseTarget
 	mouseScrolling           bool
@@ -554,6 +555,11 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 			return m, nil
 		}
 		if key == "esc" && m.mode == "" && m.dismissNotification() {
+			return m, nil
+		}
+		// 缩放切换在弹窗分发之前处理，聊天历史结果页也可以用 z 双向切换。
+		if key == "z" && (m.mode == "" || m.mode == "chat-history") {
+			m.toggleZoom()
 			return m, nil
 		}
 		if m.mode != "" {
