@@ -23,7 +23,7 @@ type showcaseState struct {
 type showcaseTick struct{ generation uint64 }
 
 func (m *Model) showcaseVisible() bool {
-	return m.width >= 100 && m.height >= 28 && !m.config.TUICompactHeader
+	return !m.zoom && m.width >= 100 && m.height >= 28 && !m.config.TUICompactHeader
 }
 
 func (m *Model) syncShowcase() tea.Cmd {
