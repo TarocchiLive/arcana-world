@@ -87,6 +87,7 @@ type Listener struct {
 	closeErr        error
 	retryDelay      time.Duration
 	broadcast       func(int64, json.RawMessage)
+	broadcastBlocks func(Event) bool
 }
 
 func NewListener(ctx context.Context, history *History, deviceID string) *Listener {
@@ -107,10 +108,11 @@ func newListener(ctx context.Context, history archive, factory func(string, doma
 	return l
 }
 
-// SetBroadcast 设置非阻塞的实时消息接收器，不影响历史持久化。
-func (l *Listener) SetBroadcast(publish func(int64, json.RawMessage)) {
+// SetBroadcast 设置非阻塞的实时消息接收器和屏蔽规则，不影响历史持久化。
+func (l *Listener) SetBroadcast(publish func(int64, json.RawMessage), blocks func(Event) bool) {
 	l.mu.Lock()
 	l.broadcast = publish
+	l.broadcastBlocks = blocks
 	l.mu.Unlock()
 }
 
@@ -353,7 +355,18 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 			}, func(raw json.RawMessage) error {
 				l.mu.Lock()
 				if gen == l.generation && ctx.Err() == nil && l.broadcast != nil {
-					l.broadcast(room, raw)
+					blocked := false
+					if l.broadcastBlocks != nil {
+						for _, p := range projectMany(room, raw) {
+							if l.broadcastBlocks(p.event) {
+								blocked = true
+								break
+								}
+							}
+						}
+					if !blocked {
+						l.broadcast(room, raw)
+					}
 				}
 				l.mu.Unlock()
 				return l.save(ctx, gen, room, func() (bool, error) { return l.history.Append(room, raw) })

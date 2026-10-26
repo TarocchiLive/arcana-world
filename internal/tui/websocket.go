@@ -26,14 +26,18 @@ func (m *Model) startWebSocket() error {
 	if m.websocket != nil {
 		return nil
 	}
+	if m.chat == nil || m.chat.listener == nil {
+		if m.chat != nil && m.chat.err != nil {
+			return m.chat.err
+		}
+		return errors.New("danmaku listener unavailable")
+	}
 	addr := m.effectiveWebSocketAddr()
 	server, err := broadcast.Listen(addr)
 	if err != nil {
 		return err
 	}
-	if err := m.setChatBroadcast(server.Publish); err != nil {
-		return errors.Join(err, server.Close())
-	}
+	m.setChatBroadcast(server.Publish)
 	m.websocket = server
 	return nil
 }
@@ -42,7 +46,7 @@ func (m *Model) closeWebSocket() error {
 	if m.websocket == nil {
 		return nil
 	}
-	m.chat.listener.SetBroadcast(nil)
+	m.setChatBroadcast(nil)
 	server := m.websocket
 	m.websocket = nil
 	return server.Close()
@@ -119,7 +123,7 @@ func (m *Model) saveWebSocketAddr(addr string) tea.Cmd {
 	if replacement != nil {
 		old := m.websocket
 		m.websocket = replacement
-		m.chat.listener.SetBroadcast(replacement.Publish)
+		m.setChatBroadcast(replacement.Publish)
 		if err := old.Close(); err != nil {
 			m.warn(err.Error())
 		}

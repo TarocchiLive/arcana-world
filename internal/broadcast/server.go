@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/websocket"
+	"github.com/gorilla/websocket"
 )
 
 type client struct {
@@ -49,9 +49,8 @@ func Listen(addr string) (*Server, error) {
 
 func (s *Server) accept(w http.ResponseWriter, r *http.Request) {
 	// 广播允许 OBS 浏览器源和其他跨源网页连接，不校验 Origin。
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: true,
-	})
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
@@ -59,7 +58,7 @@ func (s *Server) accept(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	if s.ctx.Err() != nil {
 		s.mu.Unlock()
-		_ = conn.CloseNow()
+		_ = conn.Close()
 		return
 	}
 	s.clients[c] = struct{}{}
@@ -68,19 +67,30 @@ func (s *Server) accept(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		delete(s.clients, c)
 		s.mu.Unlock()
-		_ = conn.CloseNow()
+		_ = conn.Close()
 	}()
 	// 只读连接仍需消费控制帧，以发现断线并回应 ping。
-	ctx := conn.CloseRead(s.ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer conn.Close()
+		if _, _, err := conn.NextReader(); err == nil {
+			_ = conn.WriteControl(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "unexpected data message"),
+				time.Now().Add(5*time.Second))
+		}
+	}()
 	for {
 		select {
-		case <-ctx.Done():
+		case <-s.ctx.Done():
+			return
+		case <-done:
 			return
 		case data := <-c.queue:
-			writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			err := conn.Write(writeCtx, websocket.MessageText, data)
-			cancel()
-			if err != nil {
+			if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+				return
+			}
+			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 				return
 			}
 		}
@@ -117,7 +127,7 @@ func (s *Server) Publish(room int64, raw json.RawMessage) {
 		case c.queue <- data:
 		default:
 			delete(s.clients, c)
-			_ = c.conn.CloseNow()
+			_ = c.conn.Close()
 		}
 	}
 }
@@ -128,7 +138,7 @@ func (s *Server) Close() error {
 	err := s.http.Close()
 	s.mu.Lock()
 	for c := range s.clients {
-		_ = c.conn.CloseNow()
+		_ = c.conn.Close()
 	}
 	s.mu.Unlock()
 	<-s.done

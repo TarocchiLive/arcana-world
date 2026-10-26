@@ -105,7 +105,7 @@ func addCookieSecrets(cookies map[string]string) {
 
 // DefaultConfig 返回新配置和设置重置所用的默认值。
 func DefaultConfig() config.Config {
-	return config.Config{WebBindAddress: "127.0.0.1", Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", OBSAutoConnect: true, OBSAutoStream: true, DanmakuLimit: 30, WebSocketAddr: "127.0.0.1:8080", Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
+	return config.Config{WebBindAddress: "127.0.0.1", Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", OBSAutoConnect: true, OBSAutoStream: true, DanmakuLimit: 30, WebSocketAddr: "127.0.0.1:7391", Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
 }
 
 func applyConfigDefaults(c *config.Config) {

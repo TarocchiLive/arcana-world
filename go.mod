@@ -10,7 +10,6 @@ require (
 	github.com/charmbracelet/ultraviolet v0.0.0-20260811164956-006e29f97886
 	github.com/charmbracelet/x/ansi v0.11.8
 	github.com/charmbracelet/x/term v0.2.2
-	github.com/coder/websocket v1.8.14
 	github.com/ebitengine/oto/v3 v3.5.0
 	github.com/ebitengine/purego v0.11.0
 	github.com/godbus/dbus/v5 v5.2.2
