@@ -1,0 +1,133 @@
+name: TTS smoke
+
+# 真实链路冒烟：Edge 在线合成；构建语音 helper，安装固定版本模型后本地合成。
+# 依赖网络、模型下载与 Edge 服务，与 ci.yml 的离线检查分开，失败时以对应任务定位。
+# 托管 runner 没有可用 GPU，本地模型只验证 CPU。
+on:
+  push:
+    branches: [main]
+    paths: &speech-paths
+      - internal/tts/**
+      - internal/helperpath/**
+      - cmd/arcana-world-tts/**
+      - scripts/build.sh
+      - scripts/build-tts-native.py
+      - scripts/deploy-tts.py
+      - scripts/deploy_linux.py
+      - scripts/runtime_files.py
+      - scripts/native-deps.json
+      - scripts/native-deps.py
+      - scripts/tts-native/**
+      - go.mod
+      - go.sum
+      - .github/actions/setup-desktop/**
+      - .github/workflows/tts-smoke.yml
+  pull_request:
+    branches: [main]
+    paths: *speech-paths
+  schedule:
+    - cron: '41 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tts-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  edge:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Synthesize with Edge
+        shell: bash
+        env:
+          ARCANA_TTS_SMOKE: edge
+        run: |
+          mkdir -p .tts-smoke
+          smoke=".tts-smoke/tts-smoke.test$(go env GOEXE)"
+          CGO_ENABLED=0 go test -c -tags ttssmoke -o "$smoke" ./internal/tts
+          "./$smoke" -test.run '^TestRealSynthesis$' -test.v -test.timeout 10m
+
+  local:
+    name: local (${{ matrix.os }}, ${{ matrix.goarch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # 平台组合与 ci.yml 的桌面构建一致；Intel macOS 与 32 位 Windows 使用官方 CPU 运行库。
+        include:
+          - os: ubuntu-24.04
+            goarch: amd64
+          - os: ubuntu-24.04-arm
+            goarch: arm64
+          - os: macos-15-intel
+            goarch: amd64
+          - os: macos-15
+            goarch: arm64
+          - os: windows-latest
+            goarch: amd64
+          - os: windows-latest
+            goarch: '386'
+          - os: windows-11-arm
+            goarch: arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      GOARCH: ${{ matrix.goarch }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: ./.github/actions/setup-desktop
+        with:
+          qt: 'false'
+      - name: Build speech helper
+        shell: bash
+        run: |
+          OUT_DIR=.tts-smoke bash scripts/build.sh tts
+          "./.tts-smoke/libexec/arcana-world-tts$(go env GOEXE)" -help
+          # 测试程序放在应用目录，按发行包布局定位 libexec/ 中的 helper 与 models/tts/。
+          CGO_ENABLED=0 go test -c -tags ttssmoke -o ".tts-smoke/tts-smoke.test$(go env GOEXE)" ./internal/tts
+      # 模型压缩包与平台无关，按固定清单跨系统共用；安装时仍完整校验 SHA256。
+      - name: Restore model archives
+        id: models
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            .tts-smoke/models/tts/melo-zh-en.zip
+            .tts-smoke/models/tts/kokoro-multi-lang-v1_1.tar.bz2
+            .tts-smoke/models/tts/vits-piper-en_US-ljspeech-medium.tar.bz2
+          key: tts-models-${{ hashFiles('internal/tts/models/manifest*.go') }}
+          enableCrossOsArchive: true
+      - name: Synthesize with local models
+        shell: bash
+        timeout-minutes: 60
+        env:
+          ARCANA_TTS_SMOKE: melo,kokoro,piper
+          ARCANA_TTS_SMOKE_BACKEND: cpu
+        run: |
+          "./.tts-smoke/tts-smoke.test$(go env GOEXE)" -test.run '^TestRealSynthesis$' -test.v -test.timeout 55m
+      # 只在合成成功后保存，避免缓存残缺下载。
+      - name: Save model archives
+        if: success() && steps.models.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            .tts-smoke/models/tts/melo-zh-en.zip
+            .tts-smoke/models/tts/kokoro-multi-lang-v1_1.tar.bz2
+            .tts-smoke/models/tts/vits-piper-en_US-ljspeech-medium.tar.bz2
+          key: ${{ steps.models.outputs.cache-primary-key }}
+          enableCrossOsArchive: true

@@ -1,5 +1,9 @@
 name: Desktop toolchains
 description: Install the native overlay, Elegant overlay, and speech helper build dependencies
+inputs:
+  qt:
+    description: Prepare the Qt SDK for the Elegant overlay; 'false' installs only speech helper dependencies
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -8,58 +12,63 @@ runs:
       shell: bash
       run: sudo apt-get update && sudo apt-get install -y xkb-data fontconfig-config
     - name: Identify Linux graphics toolchain
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux' && inputs.qt == 'true'
       id: linux-toolchain
       shell: bash
       run: bash scripts/setup-linux-qt.sh --cache-info >> "$GITHUB_OUTPUT"
     - name: Restore Linux graphics toolchain
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux' && inputs.qt == 'true'
       id: linux-toolchain-cache
       uses: actions/cache/restore@v5
       with:
         path: ${{ steps.linux-toolchain.outputs.prefix }}
         key: qt-ubuntu24-${{ runner.arch }}-${{ steps.linux-toolchain.outputs.toolchain-id }}
     - name: Build Linux graphics toolchain
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux' && inputs.qt == 'true'
       id: linux-toolchain-build
       shell: bash
       run: BUILD_JOBS="${BUILD_JOBS:-$(nproc)}" bash scripts/setup-linux-qt.sh
     # 工具链成功后立即保存，避免后续桌面构建失败导致缓存丢失。
     - name: Save Linux graphics toolchain
-      if: runner.os == 'Linux' && steps.linux-toolchain-build.outcome == 'success' && steps.linux-toolchain-cache.outputs.cache-hit != 'true'
+      if: runner.os == 'Linux' && inputs.qt == 'true' && steps.linux-toolchain-build.outcome == 'success' && steps.linux-toolchain-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v5
       with:
         path: ${{ steps.linux-toolchain.outputs.prefix }}
         key: ${{ steps.linux-toolchain-cache.outputs.cache-primary-key }}
+    # 仅构建语音 helper 时不准备 Qt；补齐 Qt 脚本原本顺带安装的语音依赖与 Vulkan loader。
+    - name: Install Linux speech toolchain
+      if: runner.os == 'Linux' && inputs.qt != 'true'
+      shell: bash
+      run: sudo apt-get install -y build-essential cmake ninja-build pkg-config patchelf python3 libasound2-dev libvulkan1
     - name: Install macOS build tools
       if: runner.os == 'macOS'
       shell: bash
       run: brew install cmake ninja gnu-tar xz
     - name: Identify macOS graphics toolchain
-      if: runner.os == 'macOS'
+      if: runner.os == 'macOS' && inputs.qt == 'true'
       id: macos-toolchain
       shell: bash
       run: bash scripts/setup-macos-qt.sh --cache-info >> "$GITHUB_OUTPUT"
     - name: Restore macOS graphics toolchain
-      if: runner.os == 'macOS'
+      if: runner.os == 'macOS' && inputs.qt == 'true'
       id: macos-toolchain-cache
       uses: actions/cache/restore@v5
       with:
         path: ${{ steps.macos-toolchain.outputs.prefix }}
         key: qt-macos15-${{ runner.arch }}-${{ steps.macos-toolchain.outputs.toolchain-id }}
     - name: Build macOS graphics toolchain
-      if: runner.os == 'macOS'
+      if: runner.os == 'macOS' && inputs.qt == 'true'
       id: macos-toolchain-build
       shell: bash
       run: BUILD_JOBS="${BUILD_JOBS:-$(sysctl -n hw.logicalcpu)}" bash scripts/setup-macos-qt.sh
     - name: Save macOS graphics toolchain
-      if: runner.os == 'macOS' && steps.macos-toolchain-build.outcome == 'success' && steps.macos-toolchain-cache.outputs.cache-hit != 'true'
+      if: runner.os == 'macOS' && inputs.qt == 'true' && steps.macos-toolchain-build.outcome == 'success' && steps.macos-toolchain-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v5
       with:
         path: ${{ steps.macos-toolchain.outputs.prefix }}
         key: ${{ steps.macos-toolchain-cache.outputs.cache-primary-key }}
     - name: Install Windows graphics toolchain
-      if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64' && inputs.qt == 'true'
       id: msys2
       uses: msys2/setup-msys2@v2
       with:
@@ -73,25 +82,25 @@ runs:
           tar
           mingw-w64-ucrt-x86_64-python
     - name: Identify Windows graphics toolchain
-      if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64' && inputs.qt == 'true'
       id: windows-toolchain
       shell: msys2 {0}
       run: bash scripts/setup-windows-qt.sh --cache-info >> "$GITHUB_OUTPUT"
     - name: Restore Windows graphics toolchain
-      if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64' && inputs.qt == 'true'
       id: windows-toolchain-cache
       uses: actions/cache/restore@v5
       with:
         path: ${{ steps.windows-toolchain.outputs.prefix }}
         key: qt-windows-ucrt64-${{ runner.arch }}-${{ steps.windows-toolchain.outputs.toolchain-id }}
     - name: Build Windows graphics toolchain
-      if: runner.os == 'Windows' && env.GOARCH == 'amd64'
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64' && inputs.qt == 'true'
       id: windows-toolchain-build
       shell: msys2 {0}
       run: BUILD_JOBS="${BUILD_JOBS:-$(nproc)}" bash scripts/setup-windows-qt.sh
     # 工具链成功后立即保存；不使用回退键，避免编译器更新后命中旧 ABI。
     - name: Save Windows graphics toolchain
-      if: runner.os == 'Windows' && env.GOARCH == 'amd64' && steps.windows-toolchain-build.outcome == 'success' && steps.windows-toolchain-cache.outputs.cache-hit != 'true'
+      if: runner.os == 'Windows' && env.GOARCH == 'amd64' && inputs.qt == 'true' && steps.windows-toolchain-build.outcome == 'success' && steps.windows-toolchain-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v5
       with:
         path: ${{ steps.windows-toolchain.outputs.prefix }}

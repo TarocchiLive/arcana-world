@@ -16,6 +16,7 @@ run:
 check:
 	go test -race ./...
 	go vet ./...
+	go vet -tags ttssmoke ./internal/tts
 
 clean:
 	rm -f "$(OUT_DIR)/arcana-world" "$(OUT_DIR)/arcana-world.exe" "$(OUT_DIR)/arcana-world-webui.exe"

@@ -216,6 +216,19 @@ Linux 语音 helper 在初始化 GPU 时，通过 Vulkan Loader 的 [`VK_ADD_DRI
 
 `-overlay` 启用浮层，`-doctor` 检查配置、凭据存储及可选辅助程序。浮层的启用与调整见 [Arcana World Overlay](../cmd/arcana-world-overlay/README.md#随-arcana-world-启动)，语音见[语音播报说明](../cmd/arcana-world-tts/README.md)。
 
+### 语音冒烟验证
+
+`internal/tts/real_synthesis_test.go`（构建标签 `ttssmoke`）走真实链路：Edge 在线合成，或安装固定模型后由已构建的语音 helper 合成，并检查返回的音频时长与音量。测试程序须放在应用目录，与 `libexec/` 同级；模型安装在该目录的 `models/tts/`，已有的压缩包会直接校验安装。
+
+```sh
+OUT_DIR=.local/tts-smoke bash scripts/build.sh tts
+go test -c -tags ttssmoke -o .local/tts-smoke/tts-smoke.test ./internal/tts
+ARCANA_TTS_SMOKE=edge,melo,kokoro,piper ARCANA_TTS_SMOKE_BACKEND=cpu \
+  ./.local/tts-smoke/tts-smoke.test -test.run '^TestRealSynthesis$' -test.v -test.timeout 45m
+```
+
+`ARCANA_TTS_SMOKE_BACKEND` 可选 `cpu` 或 `webgpu`。`.github/workflows/tts-smoke.yml` 在托管 runner 上按 CI 的七种平台组合验证 CPU；托管 runner 没有可用 GPU，WebGPU 只能在本机验证。
+
 ## 常见问题
 
 ### `‘-Wformat-security’ ignored without ‘-Wformat’`
