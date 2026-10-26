@@ -21,10 +21,10 @@ Arcana World 是一款基于 Go 的 bilibili 直播姬 + 弹幕姬。
 ## 预览
 
 <p align="center">
-  <img src="assets/arcana-world-01.webp" alt="主菜单" width="48%">
-  <img src="assets/arcana-world-02.webp" alt="浮层配置项" width="48%">
-  <img src="assets/arcana-world-03.webp" alt="封面图预览" width="48%">
-  <img src="assets/arcana-world-04.webp" alt="弹幕浮层" width="48%">
+  <img src="assets/arcana-world-03.webp" alt="主菜单" width="48%">
+  <img src="assets/arcana-world-07.webp" alt="浮层配置项" width="48%">
+  <img src="assets/arcana-world-04.webp" alt="封面图预览" width="48%">
+  <img src="assets/arcana-world-05.webp" alt="弹幕浮层" width="48%">
 </p>
 
 ## 功能亮点

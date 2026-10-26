@@ -20,10 +20,10 @@ Native support for Windows, Linux, and macOS.
 ## Preview
 
 <p align="center">
-  <img src="assets/arcana-world-01.webp" alt="Main menu" width="48%">
-  <img src="assets/arcana-world-02.webp" alt="Overlay settings" width="48%">
-  <img src="assets/arcana-world-03.webp" alt="Cover preview" width="48%">
-  <img src="assets/arcana-world-04.webp" alt="Chat overlay" width="48%">
+  <img src="assets/arcana-world-03.webp" alt="Main menu" width="48%">
+  <img src="assets/arcana-world-07.webp" alt="Overlay settings" width="48%">
+  <img src="assets/arcana-world-04.webp" alt="Cover preview" width="48%">
+  <img src="assets/arcana-world-05.webp" alt="Chat overlay" width="48%">
 </p>
 
 ## Highlights
