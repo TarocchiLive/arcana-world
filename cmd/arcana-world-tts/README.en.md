@@ -65,7 +65,9 @@ Local voices use the graphics card by default. If you see an error that the GPU 
 | --- | --- |
 | macOS | Apple silicon on macOS 14 or later; Intel Macs use the CPU |
 | Windows | 64-bit (x64, ARM64); 32-bit uses the CPU |
-| Linux | x64 and ARM64, with Vulkan and a graphics driver installed |
+| Linux | x64 and ARM64, with a system graphics driver supporting Vulkan; release bundles include the Vulkan loader |
+
+On NixOS, system-configured graphics drivers are discovered automatically; no manual NVIDIA, AMD, or Intel driver-file selection is needed.
 
 ## Troubleshooting
 

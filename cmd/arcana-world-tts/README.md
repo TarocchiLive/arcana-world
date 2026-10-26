@@ -65,7 +65,9 @@ API Key 保存后不再显示，要更换时直接重新填写。「恢复默认
 | --- | --- |
 | macOS | Apple 芯片、macOS 14 及以上可以；Intel Mac 只能用 CPU |
 | Windows | 64 位（x64、ARM64）可以；32 位只能用 CPU |
-| Linux | x64、ARM64 可以，需要安装 Vulkan 和显卡驱动 |
+| Linux | x64、ARM64 可以，需要系统安装支持 Vulkan 的显卡驱动；发行包自带 Vulkan 加载器 |
+
+NixOS 会自动发现系统配置的显卡驱动，无需手动指定 NVIDIA、AMD 或 Intel 的驱动文件。
 
 ## 常见问题
 

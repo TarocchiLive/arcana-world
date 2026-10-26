@@ -60,6 +60,9 @@ func Run(input io.Reader, output io.Writer, dir string, threads int, speed float
 		if err := os.Setenv("ARCANA_LOCAL_WEBGPU_LIBRARY", library); err != nil {
 			return fmt.Errorf("local TTS: configure WebGPU plugin: %w", err)
 		}
+		if err := configureVulkanDrivers(); err != nil {
+			return fmt.Errorf("local TTS: configure Vulkan driver search: %w", err)
+		}
 	}
 	if dir == "" || threads < 1 || threads > 32 || math.IsNaN(speed) || math.IsInf(speed, 0) || speed < 0.5 || speed > 2 {
 		return errors.New("local TTS: invalid worker configuration")
@@ -157,4 +160,31 @@ func Run(input io.Reader, output io.Writer, dir string, threads int, speed float
 			return err
 		}
 	}
+}
+
+// 便携包的 Vulkan loader 不含 NixOS 的编译期搜索路径；只追加系统驱动目录，
+// 保留标准发现、多显卡枚举及用户显式指定的驱动，不复制或解析厂商清单。
+func configureVulkanDrivers() error {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+	for _, key := range []string{"VK_DRIVER_FILES", "VK_ICD_FILENAMES"} {
+		if _, ok := os.LookupEnv(key); ok {
+			return nil
+		}
+	}
+	dir := "/run/opengl-driver/share/vulkan/icd.d"
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return nil
+	}
+	existing := os.Getenv("VK_ADD_DRIVER_FILES")
+	for _, entry := range filepath.SplitList(existing) {
+		if filepath.Clean(entry) == dir {
+			return nil
+		}
+	}
+	if existing != "" {
+		dir = existing + string(os.PathListSeparator) + dir
+	}
+	return os.Setenv("VK_ADD_DRIVER_FILES", dir)
 }

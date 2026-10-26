@@ -207,6 +207,8 @@ Windows 为 `bin/arcana-world.exe`。主程序从自身所在目录的 `libexec/
 
 `libexec` 里的运行库和 `.arcana-*-files.json` 清单由部署脚本维护，请保持目录完整，搬迁时整体移动。重复构建会清理已移除的依赖；清单缺失的旧输出目录请换一个新的 `OUT_DIR`。
 
+Linux 语音 helper 在初始化 GPU 时，通过 Vulkan Loader 的 [`VK_ADD_DRIVER_FILES`](https://github.com/KhronosGroup/Vulkan-Loader/blob/main/docs/LoaderDriverInterface.md#additional-driver-discovery) 追加存在的 `/run/opengl-driver/share/vulkan/icd.d`，使便携包也能发现 NixOS 系统驱动。标准驱动搜索和过滤规则保持不变；已有追加路径保留且优先，显式设置 `VK_DRIVER_FILES` 或 `VK_ICD_FILENAMES` 时完全沿用用户配置。设置仅作用于语音 helper，不改变主程序环境。显卡驱动仍由系统提供。
+
 ```sh
 ./bin/arcana-world -overlay
 ./bin/arcana-world -doctor
