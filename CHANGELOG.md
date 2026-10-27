@@ -4,14 +4,22 @@
 
 版本按时间倒序记录。
 
-## 未发布
+## [v0.4.5]!：2026-10-27
 
-- 终端设置按弹幕、直播与退出、外观与连接分组，设置名称与当前值分列显示；恢复默认设置和清除数据单独放在底部。
-- 主题设置并入外观详情；WebSocket 广播集中显示开关、运行状态、监听地址和令牌设置状态，编辑后返回详情，保留选择位置。
-- 设置页按当前选项显示操作提示，分组布局支持键盘选择、鼠标点击和窄窗口滚动。
-- macOS 精美浮层将程序、Qt 运行库和 Cocoa 插件集中放入应用包，自检与启动使用同一路径。
-- macOS 发行包附带首次启动说明，许可证文件可写，便于清除整包下载隔离标记。
-- 为减少维护负担，停止支持 Windows 32 位与 Intel Mac，移除对应构建、发行包和专属兼容代码。Windows 保留 x64、ARM64，macOS 仅支持 Apple 芯片。
+新增 WebSocket 弹幕广播，方便连接 OBS 浏览器源和其他工具；重新整理终端设置，并改善 macOS 便携包与 NixOS 语音运行体验。
+
+### 本次更新
+
+- 新增只读 WebSocket 广播，转发弹幕、礼物、醒目留言及观众互动等实时事件，支持全局屏蔽词过滤、自定义监听地址和访问令牌，详见[广播说明](docs/websocket-broadcast.md)。
+- 终端设置按弹幕、直播与退出、外观与连接分组，名称与当前值分列显示，支持键盘选择、鼠标点击和窄窗口滚动。
+- 主题设置并入外观详情；WebSocket 广播集中显示开关、运行状态、监听地址和令牌设置状态，编辑后保留选择位置，并显示当前操作提示。
+- macOS 精美浮层与 Qt 运行库集中放入应用包，发行包附带首次启动说明，便于完整解压后清除下载隔离标记。
+- NixOS 便携包自动发现系统 Vulkan 驱动，减少本地 GPU 语音启动时的手动配置。
+
+### 升级提示
+
+- 请完整替换主程序和 `libexec` 目录。
+- 支持平台调整为 Windows x64／ARM64、Linux x64／ARM64 和 macOS Apple 芯片。
 
 ## [v0.4.4]：2026-10-25
 
@@ -554,3 +562,4 @@
 [v0.4.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.2
 [v0.4.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.3
 [v0.4.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.4
+[v0.4.5]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.5

@@ -1,10 +1,10 @@
 {
-  "url": "https://github.com/TarocchiLive/arcana-world/releases/download/native-deps-20261025/",
+  "url": "https://github.com/TarocchiLive/arcana-world/releases/download/native-deps-20261027/",
   "packs": {
     "qt-darwin-arm64": {
-      "inputs": "e88bd29941d9fa5ba13078bba7638bccb8a2811908182dbee7e5631f64b0f4fd",
-      "sha256": "b5fa23662336811f247410c4a57b607a1075b27a4a9cc54f122f0b009ca5c85a",
-      "size": 8155260
+      "inputs": "0d3fdf999d8327fc77790f8844fca2018cf80c826423a04596d422122bb33c6f",
+      "sha256": "a63cb80d1b71e1932eaad61550719334faf3370941e65b16a67f2bb212ddadd5",
+      "size": 8155288
     },
     "qt-linux-amd64": {
       "inputs": "869e73ef7b55841e748f300f039f0c2922554f1837c466e2d98a82bf758558e8",
@@ -18,33 +18,33 @@
     },
     "qt-windows-amd64": {
       "inputs": "636c1490436b0abe7aa1792816def3f4c8c6cb357df9f9eb4f516b812dc0904b",
-      "sha256": "1b9183fddb0a60dd3c945b849c57389eabbbfaae7ed8d6aba7cf54b94136c401",
-      "size": 10273296
+      "sha256": "9c8507f34eeff8086ab53be4e8586bc733f1aa1e04945362a09bc34283bec15d",
+      "size": 10268988
     },
     "tts-darwin-arm64": {
       "inputs": "06fab4edd73ee0e524e31cd862a4624c118f470d34739d656bd61be8ee754647",
-      "sha256": "ac92bd72668b708f66c6cfd58bb1d289207653fde27ece96a07d885bd6f94153",
-      "size": 9494600
+      "sha256": "3491f9b3eb37d3331ad484f00052971bfb3c9696c2db6a8d3dc4f3db48b2ead7",
+      "size": 9494672
     },
     "tts-linux-amd64": {
       "inputs": "06fab4edd73ee0e524e31cd862a4624c118f470d34739d656bd61be8ee754647",
-      "sha256": "fcb46d9ac06b03a2fd26be70814648de66a771d3c99eebd88f53ca5bfd5f669a",
-      "size": 12617376
+      "sha256": "1519bf38134632f7dd274b9f69d51a5aecabe01baaec2a38bfc0fb6adcdba151",
+      "size": 12616856
     },
     "tts-linux-arm64": {
       "inputs": "06fab4edd73ee0e524e31cd862a4624c118f470d34739d656bd61be8ee754647",
-      "sha256": "11633eec12008dc86ebc11c07b4f82161ad370ea57e2953d4267ce7593204ee3",
-      "size": 13081212
+      "sha256": "28c4c09b4555d62af5f257c354882495bfe387166b2db0bf99b41924e566b14e",
+      "size": 13082708
     },
     "tts-windows-amd64": {
       "inputs": "06fab4edd73ee0e524e31cd862a4624c118f470d34739d656bd61be8ee754647",
-      "sha256": "065b43fa84f63ea82b9b27494d32e2a36250bad3eac21c0d3015ad77e4701cd1",
-      "size": 15500228
+      "sha256": "47b91fababb13071a2762b4a0f0100423d128cde4ec09ac6387615246f3d9e07",
+      "size": 15505044
     },
     "tts-windows-arm64": {
       "inputs": "06fab4edd73ee0e524e31cd862a4624c118f470d34739d656bd61be8ee754647",
-      "sha256": "de0dffc83e150f383da7e4e55a0f00624e81ffdf4334d461ad00f55186fc57d6",
-      "size": 14593088
+      "sha256": "f4e2619e4f76e2d2a6921c5e6dc5ba9f649bc3ac870ee1fd551a67d5a1ab558d",
+      "size": 14593148
     }
   }
 }

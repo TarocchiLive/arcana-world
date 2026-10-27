@@ -4,14 +4,22 @@
 
 Versions are listed newest first.
 
-## Unreleased
+## [v0.4.5]!: 2026-10-27
 
-- Group terminal settings into chat, streaming and exit, and appearance and connections, with names and current values in separate columns. Keep reset and data clearing actions at the bottom.
-- Move theme selection into appearance details. Group the WebSocket switch, runtime status, listen address, and token presence in one detail view; return there after editing and preserve the selection.
-- Show contextual controls for each setting, with keyboard selection, mouse clicks, and scrolling in narrow windows.
-- Bundle the macOS Elegant overlay, Qt libraries, and Cocoa plugin inside one application; diagnostics and startup use the same helper path.
-- Include macOS first-run instructions and writable license files so download quarantine can be removed from the whole package.
-- Drop 32-bit Windows and Intel Mac support to reduce maintenance, removing their builds, release packages, and platform-specific compatibility code. Windows retains x64 and ARM64 support; macOS supports Apple silicon only.
+Add WebSocket chat broadcasting for OBS browser sources and other tools, reorganize terminal settings, and improve macOS portable packages and local speech on NixOS.
+
+### What's changed
+
+- Add read-only WebSocket broadcasting for live chat, gifts, Super Chats, audience interactions, and other live events, with global block-word filtering, a configurable listen address, and an access token. See [Broadcasting](docs/websocket-broadcast.md) (Chinese).
+- Group terminal settings into chat, streaming and exit, and appearance and connections, with names and current values in separate columns, keyboard selection, mouse clicks, and scrolling in narrow windows.
+- Move theme selection into appearance details and group the WebSocket switch, runtime status, listen address, and token presence in one view; preserve the selection after editing and show contextual controls.
+- Bundle the macOS Elegant overlay and Qt libraries inside one application, and include first-run instructions for removing download quarantine after extracting the entire package.
+- Discover system Vulkan drivers automatically in NixOS portable packages, reducing manual setup for local GPU speech.
+
+### Upgrade notes
+
+- Replace both the main program and the `libexec` folder.
+- Supported platforms are now Windows x64/ARM64, Linux x64/ARM64, and macOS on Apple silicon.
 
 ## [v0.4.4]: 2026-10-25
 
@@ -554,3 +562,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.4.2]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.2
 [v0.4.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.3
 [v0.4.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.4
+[v0.4.5]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.5
