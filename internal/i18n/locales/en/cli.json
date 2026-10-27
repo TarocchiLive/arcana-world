@@ -32,6 +32,7 @@
   "cli.default_ui_saved": "Default interface set to %s. It will apply on the next launch.\n",
   "cli.webui_launcher_failed": "Could not run WebUI. Ensure arcana-world.exe is in the same directory and check the console error.\n\n%s",
   "cli.help": "Arcana World — Bilibili live console / Bubble Tea\n\nUsage: arcana-world [options]\n\n",
+  "cli.websocket_addr_usage": "Enable WebSocket broadcast at the given IP:port for this run",
   "cli.help_usage": "Show help",
   "cli.invalid_arguments": "invalid arguments; use --help for usage",
   "cli.language_usage": "Display language: auto, zh-CN, en",

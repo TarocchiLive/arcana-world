@@ -63,6 +63,9 @@ func (m *Model) menu() []menuItem {
 		return []menuItem{
 			{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"},
 			{toggleLabel(i18n.T(i18n.DanmakuOther), m.config.DanmakuShowOther), "chat-other"},
+			{toggleLabel(i18n.T(i18n.TUISettingsWebSocketEnabled), m.webSocketEnabled()), "websocket-toggle"},
+			{i18n.T(i18n.TUISettingsWebSocketAddr) + " · " + m.effectiveWebSocketAddr(), "websocket-addr"},
+			{i18n.T(i18n.TUISettingsWebSocketToken), "websocket-token"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
 			{i18n.T(i18n.LumenTheme) + " · " + m.themeName(), "theme"},
@@ -167,6 +170,16 @@ func (m *Model) perform(action string) tea.Cmd {
 		return work(m, deleteOperation(), func(ctx context.Context) (app.AccountOutcome, error) { return m.session.Delete(ctx, client, uid) })
 	}
 	switch action {
+	case "websocket-toggle":
+		return m.toggleWebSocket()
+	case "websocket-addr":
+		if m.websocketAddr != "" {
+			m.warn(i18n.T(i18n.TUISessionOverride))
+			return nil
+		}
+		return m.form("websocket-addr", i18n.T(i18n.TUISettingsWebSocketAddr), m.config.WebSocketAddr, false)
+	case "websocket-token":
+		return m.form("websocket-token", i18n.T(i18n.TUISettingsWebSocketTokenPrompt), "", true)
 	case "theme":
 		return m.pickTheme()
 	case "appearance":
@@ -477,6 +490,9 @@ func (m *Model) setArea(a domain.Area) tea.Cmd {
 func (m *Model) submitForm() tea.Cmd {
 	value := strings.TrimSpace(m.input.Value())
 	kind := m.editKind
+	if kind == "websocket-addr" {
+		return m.saveWebSocketAddr(value)
+	}
 	if kind == "mute-hours" {
 		return m.submitMuteHours()
 	}
@@ -586,6 +602,8 @@ func (m *Model) submitForm() tea.Cmd {
 	case "delay":
 		n, _ := strconv.Atoi(value)
 		return work(m, delaySetOperation, func(ctx context.Context) (struct{}, error) { return struct{}{}, m.client.SetTimeShift(ctx, n) })
+	case "websocket-token":
+		return m.saveWebSocketToken(value)
 	case "obs-password":
 		return m.saveOBSSetting(obsPasswordOperation, func() error { return m.store.SetOBSSecret(value) })
 	case "obs-url":

@@ -105,7 +105,7 @@ func addCookieSecrets(cookies map[string]string) {
 
 // DefaultConfig 返回新配置和设置重置所用的默认值。
 func DefaultConfig() config.Config {
-	return config.Config{WebBindAddress: "127.0.0.1", Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", OBSAutoConnect: true, OBSAutoStream: true, DanmakuLimit: 30, Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
+	return config.Config{WebBindAddress: "127.0.0.1", Protocol: "rtmp", OBSURL: "ws://127.0.0.1:4455", OBSAutoConnect: true, OBSAutoStream: true, DanmakuLimit: 30, WebSocketAddr: "127.0.0.1:7391", Overlay: overlay.DefaultSettings(), TTS: tts.DefaultSettings()}
 }
 
 func applyConfigDefaults(c *config.Config) {
@@ -118,6 +118,9 @@ func applyConfigDefaults(c *config.Config) {
 	}
 	if c.OBSURL == "" {
 		c.OBSURL = defaults.OBSURL
+	}
+	if c.WebSocketAddr == "" {
+		c.WebSocketAddr = defaults.WebSocketAddr
 	}
 	if c.DanmakuLimit < 1 || c.DanmakuLimit > 1000 {
 		c.DanmakuLimit = defaults.DanmakuLimit
@@ -593,6 +596,44 @@ func (s *Store) SetOBSSecret(password string) error {
 	if err := s.backend.Set("obs-password", password); err != nil {
 		s.credentialFailed("save_obs_password", "", err)
 		return secretError(i18n.T(i18n.StoreSaveObsPassword), err)
+	}
+	return nil
+}
+
+// WebSocketToken 读取广播访问令牌；未设置时返回空字符串。
+func (s *Store) WebSocketToken() (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, err := s.backend.Get("websocket-token")
+	if errors.Is(err, keyring.ErrNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		s.credentialFailed("read_websocket_token", "", err)
+		return "", secretError(i18n.T(i18n.StoreReadWebSocketToken), err)
+	}
+	journal.AddSecrets(v)
+	return v, nil
+}
+
+// SetWebSocketToken 保存广播访问令牌；空令牌删除已保存的值。
+func (s *Store) SetWebSocketToken(token string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return errors.New(i18n.T(i18n.StoreCleared))
+	}
+	if token == "" {
+		if err := s.backend.Delete("websocket-token"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+			s.credentialFailed("delete_websocket_token", "", err)
+			return secretError(i18n.T(i18n.StoreDeleteWebSocketToken), err)
+		}
+		return nil
+	}
+	journal.AddSecrets(token)
+	if err := s.backend.Set("websocket-token", token); err != nil {
+		s.credentialFailed("save_websocket_token", "", err)
+		return secretError(i18n.T(i18n.StoreSaveWebSocketToken), err)
 	}
 	return nil
 }

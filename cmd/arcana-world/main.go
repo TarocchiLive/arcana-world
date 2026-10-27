@@ -115,6 +115,7 @@ func runArgs(args []string) (err error) {
 	defaultGUI := flags.Bool("default-gui", false, "")
 	webPort := flags.Int("web-port", 5273, "")
 	logLevel := flags.String("log-level", "info", "")
+	websocketAddr := flags.String("websocket-addr", "", "")
 	help := flags.Bool("help", false, "")
 	shortHelp := flags.Bool("h", false, "")
 	parseErr := flags.Parse(args)
@@ -140,6 +141,7 @@ func runArgs(args []string) (err error) {
 	flags.Lookup("default-gui").Usage = i18n.T(i18n.CLIDefaultGUIUsage)
 	flags.Lookup("web-port").Usage = i18n.T(i18n.CLIWebPortUsage)
 	flags.Lookup("log-level").Usage = i18n.T(i18n.CLILogLevelUsage)
+	flags.Lookup("websocket-addr").Usage = i18n.T(i18n.CLIWebSocketAddrUsage)
 	flags.Lookup("help").Usage = i18n.T(i18n.CLIHelpUsage)
 	flags.Lookup("h").Usage = flags.Lookup("help").Usage
 	flags.Usage = func() {
@@ -298,6 +300,9 @@ func runArgs(args []string) (err error) {
 	defer func() { err = errors.Join(err, model.Close()) }()
 	// 后注册先执行：必须在 model.Close 关闭日志之前写入失败原因。
 	defer logRunFailure(&err)
+	if err := model.ConfigureWebSocket(*websocketAddr); err != nil {
+		return err
+	}
 	if ttsOverride != nil {
 		if err := model.ConfigureTTS(*ttsOverride); err != nil {
 			return err

@@ -32,6 +32,7 @@
   "cli.default_ui_saved": "默认启动项已设为 %s，下次启动生效。\n",
   "cli.webui_launcher_failed": "无法运行 WebUI。请确认 arcana-world.exe 位于同一目录，并查看控制台错误。\n\n%s",
   "cli.help": "Arcana World — B 站直播控制台 / Bubble Tea\n\n用法: arcana-world [选项]\n\n",
+  "cli.websocket_addr_usage": "仅本次运行在指定的 IP:端口 启用 WebSocket 广播",
   "cli.help_usage": "显示帮助",
   "cli.invalid_arguments": "参数解析失败；使用 --help 查看用法",
   "cli.language_usage": "界面语言：auto、zh-CN、en",

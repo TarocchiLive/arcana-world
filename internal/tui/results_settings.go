@@ -29,6 +29,12 @@ func (m *Model) handleSettingsResetResult(value *bili.Client, err error, label i
 	if m.ttsOverride != nil {
 		m.tts.enabled = *m.ttsOverride
 	}
+	// 命令行指定的地址仅本次生效，重置设置不关闭。
+	if m.websocketAddr == "" {
+		if err := m.closeWebSocket(); err != nil {
+			m.warn(err.Error())
+		}
+	}
 	m.syncChat()
 	m.log(i18n.T(i18n.TUISettingsResetDone))
 	return m.stopOverlay()

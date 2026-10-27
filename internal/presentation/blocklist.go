@@ -117,7 +117,7 @@ func NewBlockMatcher(lists ...[]string) BlockMatcher {
 	return matcher
 }
 
-// DisplayMatcher 只含全局词，作用于弹幕列表、历史、网页和浮层。
+// DisplayMatcher 只含全局词，作用于弹幕列表、历史、网页、浮层和实时广播。
 func (b Blocklist) DisplayMatcher() BlockMatcher { return NewBlockMatcher(b.Global) }
 
 // TTSMatcher 合并全局词和播报词：被隐藏的弹幕同样不播报。

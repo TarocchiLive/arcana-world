@@ -52,6 +52,7 @@ func (m *Model) openChat() {
 		m.syncChat()
 	}
 }
+
 func (m *Model) syncChat() {
 	if m.chat == nil || m.chat.listener == nil {
 		return

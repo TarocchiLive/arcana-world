@@ -30,6 +30,8 @@ func (s *Store) ResetSettings() (config.Config, error) {
 	c.ExitLiveStopDisabled = d.ExitLiveStopDisabled
 	c.DanmakuLimit = d.DanmakuLimit
 	c.DanmakuShowOther = d.DanmakuShowOther
+	c.WebSocketEnabled = d.WebSocketEnabled
+	c.WebSocketAddr = d.WebSocketAddr
 	c.Overlay = d.Overlay
 	c.OverlayDisabledEvents = d.OverlayDisabledEvents
 	c.TTS = d.TTS
@@ -72,6 +74,10 @@ func (s *Store) ClearData() error {
 	if err := s.backend.Delete("obs-password"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		s.credentialFailed("clear_delete_obs_password", "", err)
 		failures = append(failures, secretError(i18n.T(i18n.StoreDeleteObsPassword), err))
+	}
+	if err := s.backend.Delete("websocket-token"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		s.credentialFailed("clear_delete_websocket_token", "", err)
+		failures = append(failures, secretError(i18n.T(i18n.StoreDeleteWebSocketToken), err))
 	}
 	for _, provider := range tts.Providers() {
 		for _, field := range provider.Fields {

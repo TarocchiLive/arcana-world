@@ -10,6 +10,7 @@ import (
 
 	"arcana-world/internal/app"
 	"arcana-world/internal/bili"
+	"arcana-world/internal/broadcast"
 	"arcana-world/internal/config"
 	"arcana-world/internal/coverimage"
 	"arcana-world/internal/domain"
@@ -156,6 +157,9 @@ type Model struct {
 	view                     viewport.Model
 	chat                     *danmakuUI
 	audience                 audienceUI
+	websocket                *broadcast.Server
+	websocketAddr            string
+	websocketSessionEnabled  bool
 }
 
 // New 接管已锁定数据目录的日志；初始化失败或模型关闭时释放。
