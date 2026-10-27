@@ -53,13 +53,15 @@ func Listen(addr, token string) (*Server, error) {
 // SetToken 更换令牌并断开现有连接，客户端需用新令牌重连。
 func (s *Server) SetToken(token string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.token == token {
+		s.mu.Unlock()
 		return
 	}
 	s.token = token
-	for c := range s.clients {
-		delete(s.clients, c)
+	clients := s.clients
+	s.clients = make(map[*client]struct{})
+	s.mu.Unlock()
+	for c := range clients {
 		_ = c.conn.Close()
 	}
 }
@@ -141,12 +143,14 @@ func (s *Server) Connected() bool {
 	return len(s.clients) != 0
 }
 
-// Publish 原样转发一帧事件，不等待客户端网络写入；raw 必须是有效 JSON。
-func (s *Server) Publish(room int64, raw json.RawMessage) {
+// Prepare 在调用方锁外封装事件；没有客户端时不分配消息。raw 必须是有效 JSON。
+// 返回的提交函数只进行非阻塞入队，不解析、序列化或进行网络 I/O。
+func (s *Server) Prepare(room int64, raw json.RawMessage) func() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.clients) == 0 || s.ctx.Err() != nil {
-		return
+	active := len(s.clients) != 0 && s.ctx.Err() == nil
+	s.mu.Unlock()
+	if !active {
+		return nil
 	}
 	data := make([]byte, 0, len(raw)+40)
 	data = append(data, `{"room_id":`...)
@@ -154,12 +158,20 @@ func (s *Server) Publish(room int64, raw json.RawMessage) {
 	data = append(data, `,"event":`...)
 	data = append(data, raw...)
 	data = append(data, '}')
-	for c := range s.clients {
-		select {
-		case c.queue <- data:
-		default:
-			delete(s.clients, c)
-			_ = c.conn.Close()
+	return func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.ctx.Err() != nil {
+			return
+		}
+		for c := range s.clients {
+			select {
+			case c.queue <- data:
+			default:
+				delete(s.clients, c)
+				// 每个慢客户端只移除一次，异步关闭以免阻塞入队。
+				go c.conn.Close()
+			}
 		}
 	}
 }
@@ -169,10 +181,12 @@ func (s *Server) Close() error {
 	s.cancel()
 	err := s.http.Close()
 	s.mu.Lock()
-	for c := range s.clients {
+	clients := s.clients
+	s.clients = nil
+	s.mu.Unlock()
+	for c := range clients {
 		_ = c.conn.Close()
 	}
-	s.mu.Unlock()
 	<-s.done
 	if s.err != http.ErrServerClosed {
 		return s.err

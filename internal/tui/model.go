@@ -159,6 +159,7 @@ type Model struct {
 	audience                 audienceUI
 	websocket                *broadcast.Server
 	websocketAddr            string
+	websocketSessionEnabled  bool
 }
 
 // New 接管已锁定数据目录的日志；初始化失败或模型关闭时释放。

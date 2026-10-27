@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"iter"
 	"strconv"
 	"strings"
 	"time"
@@ -122,14 +123,20 @@ func decodeEventJSON(reader io.Reader, out any) bool {
 	return decoder.Decode(&extra) == io.EOF
 }
 
-// Project 返回一帧原始消息映射出的事件，批量礼物展开为多条；无法识别时 Kind 为 unknown。
-func Project(room int64, raw []byte) []Event {
-	many := projectMany(room, raw)
-	events := make([]Event, len(many))
-	for i, p := range many {
-		events[i] = p.event
+// Project 遍历一帧的事件，批量礼物逐条返回，避免复制投影切片。
+func Project(room int64, raw []byte) iter.Seq[Event] {
+	return func(yield func(Event) bool) {
+		p := project(room, raw)
+		if len(p.batch) == 0 {
+			yield(p.event)
+			return
+		}
+		for _, item := range p.batch {
+			if !yield(item.event) {
+				return
+			}
+		}
 	}
-	return events
 }
 
 func projectMany(room int64, raw []byte) []projection {

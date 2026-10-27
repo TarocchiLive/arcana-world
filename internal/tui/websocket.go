@@ -12,7 +12,6 @@ import (
 	"arcana-world/internal/broadcast"
 	"arcana-world/internal/danmaku"
 	"arcana-world/internal/i18n"
-	"arcana-world/internal/presentation"
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -22,11 +21,9 @@ func (m *Model) ConfigureWebSocket(addr string) error {
 	if m.initialized {
 		return errors.New("websocket must be configured before model initialization")
 	}
-	if addr != "" && !validWebSocketAddr(addr) {
-		return errors.New(i18n.T(i18n.TUISettingsWebSocketAddrInvalid))
-	}
 	m.websocketAddr = addr
-	if m.config.WebSocketEnabled || addr != "" {
+	m.websocketSessionEnabled = addr != ""
+	if m.webSocketEnabled() {
 		if err := m.startWebSocket(); err != nil {
 			logger.Warn("websocket broadcast start failed", "addr", m.effectiveWebSocketAddr(), "err", err)
 			m.warn(fmt.Sprintf(i18n.T(i18n.TUISettingsWebSocketStartFailed), err))
@@ -55,23 +52,35 @@ func (m *Model) startWebSocket() error {
 	if m.websocket != nil {
 		return nil
 	}
-	if m.chat == nil || m.chat.listener == nil {
-		if m.chat != nil && m.chat.err != nil {
-			return m.chat.err
-		}
-		return errors.New("danmaku listener unavailable")
-	}
 	token, err := m.store.WebSocketToken()
 	if err != nil {
 		return err
 	}
-	server, err := broadcast.Listen(m.effectiveWebSocketAddr(), token)
+	server, err := m.listenWebSocket(m.effectiveWebSocketAddr(), token)
 	if err != nil {
 		return err
 	}
 	m.websocket = server
 	m.setChatBroadcast()
 	return nil
+}
+
+// listenWebSocket 统一校验最终地址，并避免 localhost 触发 DNS 查询。
+func (m *Model) listenWebSocket(addr, token string) (*broadcast.Server, error) {
+	if !validWebSocketAddr(addr) {
+		return nil, errors.New(i18n.T(i18n.TUISettingsWebSocketAddrInvalid))
+	}
+	if m.chat == nil || m.chat.listener == nil {
+		if m.chat != nil && m.chat.err != nil {
+			return nil, m.chat.err
+		}
+		return nil, errors.New("danmaku listener unavailable")
+	}
+	host, port, _ := net.SplitHostPort(addr)
+	if host == "localhost" {
+		addr = net.JoinHostPort("127.0.0.1", port)
+	}
+	return broadcast.Listen(addr, token)
 }
 
 func (m *Model) closeWebSocket() error {
@@ -95,59 +104,54 @@ func (m *Model) setChatBroadcast() {
 		return
 	}
 	blocked := m.config.Blocklist.DisplayMatcher()
-	m.chat.listener.SetBroadcast(func(room int64, raw json.RawMessage) {
-		// 无人连接时跳过解析。
+	m.chat.listener.SetBroadcast(func(room int64, raw json.RawMessage) func() {
 		if !server.Connected() {
-			return
+			return nil
 		}
-		events := danmaku.Project(room, raw)
 		forward := false
-		for _, e := range events {
+		for e := range danmaku.Project(room, raw) {
 			if blocked.Blocks(e) {
-				return
+				return nil
 			}
 			forward = forward || broadcastEvent(e)
 		}
-		if forward {
-			server.Publish(room, raw)
+		if !forward {
+			return nil
 		}
+		return server.Prepare(room, raw)
 	})
 }
 
-// broadcastEvent 沿用聊天页默认显示的事件，并补充分享和关注类互动。
+// broadcastEvent 明确对外广播范围，不随界面事件目录的增减改变。
 func broadcastEvent(e danmaku.Event) bool {
 	switch e.Kind {
-	case "share", "special_follow", "mutual_follow":
+	case "chat", "gift", "sc", "guard", "delete",
+		"enter", "follow", "like", "share", "special_follow", "mutual_follow",
+		"live", "preparing", "room_change", "room_block", "cut_off":
 		return true
+	case "detail":
+		switch e.Text {
+		case "USER_TOAST_MSG", "GUIARD_MSG", "LIVE_OPEN_PLATFORM_SEND_GIFT",
+			"LIVE_OPEN_PLATFORM_GUARD", "RECALL_DANMU_MSG", "WARNING",
+			"ROOM_SILENT_ON", "ROOM_SILENT_OFF", "room_admin_entrance", "ROOM_ADMIN_REVOKE":
+			return true
+		}
 	}
-	return presentation.Enabled(nil, e)
+	return false
+}
+
+func (m *Model) webSocketEnabled() bool {
+	if m.websocketAddr != "" {
+		return m.websocketSessionEnabled
+	}
+	return m.config.WebSocketEnabled
 }
 
 func (m *Model) toggleWebSocket() tea.Cmd {
-	cfg := m.config
-	cfg.WebSocketEnabled = m.websocket == nil
-	if cfg.WebSocketEnabled {
-		if err := m.startWebSocket(); err != nil {
-			m.warn(fmt.Sprintf(i18n.T(i18n.TUISettingsWebSocketStartFailed), err))
-			return nil
-		}
-	}
-	if err := m.store.SaveConfig(cfg); err != nil {
-		if cfg.WebSocketEnabled {
-			err = errors.Join(err, m.closeWebSocket())
-		}
-		m.warn(err.Error())
-		return nil
-	}
-	m.config = m.store.Config()
-	if !cfg.WebSocketEnabled {
-		if err := m.closeWebSocket(); err != nil {
-			m.warn(err.Error())
-			return nil
-		}
-	}
-	m.log(i18n.T(i18n.TUILogSettingsSaved))
-	return m.finishResult()
+	return m.changeWebSocket(websocketChange{
+		enabled: !m.webSocketEnabled(),
+		addr:    m.effectiveWebSocketAddr(),
+	})
 }
 
 func (m *Model) effectiveWebSocketAddr() string {
@@ -166,38 +170,81 @@ func (m *Model) saveWebSocketAddr(addr string) tea.Cmd {
 		m.warnStatus(i18n.T(i18n.TUISettingsWebSocketAddrInvalid))
 		return nil
 	}
+	return m.changeWebSocket(websocketChange{enabled: m.webSocketEnabled(), addr: addr, editingAddr: true})
+}
+
+type websocketChange struct {
+	enabled     bool
+	addr        string
+	editingAddr bool
+	token       string
+}
+
+var websocketChangeOperation = operation[websocketChange]{
+	label:           i18n.TUIOperationSaveSettings,
+	discardOnCancel: true,
+	handle:          (*Model).handleWebSocketChange,
+}
+
+func (m *Model) changeWebSocket(change websocketChange) tea.Cmd {
+	if change.enabled && !validWebSocketAddr(change.addr) {
+		m.warnStatus(i18n.T(i18n.TUISettingsWebSocketAddrInvalid))
+		return nil
+	}
+	if change.enabled && (m.websocket == nil || change.addr != m.effectiveWebSocketAddr()) {
+		// 后台只读凭据；退出后丢弃结果不会遗留已监听的服务。
+		return work(m, websocketChangeOperation, func(context.Context) (websocketChange, error) {
+			token, err := m.store.WebSocketToken()
+			change.token = token
+			return change, err
+		})
+	}
+	return m.handleWebSocketChange(change, nil, websocketChangeOperation.label)
+}
+
+func (m *Model) handleWebSocketChange(change websocketChange, err error, label i18n.Key) tea.Cmd {
+	if cmd, failed := m.resultError(label, err); failed {
+		return cmd
+	}
 	var replacement *broadcast.Server
-	if m.websocket != nil && addr != m.config.WebSocketAddr {
-		token, err := m.store.WebSocketToken()
-		if err == nil {
-			replacement, err = broadcast.Listen(addr, token)
-		}
+	if change.enabled && (m.websocket == nil || change.addr != m.effectiveWebSocketAddr()) {
+		replacement, err = m.listenWebSocket(change.addr, change.token)
 		if err != nil {
 			m.warnStatus(clean(err.Error()))
 			return nil
 		}
 	}
-	cfg := m.config
-	cfg.WebSocketAddr = addr
-	if err := m.store.SaveConfig(cfg); err != nil {
-		if replacement != nil {
-			err = errors.Join(err, replacement.Close())
+	if m.websocketAddr == "" {
+		cfg := m.config
+		cfg.WebSocketEnabled = change.enabled
+		cfg.WebSocketAddr = change.addr
+		if err := m.store.SaveConfig(cfg); err != nil {
+			if replacement != nil {
+				err = errors.Join(err, replacement.Close())
+			}
+			m.warnStatus(clean(err.Error()))
+			return nil
 		}
-		m.warnStatus(clean(err.Error()))
-		return nil
+		m.config = m.store.Config()
+	} else {
+		m.websocketSessionEnabled = change.enabled
 	}
-	m.config = m.store.Config()
-	if replacement != nil {
+	// 新服务和配置都准备成功后才切换，失败时保留旧服务与地址。
+	if replacement != nil || !change.enabled {
 		old := m.websocket
 		m.websocket = replacement
 		m.setChatBroadcast()
-		if err := old.Close(); err != nil {
-			m.warn(err.Error())
+		if old != nil {
+			if err := old.Close(); err != nil {
+				m.warn(err.Error())
+			}
 		}
 	}
-	m.mode = ""
-	m.input.SetValue("")
-	m.input.Blur()
+	if change.editingAddr {
+		m.mode = ""
+		m.input.SetValue("")
+		m.input.Blur()
+	}
 	m.log(i18n.T(i18n.TUILogSettingsSaved))
 	return m.finishResult()
 }

@@ -86,7 +86,8 @@ type Listener struct {
 	closeOnce       sync.Once
 	closeErr        error
 	retryDelay      time.Duration
-	broadcast       func(int64, json.RawMessage)
+	broadcast       func(int64, json.RawMessage) func()
+	broadcastRev    uint64
 }
 
 func NewListener(ctx context.Context, history *History, deviceID string) *Listener {
@@ -107,10 +108,12 @@ func newListener(ctx context.Context, history archive, factory func(string, doma
 	return l
 }
 
-// SetBroadcast 设置非阻塞的实时消息接收器，在监听器锁外调用，不影响历史持久化。
-func (l *Listener) SetBroadcast(publish func(int64, json.RawMessage)) {
+// SetBroadcast 设置实时消息接收器；准备阶段在锁外执行，不影响历史持久化。
+// 返回的提交函数在锁内执行，只能非阻塞地入队，不得解析、序列化或进行网络 I/O。
+func (l *Listener) SetBroadcast(prepare func(int64, json.RawMessage) func()) {
 	l.mu.Lock()
-	l.broadcast = publish
+	l.broadcast = prepare
+	l.broadcastRev++
 	l.mu.Unlock()
 }
 
@@ -352,11 +355,18 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 				l.publish(gen, PhaseConnected, room, nil, false)
 			}, func(raw json.RawMessage) error {
 				l.mu.Lock()
-				publish := l.broadcast
+				prepare, revision := l.broadcast, l.broadcastRev
 				current := gen == l.generation
 				l.mu.Unlock()
-				if publish != nil && current && ctx.Err() == nil {
-					publish(room, raw)
+				if prepare != nil && current && ctx.Err() == nil {
+					commit := prepare(room, raw)
+					if commit != nil {
+						l.mu.Lock()
+						if gen == l.generation && ctx.Err() == nil && revision == l.broadcastRev {
+							commit()
+						}
+						l.mu.Unlock()
+					}
 				}
 				return l.save(ctx, gen, room, func() (bool, error) { return l.history.Append(room, raw) })
 			})
