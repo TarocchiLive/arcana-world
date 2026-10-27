@@ -63,8 +63,9 @@ func (m *Model) menu() []menuItem {
 		return []menuItem{
 			{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"},
 			{toggleLabel(i18n.T(i18n.DanmakuOther), m.config.DanmakuShowOther), "chat-other"},
-			{toggleLabel(i18n.T(i18n.TUIWebSocketEnabled), m.websocket != nil), "websocket-toggle"},
-			{i18n.T(i18n.TUIWebSocketAddr) + " · " + m.effectiveWebSocketAddr(), "websocket-addr"},
+			{toggleLabel(i18n.T(i18n.TUISettingsWebSocketEnabled), m.websocket != nil), "websocket-toggle"},
+			{i18n.T(i18n.TUISettingsWebSocketAddr) + " · " + m.effectiveWebSocketAddr(), "websocket-addr"},
+			{i18n.T(i18n.TUISettingsWebSocketToken), "websocket-token"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
 			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
 			{i18n.T(i18n.LumenTheme) + " · " + m.themeName(), "theme"},
@@ -176,7 +177,9 @@ func (m *Model) perform(action string) tea.Cmd {
 			m.warn(i18n.T(i18n.TUISessionOverride))
 			return nil
 		}
-		return m.form("websocket-addr", i18n.T(i18n.TUIWebSocketAddr), m.config.WebSocketAddr, false)
+		return m.form("websocket-addr", i18n.T(i18n.TUISettingsWebSocketAddr), m.config.WebSocketAddr, false)
+	case "websocket-token":
+		return m.form("websocket-token", i18n.T(i18n.TUISettingsWebSocketTokenPrompt), "", true)
 	case "theme":
 		return m.pickTheme()
 	case "appearance":
@@ -599,6 +602,8 @@ func (m *Model) submitForm() tea.Cmd {
 	case "delay":
 		n, _ := strconv.Atoi(value)
 		return work(m, delaySetOperation, func(ctx context.Context) (struct{}, error) { return struct{}{}, m.client.SetTimeShift(ctx, n) })
+	case "websocket-token":
+		return m.saveWebSocketToken(value)
 	case "obs-password":
 		return m.saveOBSSetting(obsPasswordOperation, func() error { return m.store.SetOBSSecret(value) })
 	case "obs-url":

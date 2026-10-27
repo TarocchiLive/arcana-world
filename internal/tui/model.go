@@ -157,8 +157,8 @@ type Model struct {
 	view                     viewport.Model
 	chat                     *danmakuUI
 	audience                 audienceUI
-	websocket              *broadcast.Server
-	websocketAddr          string
+	websocket                *broadcast.Server
+	websocketAddr            string
 }
 
 // New 接管已锁定数据目录的日志；初始化失败或模型关闭时释放。

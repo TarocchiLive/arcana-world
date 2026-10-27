@@ -75,6 +75,10 @@ func (s *Store) ClearData() error {
 		s.credentialFailed("clear_delete_obs_password", "", err)
 		failures = append(failures, secretError(i18n.T(i18n.StoreDeleteObsPassword), err))
 	}
+	if err := s.backend.Delete("websocket-token"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		s.credentialFailed("clear_delete_websocket_token", "", err)
+		failures = append(failures, secretError(i18n.T(i18n.StoreDeleteWebSocketToken), err))
+	}
 	for _, provider := range tts.Providers() {
 		for _, field := range provider.Fields {
 			if !field.Secret {

@@ -122,6 +122,16 @@ func decodeEventJSON(reader io.Reader, out any) bool {
 	return decoder.Decode(&extra) == io.EOF
 }
 
+// Project 返回一帧原始消息映射出的事件，批量礼物展开为多条；无法识别时 Kind 为 unknown。
+func Project(room int64, raw []byte) []Event {
+	many := projectMany(room, raw)
+	events := make([]Event, len(many))
+	for i, p := range many {
+		events[i] = p.event
+	}
+	return events
+}
+
 func projectMany(room int64, raw []byte) []projection {
 	p := project(room, raw)
 	if len(p.batch) != 0 {

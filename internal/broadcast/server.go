@@ -1,11 +1,13 @@
-// Package broadcast 提供只读的弹幕、礼物与观众互动实时广播。
+// Package broadcast 提供只读的直播间事件实时广播。
 package broadcast
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +24,7 @@ type client struct {
 type Server struct {
 	mu      sync.Mutex
 	clients map[*client]struct{}
+	token   string
 	http    *http.Server
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -29,14 +32,14 @@ type Server struct {
 	err     error
 }
 
-// Listen 同步绑定地址，绑定失败时不启动后台服务。
-func Listen(addr string) (*Server, error) {
+// Listen 同步绑定地址，绑定失败时不启动后台服务；token 为空表示不验证。
+func Listen(addr, token string) (*Server, error) {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Server{clients: make(map[*client]struct{}), ctx: ctx, cancel: cancel, done: make(chan struct{})}
+	s := &Server{clients: make(map[*client]struct{}), token: token, ctx: ctx, cancel: cancel, done: make(chan struct{})}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", s.accept)
 	s.http = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
@@ -47,7 +50,40 @@ func Listen(addr string) (*Server, error) {
 	return s, nil
 }
 
+// SetToken 更换令牌并断开现有连接，客户端需用新令牌重连。
+func (s *Server) SetToken(token string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.token == token {
+		return
+	}
+	s.token = token
+	for c := range s.clients {
+		delete(s.clients, c)
+		_ = c.conn.Close()
+	}
+}
+
+// authorized 接受查询参数 token 或 Authorization: Bearer；浏览器 WebSocket 无法自定义请求头。
+func authorized(r *http.Request, token string) bool {
+	if token == "" {
+		return true
+	}
+	got := r.URL.Query().Get("token")
+	if bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+		got = bearer
+	}
+	return subtle.ConstantTimeCompare([]byte(got), []byte(token)) == 1
+}
+
 func (s *Server) accept(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	token := s.token
+	s.mu.Unlock()
+	if !authorized(r, token) {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
 	// 广播允许 OBS 浏览器源和其他跨源网页连接，不校验 Origin。
 	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -56,7 +92,8 @@ func (s *Server) accept(w http.ResponseWriter, r *http.Request) {
 	}
 	c := &client{conn: conn, queue: make(chan []byte, 64)}
 	s.mu.Lock()
-	if s.ctx.Err() != nil {
+	// 升级期间可能更换令牌，注册连接前在锁内重新验证。
+	if s.ctx.Err() != nil || !authorized(r, s.token) {
 		s.mu.Unlock()
 		_ = conn.Close()
 		return
@@ -97,31 +134,26 @@ func (s *Server) accept(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Publish 保留原始字段，仅转发弹幕、礼物与观众互动消息；不等待客户端网络写入。
+// Connected 报告是否有客户端，调用方据此跳过事件解析。
+func (s *Server) Connected() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.clients) != 0
+}
+
+// Publish 原样转发一帧事件，不等待客户端网络写入；raw 必须是有效 JSON。
 func (s *Server) Publish(room int64, raw json.RawMessage) {
-	var command struct {
-		Cmd string `json:"cmd"`
-	}
-	if json.Unmarshal(raw, &command) != nil {
-		return
-	}
-	switch strings.SplitN(command.Cmd, ":", 2)[0] {
-	case "DANMU_MSG", "SEND_GIFT", "INTERACT_WORD", "INTERACT_WORD_V2", "LIKE_INFO_V3_CLICK":
-	default:
-		return
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.clients) == 0 || s.ctx.Err() != nil {
 		return
 	}
-	data, err := json.Marshal(struct {
-		RoomID int64           `json:"room_id"`
-		Event  json.RawMessage `json:"event"`
-	}{room, raw})
-	if err != nil {
-		return
-	}
+	data := make([]byte, 0, len(raw)+40)
+	data = append(data, `{"room_id":`...)
+	data = strconv.AppendInt(data, room, 10)
+	data = append(data, `,"event":`...)
+	data = append(data, raw...)
+	data = append(data, '}')
 	for c := range s.clients {
 		select {
 		case c.queue <- data:

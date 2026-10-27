@@ -194,9 +194,7 @@ func (m *Model) saveBlocklist(b presentation.Blocklist, notice string) tea.Cmd {
 		if cmd, failed := m.resultError(label, err); failed {
 			return cmd
 		}
-		if m.websocket != nil {
-			m.setChatBroadcast(m.websocket.Publish)
-		}
+		m.setChatBroadcast()
 		// 仅刷新仍打开的屏蔽词列表，不重新进入已关闭的弹层。
 		if id, ok := blocklistPicker(m.editKind); ok && m.mode == "pick" {
 			m.showBlocklist(id)

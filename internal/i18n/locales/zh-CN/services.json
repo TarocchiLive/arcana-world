@@ -185,5 +185,8 @@
   "termimage.terminal_size_unsupported": "图片预览：此平台不支持获取终端尺寸",
   "store.cleared": "应用数据已进入清除流程，请重新启动应用",
   "store.clear_data_failed": "清除应用数据失败：%w",
-  "store.delete_obs_password": "删除 OBS 密码"
+  "store.delete_obs_password": "删除 OBS 密码",
+  "store.read_websocket_token": "读取 WebSocket 访问令牌",
+  "store.save_websocket_token": "保存 WebSocket 访问令牌",
+  "store.delete_websocket_token": "删除 WebSocket 访问令牌"
 }

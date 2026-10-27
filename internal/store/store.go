@@ -600,6 +600,44 @@ func (s *Store) SetOBSSecret(password string) error {
 	return nil
 }
 
+// WebSocketToken 读取广播访问令牌；未设置时返回空字符串。
+func (s *Store) WebSocketToken() (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, err := s.backend.Get("websocket-token")
+	if errors.Is(err, keyring.ErrNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		s.credentialFailed("read_websocket_token", "", err)
+		return "", secretError(i18n.T(i18n.StoreReadWebSocketToken), err)
+	}
+	journal.AddSecrets(v)
+	return v, nil
+}
+
+// SetWebSocketToken 保存广播访问令牌；空令牌删除已保存的值。
+func (s *Store) SetWebSocketToken(token string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return errors.New(i18n.T(i18n.StoreCleared))
+	}
+	if token == "" {
+		if err := s.backend.Delete("websocket-token"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+			s.credentialFailed("delete_websocket_token", "", err)
+			return secretError(i18n.T(i18n.StoreDeleteWebSocketToken), err)
+		}
+		return nil
+	}
+	journal.AddSecrets(token)
+	if err := s.backend.Set("websocket-token", token); err != nil {
+		s.credentialFailed("save_websocket_token", "", err)
+		return secretError(i18n.T(i18n.StoreSaveWebSocketToken), err)
+	}
+	return nil
+}
+
 // 重命名是提交点：此前发生的错误不会影响原有索引。
 func (s *Store) persist(c config.Config) error {
 	if s.closed {

@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"encoding/json"
 	"errors"
 	"time"
 
@@ -54,16 +53,6 @@ func (m *Model) openChat() {
 	}
 }
 
-// setChatBroadcast 接入实时广播并应用全局屏蔽词，不读取历史快照。
-func (m *Model) setChatBroadcast(publish func(int64, json.RawMessage)) {
-	var blocks func(danmaku.Event) bool
-	if publish != nil {
-		if matcher := m.config.Blocklist.DisplayMatcher(); len(matcher) > 0 {
-			blocks = matcher.Blocks
-		}
-	}
-	m.chat.listener.SetBroadcast(publish, blocks)
-}
 func (m *Model) syncChat() {
 	if m.chat == nil || m.chat.listener == nil {
 		return

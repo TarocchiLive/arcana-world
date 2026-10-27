@@ -87,7 +87,6 @@ type Listener struct {
 	closeErr        error
 	retryDelay      time.Duration
 	broadcast       func(int64, json.RawMessage)
-	broadcastBlocks func(Event) bool
 }
 
 func NewListener(ctx context.Context, history *History, deviceID string) *Listener {
@@ -108,11 +107,10 @@ func newListener(ctx context.Context, history archive, factory func(string, doma
 	return l
 }
 
-// SetBroadcast 设置非阻塞的实时消息接收器和屏蔽规则，不影响历史持久化。
-func (l *Listener) SetBroadcast(publish func(int64, json.RawMessage), blocks func(Event) bool) {
+// SetBroadcast 设置非阻塞的实时消息接收器，在监听器锁外调用，不影响历史持久化。
+func (l *Listener) SetBroadcast(publish func(int64, json.RawMessage)) {
 	l.mu.Lock()
 	l.broadcast = publish
-	l.broadcastBlocks = blocks
 	l.mu.Unlock()
 }
 
@@ -354,21 +352,12 @@ func (l *Listener) run(ctx context.Context, next target, gen uint64) {
 				l.publish(gen, PhaseConnected, room, nil, false)
 			}, func(raw json.RawMessage) error {
 				l.mu.Lock()
-				if gen == l.generation && ctx.Err() == nil && l.broadcast != nil {
-					blocked := false
-					if l.broadcastBlocks != nil {
-						for _, p := range projectMany(room, raw) {
-							if l.broadcastBlocks(p.event) {
-								blocked = true
-								break
-								}
-							}
-						}
-					if !blocked {
-						l.broadcast(room, raw)
-					}
-				}
+				publish := l.broadcast
+				current := gen == l.generation
 				l.mu.Unlock()
+				if publish != nil && current && ctx.Err() == nil {
+					publish(room, raw)
+				}
 				return l.save(ctx, gen, room, func() (bool, error) { return l.history.Append(room, raw) })
 			})
 			// 不要仅因认证成功就重置退避：否则反复断开的连接

@@ -185,5 +185,8 @@
   "termimage.terminal_size_unsupported": "preview: terminal sizing unsupported on this platform",
   "store.cleared": "Application data clearing has started; restart the application",
   "store.clear_data_failed": "Failed to clear application data: %w",
-  "store.delete_obs_password": "delete OBS password"
+  "store.delete_obs_password": "delete OBS password",
+  "store.read_websocket_token": "read WebSocket access token",
+  "store.save_websocket_token": "save WebSocket access token",
+  "store.delete_websocket_token": "delete WebSocket access token"
 }
