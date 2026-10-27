@@ -107,7 +107,7 @@ runs:
         key: ${{ steps.windows-toolchain-cache.outputs.cache-primary-key }}
     # 语音辅助程序的 Windows 运行库来自 Visual Studio 可再分发目录，需要先加载其环境变量。
     - name: Configure Windows speech runtime environment
-      if: runner.os == 'Windows' && env.GOARCH != '386'
+      if: runner.os == 'Windows'
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: ${{ env.GOARCH == 'arm64' && 'amd64_arm64' || 'amd64' }}
@@ -128,7 +128,7 @@ runs:
         printf '%s  %s\n' "$digest" "$root/compiler.zip" | sha256sum --check --strict
         unzip -q "$root/compiler.zip" -d "$root"
         target=x86_64
-        case "$GOARCH" in 386) target=i686 ;; arm64) target=aarch64 ;; esac
+        if [[ "$GOARCH" == arm64 ]]; then target=aarch64; fi
         prefix="$(cygpath -m "$root/$name/bin")"
         echo "TTS_CC=$prefix/$target-w64-mingw32-clang.exe" >> "$GITHUB_ENV"
         echo "TTS_CXX=$prefix/$target-w64-mingw32-clang++.exe" >> "$GITHUB_ENV"

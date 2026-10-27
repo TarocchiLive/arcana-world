@@ -16,13 +16,11 @@ from runtime_files import publish
 SOURCES = json.loads((Path(__file__).resolve().parent / "tts-native/sources.json").read_text(encoding="utf-8"))
 VERSION = "v1.13.8"
 PLATFORMS = {
-    ("darwin", "amd64"): ("macos", "x86_64-apple-darwin"),
-    ("darwin", "arm64"): ("macos", "aarch64-apple-darwin"),
-    ("linux", "amd64"): ("linux", "x86_64-unknown-linux-gnu"),
-    ("linux", "arm64"): ("linux", "aarch64-unknown-linux-gnu"),
-    ("windows", "amd64"): ("windows", "x86_64-pc-windows-gnu"),
-    ("windows", "386"): ("windows", "i686-pc-windows-gnu"),
-    ("windows", "arm64"): ("windows", "aarch64-pc-windows-gnu"),
+    ("darwin", "arm64"): "macos",
+    ("linux", "amd64"): "linux",
+    ("linux", "arm64"): "linux",
+    ("windows", "amd64"): "windows",
+    ("windows", "arm64"): "windows",
 }
 
 
@@ -43,7 +41,7 @@ def notices(root, source):
     target.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source / "LICENSE", target / "sherpa-onnx-LICENSE")
     (target / "sherpa-onnx-LICENSE").chmod(0o644)
-    # ORT 1.28.2 是官方 Go CPU 二进制使用的运行库；保留其第三方归属，内容按固定摘要校验。
+    # 保留固定版本 ORT 的第三方归属，内容按固定摘要校验。
     supplied = os.environ.get("TTS_LICENSE_DIR")
     for name in ("onnxruntime-LICENSE", "onnxruntime-ThirdPartyNotices.txt"):
         spec = SOURCES["licenses"][name]
@@ -58,10 +56,9 @@ def notices(root, source):
     (target / "SOURCE.txt").write_text(
         f"sherpa-onnx runtime {VERSION}: https://github.com/k2-fsa/sherpa-onnx/tree/{VERSION}\n"
         f"Platform module: {source.name}\n"
-        "ONNX Runtime: https://github.com/microsoft/onnxruntime/tree/v1.28.2\n" +
-        ("Arcana WebGPU extension: scripts/build-tts-native.py and scripts/tts-native/\n"
-         "WebGPU EP 0.4.0: https://www.nuget.org/packages/Microsoft.ML.OnnxRuntime.EP.WebGpu/0.4.0\n"
-         if os.environ.get("TTS_NATIVE_DIR") else "") +
+        "ONNX Runtime: https://github.com/microsoft/onnxruntime/tree/v1.28.2\n"
+        "Arcana WebGPU extension: scripts/build-tts-native.py and scripts/tts-native/\n"
+        "WebGPU EP 0.4.0: https://www.nuget.org/packages/Microsoft.ML.OnnxRuntime.EP.WebGpu/0.4.0\n"
         "Model assets are installed separately and retain their own LICENSE.\n", encoding="utf-8")
 
 
@@ -175,28 +172,23 @@ def main():
     goos, goarch = sys.argv[3:]
     platform = PLATFORMS.get((goos, goarch))
     if platform is None:
-        raise SystemExit(f"Official sherpa-onnx {VERSION} has no Go CPU runtime for {goos}/{goarch}")
-    source = module(platform[0])
+        raise SystemExit(f"Unsupported TTS target: {goos}/{goarch}")
     native = os.environ.get("TTS_NATIVE_DIR")
-    lib = Path(native).resolve() if native else source / "lib" / platform[1]
-    if native:
-        patterns = {"darwin": ["*.dylib"], "linux": ["*.so", "*.so.*"], "windows": ["*.dll"]}
-        plugin = {"darwin": "libonnxruntime_providers_webgpu.dylib",
-                  "linux": "libonnxruntime_providers_webgpu.so",
-                  "windows": "onnxruntime_providers_webgpu.dll"}[goos]
-        if not (lib / plugin).is_file():
-            raise SystemExit(f"Missing WebGPU provider: {lib / plugin}")
-        if lib != staging and (lib / "licenses").exists():
-            shutil.copytree(lib / "licenses", staging / "licenses", dirs_exist_ok=True)
-    else:
-        if (goos, goarch) not in {("darwin", "amd64"), ("windows", "386")}:
-            raise SystemExit("WebGPU targets require scripts/build-tts-native.py output in TTS_NATIVE_DIR")
-        patterns = {"darwin": ["libsherpa-onnx-c-api.dylib", "libonnxruntime*.dylib"],
-                    "linux": ["libsherpa-onnx-c-api.so", "libonnxruntime.so"],
-                    "windows": ["sherpa-onnx-c-api.dll", "onnxruntime.dll"]}
+    if not native:
+        raise SystemExit("TTS deployment requires scripts/build-tts-native.py output in TTS_NATIVE_DIR")
+    lib = Path(native).resolve()
+    patterns = {"darwin": ["*.dylib"], "linux": ["*.so", "*.so.*"], "windows": ["*.dll"]}
+    plugin = {"darwin": "libonnxruntime_providers_webgpu.dylib",
+              "linux": "libonnxruntime_providers_webgpu.so",
+              "windows": "onnxruntime_providers_webgpu.dll"}[goos]
+    if not (lib / plugin).is_file():
+        raise SystemExit(f"Missing WebGPU provider: {lib / plugin}")
+    if lib != staging and (lib / "licenses").exists():
+        shutil.copytree(lib / "licenses", staging / "licenses", dirs_exist_ok=True)
+    source = module(platform)
     for pattern in patterns[goos]:
         matches = list(lib.glob(pattern))
-        if not matches and not (native and pattern == "*.so.*"):
+        if not matches and pattern != "*.so.*":
             raise SystemExit(f"Missing pinned native library: {lib / pattern}")
         for path in matches:
             if lib != staging:
@@ -211,9 +203,9 @@ def main():
     if goos == "darwin":
         macos(staging, binaries)
     elif goos == "linux":
-        # 官方库的 SONAME 可能带版本，先通过原始缓存解析完整依赖。
+        # 原生库的 SONAME 可能带版本，先通过原始目录解析完整依赖。
         os.environ["LD_LIBRARY_PATH"] = str(lib) + ":" + os.environ.get("LD_LIBRARY_PATH", "")
-        linux(staging, binaries, lib if native else source)
+        linux(staging, binaries, lib)
     else:
         windows(staging, binaries)
     helper = Path("arcana-world-tts" + (".exe" if goos == "windows" else ""))

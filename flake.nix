@@ -1,7 +1,7 @@
 {
   description = "A lightweight TUI alternative to bilibili LiveHime";
 
-  # 26.05 仍支持 Intel macOS，具体修订和内容哈希由 flake.lock 固定。
+  # 具体修订和内容哈希由 flake.lock 固定。
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
   outputs =
@@ -10,7 +10,6 @@
       systems = [
         "x86_64-linux"
         "aarch64-linux"
-        "x86_64-darwin"
         "aarch64-darwin"
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -156,7 +155,6 @@
             };
           arcana-world-tts = let
             sources = builtins.fromJSON (builtins.readFile ./scripts/tts-native/sources.json);
-            gpuSupported = !pkgs.stdenv.isDarwin || pkgs.stdenv.hostPlatform.isAarch64;
             goos = if pkgs.stdenv.isDarwin then "darwin" else "linux";
             goarch = if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "amd64";
             ortName = if pkgs.stdenv.isDarwin then "onnxruntime-osx-arm64"
@@ -199,7 +197,7 @@
             hardeningDisable = [ "format" ];
             # 依赖下载只需 Go 模块；默认会继承 preBuild，在依赖派生中重复构建原生库。
             overrideModAttrs = _: { preBuild = ""; };
-            preBuild = pkgs.lib.optionalString gpuSupported ''
+            preBuild = ''
               mkdir -p "$TMPDIR/tts-deps" "$TMPDIR/tts-stage"
               ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (name: spec: ''
                 cp -R ${unpack name spec} "$TMPDIR/tts-deps/${spec.cmake_name}"
@@ -219,8 +217,6 @@
             '';
             postInstall = let
               platform = if pkgs.stdenv.isDarwin then "macos" else "linux";
-              arch = if pkgs.stdenv.hostPlatform.isAarch64 then "aarch64" else "x86_64";
-              triple = arch + (if pkgs.stdenv.isDarwin then "-apple-darwin" else "-unknown-linux-gnu");
               ortLicense = pkgs.fetchurl {
                 url = "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.28.2/LICENSE";
                 hash = "sha256-LwfHJ1Gu2ZeQuKSGnPIxHfhahgsi3tBfoigDWHpIkiw=";
@@ -234,11 +230,9 @@
               install -Dm644 "$module/LICENSE" "$out/share/licenses/tts/sherpa-onnx-LICENSE"
               install -Dm644 ${ortLicense} "$out/share/licenses/tts/onnxruntime-LICENSE"
               install -Dm644 ${ortNotices} "$out/share/licenses/tts/onnxruntime-ThirdPartyNotices.txt"
-              ${pkgs.lib.optionalString gpuSupported ''
-                cp -R "$TMPDIR/tts-stage/." "$out/bin/"
-                cp -R "$out/bin/licenses/tts/." "$out/share/licenses/tts/"
-                rm -rf "$out/bin/licenses"
-              ''}
+              cp -R "$TMPDIR/tts-stage/." "$out/bin/"
+              cp -R "$out/bin/licenses/tts/." "$out/share/licenses/tts/"
+              rm -rf "$out/bin/licenses"
               ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
                 chmod u+w "$out/bin/"*.so
                 # 去掉构建目录和模块缓存的 RPATH；系统库由 autoPatchelfHook 随后补齐。
@@ -247,10 +241,6 @@
                 done
               ''}
               ${pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
-                ${pkgs.lib.optionalString (!gpuSupported) ''
-                  cp "$module/lib/${triple}/libsherpa-onnx-c-api.dylib" "$out/bin/"
-                  cp "$module/lib/${triple}/libonnxruntime.dylib" "$out/bin/"
-                ''}
                 chmod u+w "$out/bin/"*.dylib
                 for binary in "$out/bin/arcana-world-tts" "$out/bin/"*.dylib; do
                   install_name_tool -change @rpath/libsherpa-onnx-c-api.dylib @loader_path/libsherpa-onnx-c-api.dylib "$binary"

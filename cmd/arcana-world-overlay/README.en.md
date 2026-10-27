@@ -18,8 +18,8 @@ Arcana World's cross-platform desktop text overlay displays text in a fixed scre
 
 | Platform | Support |
 | --- | --- |
-| macOS | Supported, including display across desktop Spaces |
-| Windows | Windows 10 1803 and later |
+| macOS | Apple silicon, including display across desktop Spaces |
+| Windows | x64 and ARM64, Windows 10 1803 and later |
 | Linux | Wayland desktops such as KDE Plasma and niri |
 | GNOME | GNOME Mutter lacks layer-shell and is not currently compatible |
 | X11 desktops | Elegant overlay supports X11 through xcb; Native overlay does not |
@@ -156,7 +156,7 @@ The `-socket` option shown in help is used when the main program manages the ove
 
 Elegant overlay uses Qt Widgets internally. Its helper is `libexec/arcana-world-overlay-qt` on Linux and Windows, and `libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt` on macOS. The native helper is `libexec/arcana-world-overlay-native`; Windows executables add `.exe`. Both use protocol v4 and reject a host selecting the other backend. The only program users need to launch is `arcana-world`.
 
-Full release bundles include both backends on macOS amd64/arm64, Linux amd64/arm64, and Windows amd64. Windows 386 and arm64 retain native-only bundles because the release toolchain has no matching Qt6 MinGW build. Selecting Elegant overlay in a native-only bundle reports the missing component; it never falls back to native.
+Full release bundles include both backends on macOS arm64, Linux amd64/arm64, and Windows amd64. Windows arm64 bundles provide only the native overlay because the release toolchain has no matching Qt6 MinGW build. Selecting Elegant overlay in a native-only bundle reports the missing component.
 
 Build on the target OS and architecture with CMake >= 3.24, Python >= 3.9, a C++17 compiler, and matching Qt development libraries:
 

@@ -31,9 +31,6 @@ func Run(input io.Reader, output io.Writer, dir string, threads int, speed float
 		return errors.New("local TTS: backend must be webgpu or cpu")
 	}
 	if backend == "webgpu" {
-		if runtime.GOOS == "darwin" && runtime.GOARCH != "arm64" || runtime.GOOS == "windows" && runtime.GOARCH == "386" {
-			return errors.New("local TTS: WebGPU is unavailable on this platform; select cpu explicitly")
-		}
 		if sherpa.GetVersion() != "1.13.8-arcana-webgpu2" {
 			return errors.New("local TTS: bundled native runtime lacks WebGPU support; rebuild with bash scripts/build.sh tts or select cpu")
 		}

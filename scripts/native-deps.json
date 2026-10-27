@@ -1,11 +1,6 @@
 {
   "url": "https://github.com/TarocchiLive/arcana-world/releases/download/native-deps-20261025/",
   "packs": {
-    "qt-darwin-amd64": {
-      "inputs": "e88bd29941d9fa5ba13078bba7638bccb8a2811908182dbee7e5631f64b0f4fd",
-      "sha256": "92e79a71ebc27bbc5c91398d1f09cd4b0d35f964bbb3b48e0cb4b23a36367dea",
-      "size": 9182240
-    },
     "qt-darwin-arm64": {
       "inputs": "e88bd29941d9fa5ba13078bba7638bccb8a2811908182dbee7e5631f64b0f4fd",
       "sha256": "b5fa23662336811f247410c4a57b607a1075b27a4a9cc54f122f0b009ca5c85a",

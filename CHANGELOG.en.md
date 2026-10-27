@@ -11,6 +11,7 @@ Versions are listed newest first.
 - Show contextual controls for each setting, with keyboard selection, mouse clicks, and scrolling in narrow windows.
 - Bundle the macOS Elegant overlay, Qt libraries, and Cocoa plugin inside one application; diagnostics and startup use the same helper path.
 - Include macOS first-run instructions and writable license files so download quarantine can be removed from the whole package.
+- Drop 32-bit Windows and Intel Mac support to reduce maintenance, removing their builds, release packages, and platform-specific compatibility code. Windows retains x64 and ARM64 support; macOS supports Apple silicon only.
 
 ## [v0.4.4]: 2026-10-25
 

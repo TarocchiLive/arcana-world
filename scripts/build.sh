@@ -21,7 +21,7 @@ Linux overlay builds also require patchelf, pkg-config, and xkeyboard-config dat
 LINUX_LICENSE_DIR optionally supplies redistribution licenses and SOURCE.txt for non-Debian builds.
 RTMPSRT packaging requires SRT_LIBRARY and SRT_LICENSE_DIR (including SOURCE.txt).
 The normal TUI build does not require or bundle libsrt.
-Speech helper builds run on the target system and CPU (Windows x64 can also build x86).
+Speech helper builds run on the target system and CPU.
 GPU runtimes and the setup-*-qt.sh Qt SDKs come from verified prebuilt packs listed in
 scripts/native-deps.json when they match the local build scripts. NATIVE_DEPS=auto (default)
 builds missing or outdated packs from source, prebuilt requires the packs, and source always builds.
@@ -33,7 +33,7 @@ which must contain x64/ or arm64/Microsoft.VC*.CRT. Redistributing them requires
 Visual Studio installation. TTS_MSVC_LICENSE_FILE supplies the Visual C++ runtime license offline;
 otherwise it is downloaded from Microsoft.
 GPU support: macOS 14+ on Apple Silicon, and Linux and Windows on x64 or ARM64.
-Intel macOS and 32-bit Windows builds support CPU only.
+Intel macOS and 32-bit Windows are not supported.
 Linux also requires the Vulkan loader, patchelf and the distribution's package license data.
 TTS_VULKAN_LIBRARY optionally supplies the full path to libvulkan.so.1 for Linux packaging.
 Linux packages bundle non-glibc dependencies with relative runtime paths; LD_LIBRARY_PATH is not required to run them.
@@ -68,6 +68,12 @@ out_dir="${OUT_DIR:-bin}"
 version="${VERSION:-}"
 export GOOS="${GOOS:-$(go env GOOS)}"
 export GOARCH="${GOARCH:-$(go env GOARCH)}"
+case "$GOOS/$GOARCH" in
+  windows/386|darwin/amd64)
+    echo "Unsupported target: $GOOS/$GOARCH." >&2
+    exit 2
+    ;;
+esac
 suffix=
 overlay_cgo=1
 overlay_tags=
@@ -142,13 +148,11 @@ build_native_linux() (
   python3 scripts/deploy_linux.py "$stage_dir" "$install_dir"
 )
 
-# WebGPU 目标重建固定版本 C ABI；CPU-only 目标继续使用官方原生运行库。
+# 所有受支持目标均使用固定版本的 WebGPU 原生运行库。
 build_tts() (
   if [[ "$GOOS" != "$(go env GOHOSTOS)" || "$GOARCH" != "$(go env GOHOSTARCH)" ]]; then
-    if [[ "$GOOS" != windows || "$(go env GOHOSTOS)" != windows || "$GOARCH" != 386 ]]; then
-      echo 'TTS packaging requires a matching native host/toolchain (Windows x64 may target x86).' >&2
-      exit 2
-    fi
+    echo 'TTS packaging requires a matching native host/toolchain.' >&2
+    exit 2
   fi
   export CC="${TTS_CC:-${CC:-cc}}" CXX="${TTS_CXX:-${CXX:-c++}}"
   export OBJDUMP="${TTS_OBJDUMP:-${OBJDUMP:-objdump}}"
@@ -159,21 +163,17 @@ build_tts() (
   mkdir -p "$out_dir"
   stage_dir="$(mktemp -d "$out_dir/.tts-stage.XXXXXX")"
   trap 'rm -rf -- "$stage_dir"' EXIT
-  if [[ "$GOOS/$GOARCH" != darwin/amd64 && "$GOOS/$GOARCH" != windows/386 ]]; then
-    python3 scripts/native-deps.py fetch tts "$GOOS" "$GOARCH" "$stage_dir" || status=$?
-    if (( status == 3 )); then
-      # 源码构建结果保留在工作目录，依赖工作流从这里打包。
-      native_dir="$out_dir/.tts-native-$GOOS-$GOARCH"
-      rm -rf -- "$native_dir/stage"
-      python3 scripts/build-tts-native.py "$native_dir" "$native_dir/stage" "$GOOS" "$GOARCH"
-      cp -R "$native_dir/stage/." "$stage_dir/"
-    elif (( status != 0 )); then
-      exit "$status"
-    fi
-    export TTS_NATIVE_DIR="$stage_dir"
-  else
-    unset TTS_NATIVE_DIR
+  python3 scripts/native-deps.py fetch tts "$GOOS" "$GOARCH" "$stage_dir" || status=$?
+  if (( status == 3 )); then
+    # 源码构建结果保留在工作目录，依赖工作流从这里打包。
+    native_dir="$out_dir/.tts-native-$GOOS-$GOARCH"
+    rm -rf -- "$native_dir/stage"
+    python3 scripts/build-tts-native.py "$native_dir" "$native_dir/stage" "$GOOS" "$GOARCH"
+    cp -R "$native_dir/stage/." "$stage_dir/"
+  elif (( status != 0 )); then
+    exit "$status"
   fi
+  export TTS_NATIVE_DIR="$stage_dir"
   CGO_ENABLED=1 go build -tags tts -trimpath -buildvcs=false \
     -ldflags="$ldflags" -o "$stage_dir/arcana-world-tts$suffix" ./cmd/arcana-world-tts
   python3 scripts/deploy-tts.py "$stage_dir" "$out_dir/libexec" "$GOOS" "$GOARCH"

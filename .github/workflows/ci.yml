@@ -25,17 +25,11 @@ jobs:
           - os: ubuntu-24.04-arm
             goarch: arm64
             suffix: ''
-          - os: macos-15-intel
-            goarch: amd64
-            suffix: ''
           - os: macos-15
             goarch: arm64
             suffix: ''
           - os: windows-latest
             goarch: amd64
-            suffix: .exe
-          - os: windows-latest
-            goarch: '386'
             suffix: .exe
           - os: windows-11-arm
             goarch: arm64
@@ -130,24 +124,16 @@ jobs:
 
   verify-macos:
     needs: checks
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-15
-            goarch: arm64
-          - os: macos-15-intel
-            goarch: amd64
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-15
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: desktop-macOS-${{ matrix.goarch }}
+          name: desktop-macOS-arm64
           path: artifact
       - name: Verify extracted macOS bundle
         shell: bash
         env:
-          GOARCH: ${{ matrix.goarch }}
+          GOARCH: arm64
         run: |
           (cd artifact && shasum -a 256 -c checksums.txt)
           bundle="$(mktemp -d "$RUNNER_TEMP/arcana-world.XXXXXX")"

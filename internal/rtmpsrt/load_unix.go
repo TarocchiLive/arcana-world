@@ -23,7 +23,7 @@ func openSRT() (func(string) (uintptr, error), error) {
 		}
 	}
 	if runtime.GOOS == "darwin" {
-		candidates = append(candidates, "/opt/homebrew/opt/srt/lib/libsrt.dylib", "/usr/local/opt/srt/lib/libsrt.dylib")
+		candidates = append(candidates, "/opt/homebrew/opt/srt/lib/libsrt.dylib")
 	}
 	candidates = append(candidates, names...)
 	for _, name := range candidates {

@@ -36,9 +36,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-15-intel
-            goos: darwin
-            goarch: amd64
           - os: macos-15
             goos: darwin
             goarch: arm64
@@ -48,9 +45,6 @@ jobs:
           - os: ubuntu-24.04-arm
             goos: linux
             goarch: arm64
-          - os: windows-latest
-            goos: windows
-            goarch: '386'
           - os: windows-latest
             goos: windows
             goarch: amd64
@@ -138,7 +132,7 @@ jobs:
           base = f"https://github.com/{repository}"
           assets = sorted(Path("dist").glob("arcana-world-*"))
           platforms = {"windows": "Windows", "linux": "Linux", "darwin": "macOS"}
-          architectures = {"amd64": "x64", "arm64": "ARM64", "386": "x86 (32-bit)"}
+          architectures = {"amd64": "x64", "arm64": "ARM64"}
           rows = []
           for asset in assets:
               target = asset.name.removeprefix("arcana-world-").removesuffix(".tar.xz").removesuffix(".zip")
@@ -172,7 +166,7 @@ jobs:
                   download = "## 选择下载\n\n| 平台 | 架构 | 下载 |\n| --- | --- | --- |"
                   start = (
                       "请完整解压；升级时一并替换主程序和 `libexec` 目录。\n"
-                      "Windows x86 / ARM64 包仅提供原生浮层；Wayland 精美浮层需要合成器支持 layer-shell。\n\n"
+                      "Windows ARM64 包仅提供原生浮层；Wayland 精美浮层需要合成器支持 layer-shell。\n\n"
                       "## 快速开始\n\n"
                       "1. 下载并解压与你的系统和架构匹配的压缩包。\n"
                       "2. Windows 运行 `arcana-world.exe`；Linux 在终端运行 `./arcana-world`。"
@@ -186,7 +180,7 @@ jobs:
                   download = "## Downloads\n\n| Platform | Architecture | Download |\n| --- | --- | --- |"
                   start = (
                       "Extract the entire archive. When upgrading, replace both the main executable and `libexec`.\n"
-                      "Windows x86 / ARM64 packages provide only the native overlay; the styled overlay on Wayland requires layer-shell.\n\n"
+                      "Windows ARM64 packages provide only the native overlay; the styled overlay on Wayland requires layer-shell.\n\n"
                       "## Quick start\n\n"
                       "1. Download and extract the archive for your system and architecture.\n"
                       "2. On Windows, run `arcana-world.exe`; on Linux, run `./arcana-world` in a terminal. "

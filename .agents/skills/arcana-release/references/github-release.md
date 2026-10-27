@@ -27,11 +27,11 @@ git ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}"
 
 | 系统 | 架构 | 文件格式 |
 |---|---|---|
-| macOS | amd64、arm64 | `.tar.xz` |
+| macOS | arm64 | `.tar.xz` |
 | Linux | amd64、arm64 | `.tar.xz` |
-| Windows | 386、amd64、arm64 | `.zip` |
+| Windows | amd64、arm64 | `.zip` |
 
-命名为 `arcana-world-<goos>-<goarch>`，macOS 的 `goos` 是 `darwin`。当前共七个发行包，另有 `checksums.txt`；以后工作流改变时，以实际矩阵为准。
+命名为 `arcana-world-<goos>-<goarch>`，macOS 的 `goos` 是 `darwin`。当前共五个发行包，另有 `checksums.txt`；以后工作流改变时，以实际矩阵为准。
 
 发行包应包含主程序、`libexec/arcana-world-overlay-native`、`libexec/arcana-world-tts` 和 `LICENSE`；完整包另含 Qt helper。Linux、Windows 使用 `libexec/arcana-world-overlay-qt`，Windows 可执行文件带 `.exe`。macOS 使用 `libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`；Qt 运行库位于应用包的 `Contents/Frameworks`，平台插件位于 `Contents/PlugIns/platforms`，`qt.conf` 位于 `Contents/Resources`，发行包根目录另附双语 `看我.txt`。当前工作流还会提交 GitHub 构建来源证明，不要将其误算成必须存在的额外下载附件。
 

@@ -18,8 +18,8 @@ Arcana World 的跨平台桌面文字浮层会在固定屏幕区域显示文字�
 
 | 平台 | 支持情况 |
 | --- | --- |
-| macOS | 支持，可跨桌面空间显示 |
-| Windows | 支持 Windows 10 1803 及以上版本 |
+| macOS | 支持 Apple 芯片，可跨桌面空间显示 |
+| Windows | 支持 x64、ARM64，要求 Windows 10 1803 及以上版本 |
 | Linux | 支持 KDE Plasma、niri 等 Wayland 桌面 |
 | GNOME | GNOME Mutter 缺少 layer-shell，暂不兼容 |
 | X11 桌面 | 精美浮层通过 xcb 插件支持；原生浮层不支持 |
@@ -156,7 +156,7 @@ go build -o bin/libexec/arcana-world-overlay-native.exe ./cmd/arcana-world-overl
 
 精美浮层内部使用 Qt Widgets，Linux、Windows 对应 `libexec/arcana-world-overlay-qt`，macOS 对应 `libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`；原生浮层对应 `libexec/arcana-world-overlay-native`，Windows 均加 `.exe`。两种 helper 共用 v4 协议，拒绝与主程序选择不符的后端。用户只需启动 `arcana-world`。
 
-macOS amd64/arm64、Linux amd64/arm64 和 Windows amd64 完整发行包包含两种后端。Windows 386、arm64 保留原生包：当前发行工具链没有对应的 Qt6 MinGW 构建。原生包中选择精美浮层会明确报告组件缺失，不会自动切换成原生浮层。
+macOS arm64、Linux amd64/arm64 和 Windows amd64 完整发行包包含两种后端。Windows arm64 只提供原生浮层：当前发行工具链没有对应的 Qt6 MinGW 构建。原生包中选择精美浮层会报告组件缺失。
 
 在目标系统和架构上安装 CMake >= 3.24、Python >= 3.9、C++17 编译器以及匹配的 Qt 开发库：
 

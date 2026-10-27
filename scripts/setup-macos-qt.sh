@@ -19,8 +19,8 @@ if [[ -n "${BUILD_JOBS:-}" && ! "$BUILD_JOBS" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 # QCocoaScreen 原生屏幕映射需要 Qt 6.11，不能使用其他平台的 6.8.3。
-if [[ "$(uname -s)" != Darwin ]]; then
-  echo 'Run this script on macOS with Xcode command line tools.' >&2
+if [[ "$(uname -s)" != Darwin || "$(uname -m)" != arm64 ]]; then
+  echo 'Run this script on Apple Silicon macOS with Xcode command line tools.' >&2
   exit 1
 fi
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,10 +43,8 @@ toolchain_id="$({
   shasum -a 256 < "${BASH_SOURCE[0]}"; shasum -a 256 < "$script_dir/qt-build-paths.py"
 } | shasum -a 256 | cut -d ' ' -f 1)"
 # 依赖清单中有与本脚本一致的预编译 SDK 时直接使用；缓存键随包内容变化。
-goarch="$arch"
-[[ "$arch" == x86_64 ]] && goarch=amd64
 status=0
-pack="$(python3 "$script_dir/native-deps.py" resolve qt darwin "$goarch")" || status=$?
+pack="$(python3 "$script_dir/native-deps.py" resolve qt darwin arm64)" || status=$?
 if (( status == 0 )); then
   toolchain_id="prebuilt-$pack"
 elif (( status != 3 )); then
@@ -58,7 +56,7 @@ if [[ "${1:-}" == --cache-info ]]; then
 fi
 if [[ "$toolchain_id" == prebuilt-* && "$(cat "$prefix/.complete" 2>/dev/null)" != "$toolchain_id" ]]; then
   python3 "$script_dir/qt-build-paths.py" reset "$prefix" "$work"
-  python3 "$script_dir/native-deps.py" fetch qt darwin "$goarch" "$prefix"
+  python3 "$script_dir/native-deps.py" fetch qt darwin arm64 "$prefix"
   printf '%s\n' "$toolchain_id" > "$prefix/.complete"
 fi
 if [[ ! -f "$prefix/.complete" || "$(cat "$prefix/.complete")" != "$toolchain_id" ]]; then

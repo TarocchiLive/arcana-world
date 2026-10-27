@@ -1,4 +1,4 @@
-//go:build windows && (386 || amd64 || arm64)
+//go:build windows && (amd64 || arm64)
 
 package native
 
@@ -46,7 +46,7 @@ var (
 	winMonitorCallback    = syscall.NewCallback(winCollectMonitor)
 )
 
-// 指针大小字段使用原生对齐，与 386、amd64 和 arm64 的 Win32 结构布局一致。
+// 指针大小字段使用原生对齐，与 amd64 和 arm64 的 Win32 结构布局一致。
 type winPoint struct{ X, Y int32 }
 type winRect struct{ Left, Top, Right, Bottom int32 }
 type winSize struct{ Width, Height int32 }

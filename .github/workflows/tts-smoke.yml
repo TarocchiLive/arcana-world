@@ -65,20 +65,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 平台组合与 ci.yml 的桌面构建一致；Intel macOS 与 32 位 Windows 使用官方 CPU 运行库。
+        # 平台组合与 ci.yml 的桌面构建一致。
         include:
           - os: ubuntu-24.04
             goarch: amd64
           - os: ubuntu-24.04-arm
             goarch: arm64
-          - os: macos-15-intel
-            goarch: amd64
           - os: macos-15
             goarch: arm64
           - os: windows-latest
             goarch: amd64
-          - os: windows-latest
-            goarch: '386'
           - os: windows-11-arm
             goarch: arm64
     runs-on: ${{ matrix.os }}

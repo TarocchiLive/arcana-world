@@ -2,6 +2,8 @@
 
 这份指南面向自行编译的用户和贡献者。普通使用请直接下载发行包；快速上手见 [README](../README.md#从源码构建)。
 
+支持 Windows amd64/arm64、Linux amd64/arm64 和 macOS arm64（Apple 芯片）。
+
 所有命令都在**项目根目录**执行。
 
 ## 选择构建目标
@@ -33,7 +35,7 @@ make desktop BUILD_JOBS=8
 make build GOOS=windows GOARCH=amd64 VERSION=v0.4.2
 ```
 
-`overlay-qt`、`desktop` 和 `tts` 需要在与目标一致的系统和架构上构建，不支持交叉编译（Windows x64 上的 `tts` 可以目标 x86）。Windows 的 Qt 构建只支持 amd64，其他架构使用 `desktop-native`。`overlay` 在 Linux 上同样要求本机架构，并会收集运行库。
+`overlay-qt`、`desktop` 和 `tts` 需要在与目标一致的系统和架构上构建。Windows 的 Qt 构建只支持 amd64，arm64 使用 `desktop-native`。`overlay` 在 Linux 上同样要求本机架构，并会收集运行库。
 
 完整参数和各平台工具链要求见 `bash scripts/build.sh --help`。该脚本还支持 `rtmpsrt`，见 [RTMPSRT 运行库](#rtmpsrt-运行库)。
 
@@ -62,7 +64,7 @@ Linux 的 Qt 与 LayerShellQt 可由 `scripts/setup-linux-qt.sh` 准备，macOS�
 - Linux 另需 ALSA 开发库和 `pkg-config`（Debian/Ubuntu：`libasound2-dev pkg-config`），以及 Vulkan loader、`patchelf` 和发行版软件包的许可数据；
 - Windows 使用 MinGW-w64 编译 helper，通过 `TTS_CC`、`TTS_CXX`、`TTS_OBJDUMP` 指定；从源码构建 Windows GPU 运行库还需要 Visual Studio 2022 或 2026 的 C++ 工具。细节见 `bash scripts/build.sh --help`。
 
-语音 helper 的 GPU 运行库支持 macOS 14+ 的 Apple Silicon，以及 Linux、Windows 的 x64 和 ARM64；Intel macOS 和 32 位 Windows 只支持 CPU。
+语音 helper 的 GPU 运行库支持 macOS 14+ 的 Apple Silicon，以及 Linux、Windows 的 x64 和 ARM64。
 
 Linux 部署脚本按 SONAME 打包 `libvulkan.so.1`；若构建环境无法自动定位，可通过 `TTS_VULKAN_LIBRARY=/path/to/libvulkan.so.1` 指定。显卡驱动由运行机器提供，不随包分发。NixOS 更新显卡驱动后，旧构建产物的 glibc 可能无法满足新 Mesa/LLVM 的要求；遇到 `GLIBC_x.y not found` 时，在当前 `nix develop` 环境重新构建语音 helper。
 
@@ -92,8 +94,6 @@ SRT_LIBRARY=/path/to/libsrt.so SRT_LICENSE_DIR=/path/to/licenses bash scripts/bu
 预编译包列在 `scripts/native-deps.json`，该文件不存在时 `auto` 直接从源码构建。`python3 scripts/native-deps.py status` 列出清单中的包以及它们是否与本地脚本匹配。`scripts/build-tts-native.py`、`scripts/tts-native/sources.json` 或 `scripts/tts-native/arcana-webgpu.h` 改动后，对应预编译包即视为过期。
 
 `scripts/setup-*-qt.sh` 准备 Qt SDK 时使用同一份清单和 `NATIVE_DEPS`；对应平台的 setup 脚本或 `scripts/qt-build-paths.py` 改动后，该平台的 Qt 包过期。预编译包由 `.github/workflows/native-deps.yml` 在推送 `native-deps-*` 标签时从源码构建并发布，取回附件中的 `native-deps.json` 提交为 `scripts/native-deps.json` 后生效；发版工作流要求所有包都是最新的，步骤见 [arcana-release](../.agents/skills/arcana-release/SKILL.md)。
-
-Intel macOS（`darwin/amd64`）和 32 位 Windows（`windows/386`）不使用上述流程，直接使用官方 sherpa-onnx 的 CPU 运行库。
 
 ### 下载来源与校验
 
@@ -132,7 +132,7 @@ https_proxy=http://127.0.0.1:7890 http_proxy=http://127.0.0.1:7890 make tts
 
 ## Nix
 
-`flake.nix` 支持 `x86_64-linux`、`aarch64-linux`、`x86_64-darwin`、`aarch64-darwin`。
+`flake.nix` 支持 `x86_64-linux`、`aarch64-linux`、`aarch64-darwin`。
 
 ### 构建包
 

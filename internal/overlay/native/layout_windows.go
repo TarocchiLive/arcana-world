@@ -1,4 +1,4 @@
-//go:build windows && (386 || amd64 || arm64)
+//go:build windows && (amd64 || arm64)
 
 package native
 
@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
+	"github.com/ebitengine/purego"
 	"golang.org/x/sys/windows"
 )
 
@@ -64,7 +65,7 @@ type winMethod[F any] struct {
 func (method *winMethod[F]) bind(object *winCOMObject, slot int) F {
 	address := object.vtable[slot]
 	if method.address != address {
-		winRegisterMethod(&method.call, address)
+		purego.RegisterFunc(&method.call, address)
 		method.address = address
 	}
 	return method.call

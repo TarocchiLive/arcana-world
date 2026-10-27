@@ -19,11 +19,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-15-intel
-            goos: darwin
-            goarch: amd64
-            target: desktop
-            packs: qt
           - os: macos-15
             goos: darwin
             goarch: arm64
