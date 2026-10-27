@@ -53,6 +53,7 @@ func (m *Model) startWebSocket() error {
 		return nil
 	}
 	token, err := m.store.WebSocketToken()
+	m.cacheWebSocketTokenStatus(token != "", err)
 	if err != nil {
 		return err
 	}
@@ -161,6 +162,51 @@ func (m *Model) effectiveWebSocketAddr() string {
 	return m.config.WebSocketAddr
 }
 
+// webSocketTokenStatus 只读取缓存，渲染界面时不访问凭据存储。
+func (m *Model) webSocketTokenStatus() string {
+	if m.websocketTokenState == "" {
+		return i18n.T(i18n.TUISettingsWebSocketTokenLoading)
+	}
+	return i18n.T(m.websocketTokenState)
+}
+
+func (m *Model) cacheWebSocketTokenStatus(set bool, err error) {
+	switch {
+	case err != nil:
+		m.websocketTokenState = i18n.TUISettingsWebSocketTokenUnreadable
+	case set:
+		m.websocketTokenState = i18n.TUISettingsWebSocketTokenSet
+	default:
+		m.websocketTokenState = i18n.TUISettingsWebSocketTokenUnset
+	}
+}
+
+var websocketTokenStatusOperation = operation[bool]{
+	label: i18n.TUIOperationReadWebSocketToken,
+	handle: func(m *Model, set bool, err error, label i18n.Key) tea.Cmd {
+		m.cacheWebSocketTokenStatus(set, err)
+		pending := fmt.Sprintf(i18n.T(i18n.TUIStatusOperationPending), i18n.T(label))
+		if m.status == pending || (m.canceled && m.status == i18n.T(i18n.TUIStatusCancelRequested)) {
+			// 只清除本次读取的进度，保留期间产生的其他提示与通知。
+			m.progressStatus("")
+		}
+		// 仅更新状态，不重置详情页或正在编辑的输入。
+		return nil
+	},
+}
+
+// loadWebSocketTokenStatus 异步读取令牌，只将是否设置带回界面。
+func (m *Model) loadWebSocketTokenStatus() tea.Cmd {
+	cmd := work(m, websocketTokenStatusOperation, func(context.Context) (bool, error) {
+		token, err := m.store.WebSocketToken()
+		return token != "", err
+	})
+	if cmd != nil {
+		m.websocketTokenState = i18n.TUISettingsWebSocketTokenLoading
+	}
+	return cmd
+}
+
 func (m *Model) saveWebSocketAddr(addr string) tea.Cmd {
 	if m.websocketAddr != "" {
 		m.warn(i18n.T(i18n.TUISessionOverride))
@@ -203,6 +249,9 @@ func (m *Model) changeWebSocket(change websocketChange) tea.Cmd {
 }
 
 func (m *Model) handleWebSocketChange(change websocketChange, err error, label i18n.Key) tea.Cmd {
+	if change.enabled && (m.websocket == nil || change.addr != m.effectiveWebSocketAddr()) {
+		m.cacheWebSocketTokenStatus(change.token != "", err)
+	}
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
@@ -262,6 +311,7 @@ func (m *Model) handleWebSocketTokenResult(token string, err error, label i18n.K
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
+	m.cacheWebSocketTokenStatus(token != "", nil)
 	if m.websocket != nil {
 		m.websocket.SetToken(token)
 	}

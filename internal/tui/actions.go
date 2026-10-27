@@ -60,22 +60,7 @@ func (m *Model) menu() []menuItem {
 	case overlayPage, ttsPage:
 		return m.outputMenu()
 	case settingsPage:
-		return []menuItem{
-			{toggleLabel(i18n.T(i18n.DanmakuToggle), !m.config.DanmakuDisabled), "chat-toggle"},
-			{toggleLabel(i18n.T(i18n.DanmakuOther), m.config.DanmakuShowOther), "chat-other"},
-			{toggleLabel(i18n.T(i18n.TUISettingsWebSocketEnabled), m.webSocketEnabled()), "websocket-toggle"},
-			{i18n.T(i18n.TUISettingsWebSocketAddr) + " · " + m.effectiveWebSocketAddr(), "websocket-addr"},
-			{i18n.T(i18n.TUISettingsWebSocketToken), "websocket-token"},
-			{toggleLabel(i18n.T(i18n.TUISettingsExitOBSStop), !m.config.ExitOBSStopDisabled), "exit-obs-stop"},
-			{toggleLabel(i18n.T(i18n.TUISettingsExitLiveStop), !m.config.ExitLiveStopDisabled), "exit-live-stop"},
-			{i18n.T(i18n.LumenTheme) + " · " + m.themeName(), "theme"},
-			{i18n.T(i18n.LumenAppearance), "appearance"},
-			{i18n.T(i18n.DanmakuLimit) + " · " + strconv.Itoa(m.config.DanmakuLimit), "chat-limit"},
-			{i18n.T(i18n.TUIMenuSetProxy), "proxy"},
-			{i18n.T(i18n.TUIMenuSetProtocol), "protocol"},
-			{i18n.T(i18n.TUISettingsReset), "settings-reset-confirm"},
-			{i18n.T(i18n.TUISettingsClearData), "clear-data"},
-		}
+		return m.settingsMenu()
 	case helpPage:
 		return []menuItem{
 			{i18n.T(i18n.TUIHelpGettingStartedTitle), "help:" + string(i18n.TUIHelpGettingStarted)},
@@ -94,6 +79,9 @@ func (m *Model) activate() tea.Cmd {
 	items := m.menu()
 	if len(items) == 0 {
 		return nil
+	}
+	if m.page == settingsPage {
+		m.settingsPageOffset = m.view.YOffset()
 	}
 	m.cursors[m.page] = min(m.cursors[m.page], len(items)-1)
 	return m.perform(items[m.cursors[m.page]].action)
@@ -170,6 +158,8 @@ func (m *Model) perform(action string) tea.Cmd {
 		return work(m, deleteOperation(), func(ctx context.Context) (app.AccountOutcome, error) { return m.session.Delete(ctx, client, uid) })
 	}
 	switch action {
+	case "websocket":
+		return m.openSettingsDetail("websocket")
 	case "websocket-toggle":
 		return m.toggleWebSocket()
 	case "websocket-addr":
@@ -183,7 +173,7 @@ func (m *Model) perform(action string) tea.Cmd {
 	case "theme":
 		return m.pickTheme()
 	case "appearance":
-		return m.pickAppearance()
+		return m.openSettingsDetail("appearance")
 	case "settings-reset-confirm":
 		return m.confirm(i18n.T(i18n.TUISettingsResetConfirm), "settings-reset")
 	case "settings-reset":
@@ -439,8 +429,8 @@ func (m *Model) choose() tea.Cmd {
 	if m.editKind == "output-events" {
 		return m.toggleOutputEvent(ch.value)
 	}
-	if m.editKind == "appearance" {
-		return m.toggleAppearance(ch.value)
+	if m.editKind == "settings-detail" {
+		return m.chooseSettingsDetail()
 	}
 	if m.editKind == "tts-settings" {
 		m.mode = ""

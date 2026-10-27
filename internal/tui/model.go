@@ -123,6 +123,10 @@ type Model struct {
 	previewing               bool
 	page                     int
 	cursors                  [pageCount]int
+	settingsDetail           string
+	settingsDetailSelected   int
+	settingsPageOffset       int
+	websocketTokenState      i18n.Key
 	width, height            int
 	mode, editKind, prompt   string
 	input                    textinput.Model
@@ -520,6 +524,9 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 				logger.Info("operation cancel requested", "id", m.operation)
 				m.canceled = true
 				m.cancel()
+				if m.settingsDetail != "" {
+					return m, m.modalKey(msg)
+				}
 				if m.mode == "members" {
 					m.closeRoomMembers()
 				}
@@ -677,6 +684,17 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.updateSelection(msg)
 	}
 	key := msg.String()
+	if key == "esc" && m.settingsDetail != "" {
+		m.input.SetValue("")
+		m.input.Blur()
+		if m.mode == "pick" && m.editKind == "settings-detail" {
+			m.settingsDetail = ""
+			m.mode = ""
+			m.view.SetYOffset(m.settingsPageOffset)
+			return nil
+		}
+		return m.showSettingsDetail()
+	}
 	if m.mode == "chat-history-range" || m.mode == "chat-history" {
 		return m.chatHistoryKey(msg)
 	}
@@ -710,7 +728,11 @@ func (m *Model) modalKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.pendingAccount = nil
 		m.input.SetValue("")
 		m.input.Blur()
-		m.view.GotoTop()
+		if m.page == settingsPage {
+			m.view.SetYOffset(m.settingsPageOffset)
+		} else {
+			m.view.GotoTop()
+		}
 		m.clearOverlayAppearancePreview()
 		return nil
 	}

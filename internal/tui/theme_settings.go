@@ -44,19 +44,6 @@ func (m *Model) pickTheme() tea.Cmd {
 	return cmd
 }
 
-func (m *Model) appearanceChoices() []choice {
-	return []choice{
-		{toggleLabel(i18n.T(i18n.LumenMotion), !m.config.TUIMotionDisabled), "motion"},
-		{toggleLabel(i18n.T(i18n.LumenCompactHeader), m.config.TUICompactHeader), "compact-header"},
-		{toggleLabel(i18n.T(i18n.LumenWarningsOnly), m.config.TUINotificationsWarningsOnly), "warnings-only"},
-	}
-}
-
-func (m *Model) pickAppearance() tea.Cmd {
-	m.choices = m.appearanceChoices()
-	return m.pick("appearance", i18n.T(i18n.LumenAppearance))
-}
-
 func (m *Model) toggleAppearance(id string) tea.Cmd {
 	cfg := m.config
 	switch id {

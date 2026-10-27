@@ -65,7 +65,13 @@ func (m *Model) finishResult() tea.Cmd {
 	if m.web.enabled {
 		return nil
 	}
+	if m.settingsDetail != "" && (m.mode != "pick" || m.editKind != "settings-detail") {
+		return m.showSettingsDetail()
+	}
 	m.view.SetContent(m.content())
+	if m.page == settingsPage && m.mode == "" {
+		m.view.SetYOffset(m.settingsPageOffset)
+	}
 	return nil
 }
 

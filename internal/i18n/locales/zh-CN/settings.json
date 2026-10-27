@@ -1,0 +1,22 @@
+{
+  "settings.group_chat": "弹幕",
+  "settings.group_live": "直播与退出",
+  "settings.group_appearance": "外观与连接",
+  "settings.footer": "%s · ↑↓ 选择 · Tab/←→ 切页 · z 缩放 · 0 帮助 · q 退出",
+  "settings.detail_footer": "%s · ↑↓ 选择 · Esc 返回",
+  "settings.hint_toggle": "Enter 切换",
+  "settings.hint_edit": "Enter 编辑",
+  "settings.hint_choose": "Enter 选择",
+  "settings.hint_open": "Enter 打开详情",
+  "settings.hint_confirm": "Enter 确认操作",
+  "settings.websocket_title": "WebSocket 广播",
+  "settings.websocket_state": "运行状态",
+  "settings.websocket_running": "运行中",
+  "settings.websocket_stopped": "已关闭",
+  "settings.websocket_waiting": "启动失败",
+  "settings.websocket_token_loading": "读取中",
+  "settings.websocket_token_set": "已设置",
+  "settings.websocket_token_unset": "未设置",
+  "settings.websocket_token_unreadable": "无法读取",
+  "settings.read_websocket_token": "读取 WebSocket 令牌状态"
+}

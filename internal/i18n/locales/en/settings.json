@@ -1,0 +1,22 @@
+{
+  "settings.group_chat": "Chat",
+  "settings.group_live": "Streaming & exit",
+  "settings.group_appearance": "Appearance & connections",
+  "settings.footer": "%s · ↑↓ select · Tab/←→ pages · z zoom · 0 help · q quit",
+  "settings.detail_footer": "%s · ↑↓ select · Esc back",
+  "settings.hint_toggle": "Enter toggle",
+  "settings.hint_edit": "Enter edit",
+  "settings.hint_choose": "Enter choose",
+  "settings.hint_open": "Enter details",
+  "settings.hint_confirm": "Enter confirm",
+  "settings.websocket_title": "WebSocket broadcast",
+  "settings.websocket_state": "Runtime status",
+  "settings.websocket_running": "Running",
+  "settings.websocket_stopped": "Disabled",
+  "settings.websocket_waiting": "Start failed",
+  "settings.websocket_token_loading": "Loading",
+  "settings.websocket_token_set": "Set",
+  "settings.websocket_token_unset": "Not set",
+  "settings.websocket_token_unreadable": "Unavailable",
+  "settings.read_websocket_token": "Read WebSocket token status"
+}

@@ -65,10 +65,6 @@ func (m *Model) handleAppearanceResult(_ struct{}, err error, label i18n.Key) te
 	if cmd, failed := m.resultError(label, err); failed {
 		return cmd
 	}
-	// 仅刷新仍打开的菜单，不重新进入已被 Esc 关闭的选择器。
-	if m.mode == "pick" && m.editKind == "appearance" {
-		m.choices = m.appearanceChoices()
-	}
 	m.log(i18n.T(i18n.TUILogSettingsSaved))
 	return m.finishResult()
 }

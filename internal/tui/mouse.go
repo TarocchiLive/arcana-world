@@ -210,6 +210,13 @@ func (m *Model) rebuildMouseTargets(l workspaceLayout, content string) {
 				x += width
 			}
 		}
+		if m.page == settingsPage {
+			_, positions := m.settingsPageRows(m.view.Width())
+			for i, y := range positions {
+				row(y, "action", i, tea.KeyPressMsg{})
+			}
+			return
+		}
 		items := m.menu()
 		if m.page != chatPage && len(items) > 0 {
 			// pageContent 以操作行及一个换行符结束。

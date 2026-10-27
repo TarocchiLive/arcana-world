@@ -104,7 +104,15 @@ func (m *Model) modalContent() string {
 		window := m.pickerWindow()
 		start := max(0, m.selected-window+1)
 		end := min(len(m.choices), start+window)
+		var settings []settingsRow
+		if m.editKind == "settings-detail" {
+			settings = m.settingsRows(m.settingsDetail)
+		}
 		for i := start; i < end; i++ {
+			if settings != nil {
+				rows = append(rows, m.settingsRowView(settings[i], width, i == m.selected))
+				continue
+			}
 			text := m.choices[i].label
 			if m.editKind == "output-events" {
 				text = m.outputEventLabel(m.choices[i])
@@ -125,8 +133,15 @@ func (m *Model) modalContent() string {
 		if len(m.choices) > 0 {
 			position = max(1, min(m.selected+1, len(m.choices)))
 		}
-		rows = append(rows, lipgloss.NewStyle().PaddingTop(1).
-			Render(m.theme.hintText(strings.TrimSpace(fmt.Sprintf(i18n.T(controls), position, len(m.choices))), width)))
+		if settings != nil {
+			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(fmt.Sprintf(i18n.T(i18n.TUISettingsDetailFooter), i18n.T(m.settingsHint())), width)))
+			if m.settingsDetail == "websocket" {
+				rows = append(rows, m.theme.hintText(i18n.T(i18n.TUISettingsWebSocketState)+": "+m.settingsWebSocketState(), width))
+			}
+		} else {
+			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).
+				Render(m.theme.hintText(strings.TrimSpace(fmt.Sprintf(i18n.T(controls), position, len(m.choices))), width)))
+		}
 		if m.editKind == "overlay-backend" {
 			rows = append(rows, lipgloss.NewStyle().PaddingTop(1).Render(m.theme.hintText(i18n.T(i18n.TUIOverlayBackendHelp), width)))
 		}

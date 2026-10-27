@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"net/url"
 	"strings"
 
 	"arcana-world/internal/i18n"
@@ -89,16 +88,8 @@ func (m *Model) pageContent(width int) string {
 		field(i18n.LumenVolume, fmt.Sprintf("%d%%", m.config.TTS.Volume))
 		note(i18n.T(i18n.LumenTTSHint))
 	case settingsPage:
-		title(i18n.TUISettingsTitle)
-		proxy := m.config.Proxy
-		if proxy == "" {
-			proxy = i18n.T(i18n.TUISettingsSystemProxy)
-		} else if u, e := url.Parse(proxy); e == nil && u.User != nil {
-			u.User = url.User("***")
-			proxy = u.String()
-		}
-		field(i18n.LumenProxy, clean(proxy))
-		field(i18n.LumenProtocol, m.config.Protocol)
+		content, _ := m.settingsPageRows(width)
+		return m.theme.paintSurface(m.theme.textStyle.Width(width).Render(content), m.theme.surfaceColor)
 	case logsPage:
 		title(i18n.TUILogsTitle)
 		b.WriteString(m.theme.hintText(clean(m.journal.Path()), width) + "\n\n")

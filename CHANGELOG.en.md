@@ -4,6 +4,12 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+- Group terminal settings into chat, streaming and exit, and appearance and connections, with names and current values in separate columns. Keep reset and data clearing actions at the bottom.
+- Move theme selection into appearance details. Group the WebSocket switch, runtime status, listen address, and token presence in one detail view; return there after editing and preserve the selection.
+- Show contextual controls for each setting, with keyboard selection, mouse clicks, and scrolling in narrow windows.
+
 ## [v0.4.4]: 2026-10-25
 
 Fix Edge online speech and Kokoro GPU synthesis, and bundle the missing Linux speech runtime dependency. The terminal adds a zoom mode for viewing the current page with more space.

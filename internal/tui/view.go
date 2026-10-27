@@ -43,6 +43,13 @@ func (m *Model) footerText() string {
 	default:
 		key = i18n.LumenFooterBack
 	}
+	if !m.busy && !m.obsBusy && ((m.mode == "" && m.page == settingsPage) || (m.mode == "pick" && m.editKind == "settings-detail")) {
+		format := i18n.TUISettingsFooter
+		if m.mode != "" {
+			format = i18n.TUISettingsDetailFooter
+		}
+		return fmt.Sprintf(i18n.T(format), i18n.T(m.settingsHint()))
+	}
 	if m.mode != "confirm" && (m.busy || (m.obsBusy && m.mode == "")) {
 		key = i18n.LumenFooterBusy
 	}
