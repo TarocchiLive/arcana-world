@@ -70,7 +70,8 @@ qtbin = Path(output(qtpaths, "--query", "QT_INSTALL_BINS"))
 version = output(qtpaths, "--query", "QT_VERSION")
 series = ".".join(version.split(".")[:2])
 qt_source_url = f"https://download.qt.io/archive/qt/{series}/{version}/submodules/qtbase-everywhere-src-{version}.tar.xz"
-(root / "qt.conf").write_text("[Paths]\nPrefix=.\nPlugins=plugins\nLibraries=.\n", encoding="utf-8")
+if sys.platform != "darwin":
+    (root / "qt.conf").write_text("[Paths]\nPrefix=.\nPlugins=plugins\nLibraries=.\n", encoding="utf-8")
 
 licenses = root / "licenses"
 licenses.mkdir(exist_ok=True)
@@ -95,6 +96,9 @@ else:
                     data = source.extractfile(member)
                     if data is not None:
                         (licenses / Path(member.name).name).write_bytes(data.read())
+if sys.platform == "darwin":
+    for path in [licenses, *licenses.rglob("*")]:
+        path.chmod(0o755 if path.is_dir() else 0o644)
 (licenses / "SOURCE.txt").write_text(
     f"Qt source: {qt_source_url}\n"
     + ("LayerShellQt source: https://download.kde.org/stable/plasma/6.3.6/\n" if sys.platform.startswith("linux") else "")
@@ -187,9 +191,14 @@ else:
     # 只部署实际使用的插件，避免图片、主题等插件拉入 WebEngine 等无关模块。
     if sys.platform == "darwin":
         plugin_names = ["platforms/libqcocoa.dylib"]
+        bundle = root / "Arcana World Elegant Overlay.app"
+        frameworks = bundle / "Contents/Frameworks"
+        frameworks.mkdir(parents=True, exist_ok=True)
+        plugin_root = bundle / "Contents/PlugIns"
         # 自编译 SDK 只部署 Cocoa；重复打包时不保留旧图片或主题插件。
         shutil.rmtree(root / "plugins", ignore_errors=True)
     elif sys.platform.startswith("linux"):
+        plugin_root = root / "plugins"
         # Qt 6.8 使用 qwayland-generic，较新版本改名为 qwayland；均支持光栅绘制。
         wayland = next((name for name in (
             "platforms/libqwayland-generic.so", "platforms/libqwayland.so"
@@ -207,35 +216,30 @@ else:
                        if (directory / name).is_file()), plugins / name)
         if not source.is_file():
             raise SystemExit(f"Missing runtime plugin: {source}")
-        destination = root / "plugins" / name
+        destination = plugin_root / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         # Nix store 的文件只读；重新部署时替换副本，避免继承权限阻止覆盖。
         destination.unlink(missing_ok=True)
         shutil.copy2(source, destination)
         deployed_plugins.append(destination)
     if sys.platform == "darwin":
-        # 私有应用包提供真实 Dock 名称；主程序继续通过原 helper 路径启动。
+        # 主程序直接启动应用包内的 helper；运行库和插件均封装在同一包内。
         helper = root / "arcana-world-overlay-qt"
-        bundle = root / "Arcana World Elegant Overlay.app"
         executable_dir = bundle / "Contents/MacOS"
         resources = bundle / "Contents/Resources"
         executable_dir.mkdir(parents=True, exist_ok=True)
         resources.mkdir(parents=True, exist_ok=True)
         executable = executable_dir / helper.name
-        if helper.is_symlink():
-            if helper.resolve() != executable.resolve() or not executable.is_file():
-                raise SystemExit(f"Invalid deployed helper symlink: {helper}")
-            helper.unlink()
-        else:
-            helper.replace(executable)
+        helper.replace(executable)
+        library = frameworks / "libawqt.dylib"
+        (root / library.name).replace(library)
         shutil.copy2(Path(__file__).resolve().parent.parent / "internal/overlay/qt/Info.plist",
                      bundle / "Contents/Info.plist")
         # macOS 的 Prefix 相对于应用包 Contents，而非配置文件所在的 Resources。
-        (resources / "qt.conf").write_text("[Paths]\nPrefix=../..\nPlugins=plugins\nLibraries=.\n", encoding="utf-8")
-        helper.symlink_to(executable.relative_to(root))
-        queue = [root / "libawqt.dylib", executable] + deployed_plugins
+        (resources / "qt.conf").write_text("[Paths]\nPrefix=.\nPlugins=PlugIns\nLibraries=Frameworks\n", encoding="utf-8")
+        queue = [library, executable] + deployed_plugins
         seen = set()
-        copied = {root / "libawqt.dylib"}
+        copied = {library}
         copied_frameworks = set()
         def resolve(name, binary):
             if name.startswith("@loader_path/"):
@@ -244,7 +248,7 @@ else:
                 return executable_dir / name.removeprefix("@executable_path/")
             if name.startswith("@rpath/"):
                 relative = name.removeprefix("@rpath/")
-                candidates = [qtlibs / relative, root / relative]
+                candidates = [frameworks / relative, qtlibs / relative, root / relative]
                 commands = output("otool", "-l", str(binary))
                 for value in re.findall(r"cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset", commands):
                     value = value.replace("@loader_path", str(binary.parent)).replace("@executable_path", str(executable_dir))
@@ -258,8 +262,12 @@ else:
             seen.add(binary)
             binary.chmod(binary.stat().st_mode | 0o200)
             dependencies = output("otool", "-L", str(binary)).splitlines()[1:]
+            # otool -L 的首项可能是 dylib 自身的安装名，不是待复制的依赖。
+            install_names = output("otool", "-D", str(binary)).splitlines()[1:]
             for line in dependencies:
                 name = line.strip().split(" (compatibility", 1)[0]
+                if name in install_names:
+                    continue
                 if name.startswith(("/System/", "/usr/lib/")):
                     continue
                 source = Path(os.path.normpath(resolve(name, binary)))
@@ -268,7 +276,7 @@ else:
                 if ".framework/" in str(source):
                     prefix, rest = str(source).split(".framework/", 1)
                     framework = Path(prefix + ".framework")
-                    destination = root / framework.name
+                    destination = frameworks / framework.name
                     if destination not in copied_frameworks and framework != destination:
                         if destination.exists():
                             shutil.rmtree(destination)
@@ -282,7 +290,7 @@ else:
                     copied_frameworks.add(destination)
                     dest = destination / rest
                 else:
-                    dest = root / source.name
+                    dest = frameworks / source.name
                     if dest not in copied and source != dest:
                         dest.unlink(missing_ok=True)
                         shutil.copy2(source, dest)
@@ -292,13 +300,25 @@ else:
                 if dest.resolve() != binary.resolve():
                     queue.append(dest)
             if binary.suffix == ".dylib" or ".framework/" in str(binary):
-                run("install_name_tool", "-id", "@rpath/" + str(binary.relative_to(root)), str(binary))
+                run("install_name_tool", "-id", "@rpath/" + os.path.relpath(binary, frameworks), str(binary))
             # 依赖均已改为 loader 相对路径，不再泄漏 SDK/Homebrew 的绝对搜索路径。
             commands = output("otool", "-l", str(binary))
             for value in re.findall(r"cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset", commands):
                 if value.startswith("/"):
                     run("install_name_tool", "-delete_rpath", value, str(binary))
             run("strip", "-S", str(binary))
+        # 在签名前验证最终加载路径，任何包外依赖都使部署失败。
+        for binary in seen:
+            install_names = output("otool", "-D", str(binary)).splitlines()[1:]
+            for line in output("otool", "-L", str(binary)).splitlines()[1:]:
+                name = line.strip().split(" (compatibility", 1)[0]
+                if name in install_names:
+                    continue
+                if name.startswith(("/System/", "/usr/lib/")):
+                    continue
+                dependency = resolve(name, binary).resolve()
+                if not dependency.is_relative_to(bundle) or not dependency.is_file():
+                    raise SystemExit(f"Dependency outside application bundle: {binary}: {name}\nResolved path: {dependency}")
         # 改写加载路径后重新做临时签名，支持 Apple Silicon。
         for binary in seen:
             run("codesign", "--force", "--sign", "-", str(binary))

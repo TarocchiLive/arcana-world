@@ -154,7 +154,7 @@ go build -o bin/libexec/arcana-world-overlay-native.exe ./cmd/arcana-world-overl
 
 ## 精美浮层构建与运行库
 
-精美浮层内部使用 Qt Widgets，对应 `libexec/arcana-world-overlay-qt`；原生浮层对应 `libexec/arcana-world-overlay-native`，Windows 均加 `.exe`。两种 helper 共用 v4 协议，拒绝与主程序选择不符的后端。用户只需启动 `arcana-world`。
+精美浮层内部使用 Qt Widgets，Linux、Windows 对应 `libexec/arcana-world-overlay-qt`，macOS 对应 `libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`；原生浮层对应 `libexec/arcana-world-overlay-native`，Windows 均加 `.exe`。两种 helper 共用 v4 协议，拒绝与主程序选择不符的后端。用户只需启动 `arcana-world`。
 
 macOS amd64/arm64、Linux amd64/arm64 和 Windows amd64 完整发行包包含两种后端。Windows 386、arm64 保留原生包：当前发行工具链没有对应的 Qt6 MinGW 构建。原生包中选择精美浮层会明确报告组件缺失，不会自动切换成原生浮层。
 
@@ -168,13 +168,22 @@ macOS amd64/arm64、Linux amd64/arm64 和 Windows amd64 完整发行包包含两
 
 `make overlay-qt` 构建并部署精美浮层 helper。部署脚本将 Qt 插件及间接动态库依赖复制到 `libexec`，改写 macOS/Linux 加载路径，并对修改后的 macOS 二进制重新临时签名。Windows 只部署 `qwindows.dll` 和实际依赖的 Qt、MinGW DLL，第三方许可合并保存在 `libexec/licenses/THIRD_PARTY_NOTICES.txt`，源码地址见同目录的 `SOURCE.txt`。Linux 包含 LayerShellQt 和 Wayland 客户端依赖，但使用系统的 glibc、内核、显示服务和显卡驱动。移动或打包时必须保留整个目录。
 
-macOS helper 位于私有 `Arcana World Elegant Overlay.app/Contents/MacOS` 中，外层 helper 名称是相对符号链接。主程序在启动及枚举显示器前解析真实路径，使系统读取应用包中的产品名和初始后台策略；运行中仍可切换 Dock 显示。独立调试时应直接运行 `./bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`（路径需加引号），避免通过符号链接启动丢失应用身份。
+macOS 的 Qt helper 位于 `libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`。Qt 运行库位于应用包的 `Contents/Frameworks`，平台插件位于 `Contents/PlugIns/platforms`，`qt.conf` 位于 `Contents/Resources`。主程序启动及枚举显示器时直接使用包内可执行文件，系统读取应用包中的产品名和初始后台策略；运行中仍可切换 Dock 显示。
 
 Linux 发行包的两种浮层均使用 Wayland。精美浮层使用真正的 LayerShellQt surface，要求合成器提供 layer-shell；GNOME/Mutter 不受支持。
 
 Linux 便携包包含两种浮层所需的动态库、XKB 数据和字体配置，直接运行无需手工设置库路径。字体仍使用系统或用户安装的字体；显式设置的 `XKB_CONFIG_ROOT`、`FONTCONFIG_FILE` 和 `FONTCONFIG_PATH` 会保留。
 
-独立演示：`./bin/libexec/arcana-world-overlay-qt -demo -duration 30s`。`-demo`、`-clock`、`-stdin` 互斥。`-unlocked` 允许拖动，`-reduced-motion` 关闭动效；两项仅用于独立精美浮层，不能与受管理的 `-socket` 模式组合。精美浮层不创建菜单栏／托盘图标或右键菜单。
+独立演示：
+
+```sh
+# macOS
+"./bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt" -demo -duration 30s
+# Linux；Windows 使用同名 .exe
+./bin/libexec/arcana-world-overlay-qt -demo -duration 30s
+```
+
+`-demo`、`-clock`、`-stdin` 互斥。`-unlocked` 允许拖动，`-reduced-motion` 关闭动效；两项仅用于独立精美浮层，不能与受管理的 `-socket` 模式组合。精美浮层不创建菜单栏／托盘图标或右键菜单。
 
 精美外观参数不带后端品牌前缀：`-align`、`-history-scale`、`-latest-scale`、`-line-spacing`、`-message-spacing`、`-history-alpha`、`-max-messages`、`-max-lines`、`-gradient`、`-accent-start`、`-accent-end`、`-radius`、`-border-alpha`、`-shadow`、`-animation`、`-animation-ms`、`-animation-distance`、`-idle-hide`、`-idle-seconds`。精美 helper 的 `-help` 列出取值范围，主程序管理模式使用保存设置。
 

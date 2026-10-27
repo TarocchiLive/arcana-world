@@ -41,6 +41,15 @@ Arcana World 是一款基于 Go 的 bilibili 直播姬 + 弹幕姬。
 
 从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载对应平台的包，如 arcana-world-windows-amd64.zip，完整解压后运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`）。主程序按已保存的默认界面启动，未设置时使用终端界面。Windows 用户也可运行同目录的 `arcana-world-webui.exe`，直接打开浏览器界面。
 
+macOS：确认下载来源可信后，在终端进入解压后的发行包根目录，先移除整个包的隔离标记，再启动：
+
+```sh
+xattr -dr com.apple.quarantine .
+./arcana-world
+```
+
+升级并完整替换发行包后，也需重新执行。只在系统设置中允许主程序运行，语音 helper 仍可能被拦截而无法出声。详见包内的 `看我.txt`（[在线版](docs/看我-macos.txt)）。
+
 ### Windows（Scoop）
 
 ```powershell

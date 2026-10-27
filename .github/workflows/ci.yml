@@ -84,7 +84,9 @@ jobs:
         run: |
           "./bin/arcana-world${{ matrix.suffix }}" -help
           "./bin/libexec/arcana-world-overlay-native${{ matrix.suffix }}" -help
-          if [[ "$RUNNER_OS" != Windows || "$GOARCH" == amd64 ]]; then
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            "./bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt" -help
+          elif [[ "$RUNNER_OS" != Windows || "$GOARCH" == amd64 ]]; then
             "./bin/libexec/arcana-world-overlay-qt${{ matrix.suffix }}" -help
           fi
           "./bin/libexec/arcana-world-tts${{ matrix.suffix }}" -help
@@ -100,21 +102,64 @@ jobs:
           tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
             -C bin -cf - arcana-world libexec LICENSE | xz -T2 -6 > "dist/arcana-world-linux-${GOARCH}.tar.xz"
           (cd dist && sha256sum -- *.tar.xz > checksums.txt)
+      - name: Package macOS verification bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp LICENSE bin/
+          cp docs/看我-macos.txt bin/看我.txt
+          gtar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+            -C bin -cf - arcana-world libexec LICENSE 看我.txt | xz -T2 -6 > "dist/arcana-world-darwin-${GOARCH}.tar.xz"
+          (cd dist && shasum -a 256 -- *.tar.xz > checksums.txt)
       - uses: actions/upload-artifact@v7
-        if: runner.os == 'Linux'
+        if: runner.os != 'Windows'
         with:
           name: desktop-${{ runner.os }}-${{ matrix.goarch }}
           path: dist/*
           compression-level: 0
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
-        if: runner.os != 'Linux'
+        if: runner.os == 'Windows'
         with:
           name: desktop-${{ runner.os }}-${{ matrix.goarch }}
           path: |
             bin/arcana-world*
             bin/libexec/
           include-hidden-files: true
+
+  verify-macos:
+    needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            goarch: arm64
+          - os: macos-15-intel
+            goarch: amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: desktop-macOS-${{ matrix.goarch }}
+          path: artifact
+      - name: Verify extracted macOS bundle
+        shell: bash
+        env:
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          (cd artifact && shasum -a 256 -c checksums.txt)
+          bundle="$(mktemp -d "$RUNNER_TEMP/arcana-world.XXXXXX")"
+          tar -xJf "artifact/arcana-world-darwin-${GOARCH}.tar.xz" -C "$bundle"
+          cd "$bundle"
+          test -z "$(find . -type l -print)"
+          app="libexec/Arcana World Elegant Overlay.app"
+          codesign --verify --strict "$app"
+          ./arcana-world -help
+          ./libexec/arcana-world-overlay-native -help
+          ./libexec/arcana-world-tts -help
+          "$app/Contents/MacOS/arcana-world-overlay-qt" -demo -duration 2s
 
   # 本地 Nix 环境与 Ubuntu 工具链默认参数不同，单独构建完整 flake 包。
   nix:

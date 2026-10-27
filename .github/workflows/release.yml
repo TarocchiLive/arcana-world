@@ -90,6 +90,10 @@ jobs:
           if [[ "$GOOS" == windows ]]; then
             cp docs/看我.txt package/
             (cd package && 7z a -tzip -mx=9 "../dist/${archive}.zip" arcana-world.exe arcana-world-webui.exe libexec LICENSE 看我.txt)
+          elif [[ "$GOOS" == darwin ]]; then
+            cp docs/看我-macos.txt package/看我.txt
+            "$tar_tool" --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+              -C package -cf - arcana-world libexec LICENSE 看我.txt | xz -T2 -6 > "dist/${archive}.tar.xz"
           else
             "$tar_tool" --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
               -C package -cf - arcana-world libexec LICENSE | xz -T2 -6 > "dist/${archive}.tar.xz"
@@ -171,7 +175,8 @@ jobs:
                       "Windows x86 / ARM64 包仅提供原生浮层；Wayland 精美浮层需要合成器支持 layer-shell。\n\n"
                       "## 快速开始\n\n"
                       "1. 下载并解压与你的系统和架构匹配的压缩包。\n"
-                      "2. Windows 运行 `arcana-world.exe`；macOS / Linux 在终端运行 `./arcana-world`。\n"
+                      "2. Windows 运行 `arcana-world.exe`；Linux 在终端运行 `./arcana-world`。"
+                      "macOS 确认下载来源可信后，在解压目录运行 `xattr -dr com.apple.quarantine .`，再运行 `./arcana-world`。\n"
                       "3. 按提示登录账号。Windows 可运行 `arcana-world-webui.exe` 打开浏览器界面；"
                       "其他平台可在设置中选择 WebUI，默认地址为 http://127.0.0.1:5273。\n"
                   )
@@ -184,7 +189,9 @@ jobs:
                       "Windows x86 / ARM64 packages provide only the native overlay; the styled overlay on Wayland requires layer-shell.\n\n"
                       "## Quick start\n\n"
                       "1. Download and extract the archive for your system and architecture.\n"
-                      "2. On Windows, run `arcana-world.exe`; on macOS / Linux, run `./arcana-world` in a terminal.\n"
+                      "2. On Windows, run `arcana-world.exe`; on Linux, run `./arcana-world` in a terminal. "
+                      "On macOS, after confirming that you trust the download source, run `xattr -dr com.apple.quarantine .` "
+                      "from the extracted directory, then run `./arcana-world`.\n"
                       "3. Follow the prompts to sign in. On Windows, run `arcana-world-webui.exe` for the browser interface; "
                       "on other platforms, select WebUI in settings. The default address is http://127.0.0.1:5273.\n"
                   )

@@ -109,6 +109,9 @@ def deploy(destination):
             elif sys.platform.startswith("linux"):
                 run("patchelf", "--set-rpath", "$ORIGIN", path)
         shutil.copytree(notices, root / "licenses/srt")
+        if sys.platform == "darwin":
+            for path in [root / "licenses/srt", *(root / "licenses/srt").rglob("*")]:
+                path.chmod(0o755 if path.is_dir() else 0o644)
         publish(root, destination, MANIFEST)
 
 

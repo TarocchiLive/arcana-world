@@ -154,7 +154,7 @@ The `-socket` option shown in help is used when the main program manages the ove
 
 ## Elegant overlay build and runtime
 
-Elegant overlay uses Qt Widgets internally. Its helper is `libexec/arcana-world-overlay-qt` (`.exe` on Windows); the native helper is `libexec/arcana-world-overlay-native`. Both use protocol v4 and reject a host selecting the other backend. The only program users need to launch is `arcana-world`.
+Elegant overlay uses Qt Widgets internally. Its helper is `libexec/arcana-world-overlay-qt` on Linux and Windows, and `libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt` on macOS. The native helper is `libexec/arcana-world-overlay-native`; Windows executables add `.exe`. Both use protocol v4 and reject a host selecting the other backend. The only program users need to launch is `arcana-world`.
 
 Full release bundles include both backends on macOS amd64/arm64, Linux amd64/arm64, and Windows amd64. Windows 386 and arm64 retain native-only bundles because the release toolchain has no matching Qt6 MinGW build. Selecting Elegant overlay in a native-only bundle reports the missing component; it never falls back to native.
 
@@ -168,13 +168,25 @@ When `scripts/native-deps.json` lists a prebuilt SDK made from the same setup sc
 
 `make overlay-qt` builds and deploys the Elegant helper. Deployment copies Qt plugins and the transitive shared-library dependencies into `libexec`, rewrites macOS/Linux loader paths, and ad-hoc signs modified macOS binaries. Windows ships only `qwindows.dll` and required Qt and MinGW DLLs. Third-party notices are combined in `libexec/licenses/THIRD_PARTY_NOTICES.txt`, with source links in the adjacent `SOURCE.txt`. Linux bundles LayerShellQt and Wayland client dependencies but uses the system's glibc, kernel, display server, and graphics drivers. Preserve the entire directory when moving or archiving the program.
 
-On macOS the helper resides in a private `Arcana World Elegant Overlay.app/Contents/MacOS` bundle; the outer helper name is a relative symbolic link. The main program resolves the real path before launch and display enumeration so macOS reads the product name and initial background policy. Dock visibility can still change at runtime. For standalone debugging, execute `"./bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt"` directly; launching through the symbolic link loses the application identity.
+On macOS the Qt helper resides at `libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`. Qt libraries reside in `Contents/Frameworks`, platform plugins in `Contents/PlugIns/platforms`, and `qt.conf` in `Contents/Resources`. The main program uses the executable inside the bundle for launch and display enumeration, so macOS reads the product name and initial background policy. Dock visibility can still change at runtime.
 
 Both overlays in Linux release bundles use Wayland. Elegant overlay uses real LayerShellQt surfaces and requires a compositor exposing layer-shell; GNOME/Mutter is unsupported.
 
 Linux portable bundles include the shared libraries, XKB data, and font configuration needed by both overlays, without manual library-path setup. Fonts come from system or user installations; explicit `XKB_CONFIG_ROOT`, `FONTCONFIG_FILE`, and `FONTCONFIG_PATH` settings are preserved.
 
-For a standalone preview, run `./bin/libexec/arcana-world-overlay-qt -demo -duration 30s`. `-demo`, `-clock`, and `-stdin` are mutually exclusive. `-unlocked` permits dragging; `-reduced-motion` disables motion. Both options are standalone Elegant-overlay options, not managed `-socket` options. Elegant overlay creates no menu-bar/system-tray icon or context menu.
+For a standalone preview on macOS:
+
+```sh
+"./bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt" -demo -duration 30s
+```
+
+On Linux (add `.exe` on Windows):
+
+```sh
+./bin/libexec/arcana-world-overlay-qt -demo -duration 30s
+```
+
+`-demo`, `-clock`, and `-stdin` are mutually exclusive. `-unlocked` permits dragging; `-reduced-motion` disables motion. Both options are standalone Elegant-overlay options, not managed `-socket` options. Elegant overlay creates no menu-bar/system-tray icon or context menu.
 
 Elegant appearance flags are backend-neutral: `-align`, `-history-scale`, `-latest-scale`, `-line-spacing`, `-message-spacing`, `-history-alpha`, `-max-messages`, `-max-lines`, `-gradient`, `-accent-start`, `-accent-end`, `-radius`, `-border-alpha`, `-shadow`, `-animation`, `-animation-ms`, `-animation-distance`, `-idle-hide`, and `-idle-seconds`. Run the Elegant helper with `-help` for ranges. Managed mode uses saved settings instead.
 

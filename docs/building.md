@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | `make build` | `bin/arcana-world`（Windows 为 `bin/arcana-world.exe`，同时生成 `bin/arcana-world-webui.exe`） | 只构建终端主程序，不依赖 CGO，不需要图形或语音依赖 |
 | `make overlay` | `bin/libexec/arcana-world-overlay-native` | 原生浮层 helper |
-| `make overlay-qt` | `bin/libexec/arcana-world-overlay-qt` 及 Qt 运行库 | 精美浮层 helper，只能在目标系统本机构建 |
+| `make overlay-qt` | Linux、Windows：`bin/libexec/arcana-world-overlay-qt`；macOS：`bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`；另含 Qt 运行库 | 精美浮层 helper，只能在目标系统本机构建 |
 | `make tts` | `bin/libexec/arcana-world-tts` 及语音运行库 | 语音 helper |
 | `make desktop` | 主程序加上述三个 helper | 完整桌面包 |
 | `make desktop-native` | 主程序、原生浮层、语音 helper | 不含 Qt；会移除此前构建留下的 Qt 文件 |
@@ -197,15 +197,18 @@ make clean
 ./bin/arcana-world
 ```
 
-Windows 为 `bin/arcana-world.exe`。主程序从自身所在目录的 `libexec/` 查找 helper（Windows 加 `.exe`）：
+Windows 为 `bin/arcana-world.exe`。主程序从自身所在目录的 `libexec/` 查找 helper（Windows 加 `.exe`），macOS 的 Qt helper 直接使用应用包内路径：
 
 | 文件 | 来源 |
 | --- | --- |
 | `bin/libexec/arcana-world-overlay-native` | `make overlay`、`desktop`、`desktop-native` |
-| `bin/libexec/arcana-world-overlay-qt` | `make overlay-qt`、`desktop` |
+| `bin/libexec/arcana-world-overlay-qt`（Linux、Windows） | `make overlay-qt`、`desktop` |
+| `bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`（macOS） | `make overlay-qt`、`desktop` |
 | `bin/libexec/arcana-world-tts` | `make tts`、`desktop`、`desktop-native` |
 
 `libexec` 里的运行库和 `.arcana-*-files.json` 清单由部署脚本维护，请保持目录完整，搬迁时整体移动。重复构建会清理已移除的依赖；清单缺失的旧输出目录请换一个新的 `OUT_DIR`。
+
+macOS 的 Qt 应用包内，Qt 运行库在 `Contents/Frameworks`，平台插件在 `Contents/PlugIns/platforms`，`qt.conf` 在 `Contents/Resources`。发行包附带双语 `看我.txt`；确认来源可信后，在解压后的包根目录执行 `xattr -dr com.apple.quarantine .`，再执行 `./arcana-world`。每次升级完整替换包后重复此操作；只允许主程序运行，语音 helper 仍可能被系统拦截。
 
 Linux 语音 helper 在初始化 GPU 时，通过 Vulkan Loader 的 [`VK_ADD_DRIVER_FILES`](https://github.com/KhronosGroup/Vulkan-Loader/blob/main/docs/LoaderDriverInterface.md#additional-driver-discovery) 追加存在的 `/run/opengl-driver/share/vulkan/icd.d`，使便携包也能发现 NixOS 系统驱动。标准驱动搜索和过滤规则保持不变；已有追加路径保留且优先，显式设置 `VK_DRIVER_FILES` 或 `VK_ICD_FILENAMES` 时完全沿用用户配置。设置仅作用于语音 helper，不改变主程序环境。显卡驱动仍由系统提供。
 

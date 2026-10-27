@@ -107,8 +107,12 @@ func runDoctor(ctx context.Context, out io.Writer, dir string, options store.Opt
 	// 已知缺失的前置条件才会成为阻断问题。
 	overlayRequired := overlayOverride != nil && *overlayOverride
 	ttsRequired := ttsOverride != nil && *ttsOverride
-	r.helper("overlay", "arcana-world-overlay-"+string(overlayBackend), overlayExecutable, overlayRequired)
-	r.helper("tts", "arcana-world-tts", "", ttsRequired)
+	r.helper("overlay", overlayExecutable, overlayRequired, func(executable string) (string, error) {
+		return overlay.BundledExecutablePath(executable, overlayBackend)
+	})
+	r.helper("tts", "", ttsRequired, func(executable string) (string, error) {
+		return helperpath.Installed(executable, "arcana-world-tts")
+	})
 	r.graphics(overlayRequired)
 	r.audio(ttsRequired)
 	if ctx.Err() != nil {
@@ -193,14 +197,14 @@ func doctorAutoReason(mode string) string {
 	return " explicitly"
 }
 
-func (r *doctorReport) helper(topic, name, explicit string, required bool) {
+func (r *doctorReport) helper(topic, explicit string, required bool, resolve func(string) (string, error)) {
 	path := explicit
 	var err error
 	if path == "" {
 		var executable string
 		executable, err = os.Executable()
 		if err == nil {
-			path, err = helperpath.Installed(executable, name)
+			path, err = resolve(executable)
 		}
 	} else {
 		path, err = filepath.Abs(path)

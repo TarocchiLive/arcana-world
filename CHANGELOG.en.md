@@ -9,6 +9,8 @@ Versions are listed newest first.
 - Group terminal settings into chat, streaming and exit, and appearance and connections, with names and current values in separate columns. Keep reset and data clearing actions at the bottom.
 - Move theme selection into appearance details. Group the WebSocket switch, runtime status, listen address, and token presence in one detail view; return there after editing and preserve the selection.
 - Show contextual controls for each setting, with keyboard selection, mouse clicks, and scrolling in narrow windows.
+- Bundle the macOS Elegant overlay, Qt libraries, and Cocoa plugin inside one application; diagnostics and startup use the same helper path.
+- Include macOS first-run instructions and writable license files so download quarantine can be removed from the whole package.
 
 ## [v0.4.4]: 2026-10-25
 

@@ -33,7 +33,7 @@ git ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}"
 
 命名为 `arcana-world-<goos>-<goarch>`，macOS 的 `goos` 是 `darwin`。当前共七个发行包，另有 `checksums.txt`；以后工作流改变时，以实际矩阵为准。
 
-发行包应包含主程序、`libexec/arcana-world-overlay-native`、`libexec/arcana-world-tts` 和 `LICENSE`；完整包另含 `libexec/arcana-world-overlay-qt`，Windows 可执行文件带 `.exe`。当前工作流还会提交 GitHub 构建来源证明，不要将其误算成必须存在的额外下载附件。
+发行包应包含主程序、`libexec/arcana-world-overlay-native`、`libexec/arcana-world-tts` 和 `LICENSE`；完整包另含 Qt helper。Linux、Windows 使用 `libexec/arcana-world-overlay-qt`，Windows 可执行文件带 `.exe`。macOS 使用 `libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`；Qt 运行库位于应用包的 `Contents/Frameworks`，平台插件位于 `Contents/PlugIns/platforms`，`qt.conf` 位于 `Contents/Resources`，发行包根目录另附双语 `看我.txt`。当前工作流还会提交 GitHub 构建来源证明，不要将其误算成必须存在的额外下载附件。
 
 ## 检查 Release 状态与正文
 
@@ -71,7 +71,17 @@ gh release download "$TAG" --repo "$REPO" \
 
 1. 在 `checksums.txt` 中找到与 `ASSET` 完全同名的记录。
 2. 用宿主支持的 SHA-256 工具计算下载文件的哈希并比较：macOS 可用 `shasum -a 256`，Linux 可用 `sha256sum`，Windows 可用 `Get-FileHash -Algorithm SHA256`。只计算、不比较不能算通过。
-3. 校验后解压到独立目录，检查路径完整、主程序版本等于目标版本、TTS helper 帮助正常；在不注入开发环境库路径的情况下实际打开两种浮层，检查中文显示、内容更新和正常退出。
+3. 校验后解压到独立目录，检查路径完整。macOS 需在解压后的发行包根目录先为每个普通文件添加隔离标记，模拟浏览器下载，再按包内 `看我.txt` 的说明移除：
+
+   ```sh
+   find . -type f -exec xattr -w com.apple.quarantine "0081;$(printf %x "$(date +%s)");Safari;" {} +
+   xattr -dr com.apple.quarantine .
+   ./arcana-world
+   ```
+
+   添加和移除隔离标记的命令均须退出码为 0，且没有错误输出。仅对独立解压的验证目录执行这些命令；升级包也重复此流程。`gh release download` 是否附带隔离标记取决于实际环境，不应假定它能重现浏览器下载行为。手工设置扩展属性只覆盖这一模拟场景，不能据此声称已完成真实浏览器下载或 Gatekeeper 验证。
+
+   检查主程序版本等于目标版本、TTS helper 帮助正常。在不注入开发环境库路径的情况下，通过主程序分别启动原生浮层、精美浮层及语音播报，检查浮层中文显示、内容更新和正常退出，并实际听到语音。macOS 还需检查浮层初始不显示 Dock 图标；精美浮层运行中切换「在 Dock 中显示」立即生效，显示名称与 `Info.plist` 中的 `CFBundleDisplayName` 一致。只在系统设置中允许主程序运行时，语音 helper 仍可能被拦截。
 4. 不能运行本机不支持的平台包，也不能把这一项冒烟验证写成全部平台的运行验证。
 5. 保留必要结果记录，移除不再需要的下载、解压和临时脚本。不要删除用户原有文件。
 

@@ -40,6 +40,15 @@ Native support for Windows, Linux, and macOS.
 
 Download the [latest release](https://github.com/TarocchiLive/arcana-world/releases/latest) for your platform, such as `arcana-world-windows-amd64.zip`, and extract the entire archive. Run `arcana-world` at its root (`arcana-world.exe` on Windows) to use your saved default interface, or the terminal interface if none is set. Windows users can also run `arcana-world-webui.exe` in the same directory to open the browser interface directly.
 
+On macOS, only for a download you trust, open a terminal in the extracted release folder and remove quarantine from the entire package before launching:
+
+```sh
+xattr -dr com.apple.quarantine .
+./arcana-world
+```
+
+Repeat this after replacing the full package for an upgrade. Approving only the main executable in System Settings may leave the speech helper blocked and silent. See `看我.txt` in the package ([online copy](docs/看我-macos.txt)).
+
 ### Windows (Scoop)
 
 ```powershell

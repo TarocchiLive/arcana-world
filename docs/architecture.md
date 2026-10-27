@@ -26,13 +26,16 @@
 
 ### 安装位置
 
-helper 位于主程序旁的 `libexec/` 目录。`internal/helperpath` 先对主程序路径解析符号链接，再拼出 `<主程序目录>/libexec/<名称>`（Windows 加 `.exe`）：
+helper 位于主程序旁的 `libexec/` 目录。`internal/helperpath` 先对主程序路径解析符号链接，再定位 helper；Windows 的可执行文件加 `.exe`，macOS 的 Qt helper 使用应用包内路径：
 
 | 路径 | 内容 |
 | --- | --- |
 | `libexec/arcana-world-overlay-native` | 原生浮层 |
-| `libexec/arcana-world-overlay-qt` | 精美浮层（macOS 位于应用包内，外层为符号链接） |
+| `libexec/arcana-world-overlay-qt` | Linux、Windows 的精美浮层 |
+| `libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt` | macOS 的精美浮层 |
 | `libexec/arcana-world-tts` | 语音 helper，及其运行库 |
+
+macOS 的 Qt 运行库位于该应用包的 `Contents/Frameworks`，平台插件位于 `Contents/PlugIns/platforms`，`qt.conf` 位于 `Contents/Resources`。主程序直接启动应用包内的可执行文件。
 
 `arcana-world-webui.exe` 与 `arcana-world.exe` 同级，不在 `libexec`。`models/tts/` 同样在主程序旁，由 `internal/tts/models` 管理。构建目标与产物对应关系见 [从源码构建](building.md) 和 `scripts/build.sh`。
 

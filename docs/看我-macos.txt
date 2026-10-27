@@ -1,0 +1,26 @@
+macOS 启动说明
+
+请完整解压发行包并保持目录结构。仅对来源可信的下载执行以下操作：
+在终端进入解压后的发行包根目录（包含 arcana-world 的目录），依次运行：
+
+xattr -dr com.apple.quarantine .
+./arcana-world
+
+第一条命令移除整个包的下载隔离标记，包括浮层、语音 helper 和运行库。
+只在系统设置中允许主程序运行，语音 helper 仍可能被拦截，导致没有声音。
+升级时请完整替换发行包，并在新的包根目录重新执行上述命令。
+
+macOS launch instructions
+
+Extract the entire release archive and keep its directory structure. Only follow
+these steps for a download you trust. In a terminal, enter the extracted release
+folder (the one containing arcana-world), then run:
+
+xattr -dr com.apple.quarantine .
+./arcana-world
+
+The first command removes download quarantine from the entire package, including
+the overlay and speech helpers and their libraries. Approving only the main
+executable in System Settings may leave the speech helper blocked and silent.
+For each upgrade, replace the full package and repeat these commands in the new
+release folder.

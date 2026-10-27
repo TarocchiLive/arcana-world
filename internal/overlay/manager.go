@@ -62,15 +62,26 @@ type Manager struct {
 	cancel context.CancelFunc
 }
 
-// 按真实安装目录定位，避免工作目录或启动器符号链接改变 helper 来源。
-func bundledExecutable(executable string, backend Backend) (string, error) {
+// BundledExecutablePath 按真实安装目录定位辅助程序，但不检查辅助程序是否存在。
+// macOS Qt 必须从私有应用包内启动；其他后端保留 libexec 平铺布局。
+func BundledExecutablePath(executable string, backend Backend) (string, error) {
 	backend, err := backend.Normalize()
 	if err != nil {
 		return "", err
 	}
-	path, err := helperpath.Installed(executable, "arcana-world-overlay-"+string(backend))
+	name := "arcana-world-overlay-" + string(backend)
+	path, err := helperpath.Installed(executable, bundledHelperName(name, backend))
 	if err != nil {
 		return "", fmt.Errorf("overlay: resolving application path: %w", err)
+	}
+	return path, nil
+}
+
+// 检查随包辅助程序，但保留应用包内路径，不解析辅助程序的符号链接。
+func bundledExecutable(executable string, backend Backend) (string, error) {
+	path, err := BundledExecutablePath(executable, backend)
+	if err != nil {
+		return "", err
 	}
 	info, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -82,12 +93,7 @@ func bundledExecutable(executable string, backend Backend) (string, error) {
 	if !info.Mode().IsRegular() {
 		return "", fmt.Errorf("overlay: bundled executable %q is not a regular file; extract the complete portable package again", path)
 	}
-	// 使用真实 helper 路径启动，保证 macOS 能识别私有应用包的名称与激活策略。
-	resolved, err := canonicalExecutable(path)
-	if err != nil {
-		return "", fmt.Errorf("overlay: resolving bundled executable: %w", err)
-	}
-	return resolved, nil
+	return path, nil
 }
 
 func canonicalExecutable(name string) (string, error) {

@@ -42,6 +42,7 @@ def notices(root, source):
     target = root / "licenses/tts"
     target.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source / "LICENSE", target / "sherpa-onnx-LICENSE")
+    (target / "sherpa-onnx-LICENSE").chmod(0o644)
     # ORT 1.28.2 是官方 Go CPU 二进制使用的运行库；保留其第三方归属，内容按固定摘要校验。
     supplied = os.environ.get("TTS_LICENSE_DIR")
     for name in ("onnxruntime-LICENSE", "onnxruntime-ThirdPartyNotices.txt"):
@@ -202,6 +203,10 @@ def main():
                 shutil.copy2(path, staging / path.name)
             (staging / path.name).chmod(0o755)
     notices(staging, source)
+    if goos == "darwin":
+        # 原生依赖包也可能携带只读许可证，确保用户能清除下载隔离属性。
+        for path in [staging / "licenses", *(staging / "licenses").rglob("*")]:
+            path.chmod(0o755 if path.is_dir() else 0o644)
     binaries = [path for path in staging.iterdir() if path.is_file()]
     if goos == "darwin":
         macos(staging, binaries)
