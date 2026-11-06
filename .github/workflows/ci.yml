@@ -93,8 +93,9 @@ jobs:
         run: |
           mkdir -p dist
           cp LICENSE bin/
+          cp -R extensions bin/
           tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
-            -C bin -cf - arcana-world libexec LICENSE | xz -T2 -6 > "dist/arcana-world-linux-${GOARCH}.tar.xz"
+            -C bin -cf - arcana-world libexec extensions LICENSE | xz -T2 -6 > "dist/arcana-world-linux-${GOARCH}.tar.xz"
           (cd dist && sha256sum -- *.tar.xz > checksums.txt)
       - name: Package macOS verification bundle
         if: runner.os == 'macOS'

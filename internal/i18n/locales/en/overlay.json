@@ -6,7 +6,7 @@
   "overlay.ui.show_in_dock": "Show in Dock",
   "overlay.ui.show_in_taskbar": "Show in taskbar",
   "overlay.ui.taskbar_inactive": "inactive on this platform",
-  "overlay.ui.taskbar_unavailable": "Dock/taskbar visibility is supported only on macOS and Windows. The saved preference is retained but inactive on Linux (X11 and Wayland). Wayland still uses layer-shell.",
+  "overlay.ui.taskbar_unavailable": "Dock/taskbar visibility is supported only on macOS and Windows. Linux keeps the saved preference but does not use it.",
   "overlay.ui.qt_text": "Elegant overlay text",
   "overlay.ui.qt_panel": "Elegant overlay panel",
   "overlay.ui.qt_motion": "Elegant overlay motion",

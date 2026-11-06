@@ -1,0 +1,7 @@
+{
+  "uuid": "arcana-overlay@arcana-world",
+  "name": "Arcana World Elegant Overlay",
+  "description": "GNOME Wayland window bridge for the Arcana World Elegant Qt overlay",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "version": 2
+}

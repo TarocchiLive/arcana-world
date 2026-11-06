@@ -6,7 +6,7 @@ if(APPLE)
     find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Widgets)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # 每窗口 layer-shell 集成需要 Qt 6.5。
-    find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets)
+    find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets DBus)
 else()
     # QWindowsScreen 从 Qt 6.7 起提供原生显示器句柄。
     find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Widgets)
@@ -29,7 +29,7 @@ else()
     find_package(LayerShellQt 6.3 REQUIRED)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
-    target_link_libraries(awqt PRIVATE LayerShellQt::Interface PkgConfig::WAYLAND_CLIENT)
+    target_link_libraries(awqt PRIVATE LayerShellQt::Interface PkgConfig::WAYLAND_CLIENT Qt6::DBus)
     target_sources(awqt PRIVATE platform_linux.cpp)
     set_target_properties(awqt PROPERTIES INSTALL_RPATH "$ORIGIN")
     # 供 Go 链接和部署读取实际依赖目录，不写入安装后的运行时搜索路径。

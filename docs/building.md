@@ -51,9 +51,47 @@ make build GOOS=windows GOARCH=amd64 VERSION=v0.4.2
 
 ### 浮层
 
-原生浮层和精美浮层的平台依赖、Qt SDK 准备方式见 [Arcana World Overlay：构建与启动](../cmd/arcana-world-overlay/README.md#构建与启动) 和[精美浮层构建与运行库](../cmd/arcana-world-overlay/README.md#精美浮层构建与运行库)。Linux 上构建浮层还需要 `patchelf`、`pkg-config` 和 xkeyboard-config 数据。
+#### 原生浮层
 
-Linux 的 Qt 与 LayerShellQt 可由 `scripts/setup-linux-qt.sh` 准备，macOS、Windows 对应 `scripts/setup-macos-qt.sh`、`scripts/setup-windows-qt.sh`；各脚本的 `--help` 列出可配置项。
+| 平台 | 依赖 |
+| --- | --- |
+| macOS | Xcode Command Line Tools |
+| Linux | Wayland、Pango/Cairo 开发库、`pkg-config`、`patchelf`、xkeyboard-config 数据 |
+| Windows | 只需 Go |
+
+Debian/Ubuntu 安装 Linux 依赖：
+
+```sh
+sudo apt-get install libwayland-dev libpango1.0-dev libcairo2-dev pkg-config python3 patchelf xkb-data fontconfig-config
+```
+
+Windows 可直接用 Go 构建：
+
+```powershell
+go build -o bin/libexec/arcana-world-overlay-native.exe ./cmd/arcana-world-overlay
+```
+
+#### 精美浮层
+
+精美浮层基于 Qt Widgets，需在目标系统和架构上构建。各平台都需要 CMake >= 3.24、Python >= 3.9、C++17 编译器和 Qt 开发库，Qt 可由 `scripts/setup-*-qt.sh` 准备：
+
+| 平台 | 额外依赖 | Qt 准备 |
+| --- | --- | --- |
+| macOS | Xcode Command Line Tools、`brew install cmake ninja` | `source scripts/setup-macos-qt.sh`，准备 Qt 6.11.0 |
+| Linux | Qt >= 6.5（Core/Gui/Widgets/WaylandClient/DBus）、LayerShellQt >= 6.3、Wayland 开发库、`patchelf` | `scripts/setup-linux-qt.sh`，准备 Qt 6.8.3 和 LayerShellQt 6.3.6 |
+| Windows amd64 | MSYS2 UCRT64 的 GCC、CMake、Ninja、Python，以及 curl、tar、原生 Windows amd64 Go | 在 UCRT64 shell 中 `source scripts/setup-windows-qt.sh`，准备 Qt 6.8.3 |
+
+- macOS 也可使用现成的 Qt >= 6.11（稳定的原生显示器 ID 需要这一版本）：`CMAKE_PREFIX_PATH` 指向安装前缀，`QTPATHS` 指向 `bin/qtpaths`。
+- Linux 的 DBus 组件用于 [GNOME 精美浮层](gnome-overlay.md)。`setup-linux-qt.sh` 通过 apt 和 sudo 安装构建依赖；发行包在 Ubuntu 24.04 上用它构建，以保持 glibc 基线。非 CI 环境需将安装前缀设为 `CMAKE_PREFIX_PATH`，把其 `bin` 加入 PATH，并将 `QTPATHS` 指向 `bin/qtpaths`。
+- Windows 的 Qt 与 cgo 必须使用同一套 UCRT64 编译器，不可混用 MSVC Qt。Windows arm64 没有对应的 Qt6 MinGW 构建，只提供原生浮层。
+
+macOS 和 Windows 脚本会设置后续构建所需的环境变量。`QT_BUILD_PREFIX` 指定 SDK 安装目录，`BUILD_JOBS` 指定编译并发数，`--help` 列出全部选项。`scripts/native-deps.json` 列出匹配的预编译 SDK 时，脚本直接下载并校验，不在本地编译；选择方式同[语音原生库](#语音原生库)的 `NATIVE_DEPS`。SDK 安装目录和工作目录应为空或由当前脚本创建；工具链或配置变化后，脚本会清理并重建这两个目录，没有归属标记的旧目录会保留，请另选空目录。
+
+#### 运行库部署
+
+`make overlay-qt` 把 Qt 插件和间接依赖的动态库复制到 `libexec`，改写 macOS/Linux 的加载路径，并对修改过的 macOS 二进制重新临时签名。Windows 只部署 `qwindows.dll` 和实际依赖的 Qt、MinGW DLL，第三方许可合并在 `libexec/licenses/THIRD_PARTY_NOTICES.txt`，源码地址见同目录的 `SOURCE.txt`。
+
+Linux 便携包包含两种浮层所需的动态库、XKB 数据和字体配置，无需设置库路径；glibc、内核、显示服务和显卡驱动使用系统提供的版本。显式设置的 `XKB_CONFIG_ROOT`、`FONTCONFIG_FILE` 和 `FONTCONFIG_PATH` 会保留。
 
 ### 语音
 
@@ -217,7 +255,7 @@ Linux 语音 helper 在初始化 GPU 时，通过 Vulkan Loader 的 [`VK_ADD_DRI
 ./bin/arcana-world -doctor
 ```
 
-`-overlay` 启用浮层，`-doctor` 检查配置、凭据存储及可选辅助程序。浮层的启用与调整见 [Arcana World Overlay](../cmd/arcana-world-overlay/README.md#随-arcana-world-启动)，语音见[语音播报说明](../cmd/arcana-world-tts/README.md)。
+`-overlay` 启用浮层，`-doctor` 检查配置、凭据存储及可选辅助程序。浮层的启用与调整见 [Arcana World Overlay](../cmd/arcana-world-overlay/README.md#开启浮层)，语音见[语音播报说明](../cmd/arcana-world-tts/README.md)。
 
 ### 语音冒烟验证
 

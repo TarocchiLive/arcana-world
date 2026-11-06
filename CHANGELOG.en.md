@@ -4,6 +4,10 @@
 
 Versions are listed newest first.
 
+## Unreleased
+
+- Elegant overlay supports GNOME Wayland (45 through 50; 48.7 runtime-tested) through a companion Shell extension; see [GNOME Elegant overlay](docs/gnome-overlay.md) (Chinese). Appearance and animations are unchanged; Native overlay still does not support GNOME Wayland.
+
 ## [v0.4.5]!: 2026-10-27
 
 Add WebSocket chat broadcasting for OBS browser sources and other tools, reorganize terminal settings, and improve macOS portable packages and local speech on NixOS.

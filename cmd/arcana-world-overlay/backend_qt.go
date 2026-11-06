@@ -14,7 +14,7 @@ var listBackendDisplays = qt.ListDisplays
 
 const backendID = overlay.BackendQt
 
-const backendHelp = "Elegant overlay: macOS, Windows and Linux. Wayland requires layer-shell; GNOME/Mutter is unsupported."
+const backendHelp = "Elegant overlay: macOS, Windows and Linux. Wayland requires layer-shell or the Arcana Elegant GNOME Shell extension; no automatic XWayland fallback."
 
 func registerBackendFlags(flags *flag.FlagSet, cfg *overlay.Config) {
 	q := &cfg.Qt
