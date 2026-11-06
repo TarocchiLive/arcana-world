@@ -4,11 +4,20 @@
 
 Versions are listed newest first.
 
-## Unreleased
+## [v0.4.6]: 2026-11-06
+
+Elegant overlay supports GNOME Wayland, taller overlays show more chat, the app hints at new versions at startup, and a Chinese documentation site is now online.
+
+### What's changed
 
 - Elegant overlay supports GNOME Wayland (45 through 50; 48.7 runtime-tested) through a companion Shell extension; see [GNOME Elegant overlay](docs/gnome-overlay.md) (Chinese). Appearance and animations are unchanged; Native overlay still does not support GNOME Wayland.
 - Taller overlay panels show more chat: the overlay takes up to the latest 100 messages, still bounded by the main list's limit, and Elegant overlay's Visible messages limit rises to 100.
 - The terminal UI and WebUI check for updates in the background at startup and show a short hint next to the title when a newer stable release is out; in WebUI, click the hint to open the release page. A failed check does not affect anything else.
+- Add a [documentation site](https://tarocchilive.github.io/arcana-world/) (Chinese) covering installation, quick starts, features, command-line options, and troubleshooting; the README is now a short overview that links to it.
+
+### Upgrade notes
+
+- The overlay helpers changed; replace both the main executable and the `libexec` directory.
 
 ## [v0.4.5]!: 2026-10-27
 
@@ -87,7 +96,7 @@ Add the RTMPSRT streaming protocol: OBS streams to this computer, and Arcana Wor
 
 ### What's changed
 
-- Settings now offers RTMPSRT as a streaming protocol. It works with OBS on this computer and needs the libsrt 1.5 runtime; see the [README](README.en.md#rtmpsrt-streaming) for installation.
+- Settings now offers RTMPSRT as a streaming protocol. It works with OBS on this computer and needs the libsrt 1.5 runtime; see [OBS & streaming](https://tarocchilive.github.io/arcana-world/features/obs) for installation.
 - Before opening the room, the app checks that OBS runs on this computer and libsrt is available, so the room does not go live without a working stream. If Bilibili provides no RTMPSRT URL, the app reports an error.
 - After you stop streaming in OBS, you can start again from OBS directly. Forwarding failures are written to Logs, and a failed retry is reported again.
 - Help now explains that disconnecting OBS or quitting the app stops an RTMPSRT stream.
@@ -569,3 +578,4 @@ See [v0.2.0-rc.1](https://github.com/TarocchiLive/arcana-world/releases/tag/v0.2
 [v0.4.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.3
 [v0.4.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.4
 [v0.4.5]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.5
+[v0.4.6]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.6

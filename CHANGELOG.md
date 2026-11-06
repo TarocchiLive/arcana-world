@@ -4,11 +4,20 @@
 
 版本按时间倒序记录。
 
-## 未发布
+## [v0.4.6]：2026-11-06
+
+精美浮层支持 GNOME Wayland，较高的浮层可显示更多弹幕；启动时提示新版本，并上线中文使用文档站。
+
+### 本次更新
 
 - 精美浮层支持 GNOME Wayland（45 至 50，48.7 已实测），需安装配套 Shell 扩展，详见 [GNOME 精美浮层](docs/gnome-overlay.md)。外观和动效不变，原生浮层仍不支持 GNOME Wayland。
 - 较高的浮层面板可显示更多弹幕：浮层最多取最新 100 条，同时受主列表条数设置限制；精美浮层的「可见消息数」上限提高到 100。
 - 终端界面和 WebUI 启动时在后台检查新版本，发现新的稳定版后在标题旁显示提示；WebUI 中点击提示可打开发布页。检查失败不影响使用。
+- 新增[使用文档](https://tarocchilive.github.io/arcana-world/)，涵盖安装、快速上手、各项功能、命令行参数和常见问题；README 精简为概览并链接到文档。
+
+### 升级提示
+
+- 浮层辅助程序已更新，请完整替换主程序和 `libexec` 目录。
 
 ## [v0.4.5]!：2026-10-27
 
@@ -87,7 +96,7 @@
 
 ### 本次更新
 
-- 「设置」的推流协议新增 RTMPSRT，需配合本机 OBS 和 libsrt 1.5 运行库使用，安装方法见 [README](README.md#rtmpsrt-推流)。
+- 「设置」的推流协议新增 RTMPSRT，需配合本机 OBS 和 libsrt 1.5 运行库使用，安装方法见 [OBS 与推流](https://tarocchilive.github.io/arcana-world/features/obs)。
 - 开播前检查 OBS 是否在本机、libsrt 是否可用，避免直播间开了却推不了流；B 站没有提供 RTMPSRT 地址时直接报错。
 - 在 OBS 中停止推流后，可以直接在 OBS 里重新开始；转发失败会记录到日志，重试再次失败时也会提示。
 - 帮助中说明了 RTMPSRT 下断开 OBS 或退出应用会中断推流。
@@ -569,3 +578,4 @@
 [v0.4.3]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.3
 [v0.4.4]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.4
 [v0.4.5]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.5
+[v0.4.6]: https://github.com/TarocchiLive/arcana-world/releases/tag/v0.4.6
