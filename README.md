@@ -1,24 +1,21 @@
 # Arcana World
 
 <p align="center">
-  <img src="assets/arcana-world.webp" alt="Arcana World 世界塔罗牌图标" width="180">
+  <img src="assets/arcana-world.webp" alt="Arcana World 世界塔罗牌插画" width="220">
 </p>
 
 [![CI](https://github.com/TarocchiLive/arcana-world/actions/workflows/ci.yml/badge.svg)](https://github.com/TarocchiLive/arcana-world/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/TarocchiLive/arcana-world?sort=semver&cacheSeconds=300)](https://github.com/TarocchiLive/arcana-world/releases/latest)
+[![Docs](https://img.shields.io/badge/docs-online-6c4ee0)](https://tarocchilive.github.io/arcana-world/)
 [![QQ](https://img.shields.io/badge/Join-QQ_Group-ff69b4)](https://qm.qq.com/q/TkCteIVlOo)
 
 **中文** · [English](README.en.md)
 
-Arcana World 是一款基于 Go 的 bilibili 直播姬 + 弹幕姬。
+Arcana World 是跨平台的 bilibili 直播姬 + 弹幕姬，支持 Windows、macOS 和 Linux。
 
-支持手机扫码登录，弹幕悬浮窗，语音播报。跨平台。
-
-原生支持Windows、Linux、MacOS。
-
-## 预览
+**[使用文档](https://tarocchilive.github.io/arcana-world/)** · [下载](https://github.com/TarocchiLive/arcana-world/releases/latest) · [常见问题](https://tarocchilive.github.io/arcana-world/reference/troubleshooting)
 
 <p align="center">
   <img src="assets/arcana-world-03.webp" alt="主菜单" width="48%">
@@ -27,93 +24,41 @@ Arcana World 是一款基于 Go 的 bilibili 直播姬 + 弹幕姬。
   <img src="assets/arcana-world-05.webp" alt="弹幕浮层" width="48%">
 </p>
 
-## 功能亮点
+## 功能
 
-- **扫码登录，连接 OBS，然后一键开播**
-- **直播间实时弹幕收发，提供穿透弹幕悬浮窗，不干扰鼠标键盘操作**
-- **弹幕、礼物和 SC 语音播报，支持 Edge、千问、豆包云端语音，以及 MeloTTS、Kokoro、Piper 本地语音**
-- **常态内存占用 40MB，超轻量、超流畅、超稳定**
-- **可选本机 Web 控制面板。**
+- 扫码登录，连接 OBS 后一键开播
+- 实时弹幕收发与观众管理，鼠标可穿透的桌面弹幕浮层
+- 弹幕、礼物和醒目留言语音播报：Edge、千问、豆包云端语音，MeloTTS、Kokoro、Piper 本地语音
+- 终端界面与本机网页面板，常态内存占用约 40 MB
+- WebSocket 弹幕广播，可接入 OBS 浏览器源或自定义脚本
 
 ## 安装
 
-### 快速开始
+从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载对应平台的压缩包，解压后运行 `arcana-world`（Windows 为 `arcana-world.exe`，网页面板为 `arcana-world-webui.exe`）。
 
-从 [最新版本](https://github.com/TarocchiLive/arcana-world/releases/latest) 下载对应平台的包，如 arcana-world-windows-amd64.zip，完整解压后运行根目录的 `arcana-world`（Windows 为 `arcana-world.exe`）。主程序按已保存的默认界面启动，未设置时使用终端界面。Windows 用户也可运行同目录的 `arcana-world-webui.exe`，直接打开浏览器界面。
-
-macOS：确认下载来源可信后，在终端进入解压后的发行包根目录，先移除整个包的隔离标记，再启动：
-
-```sh
-xattr -dr com.apple.quarantine .
-./arcana-world
-```
-
-升级并完整替换发行包后，也需重新执行。只在系统设置中允许主程序运行，语音 helper 仍可能被拦截而无法出声。详见包内的 `看我.txt`（[在线版](docs/看我-macos.txt)）。
-
-### Windows（Scoop）
+也可通过包管理器安装：
 
 ```powershell
+# Windows（Scoop）
 scoop bucket add tarocchilive https://github.com/TarocchiLive/scoop-bucket
 scoop install tarocchilive/arcana-world
 ```
 
-### Debian / Ubuntu（APT）
+Debian / Ubuntu 的 APT 源、macOS 隔离标记处理、升级与卸载见[安装与升级](https://tarocchilive.github.io/arcana-world/guide/install)。
 
-支持 amd64 和 arm64。
-
-```sh
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl
-sudo install -d -m 0755 /etc/apt/keyrings
-curl -fsSL https://tarocchilive.github.io/apt/tarocchilive-archive-keyring.gpg | sudo tee /etc/apt/keyrings/tarocchilive.gpg >/dev/null
-sudo chmod 0644 /etc/apt/keyrings/tarocchilive.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/tarocchilive.gpg] https://tarocchilive.github.io/apt stable main" | sudo tee /etc/apt/sources.list.d/tarocchilive.list
-sudo apt-get update
-sudo apt-get install arcana-world
-```
-
-### 从源码构建
-
-从源码构建需要 Go 1.26.8+ 和对应平台的[浮层构建依赖](docs/building.md#浮层)。`make desktop` 还会构建语音程序，需要 Python 3 和 C 编译器，GPU 运行库优先下载 `scripts/native-deps.json` 中经过校验的预编译包；需要从源码构建时另需 CMake 3.24+、Ninja 和 C++ 编译器。Linux 另需 ALSA 开发库与 `pkg-config`（Debian/Ubuntu：`libasound2-dev pkg-config`）。各平台的编译器要求见 `bash scripts/build.sh --help`：
+## 从源码构建
 
 ```sh
 git clone https://github.com/TarocchiLive/arcana-world.git
 cd arcana-world
-make desktop
-./bin/arcana-world
+make build      # 仅终端主程序，只需 Go 1.26.8+
+make desktop    # 完整桌面包，含浮层和语音辅助程序
 ```
 
-NixOS:
-```sh
-nix build
-./result/bin/arcana-world
-```
-
-构建后运行 `bin/arcana-world`（Windows 为 `bin/arcana-world.exe`）。只需要终端功能时（无浮层、无语音），可使用 `make build`，无需安装图形或语音相关依赖。浮层的平台支持情况见 [Arcana World Overlay](cmd/arcana-world-overlay/README.md#支持的平台)。
-
-## 使用帮助
-
-终端界面按 `0` 查看帮助；Web 面板从顶部「帮助」搜索主题并直接阅读。命令行选项见 `arcana-world --help`。
-
-### RTMPSRT 推流
-
-RTMPSRT 需要 [libsrt](https://github.com/Haivision/srt) 1.5 运行库，不用这个协议就不必安装：
-
-- macOS：`brew install srt`
-- Linux：安装发行版提供的 libsrt 1.5 包，例如 Debian / Ubuntu 的 `libsrt1.5-openssl`
-- Windows：把与主程序架构一致的 `srt.dll` 及其依赖 DLL 放进主程序旁的 `lib` 目录，可用 vcpkg 的 `srt` 包构建
-
-安装后，在「设置」的推流协议中选择 `RTMPSRT`，连接本机 OBS 再开播。OBS 推流到本机地址，由本应用转发给 B 站，所以推流期间要保持应用运行、OBS 保持连接；断开 OBS 或退出应用都会中断推流。B 站没有提供 RTMPSRT 地址时会报错，请停播后改用其他协议。
-
-从源码把运行库打包进发行目录的方法见 `bash scripts/build.sh --help`。
-
-### 语音播报
-
-支持 Edge、千问、豆包在线语音，以及 MeloTTS、Kokoro、Piper 本地语音。在「TTS」页选择语音供应商并打开设置（WebUI 在「输出 → 声音」），试听确认能听到后，再打开语音播报。
-
-Edge 免费，选好音色就能用；千问和豆包需要自己的 API Key；本地语音第一次使用时下载模型，之后不联网也能用。开通方法、手动安装模型和常见问题见[语音播报说明](cmd/arcana-world-tts/README.md)。
+NixOS 使用 `nix build`。浮层和语音的构建依赖见[从源码构建](docs/building.md)，开发约定见[参与开发](https://tarocchilive.github.io/arcana-world/development/)。
 
 ## TODO
+
 - [x] 支持获取 B 站推流直链，自动连接 OBS 并开播。
 - [x] 支持 B 站直播间弹幕抓取，并在 TUI 中浏览礼物和聊天记录。
 - [x] 支持 B 站直播间弹幕浮层。
@@ -132,24 +77,15 @@ Edge 免费，选好音色就能用；千问和豆包需要自己的 API Key；�
 - [x] 可选 WebUI 控制面板。
 - [?] 原生 GUI 支持（待定）。
 
-## 开发
-
-```sh
-make run    # 本地运行
-make check  # 测试与静态检查
-make build  # 构建
-```
-
-翻译词表位于 [`internal/i18n/locales`](internal/i18n/locales)，按语言和模块划分。欢迎通过 [Issue](https://github.com/TarocchiLive/arcana-world/issues) 或 Pull Request 反馈问题、参与改进。
-
 ## 交流与反馈
+
+问题与建议请提交 [Issue](https://github.com/TarocchiLive/arcana-world/issues)，或加入 QQ 群：
 
 <img src="assets/qq_group.webp" alt="QQ群" width="33%">
 
 ## 声明
 
 本项目是独立开发的开源工具。使用者应自行遵守适用的法律法规和平台规则。本项目仅用于学习和交流 Go 及相关框架，请勿用于其他用途。
-
 
 ## 许可证
 
