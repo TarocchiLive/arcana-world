@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.vitepress/cache/
+# 由 npm run sync 从仓库 assets/ 复制
+src/public/images/

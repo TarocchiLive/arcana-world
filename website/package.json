@@ -1,0 +1,14 @@
+{
+  "name": "arcana-world-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "node -e \"const fs=require('fs');fs.rmSync('src/public/images',{recursive:true,force:true});fs.cpSync('../assets','src/public/images',{recursive:true})\"",
+    "dev": "npm run sync && vitepress dev",
+    "build": "npm run sync && vitepress build",
+    "preview": "vitepress preview"
+  },
+  "dependencies": {
+    "vitepress": "^1.6.4"
+  }
+}

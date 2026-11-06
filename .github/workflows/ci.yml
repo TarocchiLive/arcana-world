@@ -3,8 +3,14 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - website/**
+      - .github/workflows/docs.yml
   pull_request:
     branches: [main]
+    paths-ignore:
+      - website/**
+      - .github/workflows/docs.yml
   schedule:
     - cron: '23 6 * * 1'
   workflow_dispatch:
