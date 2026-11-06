@@ -89,8 +89,9 @@ jobs:
             "$tar_tool" --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
               -C package -cf - arcana-world libexec LICENSE 看我.txt | xz -T2 -6 > "dist/${archive}.tar.xz"
           else
+            cp -R extensions package/
             "$tar_tool" --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
-              -C package -cf - arcana-world libexec LICENSE | xz -T2 -6 > "dist/${archive}.tar.xz"
+              -C package -cf - arcana-world libexec extensions LICENSE | xz -T2 -6 > "dist/${archive}.tar.xz"
           fi
       - uses: actions/upload-artifact@v7
         with:

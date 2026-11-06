@@ -6,7 +6,7 @@
   "overlay.ui.show_in_dock": "在 Dock 中显示",
   "overlay.ui.show_in_taskbar": "在任务栏中显示",
   "overlay.ui.taskbar_inactive": "当前平台不生效",
-  "overlay.ui.taskbar_unavailable": "Dock／任务栏显示仅支持 macOS 和 Windows。Linux（X11 和 Wayland）保留已保存的偏好，但不启用此功能；Wayland 仍使用 layer-shell。",
+  "overlay.ui.taskbar_unavailable": "Dock／任务栏显示仅支持 macOS 和 Windows。Linux 保留已保存的偏好，但不启用此功能。",
   "overlay.ui.qt_text": "精美浮层文字",
   "overlay.ui.qt_panel": "精美浮层面板",
   "overlay.ui.qt_motion": "精美浮层动效",

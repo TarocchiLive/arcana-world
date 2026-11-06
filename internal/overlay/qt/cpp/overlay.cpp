@@ -275,6 +275,7 @@ public:
         idle_.setSingleShot(true);
         connect(&idle_, &QTimer::timeout, this, [this] { fadeTo(0, idleFadeOutMS); });
     }
+    ~OverlayWindow() override { awqt::removeWindow(this); }
 
     void apply(const QJsonObject &config, bool unlocked, bool reduced, bool reposition) {
         const bool first = config_.isEmpty();
@@ -784,15 +785,20 @@ extern "C" int awqt_create(const char *json) {
     QJsonObject config;
     if (!parse(json, config) || !ensureApplication()) return 0;
     if (controller || running) { fail(QStringLiteral("Elegant overlay: already created")); return 0; }
+    const QString beginError = awqt::beginWindows(failPolicy);
+    if (!beginError.isEmpty()) { fail(beginError); return 0; }
     controller = new Controller(std::move(config));
     // ready 之前交付首次绘制；不读取桌面，不启动额外渲染循环。
     QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
     for (auto *widget : QApplication::topLevelWidgets())
         if (widget->isVisible()) widget->repaint();
+    const QString placementError = awqt::awaitWindows();
+    if (!placementError.isEmpty()) failPolicy(placementError);
     if (!policyFailure.isEmpty()) {
         fail(policyFailure);
         delete controller;
         controller = nullptr;
+        awqt::endWindows();
         delete application;
         application = nullptr;
         finished = true;
@@ -817,6 +823,7 @@ extern "C" int awqt_run(void) {
         finished = true;
         delete controller;
         controller = nullptr;
+        awqt::endWindows();
         delete application;
         application = nullptr;
     }

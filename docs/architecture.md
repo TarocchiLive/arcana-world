@@ -15,6 +15,7 @@
 
 - 原生浮层：`backend_native.go`（`!qt`），渲染代码在 `internal/overlay/native`，按平台分为 AppKit（`overlay_darwin.go`、`panel_darwin.m`）、Wayland layer-shell（`overlay_linux.go`、`wayland_linux.c`）和 Win32 分层窗口（`overlay_windows.go` 等）。
 - 精美浮层：`backend_qt.go`（`qt` 标签），Go 侧桥接在 `internal/overlay/qt/qt.go`，Qt Widgets 实现在 `internal/overlay/qt/cpp`（`CMakeLists.txt`、`overlay.cpp`、`platform_*.cpp|mm`），编译为 `-lawqt` 库后链接进 helper。
+- GNOME Wayland 精美浮层：`platform_linux.cpp` 通过 Qt DBus 连接 `extensions/gnome/arcana-overlay@arcana-world`。扩展按总线发送者 PID 和窗口令牌识别真实 Qt 窗口，管理位置与层级；内容和动效仍由 Qt 绘制。窗口定位完成后 helper 才确认就绪，扩展停用会终止 helper。原生浮层不经过此通道。
 
 **语音 helper** 带 `tts` 构建标签（`cmd/arcana-world-tts/main.go`、`internal/tts/audio`），本地合成使用 sherpa-onnx，需要 cgo（`internal/tts/meloworker/native.go`：`tts && cgo`）。子命令：
 

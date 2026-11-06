@@ -4,6 +4,10 @@
 
 版本按时间倒序记录。
 
+## 未发布
+
+- 精美浮层支持 GNOME Wayland（45 至 50，48.7 已实测），需安装配套 Shell 扩展，详见 [GNOME 精美浮层](docs/gnome-overlay.md)。外观和动效不变，原生浮层仍不支持 GNOME Wayland。
+
 ## [v0.4.5]!：2026-10-27
 
 新增 WebSocket 弹幕广播，方便连接 OBS 浏览器源和其他工具；重新整理终端设置，并改善 macOS 便携包与 NixOS 语音运行体验。
