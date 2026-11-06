@@ -12,6 +12,9 @@ import (
 // MaxTextBytes 限制单个状态的文本大小；协议另有包含 JSON 转义开销的帧上限。
 const MaxTextBytes = 1024 * 1024
 
+// MaxChatMessages 限制浮层快照携带的弹幕条数；面板实际显示条数由高度和精美浮层的可见消息数决定。
+const MaxChatMessages = 100
+
 // Backend 标识独立渲染进程；空值兼容旧配置并归一化为原生后端。
 type Backend string
 

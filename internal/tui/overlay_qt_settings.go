@@ -23,7 +23,7 @@ var overlayQtGroups = []struct {
 		overlayQtNumberField("qt-line-spacing", i18n.TUIOverlayQtLineSpacing, 0, 32, false, func(s overlay.Settings) float64 { return s.Qt.LineSpacing }, func(s *overlay.Settings, n float64) { s.Qt.LineSpacing = n }),
 		overlayQtNumberField("qt-message-spacing", i18n.TUIOverlayQtMessageSpacing, 0, 64, false, func(s overlay.Settings) float64 { return s.Qt.MessageSpacing }, func(s *overlay.Settings, n float64) { s.Qt.MessageSpacing = n }),
 		overlayQtNumberField("qt-history-alpha", i18n.TUIOverlayQtHistoryAlpha, 0, 1, false, func(s overlay.Settings) float64 { return s.Qt.HistoryAlpha }, func(s *overlay.Settings, n float64) { s.Qt.HistoryAlpha = n }),
-		overlayQtNumberField("qt-max-messages", i18n.TUIOverlayQtMaxMessages, 1, 6, true, func(s overlay.Settings) float64 { return float64(s.Qt.MaxMessages) }, func(s *overlay.Settings, n float64) { s.Qt.MaxMessages = int(n) }),
+		overlayQtNumberField("qt-max-messages", i18n.TUIOverlayQtMaxMessages, 1, overlay.MaxChatMessages, true, func(s overlay.Settings) float64 { return float64(s.Qt.MaxMessages) }, func(s *overlay.Settings, n float64) { s.Qt.MaxMessages = int(n) }),
 		overlayQtNumberField("qt-max-lines", i18n.TUIOverlayQtMaxLines, 1, 12, true, func(s overlay.Settings) float64 { return float64(s.Qt.MaxLines) }, func(s *overlay.Settings, n float64) { s.Qt.MaxLines = int(n) }),
 	}},
 	{"qt-panel", i18n.TUIOverlayQtPanel, []overlaySettingField{

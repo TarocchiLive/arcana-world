@@ -6,11 +6,11 @@ import (
 	"unicode"
 
 	"arcana-world/internal/danmaku"
+	"arcana-world/internal/overlay"
 	"arcana-world/internal/presentation"
 )
 
 const (
-	overlayChatLimit     = 6
 	overlayChatTextLimit = 200
 	overlayTitleLimit    = 200
 )
@@ -51,8 +51,8 @@ func (m *Model) syncOverlayChatSource() {
 	if len(entries) == 0 {
 		return
 	}
-	var lines [overlayChatLimit]string
-	var roles [overlayChatLimit]byte
+	var lines [overlay.MaxChatMessages]string
+	var roles [overlay.MaxChatMessages]byte
 	count := 0
 	for _, event := range entries {
 		if event.Deleted || !presentation.Enabled(m.config.OverlayDisabledEvents, event) {
@@ -73,12 +73,12 @@ func (m *Model) syncOverlayChatSource() {
 		lines[count] = text
 		roles[count] = presentation.OverlayRole(event)
 		count++
-		if count == overlayChatLimit {
+		if count == overlay.MaxChatMessages {
 			break
 		}
 	}
 	var b strings.Builder
-	var orderedRoles [overlayChatLimit]byte
+	var orderedRoles [overlay.MaxChatMessages]byte
 	for i := count - 1; i >= 0; i-- {
 		if b.Len() != 0 {
 			b.WriteByte('\n')

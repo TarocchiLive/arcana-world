@@ -16,7 +16,7 @@
   "overlay.ui.qt_line_spacing": "行间距（0..32 逻辑点）",
   "overlay.ui.qt_message_spacing": "消息间距（0..64 逻辑点）",
   "overlay.ui.qt_history_alpha": "历史文字不透明度倍率（0..1）",
-  "overlay.ui.qt_max_messages": "可见消息数（1..6）",
+  "overlay.ui.qt_max_messages": "可见消息数（1..100）",
   "overlay.ui.qt_max_lines": "单条最多行数（1..12，超出省略）",
   "overlay.ui.qt_align_left": "左对齐",
   "overlay.ui.qt_align_center": "居中对齐",

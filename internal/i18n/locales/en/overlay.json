@@ -16,7 +16,7 @@
   "overlay.ui.qt_line_spacing": "Line spacing (0..32 points)",
   "overlay.ui.qt_message_spacing": "Message spacing (0..64 points)",
   "overlay.ui.qt_history_alpha": "History opacity multiplier (0..1)",
-  "overlay.ui.qt_max_messages": "Visible messages (1..6)",
+  "overlay.ui.qt_max_messages": "Visible messages (1..100)",
   "overlay.ui.qt_max_lines": "Lines per message (1..12, ellipsis)",
   "overlay.ui.qt_align_left": "Align left",
   "overlay.ui.qt_align_center": "Align center",

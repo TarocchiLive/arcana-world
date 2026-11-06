@@ -24,7 +24,7 @@ func registerBackendFlags(flags *flag.FlagSet, cfg *overlay.Config) {
 	flags.Float64Var(&q.LineSpacing, "line-spacing", q.LineSpacing, "Elegant overlay line spacing in logical points (0..32)")
 	flags.Float64Var(&q.MessageSpacing, "message-spacing", q.MessageSpacing, "Elegant overlay message spacing in logical points (0..64)")
 	flags.Float64Var(&q.HistoryAlpha, "history-alpha", q.HistoryAlpha, "Elegant overlay history opacity multiplier (0..1)")
-	flags.IntVar(&q.MaxMessages, "max-messages", q.MaxMessages, "Elegant overlay visible message limit (1..6)")
+	flags.IntVar(&q.MaxMessages, "max-messages", q.MaxMessages, "Elegant overlay visible message limit (1..100)")
 	flags.IntVar(&q.MaxLines, "max-lines", q.MaxLines, "Elegant overlay wrapped lines per message (1..12); overflow ends with an ellipsis; only whole messages fit")
 	flags.BoolVar(&q.Gradient, "gradient", q.Gradient, "Elegant overlay latest message accent gradient")
 	flags.StringVar(&q.AccentStart, "accent-start", q.AccentStart, "Elegant overlay gradient start color (#RRGGBB)")

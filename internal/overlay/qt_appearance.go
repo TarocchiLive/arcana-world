@@ -82,8 +82,8 @@ func (appearance QtAppearance) Normalize() (QtAppearance, error) {
 			return QtAppearance{}, fmt.Errorf("overlay: Elegant overlay %s must be finite and in %g..%g", field.name, field.min, field.max)
 		}
 	}
-	if appearance.MaxMessages < 1 || appearance.MaxMessages > 6 {
-		return QtAppearance{}, fmt.Errorf("overlay: Elegant overlay max_messages must be in 1..6")
+	if appearance.MaxMessages < 1 || appearance.MaxMessages > MaxChatMessages {
+		return QtAppearance{}, fmt.Errorf("overlay: Elegant overlay max_messages must be in 1..%d", MaxChatMessages)
 	}
 	if appearance.MaxLines < 1 || appearance.MaxLines > 12 {
 		return QtAppearance{}, fmt.Errorf("overlay: Elegant overlay max_lines must be in 1..12")

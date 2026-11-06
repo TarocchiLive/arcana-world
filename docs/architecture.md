@@ -53,7 +53,7 @@ flowchart LR
         Listener -->|"History.Append"| DB[("history.db")]
         DB -->|"History.Range"| Chat["tui 弹幕列表<br/>chat.entries"]
         DB -->|"History.Page"| TTSPoll["tui 语音轮询"]
-        Chat --> OverlayText["浮层文字<br/>最近 6 条 + 模板"]
+        Chat --> OverlayText["浮层文字<br/>最近 100 条以内 + 模板"]
         Chat --> TUI["终端界面"]
         Model["tui.Model"] --- TUI
         Model --- Web["webui.Server"]
@@ -136,7 +136,7 @@ flowchart LR
 2. `History` 同时保存原始字节和映射结果，所以改映射规则不会丢数据。库结构升级在 `history_schema.go` 的 `migrateHistory` 中进行，并按保留期清理旧记录。
 3. 界面按 `Revision` 变化回读：
    - **弹幕页列表**：`tui/danmaku.go` 的 `readChat` 用 `History.Range` 读取，经 `chatEventVisible`（显示白名单，见 [弹幕显示白名单](danmaku-whitelist.md)）和 `Blocklist.DisplayMatcher`（全局词，见 [屏蔽词](blocklist.md)）过滤，结果存入 `chat.entries`。历史浏览在 `danmaku_history.go`。
-   - **浮层**：`tui/overlay_chat.go` 不另读历史，直接取 `chat.entries`，再按 `OverlayDisabledEvents` 和 `presentation.TemplateSet.RenderOverlay` 生成最近 6 条文字，经 `publishOverlay` 交给 `overlay.Manager`。
+   - **浮层**：`tui/overlay_chat.go` 不另读历史，直接取 `chat.entries`，再按 `OverlayDisabledEvents` 和 `presentation.TemplateSet.RenderOverlay` 生成最近 `overlay.MaxChatMessages`（100）条以内的文字，经 `publishOverlay` 交给 `overlay.Manager`；面板按高度从最新一条向上显示。
    - **语音**：`tui/tts_control.go` 的 `updateTTS` 用 `History.Page` 读取新序号，经 `presentation.Enabled`（`TTS.DisabledEvents`）和 `Blocklist.TTSMatcher`（全局词加播报词）过滤，用 `RenderTTS` 渲染后 `Enqueue`。
    - **WebUI**：读取同一个 `Model` 的状态（见下文）。
 4. 屏蔽词和白名单只影响显示与播报，不影响入库。
