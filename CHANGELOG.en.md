@@ -7,6 +7,7 @@ Versions are listed newest first.
 ## Unreleased
 
 - Elegant overlay supports GNOME Wayland (45 through 50; 48.7 runtime-tested) through a companion Shell extension; see [GNOME Elegant overlay](docs/gnome-overlay.md) (Chinese). Appearance and animations are unchanged; Native overlay still does not support GNOME Wayland.
+- Taller overlay panels show more chat: the overlay takes up to the latest 100 messages, still bounded by the main list's limit, and Elegant overlay's Visible messages limit rises to 100.
 
 ## [v0.4.5]!: 2026-10-27
 
