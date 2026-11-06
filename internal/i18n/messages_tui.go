@@ -5,6 +5,7 @@ const (
 	TUISessionOverride                 Key = "tui.session_override"
 	TUIAccountSignedOut                Key = "tui.account.signed_out"
 	TUIAccountsTitle                   Key = "tui.accounts.title"
+	TUIUpdateAvailable                 Key = "tui.update_available"
 	TUIConfirmCancelLabel              Key = "tui.confirm.cancel_label"
 	TUIConfirmControls                 Key = "tui.confirm.controls"
 	TUIConfirmDisconnectOBS            Key = "tui.confirm.disconnect_obs"

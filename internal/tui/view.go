@@ -118,6 +118,9 @@ func (m *Model) workspaceHeader(width int) string {
 			m.showcaseSeparator(width))
 	}
 	brand := m.theme.accent.Render("Arcana") + m.theme.textStyle.Bold(true).Render(" WORLD")
+	if hint := m.updateHint(); hint != "" {
+		brand += "  " + hint
+	}
 	left := ansi.Truncate(brand, leftWidth, "…")
 	if m.height >= 10 {
 		left = lipgloss.JoinVertical(lipgloss.Left, left, account)

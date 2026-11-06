@@ -5,6 +5,7 @@
   "tui.session_override": "此设置已由命令行选项固定，仅对本次会话生效；已保存的设置不变。",
   "tui.account.signed_out": "未登录",
   "tui.accounts.title": "账号管理",
+  "tui.update_available": "↑ 新版本 %s",
   "tui.confirm.cancel_label": " 取消 ",
   "tui.confirm.controls": "↑ ↓ / Tab 选择 · Enter 确认 · Esc 返回",
   "tui.confirm.disconnect_obs": "断开 OBS 控制连接？不会停止正在进行的推流。",

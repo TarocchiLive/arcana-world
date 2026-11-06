@@ -8,6 +8,7 @@ Versions are listed newest first.
 
 - Elegant overlay supports GNOME Wayland (45 through 50; 48.7 runtime-tested) through a companion Shell extension; see [GNOME Elegant overlay](docs/gnome-overlay.md) (Chinese). Appearance and animations are unchanged; Native overlay still does not support GNOME Wayland.
 - Taller overlay panels show more chat: the overlay takes up to the latest 100 messages, still bounded by the main list's limit, and Elegant overlay's Visible messages limit rises to 100.
+- The terminal UI and WebUI check for updates in the background at startup and show a short hint next to the title when a newer stable release is out; in WebUI, click the hint to open the release page. A failed check does not affect anything else.
 
 ## [v0.4.5]!: 2026-10-27
 

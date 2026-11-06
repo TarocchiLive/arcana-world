@@ -349,6 +349,9 @@ func (m *Model) webSnapshot(page string) webui.Snapshot {
 			Warning:  m.notification.warning,
 		}
 	}
+	if m.newRelease.version != "" {
+		s.Update = &webui.Update{Text: fmt.Sprintf(i18n.T(i18n.TUIUpdateAvailable), m.newRelease.version), URL: m.newRelease.url}
+	}
 	if page == "outputs" {
 		provider := m.ttsProvider()
 		s.TTSSettingsTitle = i18n.T(provider.SettingsTitle)

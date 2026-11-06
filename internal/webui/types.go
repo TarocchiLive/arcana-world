@@ -18,6 +18,7 @@ type Snapshot struct {
 	Status           string        `json:"status"`
 	Warning          bool          `json:"warning"`
 	Notification     *Notification `json:"notification,omitempty"`
+	Update           *Update       `json:"update,omitempty"`
 	Account          string        `json:"account"`
 	AccountUID       string        `json:"accountUID"`
 	Room             *Room         `json:"room,omitempty"`
@@ -45,6 +46,12 @@ type Notification struct {
 	Revision uint64 `json:"revision"`
 	Text     string `json:"text"`
 	Warning  bool   `json:"warning"`
+}
+
+// Update 是标题旁的新版本提示及发布页。
+type Update struct {
+	Text string `json:"text"`
+	URL  string `json:"url"`
 }
 
 type Room struct {

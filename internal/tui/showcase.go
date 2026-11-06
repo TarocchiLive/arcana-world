@@ -72,8 +72,12 @@ func (m *Model) refreshShowcaseFrame() {
 
 // 小标题与宽字标形成层级；字形保持静止，仅细分隔线承载流光。
 func (m *Model) wordmark() string {
+	title := m.theme.accent.Render("Arcana")
+	if hint := m.updateHint(); hint != "" {
+		title += "  " + hint
+	}
 	return lipgloss.JoinVertical(lipgloss.Left,
-		m.theme.accent.Render("Arcana"),
+		title,
 		m.theme.textStyle.Render("╷   ╷  ╭───╮  ╭───╮  ╷      ┌───╮"),
 		m.theme.textStyle.Render("│ ╷ │  │   │  ├─┬─╯  │      │   │"),
 		m.theme.textStyle.Render("╰─┴─╯  ╰───╯  ╵ ╰─╴  ╰───╴  └───╯"))

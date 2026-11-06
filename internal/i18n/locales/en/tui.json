@@ -5,6 +5,7 @@
   "tui.session_override": "This setting is fixed by a command-line option for this session; saved settings are unchanged.",
   "tui.account.signed_out": "Not signed in",
   "tui.accounts.title": "Account management",
+  "tui.update_available": "↑ %s available",
   "tui.confirm.cancel_label": " Cancel ",
   "tui.confirm.controls": "↑ ↓ / Tab Select · Enter Confirm · Esc Back",
   "tui.confirm.disconnect_obs": "Disconnect OBS control? Active streaming will not stop.",

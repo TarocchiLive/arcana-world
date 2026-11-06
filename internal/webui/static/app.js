@@ -536,6 +536,13 @@
     obs.dataset.command = state?.obs ? "obs-disconnect-confirm" : "obs-connect";
     obs.dataset.disabled = String(!!state?.obsConnecting);
     obs.onclick = () => command(obs.dataset.command);
+    const update = $("update-hint");
+    const release = state?.update;
+    update.hidden = !release;
+    if (release) {
+      if (update.textContent !== release.text) update.textContent = release.text;
+      if (update.getAttribute("href") !== release.url) update.href = release.url;
+    }
     const host = $("notifications");
     const parent = $("confirm").open
       ? $("confirm")

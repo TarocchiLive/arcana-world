@@ -367,6 +367,24 @@ input[type="search"] {
   background: var(--sidebar);
   overflow: auto;
 }
+.brand-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.update-hint {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--wait-soft);
+  color: var(--wait);
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.update-hint:hover {
+  text-decoration: underline;
+}
 .brand {
   display: flex;
   align-items: center;
@@ -2025,11 +2043,14 @@ button.choice[aria-pressed="true"] {
   .sidebar {
     display: contents;
   }
-  .brand {
+  .brand-row {
     grid-area: brand;
     padding: 10px 14px;
     border-bottom: 1px solid var(--border);
     background: var(--sidebar);
+  }
+  .brand {
+    padding: 0;
   }
   .sidebar-foot {
     grid-area: foot;

@@ -14,6 +14,7 @@ import (
 	"arcana-world/internal/bili"
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/store"
+	"arcana-world/internal/tui"
 
 	"golang.org/x/mod/semver"
 )
@@ -35,57 +36,14 @@ func runUpdateCheck(ctx context.Context, out io.Writer, dir string, options stor
 	if options.Overrides.Proxy != nil {
 		proxy = *options.Overrides.Proxy
 	}
-	client, err := bili.New(proxy, "")
+	latest, page, err := latestRelease(ctx, current, proxy)
 	if err != nil {
 		return err
-	}
-	defer client.HTTP.CloseIdleConnections()
-	// 固定查询官方仓库；不跟随重定向到其他主机，也不携带账号凭据。
-	client.HTTP.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, latestReleaseURL, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	req.Header.Set("User-Agent", "arcana-world/"+current)
-	response, err := client.HTTP.Do(req)
-	if err != nil {
-		return updateNetworkError(ctx)
-	}
-	defer response.Body.Close()
-	switch response.StatusCode {
-	case http.StatusOK:
-	case http.StatusForbidden, http.StatusTooManyRequests:
-		return errors.New(i18n.T(i18n.CLIUpdateAccessLimited))
-	case http.StatusNotFound:
-		return errors.New(i18n.T(i18n.CLIUpdateNotFound))
-	default:
-		return fmt.Errorf(i18n.T(i18n.CLIUpdateHTTPFailed), response.StatusCode)
-	}
-	const maxReleaseSize = 1 << 20
-	body, err := io.ReadAll(io.LimitReader(response.Body, maxReleaseSize+1))
-	if err != nil {
-		return updateNetworkError(ctx)
-	}
-	var release struct {
-		Tag        string `json:"tag_name"`
-		Draft      bool   `json:"draft"`
-		Prerelease bool   `json:"prerelease"`
-	}
-	if len(body) > maxReleaseSize || json.Unmarshal(body, &release) != nil {
-		return errors.New(i18n.T(i18n.CLIUpdateResponseInvalid))
-	}
-	latest := "v" + strings.TrimPrefix(release.Tag, "v")
-	if !semver.IsValid(latest) || release.Draft || release.Prerelease || semver.Prerelease(latest) != "" {
-		return errors.New(i18n.T(i18n.CLIUpdateResponseInvalid))
 	}
 	var message string
 	switch semver.Compare(current, latest) {
 	case -1:
-		message = fmt.Sprintf(i18n.T(i18n.CLIUpdateAvailable), current, latest, releasePageURL+"/tag/"+url.PathEscape(release.Tag))
+		message = fmt.Sprintf(i18n.T(i18n.CLIUpdateAvailable), current, latest, page)
 	case 0:
 		message = fmt.Sprintf(i18n.T(i18n.CLIUpdateCurrent), current, latest)
 	case 1:
@@ -96,6 +54,73 @@ func runUpdateCheck(ctx context.Context, out io.Writer, dir string, options stor
 	}
 	_, err = fmt.Fprintln(out, message)
 	return err
+}
+
+// startupUpdateCheck 供界面启动时后台检查；仅在存在更高稳定版时返回版本号与发布页。
+func startupUpdateCheck(proxy string) tui.UpdateCheck {
+	return func(ctx context.Context) (string, string, error) {
+		current := "v" + strings.TrimPrefix(version, "v")
+		if !semver.IsValid(current) {
+			return "", "", fmt.Errorf(i18n.T(i18n.CLIUpdateVersionInvalid), version)
+		}
+		latest, page, err := latestRelease(ctx, current, proxy)
+		if err != nil || semver.Compare(current, latest) >= 0 {
+			return "", "", err
+		}
+		return latest, page, nil
+	}
+}
+
+// latestRelease 查询官方仓库的最新稳定版，返回规范化版本号与对应发布页。
+func latestRelease(ctx context.Context, current, proxy string) (string, string, error) {
+	client, err := bili.New(proxy, "")
+	if err != nil {
+		return "", "", err
+	}
+	defer client.HTTP.CloseIdleConnections()
+	// 固定查询官方仓库；不跟随重定向到其他主机，也不携带账号凭据。
+	client.HTTP.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, latestReleaseURL, nil)
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("User-Agent", "arcana-world/"+current)
+	response, err := client.HTTP.Do(req)
+	if err != nil {
+		return "", "", updateNetworkError(ctx)
+	}
+	defer response.Body.Close()
+	switch response.StatusCode {
+	case http.StatusOK:
+	case http.StatusForbidden, http.StatusTooManyRequests:
+		return "", "", errors.New(i18n.T(i18n.CLIUpdateAccessLimited))
+	case http.StatusNotFound:
+		return "", "", errors.New(i18n.T(i18n.CLIUpdateNotFound))
+	default:
+		return "", "", fmt.Errorf(i18n.T(i18n.CLIUpdateHTTPFailed), response.StatusCode)
+	}
+	const maxReleaseSize = 1 << 20
+	body, err := io.ReadAll(io.LimitReader(response.Body, maxReleaseSize+1))
+	if err != nil {
+		return "", "", updateNetworkError(ctx)
+	}
+	var release struct {
+		Tag        string `json:"tag_name"`
+		Draft      bool   `json:"draft"`
+		Prerelease bool   `json:"prerelease"`
+	}
+	if len(body) > maxReleaseSize || json.Unmarshal(body, &release) != nil {
+		return "", "", errors.New(i18n.T(i18n.CLIUpdateResponseInvalid))
+	}
+	latest := "v" + strings.TrimPrefix(release.Tag, "v")
+	if !semver.IsValid(latest) || release.Draft || release.Prerelease || semver.Prerelease(latest) != "" {
+		return "", "", errors.New(i18n.T(i18n.CLIUpdateResponseInvalid))
+	}
+	return latest, releasePageURL + "/tag/" + url.PathEscape(release.Tag), nil
 }
 
 func updateNetworkError(ctx context.Context) error {
