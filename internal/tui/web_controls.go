@@ -309,6 +309,10 @@ var webSessionActions = []string{"start-confirm", "stop-confirm", "refresh", "ob
 func (m *Model) webAction(page, action string) (tea.Cmd, error) {
 	allowed := slices.Contains(webSessionActions, action)
 	switch page {
+	case "help":
+		if action == "check-update" {
+			return m.checkUpdate(true), nil
+		}
 	case "studio":
 		allowed = allowed || slices.Contains([]string{"areas", "cover", "delay"}, action)
 	case "outputs":

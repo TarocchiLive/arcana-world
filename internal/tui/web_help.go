@@ -1,12 +1,14 @@
 package tui
 
 import (
+	"fmt"
+
 	"arcana-world/internal/i18n"
 	"arcana-world/internal/webui"
 )
 
 // 帮助是独立页面的数据，不创建交互模式，也不阻塞直播操作。
-func webHelpArticles() []webui.HelpArticle {
+func (m *Model) webHelpArticles() []webui.HelpArticle {
 	topics := [...]struct {
 		id                   string
 		title, summary, body i18n.Key
@@ -20,9 +22,17 @@ func webHelpArticles() []webui.HelpArticle {
 		{"privacy", i18n.WebHelpPrivacyTitle, i18n.WebHelpPrivacySummary, i18n.WebHelpPrivacyBody},
 		{"troubleshooting", i18n.WebHelpTroubleshootingTitle, i18n.WebHelpTroubleshootingSummary, i18n.WebHelpTroubleshootingBody},
 	}
-	articles := make([]webui.HelpArticle, 0, len(topics))
+	articles := make([]webui.HelpArticle, 0, len(topics)+1)
 	for _, topic := range topics {
 		articles = append(articles, webui.HelpArticle{ID: topic.id, Title: i18n.T(topic.title), Summary: i18n.T(topic.summary), Body: i18n.T(topic.body)})
 	}
+	articles = append(articles, webui.HelpArticle{
+		ID:          "about",
+		Title:       i18n.T(i18n.WebHelpAboutTitle),
+		Summary:     i18n.T(i18n.WebHelpAboutSummary),
+		Body:        fmt.Sprintf(i18n.T(i18n.WebHelpAboutBody), m.versionLabel()),
+		Action:      "check-update",
+		ActionLabel: i18n.T(i18n.WebHelpAboutCheck),
+	})
 	return articles
 }

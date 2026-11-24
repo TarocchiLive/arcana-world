@@ -93,10 +93,12 @@ type Account struct {
 }
 
 type HelpArticle struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Summary string `json:"summary"`
-	Body    string `json:"body"`
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Summary     string `json:"summary"`
+	Body        string `json:"body"`
+	Action      string `json:"action,omitempty"`
+	ActionLabel string `json:"actionLabel,omitempty"`
 }
 
 type Message struct {

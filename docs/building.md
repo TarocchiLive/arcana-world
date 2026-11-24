@@ -11,6 +11,7 @@
 | 命令 | 产物 | 说明 |
 | --- | --- | --- |
 | `make build` | `bin/arcana-world`（Windows 为 `bin/arcana-world.exe`，同时生成 `bin/arcana-world-webui.exe`） | 只构建终端主程序，不依赖 CGO，不需要图形或语音依赖 |
+| `make build-all` | 主程序及各 helper 的程序文件，Qt 浮层另含 `libawqt` 桥接库 | 只编译全部程序，不部署第三方运行库、许可证和 Qt 插件；需要对应的原生工具链，产物可能无法直接运行 |
 | `make overlay` | `bin/libexec/arcana-world-overlay-native` | 原生浮层 helper |
 | `make overlay-qt` | Linux、Windows：`bin/libexec/arcana-world-overlay-qt`；macOS：`bin/libexec/Arcana World Elegant Overlay.app/Contents/MacOS/arcana-world-overlay-qt`；另含 Qt 运行库 | 精美浮层 helper，只能在目标系统本机构建 |
 | `make tts` | `bin/libexec/arcana-world-tts` 及语音运行库 | 语音 helper |

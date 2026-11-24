@@ -316,6 +316,9 @@ func runArgs(args []string) (err error) {
 	if err := model.ConfigureOverlay(overlay.Options{Executable: *overlayExecutable, Config: cfg.Overlay.Config("")}, effectiveOverlay); err != nil {
 		return err
 	}
+	if err := model.ConfigureVersion(version); err != nil {
+		return err
+	}
 	if err := model.ConfigureUpdateCheck(startupUpdateCheck(cfg.Proxy)); err != nil {
 		return err
 	}

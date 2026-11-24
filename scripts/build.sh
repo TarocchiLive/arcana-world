@@ -3,9 +3,10 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/build.sh [build|webui|overlay|overlay-qt|tts|rtmpsrt|desktop|desktop-native]
+Usage: bash scripts/build.sh [build|build-all|webui|overlay|overlay-qt|tts|rtmpsrt|desktop|desktop-native]
 
 build           Build the standalone TUI (and the WebUI launcher on Windows).
+build-all       Compile every program without deploying runtime libraries, licenses or Qt dependencies.
 desktop         Build the TUI, speech helper, and both overlay backends.
 desktop-native  Build without Qt; remove Qt files owned by an earlier build.
 webui           Build the Windows-only WebUI launcher.
@@ -51,7 +52,7 @@ if (( $# > 1 )); then
 fi
 case "$target" in
   -h|--help) usage; exit 0 ;;
-  build|webui|overlay|overlay-qt|tts|rtmpsrt|desktop|desktop-native) ;;
+  build|build-all|webui|overlay|overlay-qt|tts|rtmpsrt|desktop|desktop-native) ;;
   *) usage >&2; exit 2 ;;
 esac
 if [[ -n "${BUILD_JOBS:-}" && ! "$BUILD_JOBS" =~ ^[1-9][0-9]*$ ]]; then
@@ -100,7 +101,7 @@ require_native_qt() {
 
 # 子 shell 隔离链接搜索路径；所有 Qt 输入先构建到私有目录，部署成功后再发布。
 build_qt() (
-  local build_dir install_dir stage_dir native_stage_dir qt_ldflags
+  local deploy="${1:-deploy}" build_dir install_dir stage_dir native_stage_dir qt_ldflags
   mkdir -p "$out_dir/.overlay-qt-build"
   build_dir="$(cd "$out_dir/.overlay-qt-build" && pwd -P)"
   install_dir="$(cd "$out_dir" && pwd -P)/libexec"
@@ -129,18 +130,34 @@ build_qt() (
   CGO_ENABLED=1 CGO_LDFLAGS="${CGO_LDFLAGS:-} \"-L$native_stage_dir\"" \
     go build -tags qt -trimpath -buildvcs=false -ldflags="$qt_ldflags" \
     -o "$native_stage_dir/arcana-world-overlay-qt$suffix" ./cmd/arcana-world-overlay
-  python3 scripts/deploy-qt.py "$stage_dir" "$install_dir"
+  if [[ "$deploy" == deploy ]]; then
+    python3 scripts/deploy-qt.py "$stage_dir" "$install_dir"
+    return
+  fi
+  # 编译目标只发布程序文件和本项目构建的 Qt 桥接库；第三方运行库、插件和许可证由部署目标补齐。
+  mkdir -p "$install_dir"
+  cp "$stage_dir/arcana-world-overlay-qt$suffix" "$install_dir/"
+  for library in "$stage_dir"/libawqt.so* "$stage_dir"/libawqt.dylib "$stage_dir"/awqt.dll; do
+    [[ -e "$library" ]] || continue
+    cp "$library" "$install_dir/"
+  done
 )
 
 # Linux 原生后端也必须独立收集运行库，不能借用上一轮 Qt 部署的副本。
 build_native_linux() (
-  local stage_dir install_dir
+  local mode="${1:-deploy}" stage_dir install_dir
   if [[ "$GOOS" != "$(go env GOHOSTOS)" || "$GOARCH" != "$(go env GOHOSTARCH)" ]]; then
     echo 'Linux portable overlay requires a matching Linux host and architecture.' >&2
     exit 2
   fi
   mkdir -p "$out_dir"
   install_dir="$(cd "$out_dir" && pwd -P)/libexec"
+  if [[ "$mode" == compile ]]; then
+    mkdir -p "$install_dir"
+    CGO_ENABLED=1 go build -tags "$overlay_tags" -trimpath -buildvcs=false \
+      -ldflags="$ldflags" -o "$install_dir/arcana-world-overlay-native" ./cmd/arcana-world-overlay
+    return
+  fi
   stage_dir="$(mktemp -d "$out_dir/.overlay-native-stage.XXXXXX")"
   trap 'rm -rf -- "$stage_dir"' EXIT
   CGO_ENABLED=1 go build -tags "$overlay_tags" -trimpath -buildvcs=false \
@@ -150,6 +167,7 @@ build_native_linux() (
 
 # 所有受支持目标均使用固定版本的 WebGPU 原生运行库。
 build_tts() (
+  local deploy="${1:-deploy}" stage_dir native_dir status=0
   if [[ "$GOOS" != "$(go env GOHOSTOS)" || "$GOARCH" != "$(go env GOHOSTARCH)" ]]; then
     echo 'TTS packaging requires a matching native host/toolchain.' >&2
     exit 2
@@ -159,7 +177,6 @@ build_tts() (
   if [[ "$GOOS" == windows ]]; then
     export CGO_LDFLAGS="${CGO_LDFLAGS:-} -static-libgcc"
   fi
-  local stage_dir native_dir status=0
   mkdir -p "$out_dir"
   stage_dir="$(mktemp -d "$out_dir/.tts-stage.XXXXXX")"
   trap 'rm -rf -- "$stage_dir"' EXIT
@@ -176,17 +193,31 @@ build_tts() (
   export TTS_NATIVE_DIR="$stage_dir"
   CGO_ENABLED=1 go build -tags tts -trimpath -buildvcs=false \
     -ldflags="$ldflags" -o "$stage_dir/arcana-world-tts$suffix" ./cmd/arcana-world-tts
-  python3 scripts/deploy-tts.py "$stage_dir" "$out_dir/libexec" "$GOOS" "$GOARCH"
+  if [[ "$deploy" == deploy ]]; then
+    python3 scripts/deploy-tts.py "$stage_dir" "$out_dir/libexec" "$GOOS" "$GOARCH"
+    return
+  fi
+  # 编译目标只发布程序文件；运行库、模型和许可证由部署目标补齐。
+  mkdir -p "$out_dir/libexec"
+  cp "$stage_dir/arcana-world-tts$suffix" "$out_dir/libexec/"
 )
 
 build() {
   local component="$1" cgo tags='' output flags="$ldflags" command
   if [[ "$component" == tts ]]; then
-    build_tts
+    build_tts deploy
+    return
+  fi
+  if [[ "$component" == tts-compile ]]; then
+    build_tts compile
     return
   fi
   if [[ "$component" == overlay && "$GOOS" == linux ]]; then
-    build_native_linux
+    build_native_linux deploy
+    return
+  fi
+  if [[ "$component" == overlay-compile && "$GOOS" == linux ]]; then
+    build_native_linux compile
     return
   fi
   case "$component" in
@@ -198,7 +229,7 @@ build() {
       cgo=0; command=arcana-world-webui
       output=arcana-world-webui.exe
       ;;
-    overlay)
+    overlay|overlay-compile)
       cgo="$overlay_cgo"; tags="$overlay_tags"; command=arcana-world-overlay
       output="libexec/arcana-world-overlay-native$suffix"
       ;;
@@ -214,7 +245,7 @@ build() {
 
 # 完整桌面包在构建主程序前检查 Qt 平台，避免失败后留下半套新程序。
 case "$target" in
-  desktop|overlay-qt) require_native_qt ;;
+  desktop|overlay-qt|build-all) require_native_qt ;;
   webui)
     if [[ "$GOOS" != windows ]]; then
       echo 'webui: the launcher is Windows-only' >&2
@@ -236,7 +267,13 @@ case "$target" in
     fi
     python3 scripts/deploy-srt.py "$out_dir"
     ;;
-  overlay-qt) build_qt ;;
+  overlay-qt) build_qt deploy ;;
+  build-all)
+    build build
+    build overlay-compile
+    build_qt compile
+    build tts-compile
+    ;;
   desktop|desktop-native)
     build build
     build overlay

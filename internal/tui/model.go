@@ -165,7 +165,9 @@ type Model struct {
 	websocketAddr            string
 	websocketSessionEnabled  bool
 	updateCheck              UpdateCheck
-	newRelease               updateAvailableMsg
+	updateChecking           bool
+	version                  string
+	newRelease               UpdateResult
 }
 
 // New 接管已锁定数据目录的日志；初始化失败或模型关闭时释放。
@@ -206,7 +208,7 @@ func (m *Model) Init() tea.Cmd {
 		return nil
 	}
 	m.initialized = true
-	cmds := []tea.Cmd{m.watchOBS(), chatTickCmd(), m.checkUpdate()}
+	cmds := []tea.Cmd{m.watchOBS(), chatTickCmd(), m.checkUpdate(false)}
 	if !m.web.enabled {
 		cmds = append(cmds, tea.RequestBackgroundColor, m.syncShowcase(), m.notificationCommand(), m.pointerCommand(), m.initInlineImage())
 	}
@@ -438,9 +440,8 @@ func (m *Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	case audienceMsg:
 		m.applyAudience(msg)
 		return m, nil
-	case updateAvailableMsg:
-		m.newRelease = msg
-		return m, nil
+	case updateCheckResultMsg:
+		return m, m.handleUpdateCheckResult(msg)
 	case notificationExpired:
 		return m, m.updateNotification(msg)
 	case tea.BackgroundColorMsg:
