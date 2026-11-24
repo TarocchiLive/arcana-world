@@ -71,6 +71,8 @@ func (m *Model) menu() []menuItem {
 			{i18n.T(i18n.TUIHelpTTSTitle), "help:" + string(i18n.TUIHelpTTS)},
 			{i18n.T(i18n.TUIHelpOutputTemplatesTitle), "help:" + string(i18n.TUIHelpOutputTemplates)},
 			{i18n.T(i18n.TUIHelpControlsTitle), "help:" + string(i18n.TUIHelpControls)},
+			{i18n.T(i18n.TUIHelpAboutTitle), "help:" + fmt.Sprintf(i18n.T(i18n.TUIHelpAbout), m.versionLabel())},
+			{i18n.T(i18n.TUIUpdateCheckMenu), "check-update"},
 		}
 	}
 	return nil
@@ -111,6 +113,9 @@ func (m *Model) perform(action string) tea.Cmd {
 	}
 	if action == "moderation-apply" {
 		return m.applyModeration()
+	}
+	if action == "check-update" {
+		return m.checkUpdate(true)
 	}
 	if strings.HasPrefix(action, "help:") {
 		// 保留帮助目录的光标，返回时仍选中刚才阅读的主题。

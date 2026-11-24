@@ -1,4 +1,4 @@
-.PHONY: build webui overlay overlay-qt tts desktop desktop-native run check clean
+.PHONY: build build-all webui overlay overlay-qt tts desktop desktop-native run check clean
 
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
@@ -7,7 +7,8 @@ OUT_DIR ?= bin
 BUILD = GOOS="$(GOOS)" GOARCH="$(GOARCH)" VERSION="$(VERSION)" OUT_DIR="$(OUT_DIR)" bash scripts/build.sh
 
 # 默认构建保留独立且不依赖 CGO 的主程序；Windows 同时提供显式 WebUI 启动器。
-build webui overlay overlay-qt tts desktop desktop-native:
+# build-all 只编译全部程序，不部署运行库、许可证或 Qt 依赖。
+build build-all webui overlay overlay-qt tts desktop desktop-native:
 	$(BUILD) $@
 
 run:

@@ -22,4 +22,8 @@ const (
 	WebHelpTroubleshootingTitle   Key = "web.help.troubleshooting.title"
 	WebHelpTroubleshootingSummary Key = "web.help.troubleshooting.summary"
 	WebHelpTroubleshootingBody    Key = "web.help.troubleshooting.body"
+	WebHelpAboutTitle             Key = "web.help.about.title"
+	WebHelpAboutSummary           Key = "web.help.about.summary"
+	WebHelpAboutBody              Key = "web.help.about.body"
+	WebHelpAboutCheck             Key = "web.help.about.check"
 )

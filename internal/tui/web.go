@@ -349,8 +349,8 @@ func (m *Model) webSnapshot(page string) webui.Snapshot {
 			Warning:  m.notification.warning,
 		}
 	}
-	if m.newRelease.version != "" {
-		s.Update = &webui.Update{Text: fmt.Sprintf(i18n.T(i18n.TUIUpdateAvailable), m.newRelease.version), URL: m.newRelease.url}
+	if m.newRelease.Latest != "" {
+		s.Update = &webui.Update{Text: fmt.Sprintf(i18n.T(i18n.TUIUpdateAvailable), m.newRelease.Latest), URL: m.newRelease.URL}
 	}
 	if page == "outputs" {
 		provider := m.ttsProvider()
@@ -411,7 +411,7 @@ func (m *Model) webSnapshot(page string) webui.Snapshot {
 			s.Accounts = append(s.Accounts, webui.Account{UID: a.UID, Name: m.webText(a.Name), Active: a.UID == s.AccountUID})
 		}
 	case "help":
-		s.Help = webHelpArticles()
+		s.Help = m.webHelpArticles()
 	case "settings":
 		for _, line := range m.logs {
 			s.Logs = append(s.Logs, m.webText(line))

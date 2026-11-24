@@ -2114,6 +2114,9 @@
         node("p", "summary", active.summary),
         node("div", "article-body", active.body),
       );
+      if (active.action) {
+        article.append(actionRow(button(active.actionLabel, active.action, "small")));
+      }
     } else
       article.append(
         node("h2", "", t("No matching topics", "没有匹配的主题")),

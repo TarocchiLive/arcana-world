@@ -56,18 +56,18 @@ func runUpdateCheck(ctx context.Context, out io.Writer, dir string, options stor
 	return err
 }
 
-// startupUpdateCheck 供界面启动时后台检查；仅在存在更高稳定版时返回版本号与发布页。
+// startupUpdateCheck 供界面启动和手动检查；返回最新稳定版及与当前版本的比较。
 func startupUpdateCheck(proxy string) tui.UpdateCheck {
-	return func(ctx context.Context) (string, string, error) {
+	return func(ctx context.Context) (tui.UpdateResult, error) {
 		current := "v" + strings.TrimPrefix(version, "v")
 		if !semver.IsValid(current) {
-			return "", "", fmt.Errorf(i18n.T(i18n.CLIUpdateVersionInvalid), version)
+			return tui.UpdateResult{}, fmt.Errorf(i18n.T(i18n.CLIUpdateVersionInvalid), version)
 		}
 		latest, page, err := latestRelease(ctx, current, proxy)
-		if err != nil || semver.Compare(current, latest) >= 0 {
-			return "", "", err
+		if err != nil {
+			return tui.UpdateResult{}, err
 		}
-		return latest, page, nil
+		return tui.UpdateResult{Latest: latest, URL: page, Newer: semver.Compare(current, latest) < 0}, nil
 	}
 }
 
